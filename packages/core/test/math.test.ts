@@ -105,3 +105,48 @@ describe('TransformN', () => {
     expect(composed.equalsApprox(sequential, 1e-13)).toBe(true);
   });
 });
+
+describe('TransformN with Rotor4 backend', () => {
+  it('rotor-backed transform matches the equivalent matrix-backed one', async () => {
+    const { Rotor4, rotationFromPlanes: rfp } = await import('@holotope/core');
+    const planes = [
+      { i: 0, j: 3, angle: 0.7 },
+      { i: 1, j: 2, angle: -0.4 }
+    ];
+    const viaRotor = new TransformN(4, Rotor4.fromPlanes(planes), new VecN([1, 2, 3, 4]));
+    const viaMatrix = new TransformN(4, rfp(4, planes), new VecN([1, 2, 3, 4]));
+    const p = new VecN([0.5, -1.5, 2.5, -0.5]);
+    expect(viaRotor.applyToPoint(p).equalsApprox(viaMatrix.applyToPoint(p), 1e-12)).toBe(true);
+
+    const count = 5;
+    const src = new Float64Array(count * 4).map(() => Math.random() * 2 - 1);
+    const a = new Float64Array(count * 4);
+    const b = new Float64Array(count * 4);
+    viaRotor.applyToPositions(src, a, count);
+    viaMatrix.applyToPositions(src, b, count);
+    for (let k = 0; k < src.length; k++) expect(a[k]!).toBeCloseTo(b[k]!, 12);
+  });
+
+  it('composes rotor+rotor, matrix+matrix, and mixed identically', async () => {
+    const { Rotor4, rotationMatrix } = await import('@holotope/core');
+    const r1 = Rotor4.fromPlane(0, 3, 0.9);
+    const r2 = Rotor4.fromPlane(1, 2, -1.1);
+    const t1r = new TransformN(4, r1, new VecN([1, 0, -1, 2]));
+    const t2r = new TransformN(4, r2, new VecN([0, 3, 0, -2]));
+    const t1m = new TransformN(4, r1.toMatrix(), t1r.position.clone());
+    const t2m = new TransformN(4, r2.toMatrix(), t2r.position.clone());
+
+    const p = new VecN([0.3, 0.7, -0.9, 1.3]);
+    const expected = t1m.compose(t2m).applyToPoint(p);
+    for (const composed of [t1r.compose(t2r), t1r.compose(t2m), t1m.compose(t2r)]) {
+      expect(composed.applyToPoint(p).equalsApprox(expected, 1e-12)).toBe(true);
+    }
+    // rotor+rotor composition stays on the rotor fast path
+    expect(rotationMatrix(t1r.compose(t2r).rotation).orthogonalityError()).toBeLessThan(1e-13);
+  });
+
+  it('rejects a Rotor4 rotation for non-4D transforms', async () => {
+    const { Rotor4 } = await import('@holotope/core');
+    expect(() => new TransformN(5, Rotor4.identity())).toThrow(/dimension mismatch/);
+  });
+});
