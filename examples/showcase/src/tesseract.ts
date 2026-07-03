@@ -11,12 +11,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   HyperplaneSlice4,
   PerspectiveProjection,
+  Rotor4,
   TransformN,
   createHypercube,
-  rotationFromPlanes,
   tetrahedralizeCuboidCells
 } from '@holotope/core';
-import { ProjectedEdges3D, SlicedComplex3D } from '@holotope/three';
+import { DragRotation4D, ProjectedEdges3D, SlicedComplex3D } from '@holotope/three';
 
 const container = document.getElementById('app')!;
 
@@ -33,6 +33,10 @@ container.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+
+// Alt-drag rotates the object through 4D planes the camera can't reach
+// (xw horizontally, yw vertically); plain drag stays a 3D orbit.
+const drag4d = new DragRotation4D().attach(renderer.domElement);
 
 scene.add(new AmbientLight(0xffffff, 0.45));
 const sun = new DirectionalLight(0xffffff, 2.2);
@@ -99,13 +103,18 @@ renderer.setAnimationLoop((timeMs) => {
   xwAngle += dt * xwSpeed;
   yzAngle += dt * yzSpeed;
 
-  const transform = new TransformN(
-    4,
-    rotationFromPlanes(4, [
+  // Pause the 3D orbit while a 4D drag gesture is active.
+  controls.enabled = !drag4d.active;
+
+  // User 4D rotation composed on top of the auto-rotation, all on the
+  // Rotor4 fast path.
+  const rotation = drag4d.rotor.multiply(
+    Rotor4.fromPlanes([
       { i: 0, j: 3, angle: xwAngle }, // xw
       { i: 1, j: 2, angle: yzAngle } // yz
     ])
   );
+  const transform = new TransformN(4, rotation);
   wireframe.update(transform);
   section.update(transform);
   controls.update();

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Showcase</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #0a0a12;
+        color: #8fa3c8;
+        font: 15px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 48px 24px 64px;
+      }
+      h1 {
+        color: #d7e3ff;
+        font-size: 28px;
+        margin: 0 0 4px;
+      }
+      .tagline {
+        margin: 0 0 8px;
+      }
+      .links {
+        margin: 0 0 36px;
+        font-size: 13px;
+      }
+      a {
+        color: #7fd4ff;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        display: block;
+        padding: 18px 20px;
+        background: rgba(16, 18, 30, 0.85);
+        border: 1px solid #26304a;
+        border-radius: 10px;
+        transition: border-color 0.15s ease;
+      }
+      .card:hover {
+        border-color: #7fd4ff;
+        text-decoration: none;
+      }
+      .card h2 {
+        color: #d7e3ff;
+        font-size: 16px;
+        margin: 0 0 6px;
+      }
+      .card p {
+        margin: 0 0 10px;
+        font-size: 13px;
+        color: #8fa3c8;
+      }
+      .tags {
+        font-size: 11px;
+        color: #5c6f96;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Holotope.js</h1>
+      <p class="tagline">N-dimensional geometry for TypeScript.</p>
+      <p class="links"><a href="https://github.com/nikilp/holotope.js">GitHub</a></p>
+
+      <div class="grid">
+        <a class="card" href="./tesseract.html">
+          <h2>Tesseract — projection &amp; cross-section</h2>
+          <p>
+            One 4D object, two render products: a perspective-projected wireframe and the exact
+            cross-section where the tesseract meets a hyperplane. Alt-drag to rotate it through
+            the fourth dimension.
+          </p>
+          <span class="tags">ProjectedEdges3D · SlicedComplex3D · Rotor4 · DragRotation4D</span>
+        </a>
+      </div>
+    </main>
+  </body>
+</html>

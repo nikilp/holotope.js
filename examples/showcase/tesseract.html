@@ -28,6 +28,11 @@
       #hud strong {
         color: #d7e3ff;
       }
+      #hud a {
+        color: #7fd4ff;
+        text-decoration: none;
+        pointer-events: auto;
+      }
       #controls {
         position: fixed;
         top: 12px;
@@ -69,7 +74,8 @@
       <strong>Holotope.js</strong> — one tesseract, two render products.<br />
       Left: 4D→3D perspective projection (wireframe).<br />
       Right: exact cross-section at the w = offset hyperplane.<br />
-      Drag to orbit · scroll to zoom.
+      Drag to orbit · scroll to zoom · <strong>alt-drag to rotate in 4D</strong> (xw / yw).<br />
+      <a href="./index.html">← all examples</a>
     </div>
     <div id="controls">
       <label>slice w <input id="sliceOffset" type="range" min="-1.6" max="1.6" step="0.01" value="0" /> <span class="value" id="sliceOffsetValue">0.00</span></label>
@@ -80,6 +86,6 @@
       <label>wireframe <input id="showWireframe" type="checkbox" checked /></label>
       <label>cross-section <input id="showSlice" type="checkbox" checked /></label>
     </div>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/tesseract.ts"></script>
   </body>
 </html>
