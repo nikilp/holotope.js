@@ -12,14 +12,15 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
 
 ```
 @holotope/core          zero-dependency N-D kernel
-  ├─ math               VecN, MatN, plane rotations, TransformN
+  ├─ math               VecN, MatN, plane rotations, so(n) exp, Rotor4, TransformN
   ├─ geometry           CellComplex (N-D counterpart of a mesh), tetrahedralization
-  ├─ polytope           hypercube, simplex, cross-polytope builders
-  └─ projection         perspective/orthographic N→3, hyperplane slicing
+  ├─ polytope           hypercube, simplex, cross-polytope, 24-cell builders
+  └─ projection         CameraN, perspective/orthographic N→3, hyperplane slicing
 
 @holotope/three         three.js adapter (three as peer dependency)
   ├─ ProjectedEdges3D   render product: projected 1-skeleton as LineSegments
-  └─ SlicedComplex3D    render product: exact 4D cross-section as a Mesh
+  ├─ SlicedComplex3D    render product: exact 4D cross-section as a Mesh
+  └─ DragRotation4D     pointer controls for rotating through hidden planes
 ```
 
 A core correctness contract: **the n=3 specialization must reproduce ordinary three.js behavior.** The test suite verifies Holotope rotations and transforms against three.js `Matrix4` directly.
