@@ -1,0 +1,36 @@
+{
+  "name": "@holotope/core",
+  "version": "0.0.1",
+  "description": "N-dimensional geometry, transforms, polytopes, and projection for TypeScript.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./math": {
+      "types": "./dist/math/index.d.ts",
+      "import": "./dist/math/index.js"
+    },
+    "./geometry": {
+      "types": "./dist/geometry/index.d.ts",
+      "import": "./dist/geometry/index.js"
+    },
+    "./polytope": {
+      "types": "./dist/polytope/index.d.ts",
+      "import": "./dist/polytope/index.js"
+    },
+    "./projection": {
+      "types": "./dist/projection/index.d.ts",
+      "import": "./dist/projection/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": ["4d", "nd", "geometry", "polytope", "projection", "tesseract", "hypercube"]
+}
