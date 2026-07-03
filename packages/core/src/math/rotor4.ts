@@ -78,6 +78,14 @@ export class Rotor4 {
     return this;
   }
 
+  /** The inverse rotation (conjugates of both unit quaternions). */
+  conjugate(): Rotor4 {
+    return new Rotor4(
+      Float64Array.of(-this.left[0]!, -this.left[1]!, -this.left[2]!, this.left[3]!),
+      Float64Array.of(-this.right[0]!, -this.right[1]!, -this.right[2]!, this.right[3]!)
+    );
+  }
+
   applyToPoint(v: VecN, out?: VecN): VecN {
     assertSameDim(v.dim, 4);
     const result = out ?? new VecN(4);

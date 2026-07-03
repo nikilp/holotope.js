@@ -134,6 +134,35 @@ export class MatN {
     }
   }
 
+  /** Determinant via Gaussian elimination with partial pivoting. */
+  determinant(): number {
+    const n = this.n;
+    const a = this.data.slice();
+    let det = 1;
+    for (let col = 0; col < n; col++) {
+      let pivot = col;
+      for (let r = col + 1; r < n; r++) {
+        if (Math.abs(a[r * n + col]!) > Math.abs(a[pivot * n + col]!)) pivot = r;
+      }
+      if (a[pivot * n + col] === 0) return 0;
+      if (pivot !== col) {
+        for (let c = 0; c < n; c++) {
+          const tmp = a[col * n + c]!;
+          a[col * n + c] = a[pivot * n + c]!;
+          a[pivot * n + c] = tmp;
+        }
+        det = -det;
+      }
+      const d = a[col * n + col]!;
+      det *= d;
+      for (let r = col + 1; r < n; r++) {
+        const factor = a[r * n + col]! / d;
+        for (let c = col; c < n; c++) a[r * n + c]! -= factor * a[col * n + c]!;
+      }
+    }
+    return det;
+  }
+
   /** Max absolute entry of Mᵀ·M − I; ~0 for orthonormal matrices. */
   orthogonalityError(): number {
     const n = this.n;

@@ -59,6 +59,19 @@ export class TransformN {
     }
   }
 
+  /**
+   * The inverse rigid transform: `p ↦ R⁻¹ · (p − t)`. Assumes the rotation
+   * is orthonormal (matrix backend inverts by transpose).
+   */
+  inverse(): TransformN {
+    const rotation =
+      this.rotation instanceof Rotor4 ? this.rotation.conjugate() : this.rotation.transpose();
+    const negated = this.position.clone().multiplyScalar(-1);
+    const position =
+      rotation instanceof Rotor4 ? rotation.applyToPoint(negated) : rotation.applyTo(negated);
+    return new TransformN(this.dim, rotation, position);
+  }
+
   /** Returns `this ∘ child` (child applied first): parent-child composition. */
   compose(child: TransformN): TransformN {
     assertSameDim(this.dim, child.dim);
