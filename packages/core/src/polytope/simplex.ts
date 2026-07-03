@@ -54,13 +54,19 @@ export function createSimplex({ dim, edgeLength = 1 }: SimplexOptions): CellComp
     }
   }
 
-  // Every pair of vertices is an edge, every triple a triangular face.
+  // Every pair of vertices is an edge, every triple a triangular face,
+  // every 4-subset a tetrahedral 3-face (for dim = 4 these are the five
+  // boundary cells of the 5-cell).
   const edges: number[] = [];
   const triangles: number[] = [];
+  const tets: number[] = [];
   for (let a = 0; a < m; a++) {
     for (let b = a + 1; b < m; b++) {
       edges.push(a, b);
-      for (let c = b + 1; c < m; c++) triangles.push(a, b, c);
+      for (let c = b + 1; c < m; c++) {
+        triangles.push(a, b, c);
+        for (let d = c + 1; d < m; d++) tets.push(a, b, c, d);
+      }
     }
   }
 
@@ -73,6 +79,14 @@ export function createSimplex({ dim, edgeLength = 1 }: SimplexOptions): CellComp
       verticesPerCell: 3,
       kind: 'simplex',
       indices: Uint32Array.from(triangles)
+    });
+  }
+  if (dim >= 3) {
+    complex.addGroup({
+      dim: 3,
+      verticesPerCell: 4,
+      kind: 'simplex',
+      indices: Uint32Array.from(tets)
     });
   }
   return complex;

@@ -31,7 +31,37 @@ export function createCrossPolytope({ dim, radius = 1 }: CrossPolytopeOptions): 
     }
   }
 
-  return new CellComplex(dim, positions, [
+  const complex = new CellComplex(dim, positions, [
     { dim: 1, verticesPerCell: 2, kind: 'simplex', indices: Uint32Array.from(edges) }
   ]);
+
+  // Tetrahedral 3-faces: one per choice of 4 axes and a sign for each
+  // (for dim = 4 these are the 16 boundary cells of the 16-cell).
+  if (dim >= 4) {
+    const tets: number[] = [];
+    for (let a = 0; a < dim; a++) {
+      for (let b = a + 1; b < dim; b++) {
+        for (let c = b + 1; c < dim; c++) {
+          for (let d = c + 1; d < dim; d++) {
+            for (let signs = 0; signs < 16; signs++) {
+              tets.push(
+                (signs & 1) !== 0 ? a + dim : a,
+                (signs & 2) !== 0 ? b + dim : b,
+                (signs & 4) !== 0 ? c + dim : c,
+                (signs & 8) !== 0 ? d + dim : d
+              );
+            }
+          }
+        }
+      }
+    }
+    complex.addGroup({
+      dim: 3,
+      verticesPerCell: 4,
+      kind: 'simplex',
+      indices: Uint32Array.from(tets)
+    });
+  }
+
+  return complex;
 }
