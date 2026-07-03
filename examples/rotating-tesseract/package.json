@@ -1,0 +1,21 @@
+{
+  "name": "@holotope/example-rotating-tesseract",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@holotope/core": "workspace:*",
+    "@holotope/three": "workspace:*",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/three": "^0.185.0",
+    "vite": "^6.3.5"
+  }
+}
