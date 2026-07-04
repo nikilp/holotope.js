@@ -14,7 +14,7 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
 @holotope/core          zero-dependency N-D kernel
   ├─ math               VecN, MatN, plane rotations, so(n) exp, Rotor4, TransformN
   ├─ geometry           CellComplex (N-D counterpart of a mesh), tetrahedralization
-  ├─ polytope           hypercube, simplex, cross-polytope, 24-cell builders
+  ├─ polytope           n-cube/simplex/orthoplex families; all six regular polychora
   └─ projection         CameraN, perspective/orthographic N→3, hyperplane slicing
 
 @holotope/three         three.js adapter (three as peer dependency)

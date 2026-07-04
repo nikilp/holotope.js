@@ -126,3 +126,118 @@ describe('16-cell (4-orthoplex) boundary cells', () => {
     expect(sliceArea(c, 0)).toBeCloseTo(4 * Math.sqrt(3) * radius ** 2, 4);
   });
 });
+
+describe('create600Cell', () => {
+  it('has the canonical counts: 120 vertices, 720 edges, 1200 faces, 600 cells', async () => {
+    const { create600Cell } = await import('@holotope/core');
+    const c = create600Cell();
+    expect(c.vertexCount).toBe(120);
+    expect(c.cellCount(1)).toBe(720);
+    expect(c.cellCount(2)).toBe(1200);
+    expect(c.cellCount(3)).toBe(600);
+  });
+
+  it('all vertices on the circumsphere; all edges of length r/φ', async () => {
+    const { create600Cell } = await import('@holotope/core');
+    const radius = 2;
+    const phi = (1 + Math.sqrt(5)) / 2;
+    const c = create600Cell({ radius });
+    for (let v = 0; v < c.vertexCount; v++) {
+      const r = Math.hypot(
+        c.positions[v * 4]!,
+        c.positions[v * 4 + 1]!,
+        c.positions[v * 4 + 2]!,
+        c.positions[v * 4 + 3]!
+      );
+      expect(r).toBeCloseTo(radius, 10);
+    }
+    const edges = c.cellsOfDim(1)[0]!;
+    for (let e = 0; e < edges.indices.length; e += 2) {
+      const a = edges.indices[e]!;
+      const b = edges.indices[e + 1]!;
+      let acc = 0;
+      for (let k = 0; k < 4; k++) acc += (c.positions[a * 4 + k]! - c.positions[b * 4 + k]!) ** 2;
+      expect(Math.sqrt(acc)).toBeCloseTo(radius / phi, 10);
+    }
+  });
+
+  it('boundary 3-volume is 600 regular tetrahedra: 50√2·a³', async () => {
+    const { create600Cell } = await import('@holotope/core');
+    const phi = (1 + Math.sqrt(5)) / 2;
+    const c = create600Cell();
+    const a = 1 / phi;
+    expect(boundaryVolume(c)).toBeCloseTo(50 * Math.SQRT2 * a ** 3, 8);
+  });
+
+  it('the w=0 cross-section is bounded by the icosidodecahedron and the unit ball', async () => {
+    const { create600Cell } = await import('@holotope/core');
+    const phi = (1 + Math.sqrt(5)) / 2;
+    const c = create600Cell();
+    // 30 vertices lie exactly in w=0, forming an icosidodecahedron of edge
+    // 1/φ — but the section is strictly larger: edges like
+    // ½(±φ, ±1, ±1/φ·w-only-sign-flips) cross w=0 at midpoints of radius
+    // ≈0.951, outside the icosidodecahedron's triangle-face inradius
+    // (≈0.934). Surface area is monotone under inclusion for convex
+    // bodies, giving rigorous two-sided bounds:
+    // icosidodecahedron < section < ball of radius 1.
+    const a = 1 / phi;
+    const icosidodecahedron = (5 * Math.sqrt(3) + 3 * Math.sqrt(25 + 10 * Math.sqrt(5))) * a * a;
+    const area = sliceArea(c, 0);
+    expect(area).toBeGreaterThan(icosidodecahedron);
+    expect(area).toBeLessThan(4 * Math.PI);
+    // Reflection symmetry of the section family in w.
+    expect(sliceArea(c, 0.25)).toBeCloseTo(sliceArea(c, -0.25), 6);
+  });
+});
+
+describe('create120Cell', () => {
+  it('has 600 vertices (+120 fan centroids), 1200 edges, 4320 fan tetrahedra', async () => {
+    const { create120Cell } = await import('@holotope/core');
+    const c = create120Cell();
+    expect(c.vertexCount).toBe(720); // 600 dual vertices + 120 cell centroids
+    expect(c.cellCount(1)).toBe(1200);
+    expect(c.cellCount(3)).toBe(4320); // 120 dodecahedra × 12 pentagons × 3
+  });
+
+  it('is regular: every edge has the same length, every vertex 4 neighbors', async () => {
+    const { create120Cell } = await import('@holotope/core');
+    const c = create120Cell({ radius: 1 });
+    const edges = c.cellsOfDim(1)[0]!;
+    const valence = new Uint32Array(600);
+    const lengths: number[] = [];
+    for (let e = 0; e < edges.indices.length; e += 2) {
+      const a = edges.indices[e]!;
+      const b = edges.indices[e + 1]!;
+      valence[a]!++;
+      valence[b]!++;
+      let acc = 0;
+      for (let k = 0; k < 4; k++) acc += (c.positions[a * 4 + k]! - c.positions[b * 4 + k]!) ** 2;
+      lengths.push(Math.sqrt(acc));
+    }
+    const first = lengths[0]!;
+    for (const len of lengths) expect(len).toBeCloseTo(first, 10);
+    for (let v = 0; v < 600; v++) expect(valence[v]).toBe(4);
+  });
+
+  it('boundary 3-volume is 120 regular dodecahedra: 30·(15+7√5)·a³', async () => {
+    const { create120Cell } = await import('@holotope/core');
+    const c = create120Cell();
+    // Measure the edge length from the construction, then compare the
+    // fan-tetrahedra volume sum against the closed-form dodecahedron
+    // volume — this validates the entire dual + pentagon + fan pipeline.
+    const edges = c.cellsOfDim(1)[0]!;
+    const a0 = edges.indices[0]!;
+    const b0 = edges.indices[1]!;
+    let acc = 0;
+    for (let k = 0; k < 4; k++) acc += (c.positions[a0 * 4 + k]! - c.positions[b0 * 4 + k]!) ** 2;
+    const a = Math.sqrt(acc);
+    const dodecahedron = ((15 + 7 * Math.sqrt(5)) / 4) * a ** 3;
+    expect(boundaryVolume(c)).toBeCloseTo(120 * dodecahedron, 8);
+  });
+
+  it('slices through the center to a positive-area section', async () => {
+    const { create120Cell } = await import('@holotope/core');
+    const c = create120Cell();
+    expect(sliceArea(c, 0)).toBeGreaterThan(0);
+  });
+});
