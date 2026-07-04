@@ -2,7 +2,9 @@ import {
   AmbientLight,
   Color,
   DirectionalLight,
+  DoubleSide,
   LineBasicMaterial,
+  MeshStandardMaterial,
   PerspectiveCamera,
   Scene,
   WebGLRenderer
@@ -60,6 +62,22 @@ const section = new SlicedComplex3D(tesseract, slice);
 section.object.position.x = 2.6;
 scene.add(section.object);
 
+// The same cut rendered through the projection, overlaid inside the
+// wireframe: shows exactly where the cross-section lives in the "shadow".
+const overlay = new SlicedComplex3D(tesseract, slice, {
+  projection,
+  material: new MeshStandardMaterial({
+    color: 0xff9d5c,
+    side: DoubleSide,
+    flatShading: true,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false
+  })
+});
+overlay.object.position.x = -2.6;
+scene.add(overlay.object);
+
 // Controls
 const bindRange = (id: string, onInput: (value: number) => void): void => {
   const input = document.getElementById(id) as HTMLInputElement;
@@ -86,6 +104,7 @@ const bindToggle = (id: string, onChange: (checked: boolean) => void): void => {
 };
 bindToggle('showWireframe', (on) => (wireframe.object.visible = on));
 bindToggle('showSlice', (on) => (section.object.visible = on));
+bindToggle('showOverlay', (on) => (overlay.object.visible = on));
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -117,6 +136,7 @@ renderer.setAnimationLoop((timeMs) => {
   const transform = new TransformN(4, rotation);
   wireframe.update(transform);
   section.update(transform);
+  overlay.update(transform);
   controls.update();
   renderer.render(scene, camera);
 });

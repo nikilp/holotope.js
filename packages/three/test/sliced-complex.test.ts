@@ -84,3 +84,40 @@ describe('SlicedComplex3D', () => {
     );
   });
 });
+
+describe('SlicedComplex3D with projection (section-in-projection overlay)', () => {
+  it('projected section scales by V/(V−w) relative to the slice frame', async () => {
+    const { PerspectiveProjection } = await import('@holotope/core');
+    const viewDistance = 4;
+    for (const offset of [0, 0.5, -0.75]) {
+      const slice = HyperplaneSlice4.axisAligned(3, offset);
+      const inFrame = new SlicedComplex3D(makeTesseract(), slice);
+      const projected = new SlicedComplex3D(makeTesseract(), slice, {
+        projection: new PerspectiveProjection({ fromDim: 4, viewDistance })
+      });
+      const expectedScale = viewDistance / (viewDistance - offset);
+      const a = inFrame.geometry.getAttribute('position');
+      const b = projected.geometry.getAttribute('position');
+      const count = inFrame.geometry.drawRange.count;
+      expect(projected.geometry.drawRange.count).toBe(count);
+      expect(count).toBeGreaterThan(0);
+      for (let v = 0; v < count; v++) {
+        expect(b.getX(v)).toBeCloseTo(a.getX(v) * expectedScale, 4);
+        expect(b.getY(v)).toBeCloseTo(a.getY(v) * expectedScale, 4);
+        expect(b.getZ(v)).toBeCloseTo(a.getZ(v) * expectedScale, 4);
+      }
+      inFrame.dispose();
+      projected.dispose();
+    }
+  });
+
+  it('rejects projections with the wrong dimension', async () => {
+    const { PerspectiveProjection } = await import('@holotope/core');
+    expect(
+      () =>
+        new SlicedComplex3D(makeTesseract(), HyperplaneSlice4.axisAligned(), {
+          projection: new PerspectiveProjection({ fromDim: 5 })
+        })
+    ).toThrow(/fromDim/);
+  });
+});

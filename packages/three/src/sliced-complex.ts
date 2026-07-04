@@ -9,13 +9,22 @@ import {
 } from 'three';
 import {
   sliceTetrahedra,
+  sliceTetrahedraAmbient,
   type CellComplex,
   type HyperplaneSlice4,
+  type Projection,
   type TransformN
 } from '@holotope/core';
 
 export interface SlicedComplex3DOptions {
   material?: Material;
+  /**
+   * When set, the section is rendered **through this projection** — the
+   * same 3D space as `ProjectedEdges3D` output — instead of the slice's
+   * own display frame. Use it to overlay the cut inside a projected
+   * wireframe of the same object.
+   */
+  projection?: Projection;
 }
 
 /**
@@ -40,6 +49,8 @@ export class SlicedComplex3D {
   private readonly tets: Uint32Array;
   private readonly worldPositions: Float64Array;
   private readonly positionAttribute: BufferAttribute;
+  private readonly projection: Projection | undefined;
+  private readonly ambientSection: Float64Array | undefined;
 
   constructor(
     complex: CellComplex,
@@ -69,8 +80,16 @@ export class SlicedComplex3D {
       offset += g.indices.length;
     }
 
+    this.projection = options.projection;
+    if (this.projection && this.projection.fromDim !== 4) {
+      throw new Error(
+        `SlicedComplex3D: projection fromDim must be 4, got ${this.projection.fromDim}`
+      );
+    }
+
     this.worldPositions = new Float64Array(complex.positions.length);
     const maxVertices = (this.tets.length / 4) * 6; // 2 triangles per tetra worst case
+    this.ambientSection = this.projection ? new Float64Array(maxVertices * 4) : undefined;
     this.positionAttribute = new BufferAttribute(new Float32Array(maxVertices * 3), 3);
     this.positionAttribute.setUsage(DynamicDrawUsage);
 
@@ -101,12 +120,29 @@ export class SlicedComplex3D {
     } else {
       this.worldPositions.set(this.complex.positions);
     }
-    const vertexCount = sliceTetrahedra(
-      this.worldPositions,
-      this.tets,
-      this.slice,
-      this.positionAttribute.array as Float32Array
-    );
+    let vertexCount: number;
+    if (this.projection && this.ambientSection) {
+      // Section as ambient 4D points, then through the projection — lands
+      // in the same 3D space as ProjectedEdges3D of the same object.
+      vertexCount = sliceTetrahedraAmbient(
+        this.worldPositions,
+        this.tets,
+        this.slice,
+        this.ambientSection
+      );
+      this.projection.projectPositions(
+        this.ambientSection,
+        vertexCount,
+        this.positionAttribute.array as Float32Array
+      );
+    } else {
+      vertexCount = sliceTetrahedra(
+        this.worldPositions,
+        this.tets,
+        this.slice,
+        this.positionAttribute.array as Float32Array
+      );
+    }
     this.geometry.setDrawRange(0, vertexCount);
     this.positionAttribute.needsUpdate = true;
     if (vertexCount > 0) this.computeFlatNormals(vertexCount);
