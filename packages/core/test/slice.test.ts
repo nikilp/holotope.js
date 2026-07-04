@@ -171,3 +171,55 @@ describe('sliceTetrahedra', () => {
     }
   });
 });
+
+describe('sliceTetrahedraAmbient', () => {
+  it('emits 4D points lying exactly on the hyperplane', async () => {
+    const { sliceTetrahedraAmbient, VecN } = await import('@holotope/core');
+    const { complex, tets } = tesseractTets();
+    const transform = new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle: 0.6 }]));
+    const world = new Float64Array(complex.positions.length);
+    transform.applyToPositions(complex.positions, world, complex.vertexCount);
+
+    const slice = new HyperplaneSlice4({ normal: new VecN([1, 1, 0, 2]), offset: 0.3 });
+    const out = new Float64Array((tets.length / 4) * 24);
+    const count = sliceTetrahedraAmbient(world, tets, slice, out);
+    expect(count).toBeGreaterThan(0);
+    for (let v = 0; v < count; v++) {
+      const d = slice.signedDistance(out[v * 4]!, out[v * 4 + 1]!, out[v * 4 + 2]!, out[v * 4 + 3]!);
+      expect(Math.abs(d)).toBeLessThan(1e-9);
+    }
+  });
+
+  it('axis-aligned slice pins the hidden coordinate to the offset', async () => {
+    const { sliceTetrahedraAmbient } = await import('@holotope/core');
+    const { complex, tets } = tesseractTets();
+    const slice = HyperplaneSlice4.axisAligned(3, 0.4);
+    const out = new Float64Array((tets.length / 4) * 24);
+    const count = sliceTetrahedraAmbient(complex.positions, tets, slice, out);
+    for (let v = 0; v < count; v++) {
+      expect(out[v * 4 + 3]!).toBeCloseTo(0.4, 12);
+    }
+  });
+
+  it('slice-frame output equals basis-mapped ambient output', async () => {
+    const { sliceTetrahedraAmbient, VecN } = await import('@holotope/core');
+    const { complex, tets } = tesseractTets();
+    const slice = new HyperplaneSlice4({ normal: new VecN([0, 1, 1, 1]), offset: -0.2 });
+    const ambient = new Float64Array((tets.length / 4) * 24);
+    const framed = new Float32Array((tets.length / 4) * 18);
+    const countA = sliceTetrahedraAmbient(complex.positions, tets, slice, ambient);
+    const countF = sliceTetrahedra(complex.positions, tets, slice, framed);
+    expect(countA).toBe(countF);
+    for (let v = 0; v < countA; v++) {
+      for (let k = 0; k < 3; k++) {
+        const bk = slice.basis[k]!;
+        const expected =
+          bk[0]! * ambient[v * 4]! +
+          bk[1]! * ambient[v * 4 + 1]! +
+          bk[2]! * ambient[v * 4 + 2]! +
+          bk[3]! * ambient[v * 4 + 3]!;
+        expect(framed[v * 3 + k]!).toBeCloseTo(expected, 5);
+      }
+    }
+  });
+});

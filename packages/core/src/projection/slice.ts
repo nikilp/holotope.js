@@ -79,8 +79,11 @@ function computeComplementBasis(normal: VecN): [Float64Array, Float64Array, Floa
 
 /**
  * Marching tetrahedra in R^4: intersects tetrahedral 3-cells with a
- * hyperplane, emitting a triangle-soup cross-section surface in the slice's
- * display frame.
+ * hyperplane, emitting a triangle-soup cross-section surface as **ambient
+ * 4D points** (all lying in the hyperplane). Use this form when the
+ * section should be re-projected like any other 4D geometry — e.g.
+ * rendering the cut inside a perspective projection; use
+ * `sliceTetrahedra` for the section in the slice's own 3D display frame.
  *
  * Degeneracy policy: signed distances within `epsilon` of the hyperplane
  * snap to zero and count as non-negative (canonical tie-break), so
@@ -90,23 +93,23 @@ function computeComplementBasis(normal: VecN): [Float64Array, Float64Array, Floa
  *
  * @param worldPositions packed 4D vertex coordinates (post-transform)
  * @param tets           flat tetra vertex indices (4 per cell)
- * @param slice          the hyperplane and its display frame
- * @param outPositions   output for packed 3D triangle vertices; must hold at
- *                       least `(tets.length / 4) * 18` floats (2 triangles ×
- *                       3 vertices × 3 coords per tetra worst case)
+ * @param slice          the hyperplane
+ * @param outPositions   output for packed 4D triangle vertices; must hold at
+ *                       least `(tets.length / 4) * 24` floats (2 triangles ×
+ *                       3 vertices × 4 coords per tetra worst case)
  * @returns number of vertices written (a multiple of 3)
  */
-export function sliceTetrahedra(
+export function sliceTetrahedraAmbient(
   worldPositions: Float64Array,
   tets: Uint32Array,
   slice: HyperplaneSlice4,
-  outPositions: Float32Array,
+  outPositions: Float64Array,
   epsilon = 1e-9
 ): number {
   const tetCount = tets.length / 4;
-  if (outPositions.length < tetCount * 18) {
+  if (outPositions.length < tetCount * 24) {
     throw new Error(
-      `sliceTetrahedra: output buffer too small (${outPositions.length} < ${tetCount * 18})`
+      `sliceTetrahedraAmbient: output buffer too small (${outPositions.length} < ${tetCount * 24})`
     );
   }
 
@@ -114,22 +117,17 @@ export function sliceTetrahedra(
   const negS: number[] = [];
   const nonneg: number[] = [];
   const posS: number[] = [];
-  const point = new Float64Array(4);
   let out = 0;
 
   // Interpolates the crossing point on edge (from → to) and writes its
-  // in-plane 3D coordinates to outPositions.
+  // ambient 4D coordinates to outPositions.
   const emitCrossing = (from: number, to: number, sFrom: number, sTo: number): void => {
     const t = sFrom / (sFrom - sTo);
     const a = from * 4;
     const b = to * 4;
     for (let c = 0; c < 4; c++) {
-      point[c] = worldPositions[a + c]! + t * (worldPositions[b + c]! - worldPositions[a + c]!);
-    }
-    for (let k = 0; k < 3; k++) {
-      const bk = slice.basis[k]!;
       outPositions[out++] =
-        bk[0]! * point[0]! + bk[1]! * point[1]! + bk[2]! * point[2]! + bk[3]! * point[3]!;
+        worldPositions[a + c]! + t * (worldPositions[b + c]! - worldPositions[a + c]!);
     }
   };
 
@@ -173,13 +171,54 @@ export function sliceTetrahedra(
       emitCrossing(neg[0]!, nonneg[1]!, negS[0]!, posS[1]!);
       emitCrossing(neg[1]!, nonneg[1]!, negS[1]!, posS[1]!);
       // Second triangle: quad vertices 0, 2, 3.
-      outPositions.copyWithin(out, quadStart, quadStart + 3);
-      out += 3;
-      outPositions.copyWithin(out, quadStart + 6, quadStart + 9);
-      out += 3;
+      outPositions.copyWithin(out, quadStart, quadStart + 4);
+      out += 4;
+      outPositions.copyWithin(out, quadStart + 8, quadStart + 12);
+      out += 4;
       emitCrossing(neg[1]!, nonneg[0]!, negS[1]!, posS[0]!);
     }
   }
 
-  return out / 3;
+  return out / 4;
+}
+
+// Reusable scratch for the slice-frame wrapper (single-threaded JS).
+let ambientScratch = new Float64Array(0);
+
+/**
+ * Marching tetrahedra with output in the slice's own 3D display frame:
+ * each ambient crossing point is expressed in the hyperplane's orthonormal
+ * basis, ready for direct 3D rendering. Same degeneracy policy and output
+ * layout contract as `sliceTetrahedraAmbient`, but 3 floats per vertex
+ * (buffer must hold `(tets.length / 4) * 18`).
+ */
+export function sliceTetrahedra(
+  worldPositions: Float64Array,
+  tets: Uint32Array,
+  slice: HyperplaneSlice4,
+  outPositions: Float32Array,
+  epsilon = 1e-9
+): number {
+  const tetCount = tets.length / 4;
+  if (outPositions.length < tetCount * 18) {
+    throw new Error(
+      `sliceTetrahedra: output buffer too small (${outPositions.length} < ${tetCount * 18})`
+    );
+  }
+  if (ambientScratch.length < tetCount * 24) {
+    ambientScratch = new Float64Array(tetCount * 24);
+  }
+  const count = sliceTetrahedraAmbient(worldPositions, tets, slice, ambientScratch, epsilon);
+  for (let v = 0; v < count; v++) {
+    const p = v * 4;
+    for (let k = 0; k < 3; k++) {
+      const bk = slice.basis[k]!;
+      outPositions[v * 3 + k] =
+        bk[0]! * ambientScratch[p]! +
+        bk[1]! * ambientScratch[p + 1]! +
+        bk[2]! * ambientScratch[p + 2]! +
+        bk[3]! * ambientScratch[p + 3]!;
+    }
+  }
+  return count;
 }
