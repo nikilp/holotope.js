@@ -18,6 +18,8 @@ import {
   TransformN,
   VecN,
   create24Cell,
+  create120Cell,
+  create600Cell,
   createCrossPolytope,
   createHypercube,
   createSimplex,
@@ -32,7 +34,7 @@ const scene = new Scene();
 scene.background = new Color(0x0a0a12);
 
 const camera3 = new PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera3.position.set(0, 0.6, 13.5);
+camera3.position.set(0, 0.6, 18.5);
 
 const renderer = new WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -49,12 +51,15 @@ const sun = new DirectionalLight(0xffffff, 2.2);
 sun.position.set(3, 5, 4);
 scene.add(sun);
 
-// The four regular polychora we can build so far, all sliceable.
+// All six regular polychora, in canonical order by cell count — every one
+// of them sliceable.
 const polychora: Array<{ complex: CellComplex; color: number }> = [
   { complex: createSimplex({ dim: 4, edgeLength: 2 }), color: 0xff6b81 },
-  { complex: createCrossPolytope({ dim: 4, radius: 1.3 }), color: 0x7fd4ff },
   { complex: tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 })), color: 0xffd166 },
-  { complex: create24Cell({ radius: 1.3 }), color: 0x9b8cff }
+  { complex: createCrossPolytope({ dim: 4, radius: 1.3 }), color: 0x7fd4ff },
+  { complex: create24Cell({ radius: 1.3 }), color: 0x9b8cff },
+  { complex: create120Cell({ radius: 1.3 }), color: 0x6ee7a8 },
+  { complex: create600Cell({ radius: 1.3 }), color: 0xf2a65a }
 ];
 
 // One 4D camera views all projections; sections share the same 4D rotation.
@@ -63,7 +68,7 @@ const cameraDistance = 2.5;
 const projection = new PerspectiveProjection({ fromDim: 4, viewDistance: 4 });
 const slice = HyperplaneSlice4.axisAligned(3, 0);
 
-const columnX = [-5.4, -1.8, 1.8, 5.4];
+const columnX = [-8.5, -5.1, -1.7, 1.7, 5.1, 8.5];
 const wireframes = polychora.map(({ complex, color }, i) => {
   const edges = new ProjectedEdges3D(complex, projection, {
     material: new LineBasicMaterial({ color })
