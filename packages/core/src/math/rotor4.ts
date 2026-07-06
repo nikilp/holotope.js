@@ -86,6 +86,18 @@ export class Rotor4 {
     );
   }
 
+  /**
+   * Isoclinic interpolation: shortest-path SLERP applied to the left and
+   * right quaternions independently. Because a geodesic of SO(4) (in the
+   * bi-invariant metric) is exactly a pair of quaternion geodesics, this is
+   * the geodesic from `a` to `b`: slerp(I, exp(B), t) = exp(t·B) for every
+   * bivector B. The 4D generalization of quaternion slerp for animation
+   * and camera tours.
+   */
+  static slerp(a: Rotor4, b: Rotor4, t: number): Rotor4 {
+    return new Rotor4(qslerp(a.left, b.left, t), qslerp(a.right, b.right, t));
+  }
+
   applyToPoint(v: VecN, out?: VecN): VecN {
     assertSameDim(v.dim, 4);
     const result = out ?? new VecN(4);
@@ -149,4 +161,35 @@ function qmul(a: ArrayLike<number>, b: ArrayLike<number>): Float64Array {
 function qnormalize(q: Float64Array): void {
   const len = Math.hypot(q[0]!, q[1]!, q[2]!, q[3]!);
   for (let k = 0; k < 4; k++) q[k]! /= len;
+}
+
+/** Shortest-path spherical interpolation between unit quaternions. */
+function qslerp(a: Float64Array, b: Float64Array, t: number): Float64Array {
+  let dot = a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]! + a[3]! * b[3]!;
+  // Quaternions double-cover rotations: take the shorter arc.
+  let sign = 1;
+  if (dot < 0) {
+    dot = -dot;
+    sign = -1;
+  }
+  let wa: number;
+  let wb: number;
+  if (dot > 0.9995) {
+    // Nearly parallel: lerp + renormalize avoids the unstable divide.
+    wa = 1 - t;
+    wb = t;
+  } else {
+    const theta = Math.acos(Math.min(1, dot));
+    const sinTheta = Math.sin(theta);
+    wa = Math.sin((1 - t) * theta) / sinTheta;
+    wb = Math.sin(t * theta) / sinTheta;
+  }
+  const out = Float64Array.of(
+    wa * a[0]! + sign * wb * b[0]!,
+    wa * a[1]! + sign * wb * b[1]!,
+    wa * a[2]! + sign * wb * b[2]!,
+    wa * a[3]! + sign * wb * b[3]!
+  );
+  qnormalize(out);
+  return out;
 }

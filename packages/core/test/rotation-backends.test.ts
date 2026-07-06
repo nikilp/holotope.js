@@ -182,3 +182,58 @@ describe('Rotor4', () => {
     expect(Rotor4.identity().applyToPoint(p).equalsApprox(p, 1e-15)).toBe(true);
   });
 });
+
+describe('Rotor4.slerp', () => {
+  it('hits both endpoints exactly', () => {
+    const a = Rotor4.fromBivector(randomBivector(4, 1));
+    const b = Rotor4.fromBivector(randomBivector(4, 1));
+    expectMatricesClose(Rotor4.slerp(a, b, 0).toMatrix(), a.toMatrix());
+    expectMatricesClose(Rotor4.slerp(a, b, 1).toMatrix(), b.toMatrix());
+  });
+
+  it('follows the geodesic: slerp(I, exp(B), t) = exp(t·B)', async () => {
+    const { expBivector: exp } = await import('@holotope/core');
+    for (let trial = 0; trial < 10; trial++) {
+      // Keep the left/right generator norms below π/2 (coefficients ≤ 0.8
+      // give |u| ≤ 0.8√3 ≈ 1.39): past that, the quaternion shortest-arc
+      // flip makes slerp take a genuinely shorter path than exp(t·B), and
+      // the identity only holds on the short arc.
+      const b = randomBivector(4, 0.8);
+      const target = Rotor4.fromBivector(b);
+      for (const t of [0.2, 0.5, 0.77]) {
+        expectMatricesClose(
+          Rotor4.slerp(Rotor4.identity(), target, t).toMatrix(),
+          exp(b.clone().scale(t)),
+          9
+        );
+      }
+    }
+  });
+
+  it('interpolates single-plane rotations linearly in angle', () => {
+    const a = Rotor4.fromPlane(0, 3, 0.4);
+    const b = Rotor4.fromPlane(0, 3, 1.6);
+    expectMatricesClose(
+      Rotor4.slerp(a, b, 0.5).toMatrix(),
+      MatN.rotationInPlane(4, 0, 3, 1.0),
+      10
+    );
+  });
+
+  it('stays on the rotation manifold across the whole parameter range', () => {
+    const a = Rotor4.fromBivector(randomBivector(4, 2));
+    const b = Rotor4.fromBivector(randomBivector(4, 2));
+    for (let k = 0; k <= 20; k++) {
+      const r = Rotor4.slerp(a, b, k / 20);
+      expect(r.toMatrix().orthogonalityError()).toBeLessThan(1e-12);
+    }
+  });
+
+  it('is stable for nearly identical rotors (nlerp branch)', () => {
+    const a = Rotor4.fromPlane(1, 2, 0.5);
+    const b = Rotor4.fromPlane(1, 2, 0.5 + 1e-7);
+    const mid = Rotor4.slerp(a, b, 0.5);
+    expectMatricesClose(mid.toMatrix(), a.toMatrix(), 6);
+    expect(mid.toMatrix().orthogonalityError()).toBeLessThan(1e-12);
+  });
+});
