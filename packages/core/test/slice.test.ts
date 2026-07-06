@@ -223,3 +223,52 @@ describe('sliceTetrahedraAmbient', () => {
     }
   });
 });
+
+describe('slice provenance', () => {
+  it('every emitted triangle references a tet that straddles the hyperplane', async () => {
+    const { sliceTetrahedraAmbient } = await import('@holotope/core');
+    const { complex, tets } = tesseractTets();
+    const transform = new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle: 0.7 }]));
+    const world = new Float64Array(complex.positions.length);
+    transform.applyToPositions(complex.positions, world, complex.vertexCount);
+
+    const slice = HyperplaneSlice4.axisAligned(3, 0.2);
+    const out = new Float64Array((tets.length / 4) * 24);
+    const provenance = new Uint32Array((tets.length / 4) * 2);
+    const count = sliceTetrahedraAmbient(world, tets, slice, out, undefined, provenance);
+    const triangles = count / 3;
+    expect(triangles).toBeGreaterThan(0);
+
+    for (let f = 0; f < triangles; f++) {
+      const tet = provenance[f]!;
+      expect(tet).toBeLessThan(tets.length / 4);
+      let hasNeg = false;
+      let hasNonneg = false;
+      for (let v = 0; v < 4; v++) {
+        const idx = tets[tet * 4 + v]!;
+        const d = slice.signedDistance(
+          world[idx * 4]!,
+          world[idx * 4 + 1]!,
+          world[idx * 4 + 2]!,
+          world[idx * 4 + 3]!
+        );
+        if (d < -1e-9) hasNeg = true;
+        else hasNonneg = true;
+      }
+      expect(hasNeg && hasNonneg).toBe(true);
+    }
+  });
+
+  it('frame and ambient wrappers report identical provenance', () => {
+    const { complex, tets } = tesseractTets();
+    const slice = HyperplaneSlice4.axisAligned(3, 0);
+    const out3 = new Float32Array((tets.length / 4) * 18);
+    const provenance = new Uint32Array((tets.length / 4) * 2);
+    const count = sliceTetrahedra(complex.positions, tets, slice, out3, undefined, provenance);
+    // Unrotated tesseract at w=0: only the 6 lateral cubes (6 Kuhn tets
+    // each) cross the plane -> 36 distinct source tets.
+    const distinct = new Set<number>();
+    for (let f = 0; f < count / 3; f++) distinct.add(provenance[f]!);
+    expect(distinct.size).toBe(36);
+  });
+});

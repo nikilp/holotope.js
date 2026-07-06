@@ -97,6 +97,9 @@ function computeComplementBasis(normal: VecN): [Float64Array, Float64Array, Floa
  * @param outPositions   output for packed 4D triangle vertices; must hold at
  *                       least `(tets.length / 4) * 24` floats (2 triangles ×
  *                       3 vertices × 4 coords per tetra worst case)
+ * @param outProvenance  optional per-triangle provenance: the source tetra
+ *                       index (position in `tets` / 4) of each emitted
+ *                       triangle; must hold `(tets.length / 4) * 2` entries
  * @returns number of vertices written (a multiple of 3)
  */
 export function sliceTetrahedraAmbient(
@@ -104,7 +107,8 @@ export function sliceTetrahedraAmbient(
   tets: Uint32Array,
   slice: HyperplaneSlice4,
   outPositions: Float64Array,
-  epsilon = 1e-9
+  epsilon = 1e-9,
+  outProvenance?: Uint32Array
 ): number {
   const tetCount = tets.length / 4;
   if (outPositions.length < tetCount * 24) {
@@ -118,6 +122,7 @@ export function sliceTetrahedraAmbient(
   const nonneg: number[] = [];
   const posS: number[] = [];
   let out = 0;
+  let triangleCount = 0;
 
   // Interpolates the crossing point on edge (from → to) and writes its
   // ambient 4D coordinates to outPositions.
@@ -129,6 +134,14 @@ export function sliceTetrahedraAmbient(
       outPositions[out++] =
         worldPositions[a + c]! + t * (worldPositions[b + c]! - worldPositions[a + c]!);
     }
+  };
+
+  const recordTriangles = (tet: number, count: number): void => {
+    if (!outProvenance) {
+      triangleCount += count;
+      return;
+    }
+    for (let k = 0; k < count; k++) outProvenance[triangleCount++] = tet;
   };
 
   for (let tet = 0; tet < tetCount; tet++) {
@@ -160,9 +173,11 @@ export function sliceTetrahedraAmbient(
     if (neg.length === 1) {
       // One vertex below: triangle from its three crossing edges.
       for (let k = 0; k < 3; k++) emitCrossing(neg[0]!, nonneg[k]!, negS[0]!, posS[k]!);
+      recordTriangles(tet, 1);
     } else if (neg.length === 3) {
       // One vertex above: symmetric triangle.
       for (let k = 0; k < 3; k++) emitCrossing(neg[k]!, nonneg[0]!, negS[k]!, posS[0]!);
+      recordTriangles(tet, 1);
     } else {
       // 2–2 split: quad across four crossing edges, emitted as two triangles.
       // Cyclic order (n0,p0) → (n0,p1) → (n1,p1) → (n1,p0).
@@ -176,6 +191,7 @@ export function sliceTetrahedraAmbient(
       outPositions.copyWithin(out, quadStart + 8, quadStart + 12);
       out += 4;
       emitCrossing(neg[1]!, nonneg[0]!, negS[1]!, posS[0]!);
+      recordTriangles(tet, 2);
     }
   }
 
@@ -197,7 +213,8 @@ export function sliceTetrahedra(
   tets: Uint32Array,
   slice: HyperplaneSlice4,
   outPositions: Float32Array,
-  epsilon = 1e-9
+  epsilon = 1e-9,
+  outProvenance?: Uint32Array
 ): number {
   const tetCount = tets.length / 4;
   if (outPositions.length < tetCount * 18) {
@@ -208,7 +225,14 @@ export function sliceTetrahedra(
   if (ambientScratch.length < tetCount * 24) {
     ambientScratch = new Float64Array(tetCount * 24);
   }
-  const count = sliceTetrahedraAmbient(worldPositions, tets, slice, ambientScratch, epsilon);
+  const count = sliceTetrahedraAmbient(
+    worldPositions,
+    tets,
+    slice,
+    ambientScratch,
+    epsilon,
+    outProvenance
+  );
   for (let v = 0; v < count; v++) {
     const p = v * 4;
     for (let k = 0; k < 3; k++) {
