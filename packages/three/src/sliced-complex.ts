@@ -51,6 +51,7 @@ export class SlicedComplex3D {
   private readonly positionAttribute: BufferAttribute;
   private readonly projection: Projection | undefined;
   private readonly ambientSection: Float64Array | undefined;
+  private readonly provenance: Uint32Array;
 
   constructor(
     complex: CellComplex,
@@ -90,6 +91,7 @@ export class SlicedComplex3D {
     this.worldPositions = new Float64Array(complex.positions.length);
     const maxVertices = (this.tets.length / 4) * 6; // 2 triangles per tetra worst case
     this.ambientSection = this.projection ? new Float64Array(maxVertices * 4) : undefined;
+    this.provenance = new Uint32Array((this.tets.length / 4) * 2);
     this.positionAttribute = new BufferAttribute(new Float32Array(maxVertices * 3), 3);
     this.positionAttribute.setUsage(DynamicDrawUsage);
 
@@ -128,7 +130,9 @@ export class SlicedComplex3D {
         this.worldPositions,
         this.tets,
         this.slice,
-        this.ambientSection
+        this.ambientSection,
+        undefined,
+        this.provenance
       );
       this.projection.projectPositions(
         this.ambientSection,
@@ -140,7 +144,9 @@ export class SlicedComplex3D {
         this.worldPositions,
         this.tets,
         this.slice,
-        this.positionAttribute.array as Float32Array
+        this.positionAttribute.array as Float32Array,
+        undefined,
+        this.provenance
       );
     }
     this.geometry.setDrawRange(0, vertexCount);
@@ -177,6 +183,30 @@ export class SlicedComplex3D {
       }
     }
     normalAttribute.needsUpdate = true;
+  }
+
+  /** Number of triangles in the current section. */
+  get triangleCount(): number {
+    return this.geometry.drawRange.count / 3;
+  }
+
+  /**
+   * Provenance lookup for picking: the source tetrahedron of a rendered
+   * triangle. `faceIndex` is what `Raycaster` reports when intersecting
+   * `object`; the returned index counts into this complex's concatenated
+   * tetrahedral cells.
+   */
+  sourceTetOfFace(faceIndex: number): number {
+    if (faceIndex < 0 || faceIndex >= this.triangleCount) {
+      throw new Error(`SlicedComplex3D: faceIndex ${faceIndex} out of range`);
+    }
+    return this.provenance[faceIndex]!;
+  }
+
+  /** The four source-complex vertex indices of a tetrahedron by index. */
+  sourceTetVertices(tetIndex: number): [number, number, number, number] {
+    const base = tetIndex * 4;
+    return [this.tets[base]!, this.tets[base + 1]!, this.tets[base + 2]!, this.tets[base + 3]!];
   }
 
   dispose(): void {

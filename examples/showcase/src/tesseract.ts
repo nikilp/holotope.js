@@ -1,12 +1,16 @@
 import {
   AmbientLight,
+  BufferGeometry,
   Color,
   DirectionalLight,
   DoubleSide,
   LineBasicMaterial,
+  LineSegments,
   MeshStandardMaterial,
   PerspectiveCamera,
+  Raycaster,
   Scene,
+  Vector2,
   WebGLRenderer
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -77,6 +81,61 @@ const overlay = new SlicedComplex3D(tesseract, slice, {
 });
 overlay.object.position.x = -2.6;
 scene.add(overlay.object);
+
+// Picking: click the cross-section (either view) to highlight the cubic
+// cell of the tesseract it came from. The highlight shares the wireframe's
+// projected position attribute, so it follows the rotation for free; only
+// its index (the selected cube's 12 edges) changes on click.
+const CUBE_EDGES: ReadonlyArray<readonly [number, number]> = [
+  [0, 1], [0, 2], [0, 4], [1, 3], [1, 5], [2, 3],
+  [2, 6], [3, 7], [4, 5], [4, 6], [5, 7], [6, 7]
+];
+const cuboids = tesseract.cellsOfDim(3).find((g) => g.kind === 'cuboid')!;
+const highlightGeometry = new BufferGeometry();
+highlightGeometry.setAttribute('position', wireframe.geometry.getAttribute('position'));
+highlightGeometry.setIndex([]);
+const highlight = new LineSegments(highlightGeometry, new LineBasicMaterial({ color: 0xffffff }));
+highlight.position.copy(wireframe.object.position);
+highlight.frustumCulled = false;
+scene.add(highlight);
+
+const highlightCube = (cube: number | null): void => {
+  if (cube === null) {
+    highlightGeometry.setIndex([]);
+    return;
+  }
+  const base = cube * 8;
+  const indices: number[] = [];
+  for (const [a, b] of CUBE_EDGES) {
+    indices.push(cuboids.indices[base + a]!, cuboids.indices[base + b]!);
+  }
+  highlightGeometry.setIndex(indices);
+};
+
+const raycaster = new Raycaster();
+const pointerNdc = new Vector2();
+let downX = 0;
+let downY = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  downX = e.clientX;
+  downY = e.clientY;
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (e.altKey || Math.hypot(e.clientX - downX, e.clientY - downY) > 4) return;
+  pointerNdc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointerNdc, camera);
+  const hit = raycaster
+    .intersectObjects([section.object, overlay.object], false)
+    .find((h) => h.faceIndex !== undefined && h.object.visible);
+  if (!hit) {
+    highlightCube(null);
+    return;
+  }
+  const product = hit.object === section.object ? section : overlay;
+  const tet = product.sourceTetOfFace(hit.faceIndex!);
+  // tetrahedralizeCuboidCells emits 6 Kuhn tets per cube, cube-major.
+  highlightCube(Math.floor(tet / 6));
+});
 
 // Controls
 const bindRange = (id: string, onInput: (value: number) => void): void => {

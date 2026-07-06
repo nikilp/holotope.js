@@ -121,3 +121,53 @@ describe('SlicedComplex3D with projection (section-in-projection overlay)', () =
     ).toThrow(/fromDim/);
   });
 });
+
+describe('SlicedComplex3D picking provenance', () => {
+  it('maps every rendered face to a straddling source tet', () => {
+    const complex = makeTesseract();
+    const slice = HyperplaneSlice4.axisAligned(3, 0.2);
+    const sliced = new SlicedComplex3D(complex, slice);
+    const faces = sliced.triangleCount;
+    expect(faces).toBeGreaterThan(0);
+    for (let f = 0; f < faces; f++) {
+      const tet = sliced.sourceTetOfFace(f);
+      const verts = sliced.sourceTetVertices(tet);
+      let hasNeg = false;
+      let hasNonneg = false;
+      for (const v of verts) {
+        const d = slice.signedDistance(
+          complex.positions[v * 4]!,
+          complex.positions[v * 4 + 1]!,
+          complex.positions[v * 4 + 2]!,
+          complex.positions[v * 4 + 3]!
+        );
+        if (d < -1e-9) hasNeg = true;
+        else hasNonneg = true;
+      }
+      expect(hasNeg && hasNonneg).toBe(true);
+    }
+    sliced.dispose();
+  });
+
+  it('tesseract faces map to the 6 lateral cubes (6 Kuhn tets each)', () => {
+    const sliced = new SlicedComplex3D(makeTesseract(), HyperplaneSlice4.axisAligned(3, 0));
+    const cubes = new Set<number>();
+    for (let f = 0; f < sliced.triangleCount; f++) {
+      cubes.add(Math.floor(sliced.sourceTetOfFace(f) / 6));
+    }
+    expect(cubes.size).toBe(6);
+    sliced.dispose();
+  });
+
+  it('provenance stays valid after update with a transform', async () => {
+    const { MatN: M, TransformN: T } = await import('@holotope/core');
+    const sliced = new SlicedComplex3D(makeTesseract(), HyperplaneSlice4.axisAligned(3, 0.3));
+    sliced.update(new T(4, M.rotationInPlane(4, 0, 3, 0.6)));
+    const tetCount = 48;
+    for (let f = 0; f < sliced.triangleCount; f++) {
+      expect(sliced.sourceTetOfFace(f)).toBeLessThan(tetCount);
+    }
+    expect(() => sliced.sourceTetOfFace(sliced.triangleCount)).toThrow(/out of range/);
+    sliced.dispose();
+  });
+});

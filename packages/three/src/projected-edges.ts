@@ -88,6 +88,20 @@ export class ProjectedEdges3D {
     this.positionAttribute.needsUpdate = true;
   }
 
+  /**
+   * Provenance lookup for picking: the two source-complex vertex indices of
+   * a rendered segment. For a `Raycaster` intersection with `object`, the
+   * segment index is `intersection.index / 2` (three.js reports the index-
+   * buffer position of the segment's first vertex).
+   */
+  edgeVertices(segmentIndex: number): [number, number] {
+    const index = this.geometry.getIndex()!;
+    if (segmentIndex < 0 || segmentIndex * 2 + 1 >= index.count) {
+      throw new Error(`ProjectedEdges3D: segmentIndex ${segmentIndex} out of range`);
+    }
+    return [index.getX(segmentIndex * 2), index.getX(segmentIndex * 2 + 1)];
+  }
+
   dispose(): void {
     this.geometry.dispose();
     const material = this.object.material;
