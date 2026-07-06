@@ -66,6 +66,21 @@
         border-top: 1px solid #26304a;
         margin: 8px 0;
       }
+      #controls button {
+        width: 100%;
+        margin-top: 8px;
+        padding: 5px 0;
+        background: #17203a;
+        border: 1px solid #26304a;
+        border-radius: 6px;
+        color: #8fa3c8;
+        font: inherit;
+        cursor: pointer;
+      }
+      #controls button:hover {
+        border-color: #7fd4ff;
+        color: #d7e3ff;
+      }
     </style>
   </head>
   <body>
@@ -86,6 +101,7 @@
       <hr />
       <label>wireframe <input id="showWireframe" type="checkbox" checked /></label>
       <label>cut in projection <input id="showOverlay" type="checkbox" checked /></label>
+      <button id="resetRotation">reset 4D drag</button>
       <label>cross-section <input id="showSlice" type="checkbox" checked /></label>
     </div>
     <script type="module" src="/src/tesseract.ts"></script>

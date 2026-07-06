@@ -6,6 +6,8 @@ import {
   DoubleSide,
   LineBasicMaterial,
   LineSegments,
+  Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
   Raycaster,
@@ -90,6 +92,12 @@ const CUBE_EDGES: ReadonlyArray<readonly [number, number]> = [
   [0, 1], [0, 2], [0, 4], [1, 3], [1, 5], [2, 3],
   [2, 6], [3, 7], [4, 5], [4, 6], [5, 7], [6, 7]
 ];
+// The cube's 6 quad faces (local bit indices), pre-split into triangles.
+const CUBE_FACE_TRIANGLES: ReadonlyArray<readonly [number, number, number]> = [
+  [0, 1, 3], [0, 3, 2], [4, 5, 7], [4, 7, 6],
+  [0, 1, 5], [0, 5, 4], [2, 3, 7], [2, 7, 6],
+  [0, 2, 6], [0, 6, 4], [1, 3, 7], [1, 7, 5]
+];
 const cuboids = tesseract.cellsOfDim(3).find((g) => g.kind === 'cuboid')!;
 const highlightGeometry = new BufferGeometry();
 highlightGeometry.setAttribute('position', wireframe.geometry.getAttribute('position'));
@@ -99,17 +107,47 @@ highlight.position.copy(wireframe.object.position);
 highlight.frustumCulled = false;
 scene.add(highlight);
 
+// Translucent fill of the selected cell's faces — shares the same projected
+// position attribute, so it tracks the 4D rotation like the edge highlight.
+const highlightFillGeometry = new BufferGeometry();
+highlightFillGeometry.setAttribute('position', wireframe.geometry.getAttribute('position'));
+highlightFillGeometry.setIndex([]);
+const highlightFill = new Mesh(
+  highlightFillGeometry,
+  new MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.3,
+    side: DoubleSide,
+    depthWrite: false
+  })
+);
+highlightFill.position.copy(wireframe.object.position);
+highlightFill.frustumCulled = false;
+scene.add(highlightFill);
+
+const wireframeMaterial = wireframe.object.material as LineBasicMaterial;
+
 const highlightCube = (cube: number | null): void => {
   if (cube === null) {
     highlightGeometry.setIndex([]);
+    highlightFillGeometry.setIndex([]);
+    wireframeMaterial.color.setHex(0x7fd4ff);
     return;
   }
   const base = cube * 8;
-  const indices: number[] = [];
+  const edgeIndices: number[] = [];
   for (const [a, b] of CUBE_EDGES) {
-    indices.push(cuboids.indices[base + a]!, cuboids.indices[base + b]!);
+    edgeIndices.push(cuboids.indices[base + a]!, cuboids.indices[base + b]!);
   }
-  highlightGeometry.setIndex(indices);
+  highlightGeometry.setIndex(edgeIndices);
+  const faceIndices: number[] = [];
+  for (const [a, b, c] of CUBE_FACE_TRIANGLES) {
+    faceIndices.push(cuboids.indices[base + a]!, cuboids.indices[base + b]!, cuboids.indices[base + c]!);
+  }
+  highlightFillGeometry.setIndex(faceIndices);
+  // Dim the rest of the wireframe so the selected cell stands out.
+  wireframeMaterial.color.setHex(0x33566e);
 };
 
 const raycaster = new Raycaster();
@@ -165,6 +203,14 @@ bindToggle('showWireframe', (on) => (wireframe.object.visible = on));
 bindToggle('showSlice', (on) => (section.object.visible = on));
 bindToggle('showOverlay', (on) => (overlay.object.visible = on));
 
+// Smoothly slerp the accumulated 4D drag back to identity — the isoclinic
+// interpolation is the geodesic in SO(4), so the return path is the
+// straightest possible 4D rotation.
+let resetAnimation: { from: Rotor4; start: number } | null = null;
+document.getElementById('resetRotation')!.addEventListener('click', () => {
+  resetAnimation = { from: drag4d.rotor.clone(), start: performance.now() };
+});
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -183,6 +229,13 @@ renderer.setAnimationLoop((timeMs) => {
 
   // Pause the 3D orbit while a 4D drag gesture is active.
   controls.enabled = !drag4d.active;
+
+  if (resetAnimation) {
+    const t = Math.min((timeMs - resetAnimation.start) / 800, 1);
+    const eased = 1 - (1 - t) ** 3;
+    drag4d.rotor = Rotor4.slerp(resetAnimation.from, Rotor4.identity(), eased);
+    if (t >= 1) resetAnimation = null;
+  }
 
   // User 4D rotation composed on top of the auto-rotation, all on the
   // Rotor4 fast path.
