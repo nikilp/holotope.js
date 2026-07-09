@@ -4,3 +4,4 @@ export { createCrossPolytope, type CrossPolytopeOptions } from './cross-polytope
 export { create24Cell, type Cell24Options } from './cell24.js';
 export { create600Cell, type Cell600Options } from './cell600.js';
 export { create120Cell, type Cell120Options } from './cell120.js';
+export { createDuoprism, type DuoprismOptions } from './duoprism.js';

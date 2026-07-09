@@ -241,3 +241,65 @@ describe('create120Cell', () => {
     expect(sliceArea(c, 0)).toBeGreaterThan(0);
   });
 });
+
+describe('createDuoprism', () => {
+  it.each([
+    [3, 3, 9, 18, 9, 18],
+    [4, 6, 24, 48, 24, 84],
+    [5, 5, 25, 50, 25, 90],
+    [3, 8, 24, 48, 24, 78]
+  ])('p=%i q=%i: %i vertices, %i edges, %i squares, %i tets', async (p, q, v, e, s, t) => {
+    const { createDuoprism } = await import('@holotope/core');
+    const c = createDuoprism({ p, q });
+    expect(c.vertexCount).toBe(v);
+    expect(c.cellCount(1)).toBe(e);
+    expect(c.cellCount(2)).toBe(s);
+    expect(c.cellCount(3)).toBe(t);
+  });
+
+  it('all vertices lie on the Clifford torus: radius √(r1²+r2²)', async () => {
+    const { createDuoprism } = await import('@holotope/core');
+    const c = createDuoprism({ p: 5, q: 7, radius1: 1.2, radius2: 0.8 });
+    for (let v = 0; v < c.vertexCount; v++) {
+      const xy = Math.hypot(c.positions[v * 4]!, c.positions[v * 4 + 1]!);
+      const zw = Math.hypot(c.positions[v * 4 + 2]!, c.positions[v * 4 + 3]!);
+      expect(xy).toBeCloseTo(1.2, 12);
+      expect(zw).toBeCloseTo(0.8, 12);
+    }
+  });
+
+  it('boundary 3-volume matches the closed form: pq·r1·r2·(r1·sin(2π/p)sin(π/q) + r2·sin(2π/q)sin(π/p))', async () => {
+    const { createDuoprism } = await import('@holotope/core');
+    for (const [p, q, r1, r2] of [
+      [3, 3, 1, 1],
+      [5, 7, 1.2, 0.8],
+      [4, 4, 1, 1]
+    ] as const) {
+      const c = createDuoprism({ p, q, radius1: r1, radius2: r2 });
+      const expected =
+        p * q * r1 * r2 *
+        (r1 * Math.sin((2 * Math.PI) / p) * Math.sin(Math.PI / q) +
+          r2 * Math.sin((2 * Math.PI) / q) * Math.sin(Math.PI / p));
+      expect(boundaryVolume(c)).toBeCloseTo(expected, 9);
+    }
+  });
+
+  it('the 4,4-duoprism with equal radii is a tesseract (volume cross-check)', async () => {
+    const { createDuoprism } = await import('@holotope/core');
+    // 4,4 with circumradius 1 has edge √2 → boundary volume 8·(√2)³.
+    const c = createDuoprism({ p: 4, q: 4 });
+    expect(boundaryVolume(c)).toBeCloseTo(8 * Math.SQRT2 ** 3, 9);
+  });
+
+  it('slices through the center; empty past the zw circumradius', async () => {
+    const { createDuoprism } = await import('@holotope/core');
+    const c = createDuoprism({ p: 6, q: 8, radius1: 1, radius2: 0.9 });
+    expect(sliceArea(c, 0)).toBeGreaterThan(0);
+    expect(sliceArea(c, 0.95)).toBe(0);
+  });
+
+  it('rejects degenerate polygons', async () => {
+    const { createDuoprism } = await import('@holotope/core');
+    expect(() => createDuoprism({ p: 2, q: 5 })).toThrow(/≥ 3/);
+  });
+});
