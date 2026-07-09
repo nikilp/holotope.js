@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Duoprisms</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0a0a12;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+      }
+      #hud {
+        position: fixed;
+        top: 12px;
+        left: 14px;
+        color: #8fa3c8;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        user-select: none;
+        pointer-events: none;
+      }
+      #hud strong {
+        color: #d7e3ff;
+      }
+      #hud a {
+        color: #7fd4ff;
+        text-decoration: none;
+        pointer-events: auto;
+      }
+      #controls {
+        position: fixed;
+        top: 12px;
+        right: 14px;
+        width: 240px;
+        padding: 12px 14px;
+        background: rgba(16, 18, 30, 0.85);
+        border: 1px solid #26304a;
+        border-radius: 8px;
+        color: #8fa3c8;
+        font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      #controls label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 6px 0;
+      }
+      #controls input[type='range'] {
+        flex: 1;
+        accent-color: #7fd4ff;
+      }
+      #controls .value {
+        width: 42px;
+        text-align: right;
+        color: #d7e3ff;
+      }
+      #controls hr {
+        border: none;
+        border-top: 1px solid #26304a;
+        margin: 8px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js</strong> — duoprisms: the product of two polygons.<br />
+      A p-gon lives in the xy plane, a q-gon in the zw plane; every vertex<br />
+      sits on the Clifford torus. Left: projection · right: cross-section.<br />
+      Drag to orbit · <strong>alt-drag to rotate in 4D</strong> (xw / yw).
+      <br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="controls">
+      <label>p <input id="pSides" type="range" min="3" max="12" step="1" value="6" /> <span class="value" id="pSidesValue">6</span></label>
+      <label>q <input id="qSides" type="range" min="3" max="12" step="1" value="4" /> <span class="value" id="qSidesValue">4</span></label>
+      <label>zw radius <input id="radius2" type="range" min="0.4" max="1.4" step="0.05" value="1" /> <span class="value" id="radius2Value">1.00</span></label>
+      <hr />
+      <label>slice w <input id="sliceOffset" type="range" min="-1.5" max="1.5" step="0.01" value="0" /> <span class="value" id="sliceOffsetValue">0.00</span></label>
+      <hr />
+      <label>xy spin <input id="xySpeed" type="range" min="0" max="1" step="0.01" value="0.3" /> <span class="value" id="xySpeedValue">0.30</span></label>
+      <label>zw spin <input id="zwSpeed" type="range" min="0" max="1" step="0.01" value="0.2" /> <span class="value" id="zwSpeedValue">0.20</span></label>
+    </div>
+    <script type="module" src="/src/duoprisms.ts"></script>
+  </body>
+</html>

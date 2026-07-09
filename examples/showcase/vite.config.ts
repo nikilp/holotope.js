@@ -18,7 +18,8 @@ export default defineConfig({
       input: {
         index: fileURLToPath(new URL('./index.html', import.meta.url)),
         tesseract: fileURLToPath(new URL('./tesseract.html', import.meta.url)),
-        polychora: fileURLToPath(new URL('./polychora.html', import.meta.url))
+        polychora: fileURLToPath(new URL('./polychora.html', import.meta.url)),
+        duoprisms: fileURLToPath(new URL('./duoprisms.html', import.meta.url))
       }
     }
   }
