@@ -101,3 +101,34 @@ describe('createCrossPolytope', () => {
     expect(c.cellCount(1)).toBe(edges);
   });
 });
+
+describe('createCliffordCurve', () => {
+  it('every vertex lies on the 3-sphere and on the Clifford torus', async () => {
+    const { createCliffordCurve } = await import('@holotope/core');
+    const curve = createCliffordCurve({ p: 2, q: 3, radius: 1.5, segments: 128 });
+    expect(curve.vertexCount).toBe(128);
+    const half = (1.5 * 1.5) / 2;
+    for (let v = 0; v < curve.vertexCount; v++) {
+      const [x0, x1, x2, x3] = [0, 1, 2, 3].map((c) => curve.positions[v * 4 + c]!);
+      expect(Math.hypot(x0, x1, x2, x3)).toBeCloseTo(1.5, 12);
+      // Equal radii: the xy and zw circles each carry half the square radius.
+      expect(x0! * x0! + x1! * x1!).toBeCloseTo(half, 12);
+    }
+  });
+
+  it('is a single closed polyline: every vertex has degree 2', async () => {
+    const { createCliffordCurve } = await import('@holotope/core');
+    const curve = createCliffordCurve({ segments: 64 });
+    const edges = curve.cellsOfDim(1)[0]!.indices;
+    expect(edges.length).toBe(64 * 2);
+    const degree = new Uint32Array(64);
+    for (const idx of edges) degree[idx]!++;
+    for (const d of degree) expect(d).toBe(2);
+  });
+
+  it('rejects non-integer windings and degenerate segment counts', async () => {
+    const { createCliffordCurve } = await import('@holotope/core');
+    expect(() => createCliffordCurve({ p: 1.5 })).toThrow(/positive integers/);
+    expect(() => createCliffordCurve({ segments: 2 })).toThrow(/at least 3/);
+  });
+});
