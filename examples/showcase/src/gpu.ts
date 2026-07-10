@@ -43,11 +43,16 @@ const gpu = new ProjectedEdgesGPU(cell600, { color: 0xf2a65a, viewDistance });
 scene.add(gpu.object);
 
 // CPU golden path of the same object and projection — toggle it on and the
-// two wireframes must coincide exactly (differential verification).
+// two wireframes must coincide exactly (differential verification). The
+// overlay draws on top without depth testing: the lines are coincident to
+// sub-pixel, so depth-tested rendering would z-fight (per-pixel Float32 vs
+// Float64 ties → blue/orange speckle). Drawn last and depth-free, solid
+// blue means agreement; any orange peeking through means divergence.
 const cpu = new ProjectedEdges3D(cell600, new PerspectiveProjection({ fromDim: 4, viewDistance }), {
-  material: new LineBasicMaterial({ color: 0x7fd4ff })
+  material: new LineBasicMaterial({ color: 0x7fd4ff, depthTest: false, transparent: true })
 });
 cpu.object.visible = false;
+cpu.object.renderOrder = 1;
 scene.add(cpu.object);
 
 const bindRange = (id: string, onInput: (value: number) => void): void => {
