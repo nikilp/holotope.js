@@ -88,13 +88,15 @@
     <div id="hud">
       <strong>Holotope.js</strong> — one tesseract, two render products.<br />
       Left: 4D→3D perspective projection (wireframe).<br />
-      Right: exact cross-section at the w = offset hyperplane.<br />
+      Right: exact cross-section against the slice hyperplane (offset + tilt).<br />
       Drag to orbit · scroll to zoom · <strong>alt-drag to rotate in 4D</strong> (xw / yw).<br />
       <strong>Click the cross-section</strong> to highlight the tesseract cell it was cut from.<br />
       <a href="./index.html">← all examples</a>
     </div>
     <div id="controls">
       <label>slice w <input id="sliceOffset" type="range" min="-1.6" max="1.6" step="0.01" value="0" /> <span class="value" id="sliceOffsetValue">0.00</span></label>
+      <label>tilt xw <input id="tiltXw" type="range" min="-0.7854" max="0.7854" step="0.01" value="0" /> <span class="value" id="tiltXwValue">0.00</span></label>
+      <label>tilt zw <input id="tiltZw" type="range" min="-0.7854" max="0.7854" step="0.01" value="0" /> <span class="value" id="tiltZwValue">0.00</span></label>
       <hr />
       <label>xw speed <input id="xwSpeed" type="range" min="0" max="1" step="0.01" value="0.5" /> <span class="value" id="xwSpeedValue">0.50</span></label>
       <label>yz speed <input id="yzSpeed" type="range" min="0" max="1" step="0.01" value="0.3" /> <span class="value" id="yzSpeedValue">0.30</span></label>

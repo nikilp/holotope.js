@@ -21,6 +21,7 @@ import {
   PerspectiveProjection,
   Rotor4,
   TransformN,
+  VecN,
   createHypercube,
   tetrahedralizeCuboidCells
 } from '@holotope/core';
@@ -202,6 +203,27 @@ const bindRange = (id: string, onInput: (value: number) => void): void => {
 let xwSpeed = 0.5;
 let yzSpeed = 0.3;
 bindRange('sliceOffset', (v) => (slice.offset = v));
+
+// Tilt the cutting hyperplane away from w-aligned: rotate e_w through the
+// xw and zw planes and hand the result to setNormal, which rebuilds the
+// slice's display frame in place — both section views pick it up live.
+let tiltXw = 0;
+let tiltZw = 0;
+const applyTilt = (): void => {
+  const normal = Rotor4.fromPlanes([
+    { i: 0, j: 3, angle: tiltXw },
+    { i: 2, j: 3, angle: tiltZw }
+  ]).applyToPoint(VecN.basis(4, 3));
+  slice.setNormal(normal);
+};
+bindRange('tiltXw', (v) => {
+  tiltXw = v;
+  applyTilt();
+});
+bindRange('tiltZw', (v) => {
+  tiltZw = v;
+  applyTilt();
+});
 bindRange('xwSpeed', (v) => (xwSpeed = v));
 bindRange('yzSpeed', (v) => (yzSpeed = v));
 
