@@ -28,7 +28,8 @@ export default defineConfig({
         polychora: local('./polychora.html'),
         duoprisms: local('./duoprisms.html'),
         gpu: local('./gpu.html'),
-        compute: local('./compute.html')
+        compute: local('./compute.html'),
+        knots: local('./knots.html')
       }
     }
   }
