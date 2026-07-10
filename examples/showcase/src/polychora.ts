@@ -95,8 +95,7 @@ const sections = polychora.map(({ complex, color }) => {
 });
 
 // Projected 2-faces as a translucent skin — including the 120-cell's
-// pentagons, stored as polygon 2-cells. The 16-cell stores no 2-cells
-// (its builder emits only edges and tetrahedra), so it has no surface.
+// pentagons, stored as polygon 2-cells.
 const surfaces = polychora.map(({ complex, color }) => {
   if (complex.cellsOfDim(2).length === 0) return null;
   const surface = new ProjectedSurface3D(complex, projection, {

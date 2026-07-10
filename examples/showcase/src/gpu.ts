@@ -8,7 +8,7 @@ import {
   create600Cell
 } from '@holotope/core';
 import { DragRotation4D, ProjectedEdges3D } from '@holotope/three';
-import { ProjectedEdgesGPU } from '@holotope/three/webgpu';
+import { ProjectedEdgesGPU, ProjectedSurfaceGPU } from '@holotope/three/webgpu';
 import { setupShowcaseUI } from './ui';
 
 const container = document.getElementById('app')!;
@@ -43,6 +43,13 @@ const cell600 = create600Cell({ radius: 1.5 });
 const gpu = new ProjectedEdgesGPU(cell600, { color: 0xf2a65a, viewDistance });
 scene.add(gpu.object);
 
+// Its surface sibling: the 1200 triangular faces, also projected in the
+// vertex shader, flat-shaded from fragment derivatives — per frame both
+// products together cost a handful of uniforms.
+const faces = new ProjectedSurfaceGPU(cell600, { color: 0xf2a65a, opacity: 0.22, viewDistance });
+faces.object.visible = false;
+scene.add(faces.object);
+
 // CPU golden path of the same object and projection — toggle it on and the
 // two wireframes must coincide exactly (differential verification). The
 // overlay draws on top without depth testing: the lines are coincident to
@@ -74,6 +81,8 @@ bindRange('xwSpeed', (v) => (xwSpeed = v));
 bindRange('yzSpeed', (v) => (yzSpeed = v));
 const cpuToggle = document.getElementById('showCpu') as HTMLInputElement;
 cpuToggle.addEventListener('change', () => (cpu.object.visible = cpuToggle.checked));
+const facesToggle = document.getElementById('showFaces') as HTMLInputElement;
+facesToggle.addEventListener('change', () => (faces.object.visible = facesToggle.checked));
 
 setupShowcaseUI({ drag4d });
 
@@ -105,6 +114,7 @@ renderer.setAnimationLoop((timeMs) => {
     )
   );
   gpu.update(transform); // uniforms only
+  if (faces.object.visible) faces.update(transform); // uniforms only
   if (cpu.object.visible) cpu.update(transform); // full CPU reprojection
   controls.update();
   renderer.render(scene, camera);
