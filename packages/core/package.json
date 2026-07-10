@@ -3,6 +3,16 @@
   "version": "0.0.1",
   "description": "N-dimensional geometry, transforms, polytopes, and projection for TypeScript.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikilp/holotope.js.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://nikilp.github.io/holotope.js/",
+  "bugs": "https://github.com/nikilp/holotope.js/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "sideEffects": false,
   "files": ["dist"],
