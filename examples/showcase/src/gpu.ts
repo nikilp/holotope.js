@@ -9,6 +9,7 @@ import {
 } from '@holotope/core';
 import { DragRotation4D, ProjectedEdges3D } from '@holotope/three';
 import { ProjectedEdgesGPU } from '@holotope/three/webgpu';
+import { setupShowcaseUI } from './ui';
 
 const container = document.getElementById('app')!;
 
@@ -74,6 +75,8 @@ bindRange('yzSpeed', (v) => (yzSpeed = v));
 const cpuToggle = document.getElementById('showCpu') as HTMLInputElement;
 cpuToggle.addEventListener('change', () => (cpu.object.visible = cpuToggle.checked));
 
+setupShowcaseUI({ drag4d });
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -90,7 +93,7 @@ renderer.setAnimationLoop((timeMs) => {
   xwAngle += dt * xwSpeed;
   yzAngle += dt * yzSpeed;
 
-  controls.enabled = !drag4d.active;
+  controls.enabled = !drag4d.active && drag4d.modifier !== 'none';
 
   const transform = new TransformN(
     4,

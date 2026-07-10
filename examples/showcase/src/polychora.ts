@@ -1,12 +1,17 @@
 import {
   AmbientLight,
+  BufferGeometry,
   Color,
   DirectionalLight,
   DoubleSide,
   LineBasicMaterial,
+  Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
+  Raycaster,
   Scene,
+  Vector2,
   WebGLRenderer
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -27,6 +32,7 @@ import {
   type CellComplex
 } from '@holotope/core';
 import { DragRotation4D, ProjectedEdges3D, SlicedComplex3D } from '@holotope/three';
+import { setupShowcaseUI } from './ui';
 
 const container = document.getElementById('app')!;
 
@@ -53,13 +59,13 @@ scene.add(sun);
 
 // All six regular polychora, in canonical order by cell count — every one
 // of them sliceable.
-const polychora: Array<{ complex: CellComplex; color: number }> = [
-  { complex: createSimplex({ dim: 4, edgeLength: 2 }), color: 0xff6b81 },
-  { complex: tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 })), color: 0xffd166 },
-  { complex: createCrossPolytope({ dim: 4, radius: 1.3 }), color: 0x7fd4ff },
-  { complex: create24Cell({ radius: 1.3 }), color: 0x9b8cff },
-  { complex: create120Cell({ radius: 1.3 }), color: 0x6ee7a8 },
-  { complex: create600Cell({ radius: 1.3 }), color: 0xf2a65a }
+const polychora: Array<{ complex: CellComplex; color: number; cells: number }> = [
+  { complex: createSimplex({ dim: 4, edgeLength: 2 }), color: 0xff6b81, cells: 5 },
+  { complex: tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 })), color: 0xffd166, cells: 8 },
+  { complex: createCrossPolytope({ dim: 4, radius: 1.3 }), color: 0x7fd4ff, cells: 16 },
+  { complex: create24Cell({ radius: 1.3 }), color: 0x9b8cff, cells: 24 },
+  { complex: create120Cell({ radius: 1.3 }), color: 0x6ee7a8, cells: 120 },
+  { complex: create600Cell({ radius: 1.3 }), color: 0xf2a65a, cells: 600 }
 ];
 
 // One 4D camera views all projections; sections share the same 4D rotation.
@@ -68,23 +74,122 @@ const cameraDistance = 2.5;
 const projection = new PerspectiveProjection({ fromDim: 4, viewDistance: 4 });
 const slice = HyperplaneSlice4.axisAligned(3, 0);
 
-const columnX = [-8.5, -5.1, -1.7, 1.7, 5.1, 8.5];
-const wireframes = polychora.map(({ complex, color }, i) => {
+const wireframes = polychora.map(({ complex, color }) => {
   const edges = new ProjectedEdges3D(complex, projection, {
     material: new LineBasicMaterial({ color })
   });
-  edges.object.position.set(columnX[i]!, 1.9, 0);
   scene.add(edges.object);
   return edges;
 });
-const sections = polychora.map(({ complex, color }, i) => {
+const sections = polychora.map(({ complex, color }) => {
   const section = new SlicedComplex3D(complex, slice, {
     material: new MeshStandardMaterial({ color, side: DoubleSide, flatShading: true })
   });
-  section.object.position.set(columnX[i]!, -1.9, 0);
   scene.add(section.object);
   return section;
 });
+
+// Picking, generalized from the tesseract page: every builder emits a
+// uniform number of tetrahedra per 3-cell, so the slicer's per-triangle
+// tet provenance maps straight to a source cell by integer division.
+// The cell's boundary surface is recovered generically: among the cell's
+// tet faces, exactly the unshared ones lie on its polyhedral boundary.
+const TET_FACES: ReadonlyArray<readonly [number, number, number]> = [
+  [0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]
+];
+const tetInfo = polychora.map(({ complex, cells }) => {
+  const tets = complex
+    .cellsOfDim(3)
+    .find((g) => g.kind === 'simplex' && g.verticesPerCell === 4)!.indices;
+  return { tets, perCell: tets.length / 4 / cells };
+});
+// One highlight mesh per polychoron, sharing the wireframe's projected
+// position attribute so it tracks the 4D rotation for free.
+const highlights = polychora.map((_, i) => {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', wireframes[i]!.geometry.getAttribute('position'));
+  geometry.setIndex([]);
+  const mesh = new Mesh(
+    geometry,
+    new MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.35,
+      side: DoubleSide,
+      depthWrite: false
+    })
+  );
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  return mesh;
+});
+
+const highlightCell = (shape: number | null, cell = 0): void => {
+  highlights.forEach((h, k) => {
+    if (k !== shape) h.geometry.setIndex([]);
+  });
+  if (shape === null) return;
+  const { tets, perCell } = tetInfo[shape]!;
+  // Boundary extraction: interior faces are shared by two tets of the
+  // cell and cancel; faces seen once form the cell's surface.
+  const boundary = new Map<string, readonly [number, number, number]>();
+  for (let t = cell * perCell; t < (cell + 1) * perCell; t++) {
+    for (const [a, b, c] of TET_FACES) {
+      const tri = [tets[t * 4 + a]!, tets[t * 4 + b]!, tets[t * 4 + c]!] as const;
+      const key = [...tri].sort((x, y) => x - y).join(',');
+      if (boundary.has(key)) boundary.delete(key);
+      else boundary.set(key, tri);
+    }
+  }
+  const indices: number[] = [];
+  for (const tri of boundary.values()) indices.push(...tri);
+  highlights[shape]!.geometry.setIndex(indices);
+};
+
+const raycaster = new Raycaster();
+const pointerNdc = new Vector2();
+let downX = 0;
+let downY = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  downX = e.clientX;
+  downY = e.clientY;
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (e.altKey || Math.hypot(e.clientX - downX, e.clientY - downY) > 4) return;
+  pointerNdc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointerNdc, camera3);
+  const hit = raycaster
+    .intersectObjects(sections.map((s) => s.object), false)
+    .find((h) => h.faceIndex !== undefined);
+  if (!hit) {
+    highlightCell(null);
+    return;
+  }
+  const shape = sections.findIndex((s) => s.object === hit.object);
+  const tet = sections[shape]!.sourceTetOfFace(hit.faceIndex!);
+  highlightCell(shape, Math.floor(tet / tetInfo[shape]!.perCell));
+});
+
+// Responsive layout. Landscape: six columns, projections above their
+// sections. Portrait: a 2 × 3 grid of polychora, each cell stacking the
+// projection over its section — the wide row can't fit a phone.
+const columnX = [-8.5, -5.1, -1.7, 1.7, 5.1, 8.5];
+const layout = (): void => {
+  const portrait = window.innerHeight > window.innerWidth;
+  for (let i = 0; i < polychora.length; i++) {
+    if (portrait) {
+      const x = i % 2 === 0 ? -1.9 : 1.9;
+      const rowY = 5.2 - Math.floor(i / 2) * 5.2;
+      wireframes[i]!.object.position.set(x, rowY + 1.15, 0);
+      sections[i]!.object.position.set(x, rowY - 1.15, 0);
+    } else {
+      wireframes[i]!.object.position.set(columnX[i]!, 1.9, 0);
+      sections[i]!.object.position.set(columnX[i]!, -1.9, 0);
+    }
+    highlights[i]!.position.copy(wireframes[i]!.object.position);
+  }
+};
+layout();
 
 const bindRange = (id: string, onInput: (value: number) => void): void => {
   const input = document.getElementById(id) as HTMLInputElement;
@@ -104,10 +209,13 @@ bindRange('sliceOffset', (v) => (slice.offset = v));
 bindRange('xwSpeed', (v) => (xwSpeed = v));
 bindRange('yzSpeed', (v) => (yzSpeed = v));
 
+setupShowcaseUI({ drag4d });
+
 window.addEventListener('resize', () => {
   camera3.aspect = window.innerWidth / window.innerHeight;
   camera3.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  layout();
 });
 
 let xwAngle = 0;
@@ -121,7 +229,7 @@ renderer.setAnimationLoop((timeMs) => {
   xwAngle += dt * xwSpeed;
   yzAngle += dt * yzSpeed;
 
-  controls.enabled = !drag4d.active;
+  controls.enabled = !drag4d.active && drag4d.modifier !== 'none';
 
   // Shared 4D rotation: user drag composed with the auto-rotation.
   const rotor = drag4d.rotor.multiply(

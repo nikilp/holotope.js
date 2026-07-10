@@ -15,6 +15,7 @@ import {
 } from '@holotope/core';
 import { DragRotation4D, SlicedComplex3D } from '@holotope/three';
 import { SlicedComplexGPU } from '@holotope/three/webgpu';
+import { setupShowcaseUI } from './ui';
 
 const container = document.getElementById('app')!;
 
@@ -51,15 +52,24 @@ const slice = HyperplaneSlice4.axisAligned(3, 0);
 // GPU compute path (left): the marching-tetrahedra kernel runs on the
 // GPU each frame; only uniforms cross the bus.
 const gpu = isWebGPU ? new SlicedComplexGPU(cell120, slice) : null;
-if (gpu) {
-  gpu.object.position.x = -2.2;
-  scene.add(gpu.object);
-}
+if (gpu) scene.add(gpu.object);
 
 // CPU golden path (right): the Float64 reference of the exact same cut.
 const cpu = new SlicedComplex3D(cell120, slice);
-cpu.object.position.x = gpu ? 2.2 : 0;
 scene.add(cpu.object);
+
+// Responsive layout: side by side in landscape, stacked in portrait.
+let wasPortrait: boolean | null = null;
+const layout = (): void => {
+  const portrait = window.innerHeight > window.innerWidth;
+  gpu?.object.position.set(portrait ? 0 : -2.2, portrait ? 2.0 : 0, 0);
+  cpu.object.position.set(gpu ? (portrait ? 0 : 2.2) : 0, gpu && portrait ? -2.0 : 0, 0);
+  if (portrait !== wasPortrait) {
+    camera.position.set(0, portrait ? 1.6 : 2.4, portrait ? 10.5 : 7.4);
+    wasPortrait = portrait;
+  }
+};
+layout();
 
 const bindRange = (id: string, onInput: (value: number) => void): void => {
   const input = document.getElementById(id) as HTMLInputElement;
@@ -151,10 +161,13 @@ const refreshStats = async (): Promise<void> => {
 if (gpu) setInterval(() => void refreshStats(), 500);
 else stats.textContent = 'GPU compute unavailable on this backend';
 
+setupShowcaseUI({ drag4d });
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  layout();
 });
 
 let xwAngle = 0;
@@ -167,7 +180,7 @@ renderer.setAnimationLoop((timeMs) => {
   xwAngle += dt * xwSpeed;
   yzAngle += dt * yzSpeed;
 
-  controls.enabled = !drag4d.active;
+  controls.enabled = !drag4d.active && drag4d.modifier !== 'none';
 
   const transform = new TransformN(
     4,

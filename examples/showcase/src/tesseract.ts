@@ -31,6 +31,7 @@ import {
   ProjectedSurface3D,
   SlicedComplex3D
 } from '@holotope/three';
+import { setupShowcaseUI } from './ui';
 
 const container = document.getElementById('app')!;
 
@@ -66,18 +67,15 @@ const projection = new PerspectiveProjection({ fromDim: 4, viewDistance: 4 });
 const wireframe = new ProjectedEdges3D(tesseract, projection, {
   material: new LineBasicMaterial({ color: 0x7fd4ff })
 });
-wireframe.object.position.x = -2.6;
 scene.add(wireframe.object);
 
 // The projected 2-faces as a translucent shaded skin over the wireframe.
 const faces = new ProjectedSurface3D(tesseract, projection);
-faces.object.position.x = -2.6;
 faces.object.visible = false;
 scene.add(faces.object);
 
 const slice = HyperplaneSlice4.axisAligned(3, 0);
 const section = new SlicedComplex3D(tesseract, slice);
-section.object.position.x = 2.6;
 scene.add(section.object);
 
 // The same cut rendered through the projection, overlaid inside the
@@ -93,7 +91,6 @@ const overlay = new SlicedComplex3D(tesseract, slice, {
     depthWrite: false
   })
 });
-overlay.object.position.x = -2.6;
 scene.add(overlay.object);
 
 // Picking: click the cross-section (either view) to highlight the cubic
@@ -115,7 +112,6 @@ const highlightGeometry = new BufferGeometry();
 highlightGeometry.setAttribute('position', wireframe.geometry.getAttribute('position'));
 highlightGeometry.setIndex([]);
 const highlight = new LineSegments(highlightGeometry, new LineBasicMaterial({ color: 0xffffff }));
-highlight.position.copy(wireframe.object.position);
 highlight.frustumCulled = false;
 scene.add(highlight);
 
@@ -134,9 +130,24 @@ const highlightFill = new Mesh(
     depthWrite: false
   })
 );
-highlightFill.position.copy(wireframe.object.position);
 highlightFill.frustumCulled = false;
 scene.add(highlightFill);
+
+// Responsive layout: side by side in landscape, stacked in portrait so
+// both render products fit a phone screen. The camera pulls back to the
+// orientation's default whenever the orientation flips.
+const projectionGroup = [wireframe.object, faces.object, overlay.object, highlight, highlightFill];
+let wasPortrait: boolean | null = null;
+const layout = (): void => {
+  const portrait = window.innerHeight > window.innerWidth;
+  for (const o of projectionGroup) o.position.set(portrait ? 0 : -2.6, portrait ? 2.1 : 0, 0);
+  section.object.position.set(portrait ? 0 : 2.6, portrait ? -2.1 : 0, 0);
+  if (portrait !== wasPortrait) {
+    camera.position.set(0, portrait ? 2.2 : 3.2, portrait ? 11.5 : 8.4);
+    wasPortrait = portrait;
+  }
+};
+layout();
 
 const wireframeMaterial = wireframe.object.material as LineBasicMaterial;
 
@@ -245,10 +256,13 @@ document.getElementById('resetRotation')!.addEventListener('click', () => {
   resetAnimation = { from: drag4d.rotor.clone(), start: performance.now() };
 });
 
+setupShowcaseUI({ drag4d });
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  layout();
 });
 
 let xwAngle = 0;
@@ -261,8 +275,9 @@ renderer.setAnimationLoop((timeMs) => {
   xwAngle += dt * xwSpeed;
   yzAngle += dt * yzSpeed;
 
-  // Pause the 3D orbit while a 4D drag gesture is active.
-  controls.enabled = !drag4d.active;
+  // Pause the 3D orbit while a 4D drag gesture is active, and hand the
+  // whole canvas to 4D rotation while touch 4D mode is on.
+  controls.enabled = !drag4d.active && drag4d.modifier !== 'none';
 
   if (resetAnimation) {
     const t = Math.min((timeMs - resetAnimation.start) / 800, 1);

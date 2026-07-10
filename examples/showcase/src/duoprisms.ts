@@ -16,6 +16,7 @@ import {
   createDuoprism
 } from '@holotope/core';
 import { DragRotation4D, ProjectedEdges3D, SlicedComplex3D } from '@holotope/three';
+import { setupShowcaseUI } from './ui';
 
 const container = document.getElementById('app')!;
 
@@ -51,6 +52,18 @@ let radius2 = 1;
 let wireframe: ProjectedEdges3D | null = null;
 let section: SlicedComplex3D | null = null;
 
+// Responsive layout: side by side in landscape, stacked in portrait.
+let wasPortrait: boolean | null = null;
+const layout = (): void => {
+  const portrait = window.innerHeight > window.innerWidth;
+  wireframe?.object.position.set(portrait ? 0 : -2.6, portrait ? 2.1 : 0, 0);
+  section?.object.position.set(portrait ? 0 : 2.6, portrait ? -2.1 : 0, 0);
+  if (portrait !== wasPortrait) {
+    camera.position.set(0, portrait ? 2.2 : 3.0, portrait ? 11.5 : 8.6);
+    wasPortrait = portrait;
+  }
+};
+
 function rebuild(): void {
   if (wireframe) {
     scene.remove(wireframe.object);
@@ -64,11 +77,10 @@ function rebuild(): void {
   wireframe = new ProjectedEdges3D(complex, projection, {
     material: new LineBasicMaterial({ color: 0x7fd4ff })
   });
-  wireframe.object.position.x = -2.6;
   scene.add(wireframe.object);
   section = new SlicedComplex3D(complex, slice);
-  section.object.position.x = 2.6;
   scene.add(section.object);
+  layout();
 }
 rebuild();
 
@@ -108,10 +120,13 @@ bindRange('sliceOffset', 2, (v) => (slice.offset = v));
 bindRange('xySpeed', 2, (v) => (xySpeed = v));
 bindRange('zwSpeed', 2, (v) => (zwSpeed = v));
 
+setupShowcaseUI({ drag4d });
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  layout();
 });
 
 let xyAngle = 0;
@@ -124,7 +139,7 @@ renderer.setAnimationLoop((timeMs) => {
   xyAngle += dt * xySpeed;
   zwAngle += dt * zwSpeed;
 
-  controls.enabled = !drag4d.active;
+  controls.enabled = !drag4d.active && drag4d.modifier !== 'none';
 
   // The duoprism's natural motion is the double rotation in its two
   // defining planes (equal speeds give a Clifford displacement); alt-drag
