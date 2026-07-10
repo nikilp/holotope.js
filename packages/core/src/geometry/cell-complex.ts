@@ -8,8 +8,12 @@
  * mixed-dimension bugs fail fast.
  */
 
-/** How to interpret a cell's vertex tuple. */
-export type CellKind = 'simplex' | 'cuboid';
+/**
+ * How to interpret a cell's vertex tuple: a simplex (any dim), a cuboid
+ * (binary corner order), or a polygon — a planar 2-cell whose vertices
+ * form a cyclically ordered loop of any arity ≥ 3.
+ */
+export type CellKind = 'simplex' | 'cuboid' | 'polygon';
 
 /** A homogeneous group of k-cells sharing arity and interpretation. */
 export interface CellGroup {

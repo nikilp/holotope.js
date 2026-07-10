@@ -17,8 +17,9 @@ export interface ProjectedSurface3DOptions {
  * Render product: the 2-skeleton (faces) of an N-dimensional cell complex,
  * projected to 3D and rendered as a shaded Mesh.
  *
- * Faces come from the complex's 2-cell groups — simplex triangles directly,
- * cuboid quads split in two. The projected boundary of a 4D object overlaps
+ * Faces come from the complex's 2-cell groups — simplex triangles directly;
+ * cuboid quads and polygon loops fan-triangulated from their first corner.
+ * The projected boundary of a 4D object overlaps
  * itself in 3D (cells in front of and behind the hidden axis project onto
  * each other), so the default material is translucent and double-sided;
  * flat normals are recomputed per update over the triangle soup.
@@ -67,18 +68,16 @@ export class ProjectedSurface3D {
       for (let cell = 0; cell < cellCount; cell++) {
         const base = cell * g.verticesPerCell;
         const corner = (k: number): number => g.indices[base + k]!;
-        if (g.verticesPerCell === 3) {
-          soupToVertex.push(corner(0), corner(1), corner(2));
-          triangleToFace.push(faceOffset + cell);
-        } else if (g.verticesPerCell === 4) {
-          // Quad loop → two triangles.
-          soupToVertex.push(corner(0), corner(1), corner(2));
-          soupToVertex.push(corner(0), corner(2), corner(3));
-          triangleToFace.push(faceOffset + cell, faceOffset + cell);
-        } else {
+        if (g.verticesPerCell < 3) {
           throw new Error(
-            `ProjectedSurface3D: unsupported 2-cell arity ${g.verticesPerCell} (expected 3 or 4)`
+            `ProjectedSurface3D: 2-cell arity ${g.verticesPerCell} cannot form a face`
           );
+        }
+        // Triangles pass through; quads and polygon loops (cyclic vertex
+        // order) fan-triangulate from their first corner.
+        for (let k = 1; k < g.verticesPerCell - 1; k++) {
+          soupToVertex.push(corner(0), corner(k), corner(k + 1));
+          triangleToFace.push(faceOffset + cell);
         }
       }
       faceOffset += cellCount;

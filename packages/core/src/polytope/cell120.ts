@@ -81,6 +81,7 @@ export function create120Cell({ radius = 1 }: Cell120Options = {}): CellComplex 
   const positions = new Float64Array((tetCount + 120) * 4);
   positions.set(dual);
   const fanTets: number[] = [];
+  const pentagons: number[] = [];
   const scratchBasis1 = new Float64Array(4);
   const scratchBasis2 = new Float64Array(4);
 
@@ -106,6 +107,7 @@ export function create120Cell({ radius = 1 }: Cell120Options = {}): CellComplex 
         throw new Error(`create120Cell: edge star of size ${pentagon.length}, expected 5`);
       }
       const ordered = sortCyclically(pentagon, dual, scratchBasis1, scratchBasis2);
+      pentagons.push(...ordered);
       for (const centroid of [tetCount + v, tetCount + u]) {
         for (let f = 1; f < 4; f++) {
           fanTets.push(centroid, ordered[0]!, ordered[f]!, ordered[f + 1]!);
@@ -116,6 +118,7 @@ export function create120Cell({ radius = 1 }: Cell120Options = {}): CellComplex 
 
   return new CellComplex(4, positions, [
     { dim: 1, verticesPerCell: 2, kind: 'simplex', indices: Uint32Array.from(dualEdges) },
+    { dim: 2, verticesPerCell: 5, kind: 'polygon', indices: Uint32Array.from(pentagons) },
     { dim: 3, verticesPerCell: 4, kind: 'simplex', indices: Uint32Array.from(fanTets) }
   ]);
 }

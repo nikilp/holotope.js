@@ -89,10 +89,26 @@ describe('ProjectedSurface3D', () => {
   });
 
   it('rejects complexes without 2-cells', async () => {
-    const { create120Cell } = await import('@holotope/core');
+    const { createCrossPolytope } = await import('@holotope/core');
     expect(
       () =>
-        new ProjectedSurface3D(create120Cell(), new PerspectiveProjection({ fromDim: 4 }))
+        new ProjectedSurface3D(
+          createCrossPolytope({ dim: 4 }),
+          new PerspectiveProjection({ fromDim: 4 })
+        )
     ).toThrow(/no faces/);
+  });
+
+  it('fan-triangulates polygon 2-cells: the 120-cell renders 720 pentagons', async () => {
+    const { create120Cell } = await import('@holotope/core');
+    const surface = new ProjectedSurface3D(
+      create120Cell(),
+      new PerspectiveProjection({ fromDim: 4 })
+    );
+    // 720 pentagons × (5 − 2) fan triangles each.
+    expect(surface.triangleCount).toBe(720 * 3);
+    // Provenance: the last triangle belongs to the last pentagon.
+    expect(surface.sourceFaceOfTriangle(720 * 3 - 1)).toBe(719);
+    surface.dispose();
   });
 });

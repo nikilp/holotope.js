@@ -219,6 +219,33 @@ describe('create120Cell', () => {
     for (let v = 0; v < 600; v++) expect(valence[v]).toBe(4);
   });
 
+  it('stores the 720 pentagonal faces as cyclically ordered polygon 2-cells', async () => {
+    const { create120Cell } = await import('@holotope/core');
+    const c = create120Cell({ radius: 1 });
+    const group = c.cellsOfDim(2)[0]!;
+    expect(group.kind).toBe('polygon');
+    expect(group.verticesPerCell).toBe(5);
+    expect(group.indices.length / 5).toBe(720);
+
+    // Each pentagon is regular: all five consecutive edges (in the stored
+    // cyclic order) have the same length — which also proves the order is
+    // truly cyclic, since a mis-ordered pentagon would include a longer
+    // diagonal chord.
+    const dist = (a: number, b: number): number => {
+      let acc = 0;
+      for (let k = 0; k < 4; k++) acc += (c.positions[a * 4 + k]! - c.positions[b * 4 + k]!) ** 2;
+      return Math.sqrt(acc);
+    };
+    const side = dist(group.indices[0]!, group.indices[1]!);
+    for (let f = 0; f < 720; f++) {
+      for (let k = 0; k < 5; k++) {
+        const a = group.indices[f * 5 + k]!;
+        const b = group.indices[f * 5 + ((k + 1) % 5)]!;
+        expect(dist(a, b)).toBeCloseTo(side, 10);
+      }
+    }
+  });
+
   it('boundary 3-volume is 120 regular dodecahedra: 30·(15+7√5)·a³', async () => {
     const { create120Cell } = await import('@holotope/core');
     const c = create120Cell();
