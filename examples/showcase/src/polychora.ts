@@ -31,7 +31,12 @@ import {
   tetrahedralizeCuboidCells,
   type CellComplex
 } from '@holotope/core';
-import { DragRotation4D, ProjectedEdges3D, SlicedComplex3D } from '@holotope/three';
+import {
+  DragRotation4D,
+  ProjectedEdges3D,
+  ProjectedSurface3D,
+  SlicedComplex3D
+} from '@holotope/three';
 import { setupShowcaseUI } from './ui';
 
 const container = document.getElementById('app')!;
@@ -87,6 +92,26 @@ const sections = polychora.map(({ complex, color }) => {
   });
   scene.add(section.object);
   return section;
+});
+
+// Projected 2-faces as a translucent skin — including the 120-cell's
+// pentagons, stored as polygon 2-cells. The 16-cell stores no 2-cells
+// (its builder emits only edges and tetrahedra), so it has no surface.
+const surfaces = polychora.map(({ complex, color }) => {
+  if (complex.cellsOfDim(2).length === 0) return null;
+  const surface = new ProjectedSurface3D(complex, projection, {
+    material: new MeshStandardMaterial({
+      color,
+      side: DoubleSide,
+      flatShading: true,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false
+    })
+  });
+  surface.object.visible = false;
+  scene.add(surface.object);
+  return surface;
 });
 
 // Picking, generalized from the tesseract page: every builder emits a
@@ -187,6 +212,7 @@ const layout = (): void => {
       sections[i]!.object.position.set(columnX[i]!, -1.9, 0);
     }
     highlights[i]!.position.copy(wireframes[i]!.object.position);
+    surfaces[i]?.object.position.copy(wireframes[i]!.object.position);
   }
 };
 layout();
@@ -208,6 +234,13 @@ let yzSpeed = 0.15;
 bindRange('sliceOffset', (v) => (slice.offset = v));
 bindRange('xwSpeed', (v) => (xwSpeed = v));
 bindRange('yzSpeed', (v) => (yzSpeed = v));
+
+const facesToggle = document.getElementById('showFaces') as HTMLInputElement;
+facesToggle.addEventListener('change', () => {
+  for (const s of surfaces) {
+    if (s) s.object.visible = facesToggle.checked;
+  }
+});
 
 setupShowcaseUI({ drag4d });
 
@@ -245,6 +278,9 @@ renderer.setAnimationLoop((timeMs) => {
   camera4.lookAt(origin4);
   const view = camera4.viewTransform();
   for (const wireframe of wireframes) wireframe.update(view);
+  if (facesToggle.checked) {
+    for (const surface of surfaces) surface?.update(view);
+  }
 
   // Bottom row: rotate the objects and slice them with the fixed hyperplane.
   const objectTransform = new TransformN(4, rotor);
