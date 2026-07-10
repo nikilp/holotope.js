@@ -39,6 +39,20 @@ export class HyperplaneSlice4 {
     return new HyperplaneSlice4({ normal: VecN.basis(4, hiddenAxis), offset });
   }
 
+  /**
+   * Reorients the hyperplane. The normal is normalized and the in-plane
+   * display basis recomputed **in place**, so render products holding a
+   * reference to `normal` or `basis` see the new frame on their next update.
+   */
+  setNormal(normal: VecN | ArrayLike<number>): this {
+    const n = normal instanceof VecN ? normal : new VecN(normal);
+    if (n.dim !== 4) throw new Error(`HyperplaneSlice4: normal must be 4D, got ${n.dim}D`);
+    this.normal.copy(n).normalize();
+    const fresh = computeComplementBasis(this.normal);
+    for (let k = 0; k < 3; k++) this.basis[k]!.set(fresh[k]!);
+    return this;
+  }
+
   signedDistance(x0: number, x1: number, x2: number, x3: number): number {
     const n = this.normal.data;
     return n[0]! * x0 + n[1]! * x1 + n[2]! * x2 + n[3]! * x3 - this.offset;

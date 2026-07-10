@@ -92,6 +92,38 @@ describe('HyperplaneSlice4', () => {
       }
     }
   });
+
+  it('setNormal matches a fresh instance and keeps normal/basis references', () => {
+    const slice = HyperplaneSlice4.axisAligned(3, 0.1);
+    const normalRef = slice.normal;
+    const basisRefs = [...slice.basis];
+
+    slice.setNormal([1, 2, 0, 3]);
+    const fresh = new HyperplaneSlice4({ normal: new VecN([1, 2, 0, 3]), offset: 0.1 });
+
+    expect(slice.normal).toBe(normalRef);
+    for (let k = 0; k < 3; k++) {
+      expect(slice.basis[k]).toBe(basisRefs[k]);
+      expect(Array.from(slice.basis[k]!)).toEqual(Array.from(fresh.basis[k]!));
+    }
+    expect(Array.from(slice.normal.data)).toEqual(Array.from(fresh.normal.data));
+
+    // Slicing through the reoriented instance ≡ slicing through a fresh one.
+    const { complex, tets } = tesseractTets();
+    const outA = new Float32Array((tets.length / 4) * 18);
+    const outB = new Float32Array((tets.length / 4) * 18);
+    const countA = sliceTetrahedra(complex.positions, tets, slice, outA);
+    const countB = sliceTetrahedra(complex.positions, tets, fresh, outB);
+    expect(countA).toBe(countB);
+    expect(Array.from(outA.subarray(0, countA * 3))).toEqual(
+      Array.from(outB.subarray(0, countB * 3))
+    );
+  });
+
+  it('setNormal rejects wrong-dimension normals', () => {
+    const slice = HyperplaneSlice4.axisAligned();
+    expect(() => slice.setNormal([1, 0, 0])).toThrow(/must be 4D/);
+  });
 });
 
 describe('sliceTetrahedra', () => {
