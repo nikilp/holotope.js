@@ -85,6 +85,17 @@ describe('createCrossPolytope', () => {
     const c = createCrossPolytope({ dim: 4, radius });
     expect(c.vertexCount).toBe(8);
     expect(c.cellCount(1)).toBe(24); // 2n(n-1) = 24 for the 16-cell
+    expect(c.cellCount(2)).toBe(32); // C(4,3)·2³ triangles
+    expect(c.cellCount(3)).toBe(16); // C(4,4)·2⁴ tetrahedral cells
+    // No triangle may contain an antipodal pair (they'd be degenerate).
+    const triangles = c.cellsOfDim(2)[0]!.indices;
+    for (let t = 0; t < triangles.length; t += 3) {
+      for (let i = 0; i < 3; i++) {
+        for (let j = i + 1; j < 3; j++) {
+          expect(Math.abs(triangles[t + i]! - triangles[t + j]!)).not.toBe(4);
+        }
+      }
+    }
     const edgeGroup = c.cellsOfDim(1)[0]!;
     for (const len of pairwiseEdgeLengths(c.positions, 4, edgeGroup.indices)) {
       expect(len).toBeCloseTo(radius * Math.SQRT2, 12);

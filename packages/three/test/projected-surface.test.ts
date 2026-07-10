@@ -89,13 +89,10 @@ describe('ProjectedSurface3D', () => {
   });
 
   it('rejects complexes without 2-cells', async () => {
-    const { createCrossPolytope } = await import('@holotope/core');
+    const { createCliffordCurve } = await import('@holotope/core');
     expect(
       () =>
-        new ProjectedSurface3D(
-          createCrossPolytope({ dim: 4 }),
-          new PerspectiveProjection({ fromDim: 4 })
-        )
+        new ProjectedSurface3D(createCliffordCurve(), new PerspectiveProjection({ fromDim: 4 }))
     ).toThrow(/no faces/);
   });
 
