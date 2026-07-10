@@ -220,6 +220,25 @@ describe('Rotor4.slerp', () => {
     );
   });
 
+  it('hits the endpoints when only one factor quaternion crosses the cover', () => {
+    // θ01 = θ23 = 3.3 splits isoclinically into left angle 0 and right
+    // angle 3.3 > π: the right factor's dot against identity is negative
+    // while the left's is +1. A per-quaternion shortest-arc flip would
+    // negate only the right factor — which is −R, a different SO(4)
+    // element — so slerp(a, b, 1) would come back sign-flipped. The cover
+    // choice must be made once for the pair.
+    const a = Rotor4.identity();
+    const b = Rotor4.fromPlanes([
+      { i: 0, j: 1, angle: 3.3 },
+      { i: 2, j: 3, angle: 3.3 }
+    ]);
+    expectMatricesClose(Rotor4.slerp(a, b, 0).toMatrix(), a.toMatrix());
+    expectMatricesClose(Rotor4.slerp(a, b, 1).toMatrix(), b.toMatrix());
+    for (let k = 0; k <= 10; k++) {
+      expect(Rotor4.slerp(a, b, k / 10).toMatrix().orthogonalityError()).toBeLessThan(1e-12);
+    }
+  });
+
   it('stays on the rotation manifold across the whole parameter range', () => {
     const a = Rotor4.fromBivector(randomBivector(4, 2));
     const b = Rotor4.fromBivector(randomBivector(4, 2));

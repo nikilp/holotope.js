@@ -87,15 +87,27 @@ export class Rotor4 {
   }
 
   /**
-   * Isoclinic interpolation: shortest-path SLERP applied to the left and
-   * right quaternions independently. Because a geodesic of SO(4) (in the
-   * bi-invariant metric) is exactly a pair of quaternion geodesics, this is
-   * the geodesic from `a` to `b`: slerp(I, exp(B), t) = exp(t·B) for every
-   * bivector B. The 4D generalization of quaternion slerp for animation
-   * and camera tours.
+   * Isoclinic interpolation: SLERP applied to the left and right
+   * quaternions with one shared cover choice. Because a geodesic of SO(4)
+   * (in the bi-invariant metric) is exactly a pair of quaternion geodesics,
+   * this is the geodesic from `a` to `b`: slerp(I, exp(B), t) = exp(t·B)
+   * for every bivector B. The 4D generalization of quaternion slerp for
+   * animation and camera tours.
+   *
+   * The double cover is pair-level: (l, r) and (−l, −r) are the same SO(4)
+   * element, but flipping only one factor negates the rotation — so the
+   * shorter-path sign must be chosen once for the pair, never per
+   * quaternion. One factor may therefore legitimately travel an arc
+   * longer than π.
    */
   static slerp(a: Rotor4, b: Rotor4, t: number): Rotor4 {
-    return new Rotor4(qslerp(a.left, b.left, t), qslerp(a.right, b.right, t));
+    const dot =
+      a.left[0]! * b.left[0]! + a.left[1]! * b.left[1]! +
+      a.left[2]! * b.left[2]! + a.left[3]! * b.left[3]! +
+      a.right[0]! * b.right[0]! + a.right[1]! * b.right[1]! +
+      a.right[2]! * b.right[2]! + a.right[3]! * b.right[3]!;
+    const sign = dot < 0 ? -1 : 1;
+    return new Rotor4(qslerp(a.left, b.left, t, sign), qslerp(a.right, b.right, t, sign));
   }
 
   applyToPoint(v: VecN, out?: VecN): VecN {
@@ -163,21 +175,33 @@ function qnormalize(q: Float64Array): void {
   for (let k = 0; k < 4; k++) q[k]! /= len;
 }
 
-/** Shortest-path spherical interpolation between unit quaternions. */
-function qslerp(a: Float64Array, b: Float64Array, t: number): Float64Array {
-  let dot = a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]! + a[3]! * b[3]!;
-  // Quaternions double-cover rotations: take the shorter arc.
-  let sign = 1;
-  if (dot < 0) {
-    dot = -dot;
-    sign = -1;
-  }
+/**
+ * Spherical interpolation between unit quaternions toward `sign * b`.
+ * The cover choice (`sign`) is the caller's: Rotor4 pairs must flip both
+ * factors together or not at all, so no per-quaternion shortest-arc flip
+ * happens here.
+ */
+function qslerp(a: Float64Array, b: Float64Array, t: number, sign: number): Float64Array {
+  const dot =
+    sign * (a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]! + a[3]! * b[3]!);
   let wa: number;
   let wb: number;
   if (dot > 0.9995) {
     // Nearly parallel: lerp + renormalize avoids the unstable divide.
     wa = 1 - t;
     wb = t;
+  } else if (dot < -(1 - 1e-12)) {
+    // Antipodal within the chosen cover (a π isoclinic difference in this
+    // factor): every great circle is equally short; pick a deterministic
+    // perpendicular so the path is at least well-defined and unit.
+    const c = Math.cos(Math.PI * t);
+    const s = Math.sin(Math.PI * t);
+    return Float64Array.of(
+      c * a[0]! - s * a[1]!,
+      c * a[1]! + s * a[0]!,
+      c * a[2]! - s * a[3]!,
+      c * a[3]! + s * a[2]!
+    );
   } else {
     const theta = Math.acos(Math.min(1, dot));
     const sinTheta = Math.sin(theta);
