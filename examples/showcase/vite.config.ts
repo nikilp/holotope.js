@@ -27,7 +27,8 @@ export default defineConfig({
         tesseract: local('./tesseract.html'),
         polychora: local('./polychora.html'),
         duoprisms: local('./duoprisms.html'),
-        gpu: local('./gpu.html')
+        gpu: local('./gpu.html'),
+        compute: local('./compute.html')
       }
     }
   }
