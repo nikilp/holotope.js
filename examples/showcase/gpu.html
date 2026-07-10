@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Holotope.js — Duoprisms</title>
+    <title>Holotope.js — GPU Projection</title>
     <style>
       html,
       body {
@@ -33,6 +33,9 @@
         text-decoration: none;
         pointer-events: auto;
       }
+      #backend {
+        color: #6ee7a8;
+      }
       #controls {
         position: fixed;
         top: 12px;
@@ -61,33 +64,22 @@
         text-align: right;
         color: #d7e3ff;
       }
-      #controls hr {
-        border: none;
-        border-top: 1px solid #26304a;
-        margin: 8px 0;
-      }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="hud">
-      <strong>Holotope.js</strong> — duoprisms: the product of two polygons.<br />
-      A p-gon lives in the xy plane, a q-gon in the zw plane; every vertex<br />
-      sits on the Clifford torus. Left: projection · right: cross-section.<br />
-      Drag to orbit · <strong>alt-drag to rotate in 4D</strong> (xw / yw).
-      <br />
+      <strong>Holotope.js</strong> — the 600-cell, projected 4D→3D <strong>in the vertex shader</strong>.<br />
+      The 4D geometry uploads once; each frame changes only a mat4 + vec4 uniform.<br />
+      Backend: <span id="backend">initializing…</span><br />
+      Drag to orbit · <strong>alt-drag to rotate in 4D</strong> (xw / yw).<br />
       <a href="./index.html">← all examples</a>
     </div>
     <div id="controls">
-      <label>p <input id="pSides" type="range" min="3" max="64" step="1" value="6" /> <span class="value" id="pSidesValue">6</span></label>
-      <label>q <input id="qSides" type="range" min="3" max="64" step="1" value="4" /> <span class="value" id="qSidesValue">4</span></label>
-      <label>zw radius <input id="radius2" type="range" min="0.4" max="1.4" step="0.05" value="1" /> <span class="value" id="radius2Value">1.00</span></label>
-      <hr />
-      <label>slice w <input id="sliceOffset" type="range" min="-1.5" max="1.5" step="0.01" value="0" /> <span class="value" id="sliceOffsetValue">0.00</span></label>
-      <hr />
-      <label>xy spin <input id="xySpeed" type="range" min="0" max="1" step="0.01" value="0.3" /> <span class="value" id="xySpeedValue">0.30</span></label>
-      <label>zw spin <input id="zwSpeed" type="range" min="0" max="1" step="0.01" value="0.2" /> <span class="value" id="zwSpeedValue">0.20</span></label>
+      <label>xw speed <input id="xwSpeed" type="range" min="0" max="1" step="0.01" value="0.3" /> <span class="value" id="xwSpeedValue">0.30</span></label>
+      <label>yz speed <input id="yzSpeed" type="range" min="0" max="1" step="0.01" value="0.2" /> <span class="value" id="yzSpeedValue">0.20</span></label>
+      <label>CPU check overlay <input id="showCpu" type="checkbox" /></label>
     </div>
-    <script type="module" src="/src/duoprisms.ts"></script>
+    <script type="module" src="/src/gpu.ts"></script>
   </body>
 </html>

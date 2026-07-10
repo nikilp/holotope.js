@@ -1,25 +1,30 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
+const local = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
+
 export default defineConfig({
   // Relative base so the built site works at any mount path (GitHub Pages
   // serves it under /holotope.js/).
   base: './',
   resolve: {
-    // Point at package sources so the showcase runs without a prior build step.
-    alias: {
-      '@holotope/core': fileURLToPath(new URL('../../packages/core/src/index.ts', import.meta.url)),
-      '@holotope/three': fileURLToPath(new URL('../../packages/three/src/index.ts', import.meta.url))
-    }
+    // Point at package sources so the showcase runs without a prior build
+    // step. Order matters: subpath entries must precede their parents.
+    alias: [
+      { find: '@holotope/three/webgpu', replacement: local('../../packages/three/src/webgpu/index.ts') },
+      { find: '@holotope/three', replacement: local('../../packages/three/src/index.ts') },
+      { find: '@holotope/core', replacement: local('../../packages/core/src/index.ts') }
+    ]
   },
   build: {
     rollupOptions: {
       // Multi-page app: the gallery landing page plus one page per example.
       input: {
-        index: fileURLToPath(new URL('./index.html', import.meta.url)),
-        tesseract: fileURLToPath(new URL('./tesseract.html', import.meta.url)),
-        polychora: fileURLToPath(new URL('./polychora.html', import.meta.url)),
-        duoprisms: fileURLToPath(new URL('./duoprisms.html', import.meta.url))
+        index: local('./index.html'),
+        tesseract: local('./tesseract.html'),
+        polychora: local('./polychora.html'),
+        duoprisms: local('./duoprisms.html'),
+        gpu: local('./gpu.html')
       }
     }
   }
