@@ -24,7 +24,12 @@ import {
   createHypercube,
   tetrahedralizeCuboidCells
 } from '@holotope/core';
-import { DragRotation4D, ProjectedEdges3D, SlicedComplex3D } from '@holotope/three';
+import {
+  DragRotation4D,
+  ProjectedEdges3D,
+  ProjectedSurface3D,
+  SlicedComplex3D
+} from '@holotope/three';
 
 const container = document.getElementById('app')!;
 
@@ -62,6 +67,12 @@ const wireframe = new ProjectedEdges3D(tesseract, projection, {
 });
 wireframe.object.position.x = -2.6;
 scene.add(wireframe.object);
+
+// The projected 2-faces as a translucent shaded skin over the wireframe.
+const faces = new ProjectedSurface3D(tesseract, projection);
+faces.object.position.x = -2.6;
+faces.object.visible = false;
+scene.add(faces.object);
 
 const slice = HyperplaneSlice4.axisAligned(3, 0);
 const section = new SlicedComplex3D(tesseract, slice);
@@ -200,6 +211,7 @@ const bindToggle = (id: string, onChange: (checked: boolean) => void): void => {
   onChange(input.checked);
 };
 bindToggle('showWireframe', (on) => (wireframe.object.visible = on));
+bindToggle('showFaces', (on) => (faces.object.visible = on));
 bindToggle('showSlice', (on) => (section.object.visible = on));
 bindToggle('showOverlay', (on) => (overlay.object.visible = on));
 
@@ -247,6 +259,7 @@ renderer.setAnimationLoop((timeMs) => {
   );
   const transform = new TransformN(4, rotation);
   wireframe.update(transform);
+  if (faces.object.visible) faces.update(transform);
   section.update(transform);
   overlay.update(transform);
   controls.update();
