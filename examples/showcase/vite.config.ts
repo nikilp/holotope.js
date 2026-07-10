@@ -17,6 +17,9 @@ export default defineConfig({
     ]
   },
   build: {
+    // The GPU page uses top-level await (renderer.init()); every
+    // WebGPU-capable browser supports it.
+    target: 'esnext',
     rollupOptions: {
       // Multi-page app: the gallery landing page plus one page per example.
       input: {
