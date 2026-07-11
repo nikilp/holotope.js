@@ -211,3 +211,38 @@ describe('createSnub24Cell (stage 7: exact 600-cell diminishing)', () => {
     }
   });
 });
+
+describe('createGrandAntiprism (stage 8: orthogonal decagon diminishing)', () => {
+  it('has the catalog f-vector, cell and face census, and uniform metrics', async () => {
+    const { createGrandAntiprismCompiled } = await import('@holotope/core');
+    const { lattice, complex } = createGrandAntiprismCompiled({ radius: 1.5 });
+    expect(fVector(lattice)).toEqual([100, 500, 720, 320]);
+    expect(eulerCharacteristic(lattice)).toBe(0);
+    const cellTypes = lattice.layers[3]!.typeId;
+    expect(cellTypes.filter((t) => t === 0).length).toBe(300); // tetrahedra
+    expect(cellTypes.filter((t) => t === 1).length).toBe(20); // pentagonal antiprisms
+    const faceTypes = lattice.layers[2]!.typeId;
+    expect(faceTypes.filter((t) => t === 0).length).toBe(700); // triangles
+    expect(faceTypes.filter((t) => t === 1).length).toBe(20); // pentagons
+    // Uniform: equiradial and equal edges; every face bounds 2 cells.
+    const p = complex.positions;
+    for (let v = 0; v < 100; v++) {
+      expect(Math.hypot(p[v * 4]!, p[v * 4 + 1]!, p[v * 4 + 2]!, p[v * 4 + 3]!)).toBeCloseTo(1.5, 10);
+    }
+    const edges = lattice.layers[1]!.vertices;
+    let first = -1;
+    for (let e = 0; e < 500; e++) {
+      const [a, b] = raggedItem(edges, e);
+      let acc = 0;
+      for (let c = 0; c < 4; c++) acc += (p[a! * 4 + c]! - p[b! * 4 + c]!) ** 2;
+      const len = Math.sqrt(acc);
+      if (first < 0) first = len;
+      expect(len).toBeCloseTo(first, 10);
+    }
+    const use = new Uint32Array(720);
+    for (let c = 0; c < 320; c++) {
+      for (const f of raggedItem(lattice.boundary[3]!, c)) use[f]!++;
+    }
+    for (const n of use) expect(n).toBe(2);
+  });
+});

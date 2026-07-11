@@ -7,3 +7,4 @@ export { create120Cell, create120CellCompiled, type Cell120Options } from './cel
 export { createDuoprism, type DuoprismOptions } from './duoprism.js';
 export { createCliffordCurve, type CliffordCurveOptions } from './clifford-curve.js';
 export { createSnub24Cell, createSnub24CellCompiled, type Snub24CellOptions } from './snub24.js';
+export { createGrandAntiprism, createGrandAntiprismCompiled, type GrandAntiprismOptions } from './grand-antiprism.js';

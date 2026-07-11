@@ -20,6 +20,7 @@ import {
   coxeterD4,
   coxeterF4,
   coxeterH4,
+  createGrandAntiprismCompiled,
   createSnub24CellCompiled,
   createWythoffPolytope,
   fVector,
@@ -84,7 +85,7 @@ const colorCellsToggle = document.getElementById('colorCells') as HTMLInputEleme
 const fvectorLabel = document.getElementById('fvector')!;
 
 function rebuild(): void {
-  const exceptional = groupSelect.value === 'S24';
+  const exceptional = groupSelect.value === 'S24' || groupSelect.value === 'GAP';
   const rings = ringInputs.map((input) => input.checked);
   for (const input of ringInputs) input.disabled = exceptional;
   if (!exceptional && !rings.some(Boolean)) {
@@ -98,7 +99,9 @@ function rebuild(): void {
     }
   }
   compiled = exceptional
-    ? createSnub24CellCompiled({ radius: 1.5 })
+    ? groupSelect.value === 'S24'
+      ? createSnub24CellCompiled({ radius: 1.5 })
+      : createGrandAntiprismCompiled({ radius: 1.5 })
     : createWythoffPolytope(GROUPS[groupSelect.value]!(), rings, { radius: 1.5 });
   const { complex, lattice, tetrahedralization } = compiled;
   const f = fVector(lattice);
