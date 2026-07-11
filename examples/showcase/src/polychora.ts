@@ -86,9 +86,22 @@ const wireframes = polychora.map(({ complex, color }) => {
   scene.add(edges.object);
   return edges;
 });
-const sections = polychora.map(({ complex, color }) => {
+// Golden-angle hue walk: adjacent cell indices land far apart on the
+// color wheel, so neighboring cells in the section contrast.
+const paletteScratch = new Color();
+const cellColor = (cell: number): number =>
+  paletteScratch.setHSL((cell * 0.618034) % 1, 0.85, 0.55).getHex();
+
+const sections = polychora.map(({ complex, color, cells }) => {
+  const tetGroup = complex
+    .cellsOfDim(3)
+    .find((g) => g.kind === 'simplex' && g.verticesPerCell === 4)!;
+  const perCell = tetGroup.indices.length / 4 / cells;
   const section = new SlicedComplex3D(complex, slice, {
-    material: new MeshStandardMaterial({ color, side: DoubleSide, flatShading: true })
+    material: new MeshStandardMaterial({ color, side: DoubleSide, flatShading: true }),
+    // Paint by source cell: the section reads as an assembly of the
+    // polytope's own cells (vertexColors off until toggled).
+    colorForTet: (tet) => cellColor(Math.floor(tet / perCell))
   });
   scene.add(section.object);
   return section;
@@ -239,6 +252,17 @@ facesToggle.addEventListener('change', () => {
   for (const s of surfaces) {
     if (s) s.object.visible = facesToggle.checked;
   }
+});
+
+const colorCellsToggle = document.getElementById('colorCells') as HTMLInputElement;
+colorCellsToggle.addEventListener('change', () => {
+  sections.forEach((section, i) => {
+    const material = section.object.material as MeshStandardMaterial;
+    material.vertexColors = colorCellsToggle.checked;
+    // White base lets the vertex colors through unfiltered.
+    material.color.setHex(colorCellsToggle.checked ? 0xffffff : polychora[i]!.color);
+    material.needsUpdate = true;
+  });
 });
 
 setupShowcaseUI({ drag4d });
