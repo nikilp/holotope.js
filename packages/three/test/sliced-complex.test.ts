@@ -170,4 +170,24 @@ describe('SlicedComplex3D picking provenance', () => {
     expect(() => sliced.sourceTetOfFace(sliced.triangleCount)).toThrow(/out of range/);
     sliced.dispose();
   });
+
+  it('colorForTet paints every triangle with its source cell color', () => {
+    // Color by cube: 6 Kuhn tets per cube share a color.
+    const palette = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffffff, 0x808080];
+    const sliced = new SlicedComplex3D(makeTesseract(), HyperplaneSlice4.axisAligned(3, 0.3), {
+      colorForTet: (tet) => palette[Math.floor(tet / 6)]!
+    });
+    const colors = sliced.geometry.getAttribute('color');
+    expect(colors).toBeDefined();
+    for (let f = 0; f < sliced.triangleCount; f++) {
+      const hex = palette[Math.floor(sliced.sourceTetOfFace(f) / 6)]!;
+      const expected = [((hex >> 16) & 0xff) / 255, ((hex >> 8) & 0xff) / 255, (hex & 0xff) / 255];
+      for (let v = 0; v < 3; v++) {
+        for (let c = 0; c < 3; c++) {
+          expect(colors.array[(f * 3 + v) * 3 + c]).toBeCloseTo(expected[c]!, 6);
+        }
+      }
+    }
+    sliced.dispose();
+  });
 });

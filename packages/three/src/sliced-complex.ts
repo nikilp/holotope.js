@@ -25,6 +25,14 @@ export interface SlicedComplex3DOptions {
    * wireframe of the same object.
    */
   projection?: Projection;
+  /**
+   * Per-cell coloring: hex color for each source tetrahedron, refreshed
+   * from provenance after every remarch. Map tets to the polytope's own
+   * cells (e.g. `Math.floor(tet / tetsPerCell)`) to paint the section as
+   * an assembly of cells. Requires a material with `vertexColors: true`
+   * to be visible; results are cached per tet index.
+   */
+  colorForTet?: (tetIndex: number) => number;
 }
 
 /**
@@ -52,6 +60,8 @@ export class SlicedComplex3D {
   private readonly projection: Projection | undefined;
   private readonly ambientSection: Float64Array | undefined;
   private readonly provenance: Uint32Array;
+  private readonly colorAttribute: BufferAttribute | undefined;
+  private readonly tetColors: Float32Array | undefined;
 
   constructor(
     complex: CellComplex,
@@ -101,6 +111,22 @@ export class SlicedComplex3D {
       'normal',
       new BufferAttribute(new Float32Array(maxVertices * 3), 3).setUsage(DynamicDrawUsage)
     );
+
+    if (options.colorForTet) {
+      // Bake the per-tet palette once — provenance then indexes straight
+      // into it on every remarch.
+      const tetCount = this.tets.length / 4;
+      this.tetColors = new Float32Array(tetCount * 3);
+      for (let t = 0; t < tetCount; t++) {
+        const hex = options.colorForTet(t);
+        this.tetColors[t * 3] = ((hex >> 16) & 0xff) / 255;
+        this.tetColors[t * 3 + 1] = ((hex >> 8) & 0xff) / 255;
+        this.tetColors[t * 3 + 2] = (hex & 0xff) / 255;
+      }
+      this.colorAttribute = new BufferAttribute(new Float32Array(maxVertices * 3), 3);
+      this.colorAttribute.setUsage(DynamicDrawUsage);
+      this.geometry.setAttribute('color', this.colorAttribute);
+    }
 
     const material =
       options.material ??
@@ -152,6 +178,19 @@ export class SlicedComplex3D {
     this.geometry.setDrawRange(0, vertexCount);
     this.positionAttribute.needsUpdate = true;
     if (vertexCount > 0) this.computeFlatNormals(vertexCount);
+
+    if (this.colorAttribute && this.tetColors) {
+      const colors = this.colorAttribute.array as Float32Array;
+      for (let f = 0; f < vertexCount / 3; f++) {
+        const c = this.provenance[f]! * 3;
+        for (let v = 0; v < 3; v++) {
+          colors[f * 9 + v * 3] = this.tetColors[c]!;
+          colors[f * 9 + v * 3 + 1] = this.tetColors[c + 1]!;
+          colors[f * 9 + v * 3 + 2] = this.tetColors[c + 2]!;
+        }
+      }
+      this.colorAttribute.needsUpdate = true;
+    }
   }
 
   /** Per-face normals over the active draw range only. */
