@@ -158,3 +158,56 @@ describe('createWythoffPolytope on A4 (stage 2 acceptance)', () => {
     }
   });
 });
+
+describe('createSnub24Cell (stage 7: exact 600-cell diminishing)', () => {
+  it('has the catalog f-vector, cell census, and uniform metrics', async () => {
+    const { createSnub24CellCompiled } = await import('@holotope/core');
+    const { lattice, complex, tetrahedralization } = createSnub24CellCompiled({ radius: 1.5 });
+    expect(fVector(lattice)).toEqual([96, 432, 480, 144]);
+    expect(eulerCharacteristic(lattice)).toBe(0);
+    const types = lattice.layers[3]!.typeId;
+    expect(types.filter((t) => t === 0).length).toBe(120); // tetrahedra
+    expect(types.filter((t) => t === 1).length).toBe(24); // icosahedra
+    // 120 tets × 4 + 24 icosahedra × 20 fan triangles.
+    expect(tetrahedralization.indices.length / 4).toBe(120 * 4 + 24 * 20);
+    // Uniform: equiradial vertices, all edges equal.
+    const p = complex.positions;
+    for (let v = 0; v < 96; v++) {
+      expect(Math.hypot(p[v * 4]!, p[v * 4 + 1]!, p[v * 4 + 2]!, p[v * 4 + 3]!)).toBeCloseTo(1.5, 10);
+    }
+    const edges = lattice.layers[1]!.vertices;
+    let first = -1;
+    for (let e = 0; e < 432; e++) {
+      const [a, b] = raggedItem(edges, e);
+      let acc = 0;
+      for (let c = 0; c < 4; c++) acc += (p[a! * 4 + c]! - p[b! * 4 + c]!) ** 2;
+      const len = Math.sqrt(acc);
+      if (first < 0) first = len;
+      expect(len).toBeCloseTo(first, 10);
+    }
+    // Every triangle bounds exactly two cells.
+    const use = new Uint32Array(480);
+    for (let c = 0; c < 144; c++) {
+      for (const f of raggedItem(lattice.boundary[3]!, c)) use[f]!++;
+    }
+    for (const n of use) expect(n).toBe(2);
+  });
+
+  it('vertex set is mirror-invariant (the "two forms" are congruent)', async () => {
+    // Even permutations of ½(0, ±1, ±φ, ±1/φ) with free signs are closed
+    // under coordinate negation, so this realization equals its own
+    // mirror image — a fact worth pinning because the literature's
+    // enantiomorph pair comes from the alternation choice, not from a
+    // spatial reflection of this vertex set.
+    const { createSnub24CellCompiled } = await import('@holotope/core');
+    const { complex } = createSnub24CellCompiled();
+    const key = (x: number, y: number, z: number, w: number): string =>
+      [x, y, z, w].map((c) => c.toFixed(9)).join(',');
+    const set = new Set<string>();
+    const p = complex.positions;
+    for (let v = 0; v < 96; v++) set.add(key(p[v * 4]!, p[v * 4 + 1]!, p[v * 4 + 2]!, p[v * 4 + 3]!));
+    for (let v = 0; v < 96; v++) {
+      expect(set.has(key(-p[v * 4]!, p[v * 4 + 1]!, p[v * 4 + 2]!, p[v * 4 + 3]!))).toBe(true);
+    }
+  });
+});

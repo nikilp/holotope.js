@@ -6,3 +6,4 @@ export { create600Cell, type Cell600Options } from './cell600.js';
 export { create120Cell, create120CellCompiled, type Cell120Options } from './cell120.js';
 export { createDuoprism, type DuoprismOptions } from './duoprism.js';
 export { createCliffordCurve, type CliffordCurveOptions } from './clifford-curve.js';
+export { createSnub24Cell, createSnub24CellCompiled, type Snub24CellOptions } from './snub24.js';

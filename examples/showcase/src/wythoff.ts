@@ -20,6 +20,7 @@ import {
   coxeterD4,
   coxeterF4,
   coxeterH4,
+  createSnub24CellCompiled,
   createWythoffPolytope,
   fVector,
   type CompiledPolytope,
@@ -83,8 +84,10 @@ const colorCellsToggle = document.getElementById('colorCells') as HTMLInputEleme
 const fvectorLabel = document.getElementById('fvector')!;
 
 function rebuild(): void {
+  const exceptional = groupSelect.value === 'S24';
   const rings = ringInputs.map((input) => input.checked);
-  if (!rings.some(Boolean)) {
+  for (const input of ringInputs) input.disabled = exceptional;
+  if (!exceptional && !rings.some(Boolean)) {
     fvectorLabel.textContent = 'ring at least one mirror';
     return;
   }
@@ -94,7 +97,9 @@ function rebuild(): void {
       product.dispose();
     }
   }
-  compiled = createWythoffPolytope(GROUPS[groupSelect.value]!(), rings, { radius: 1.5 });
+  compiled = exceptional
+    ? createSnub24CellCompiled({ radius: 1.5 })
+    : createWythoffPolytope(GROUPS[groupSelect.value]!(), rings, { radius: 1.5 });
   const { complex, lattice, tetrahedralization } = compiled;
   const f = fVector(lattice);
   fvectorLabel.textContent = `(${f.join(', ')})  ·  ${tetrahedralization.indices.length / 4} tets`;
