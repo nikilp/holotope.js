@@ -255,7 +255,7 @@ facesToggle.addEventListener('change', () => {
 });
 
 const colorCellsToggle = document.getElementById('colorCells') as HTMLInputElement;
-colorCellsToggle.addEventListener('change', () => {
+const applyCellColors = (): void => {
   sections.forEach((section, i) => {
     const material = section.object.material as MeshStandardMaterial;
     material.vertexColors = colorCellsToggle.checked;
@@ -263,7 +263,9 @@ colorCellsToggle.addEventListener('change', () => {
     material.color.setHex(colorCellsToggle.checked ? 0xffffff : polychora[i]!.color);
     material.needsUpdate = true;
   });
-});
+};
+colorCellsToggle.addEventListener('change', applyCellColors);
+applyCellColors();
 
 setupShowcaseUI({ drag4d });
 
