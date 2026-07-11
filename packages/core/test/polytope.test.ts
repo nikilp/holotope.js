@@ -143,3 +143,40 @@ describe('createCliffordCurve', () => {
     expect(() => createCliffordCurve({ segments: 2 })).toThrow(/at least 3/);
   });
 });
+
+describe('createHopfFiber', () => {
+  it('every fiber point maps to its base under the Hopf map', async () => {
+    const { createHopfFiber } = await import('@holotope/core');
+    const hopf = (x0: number, x1: number, x2: number, x3: number): number[] => [
+      2 * (x0 * x2 + x1 * x3),
+      2 * (x1 * x2 - x0 * x3),
+      x2 * x2 + x3 * x3 - x0 * x0 - x1 * x1
+    ];
+    for (const base of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0.3, -0.5, 0.8], [0, 0, -1]] as const) {
+      const fiber = createHopfFiber({ base: [...base] as [number, number, number], radius: 2 });
+      const n = Math.hypot(...base);
+      for (let v = 0; v < fiber.vertexCount; v++) {
+        const [x0, x1, x2, x3] = [0, 1, 2, 3].map((c) => fiber.positions[v * 4 + c]! / 2);
+        // On the unit sphere and over the right base point.
+        expect(Math.hypot(x0!, x1!, x2!, x3!)).toBeCloseTo(1, 12);
+        const h = hopf(x0!, x1!, x2!, x3!);
+        expect(h[0]).toBeCloseTo(base[0] / n, 10);
+        expect(h[1]).toBeCloseTo(base[1] / n, 10);
+        expect(h[2]).toBeCloseTo(base[2] / n, 10);
+      }
+    }
+  });
+
+  it('distinct fibers are disjoint', async () => {
+    const { createHopfFiber } = await import('@holotope/core');
+    const f1 = createHopfFiber({ base: [0, 0, 1], segments: 32 });
+    const f2 = createHopfFiber({ base: [1, 0, 0], segments: 32 });
+    for (let i = 0; i < 32; i++) {
+      for (let j = 0; j < 32; j++) {
+        let d = 0;
+        for (let c = 0; c < 4; c++) d += (f1.positions[i * 4 + c]! - f2.positions[j * 4 + c]!) ** 2;
+        expect(d).toBeGreaterThan(0.01);
+      }
+    }
+  });
+});

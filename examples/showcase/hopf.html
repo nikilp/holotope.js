@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Hopf Fibration</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0a0a12;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+      }
+      #hud {
+        position: fixed;
+        top: 12px;
+        left: 14px;
+        color: #8fa3c8;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        user-select: none;
+        pointer-events: none;
+      }
+      #hud strong {
+        color: #d7e3ff;
+      }
+      #hud a {
+        color: #7fd4ff;
+        text-decoration: none;
+        pointer-events: auto;
+      }
+      #controls {
+        position: fixed;
+        top: 12px;
+        right: 14px;
+        width: 240px;
+        padding: 12px 14px;
+        background: rgba(16, 18, 30, 0.85);
+        border: 1px solid #26304a;
+        border-radius: 8px;
+        color: #8fa3c8;
+        font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      #controls label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 6px 0;
+      }
+      #controls input[type='range'] {
+        flex: 1;
+        accent-color: #7fd4ff;
+      }
+      #controls .value {
+        width: 42px;
+        text-align: right;
+        color: #d7e3ff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js</strong> — the Hopf fibration: S³ as a bundle of linked circles over S².<br />
+      <span class="detail">Each circle is one fiber over a point of the base 2-sphere, colored by that point.<br />
+      Fibers over a latitude circle sweep a torus; any two fibers are linked exactly once.<br />
+      The projection is stereographic, so every fiber lands as a perfect circle.<br />
+      The <strong>isoclinic spin</strong> slides every fiber along itself — the whole 3-sphere flows.<br />
+      Drag to orbit · <strong>alt-drag to rotate in 4D</strong> (xw / yw).<br /></span>
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="controls">
+      <label>latitudes <input id="latitudes" type="range" min="1" max="10" step="1" value="4" /> <span class="value" id="latitudesValue">4</span></label>
+      <label>fibers each <input id="fibersEach" type="range" min="2" max="24" step="1" value="10" /> <span class="value" id="fibersEachValue">10</span></label>
+      <label>isoclinic spin <input id="spin" type="range" min="0" max="1" step="0.01" value="0.2" /> <span class="value" id="spinValue">0.20</span></label>
+    </div>
+    <script type="module" src="/src/hopf.ts"></script>
+  </body>
+</html>

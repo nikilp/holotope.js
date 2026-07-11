@@ -15,7 +15,8 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ math                 VecN, MatN, plane rotations, so(n) exp, Rotor4 (+slerp), TransformN
   ├─ geometry             CellComplex (N-D counterpart of a mesh), tetrahedralization
   ├─ polytope             n-cube/simplex/orthoplex families; all six regular polychora; duoprisms
-  └─ projection           CameraN, perspective/orthographic N→3, hyperplane slicing
+  ├─ projection           CameraN, perspective/orthographic N→3, hyperplane slicing
+  └─ coxeter              exact Coxeter groups, Wythoff construction of the uniform polychora
 
 @holotope/three           three.js adapter (three as peer dependency)
   ├─ ProjectedEdges3D     render product: projected 1-skeleton as LineSegments
@@ -81,8 +82,8 @@ The decisions that shape the library — and why — are in [`docs/architecture.
 - ✅ Rotation backends: so(n) exponential map, paired-quaternion `Rotor4` fast path + slerp
 - ✅ 4D camera/controls; `ProjectedSurface3D`; slicer provenance for picking
 - ✅ WebGPU/TSL acceleration: vertex-stage 4D projection, compute-shader slicing
+- ✅ Wythoff construction: exact face lattices for the uniform polychora (all rank-4 groups, snub 24-cell, grand antiprism)
 - GPU surface/section rendering and the materials/transparency phase
-- Wythoff construction for the uniform polychora
 - `.hyper.json` container format and OFF import/export
 - `@holotope/physics`: N-D rigid bodies (bivector angular momentum), GJK in Rⁿ
 

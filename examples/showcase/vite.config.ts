@@ -30,7 +30,8 @@ export default defineConfig({
         gpu: local('./gpu.html'),
         compute: local('./compute.html'),
         knots: local('./knots.html'),
-        wythoff: local('./wythoff.html')
+        wythoff: local('./wythoff.html'),
+        hopf: local('./hopf.html')
       }
     }
   }
