@@ -1,4 +1,6 @@
 import { CellComplex } from '../geometry/cell-complex.js';
+import { buildRagged, type FaceLattice } from '../geometry/face-lattice.js';
+import { compileFaceLattice, type CompiledPolytope } from '../geometry/compile-lattice.js';
 import { cell600Data } from './cell600.js';
 
 export interface Cell120Options {
@@ -17,11 +19,17 @@ export interface Cell120Options {
  *   containing it), and each of its 12 pentagonal faces is the star of a
  *   600-cell edge (the 5 cells containing it).
  *
- * For slicing, every dodecahedron is fan-tetrahedralized from its centroid
- * (an extra helper vertex per cell, appended after the 600 real vertices):
- * 12 pentagons × 3 fan triangles × 120 cells = 4320 tetrahedra.
+ * The full incidence structure is assembled as a `FaceLattice` and
+ * compiled generically: pentagons fan-triangulate once globally and cone
+ * to per-cell centroid helpers (12 pentagons × 3 triangles × 120 cells =
+ * 4320 tetrahedra, cell-major with exact `tetToCell` provenance).
  */
-export function create120Cell({ radius = 1 }: Cell120Options = {}): CellComplex {
+export function create120Cell(options: Cell120Options = {}): CellComplex {
+  return create120CellCompiled(options).complex;
+}
+
+/** The 120-cell with its canonical face lattice and provenance retained. */
+export function create120CellCompiled({ radius = 1 }: Cell120Options = {}): CompiledPolytope {
   const { vertices, neighbors, tets } = cell600Data();
   const tetCount = tets.length / 4; // 600
 
@@ -69,58 +77,71 @@ export function create120Cell({ radius = 1 }: Cell120Options = {}): CellComplex 
       star.push(t);
     }
   }
-  const dualEdges: number[] = [];
+  const dualEdges: number[][] = [];
+  const dualEdgeId = new Map<number, number>();
+  const dualEdgeKey = (a: number, b: number): number => (a < b ? a * 600 + b : b * 600 + a);
   for (const star of faceStar.values()) {
     if (star.length !== 2) {
       throw new Error(`create120Cell: face shared by ${star.length} cells, expected 2`);
     }
-    dualEdges.push(star[0]!, star[1]!);
+    dualEdgeId.set(dualEdgeKey(star[0]!, star[1]!), dualEdges.length);
+    dualEdges.push([star[0]!, star[1]!]);
   }
 
-  // Dodecahedral cells: fan-tetrahedralize around per-cell centroids.
-  const positions = new Float64Array((tetCount + 120) * 4);
-  positions.set(dual);
-  const fanTets: number[] = [];
-  const pentagons: number[] = [];
+  // Pentagons (one per 600-cell edge, cyclically ordered in their own
+  // plane), with their boundary edges; dodecahedral cells (one per
+  // 600-cell vertex) with their boundary pentagons.
+  const pentagons: number[][] = [];
+  const pentagonEdges: number[][] = [];
+  const cellPentagons: number[][] = Array.from({ length: 120 }, () => []);
   const scratchBasis1 = new Float64Array(4);
   const scratchBasis2 = new Float64Array(4);
 
   for (let v = 0; v < 120; v++) {
-    const star = vertexStar[v]!;
-    if (star.length !== 20) {
-      throw new Error(`create120Cell: vertex star of size ${star.length}, expected 20`);
+    if (vertexStar[v]!.length !== 20) {
+      throw new Error(`create120Cell: vertex star of size ${vertexStar[v]!.length}, expected 20`);
     }
-    const centroidIndex = tetCount + v;
-    const base = centroidIndex * 4;
-    for (const t of star) {
-      for (let c = 0; c < 4; c++) positions[base + c]! += dual[t * 4 + c]! / 20;
-    }
-
-    // One pentagon per 600-cell edge at v: the 5 cells containing (v, u),
-    // sorted cyclically in their own plane, then fanned into 3 triangles.
     for (const u of neighbors[v]!) {
-      // A pentagon is the face between the dodecahedra of v and u; visit it
-      // once (v < u) and emit fan tetrahedra for both cells' centroids.
-      if (u < v) continue;
-      const pentagon = edgeStar.get(edgeKey(v, u))!;
-      if (pentagon.length !== 5) {
-        throw new Error(`create120Cell: edge star of size ${pentagon.length}, expected 5`);
+      if (u < v) continue; // visit each pentagon once
+      const star = edgeStar.get(edgeKey(v, u))!;
+      if (star.length !== 5) {
+        throw new Error(`create120Cell: edge star of size ${star.length}, expected 5`);
       }
-      const ordered = sortCyclically(pentagon, dual, scratchBasis1, scratchBasis2);
-      pentagons.push(...ordered);
-      for (const centroid of [tetCount + v, tetCount + u]) {
-        for (let f = 1; f < 4; f++) {
-          fanTets.push(centroid, ordered[0]!, ordered[f]!, ordered[f + 1]!);
+      const ordered = sortCyclically(star, dual, scratchBasis1, scratchBasis2);
+      const pid = pentagons.length;
+      pentagons.push(ordered);
+      const boundary: number[] = [];
+      for (let k = 0; k < 5; k++) {
+        const edge = dualEdgeId.get(dualEdgeKey(ordered[k]!, ordered[(k + 1) % 5]!));
+        if (edge === undefined) {
+          throw new Error('create120Cell: pentagon side is not a dual edge');
         }
+        boundary.push(edge);
       }
+      pentagonEdges.push(boundary);
+      cellPentagons[v]!.push(pid);
+      cellPentagons[u]!.push(pid);
     }
   }
 
-  return new CellComplex(4, positions, [
-    { dim: 1, verticesPerCell: 2, kind: 'simplex', indices: Uint32Array.from(dualEdges) },
-    { dim: 2, verticesPerCell: 5, kind: 'polygon', indices: Uint32Array.from(pentagons) },
-    { dim: 3, verticesPerCell: 4, kind: 'simplex', indices: Uint32Array.from(fanTets) }
-  ]);
+  const lattice: FaceLattice = {
+    rank: 4,
+    vertexCount: 600,
+    layers: [
+      undefined,
+      { vertices: buildRagged(dualEdges), typeId: new Uint16Array(dualEdges.length) },
+      { vertices: buildRagged(pentagons), typeId: new Uint16Array(pentagons.length) },
+      { vertices: buildRagged(vertexStar), typeId: new Uint16Array(120) }
+    ],
+    boundary: [
+      undefined,
+      undefined,
+      buildRagged(pentagonEdges),
+      buildRagged(cellPentagons)
+    ]
+  };
+
+  return compileFaceLattice(lattice, dual);
 }
 
 /** Sorts coplanar points cyclically by angle in their own plane. */
