@@ -33,6 +33,10 @@
       "types": "./dist/polytope/index.d.ts",
       "import": "./dist/polytope/index.js"
     },
+    "./coxeter": {
+      "types": "./dist/coxeter/index.d.ts",
+      "import": "./dist/coxeter/index.js"
+    },
     "./projection": {
       "types": "./dist/projection/index.d.ts",
       "import": "./dist/projection/index.js"
