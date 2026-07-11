@@ -1,4 +1,14 @@
-import { Color, LineBasicMaterial, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  LineBasicMaterial,
+  PerspectiveCamera,
+  Points,
+  PointsMaterial,
+  Scene,
+  WebGLRenderer
+} from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   PerspectiveProjection,
@@ -36,6 +46,21 @@ const projection = new PerspectiveProjection({ fromDim: 4, viewDistance: radius 
 let fibers: ProjectedEdges3D[] = [];
 const paletteScratch = new Color();
 
+// The isoclinic flow maps every fiber to itself, so the projected
+// circles are pointwise stationary — invisible motion. One bright bead
+// per fiber, carried by the same transform, makes the flow observable:
+// beads stream along circles that never move.
+let beadSeeds = new Float64Array(0);
+let beadWorld = new Float64Array(0);
+const beadGeometry = new BufferGeometry();
+let beadAttribute = new BufferAttribute(new Float32Array(0), 3);
+const beads = new Points(
+  beadGeometry,
+  new PointsMaterial({ color: 0xffffff, size: 0.09, sizeAttenuation: true })
+);
+beads.frustumCulled = false;
+scene.add(beads);
+
 function rebuild(latitudes: number, fibersEach: number): void {
   for (const f of fibers) {
     scene.remove(f.object);
@@ -54,13 +79,22 @@ function rebuild(latitudes: number, fibersEach: number): void {
       const color = paletteScratch
         .setHSL(phi / (2 * Math.PI), 0.8, 0.4 + 0.25 * (zBase + 0.85) / 1.55)
         .getHex();
-      const fiber = new ProjectedEdges3D(createHopfFiber({ base, radius, segments: 128 }), projection, {
+      const complex = createHopfFiber({ base, radius, segments: 128 });
+      const fiber = new ProjectedEdges3D(complex, projection, {
         material: new LineBasicMaterial({ color })
       });
       scene.add(fiber.object);
       fibers.push(fiber);
     }
   }
+  // One bead seed per fiber: its θ = 0 point.
+  beadSeeds = new Float64Array(fibers.length * 4);
+  for (let f = 0; f < fibers.length; f++) {
+    beadSeeds.set(fibers[f]!.complex.positions.subarray(0, 4), f * 4);
+  }
+  beadWorld = new Float64Array(fibers.length * 4);
+  beadAttribute = new BufferAttribute(new Float32Array(fibers.length * 3), 3);
+  beadGeometry.setAttribute('position', beadAttribute);
 }
 
 const bindRange = (id: string, digits: number, onInput: (value: number) => void): void => {
@@ -119,6 +153,10 @@ renderer.setAnimationLoop((timeMs) => {
     )
   );
   for (const fiber of fibers) fiber.update(transform);
+  // Beads: same transform, one point per fiber — the visible flow.
+  transform.applyToPositions(beadSeeds, beadWorld, fibers.length);
+  projection.projectPositions(beadWorld, fibers.length, beadAttribute.array as Float32Array);
+  beadAttribute.needsUpdate = true;
   controls.update();
   renderer.render(scene, camera);
 });

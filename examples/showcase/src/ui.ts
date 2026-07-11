@@ -154,6 +154,10 @@ export function setupShowcaseUI(options: { drag4d?: DragRotation4D } = {}): void
       #controls input[type='range'] {
         height: 28px;
       }
+      body.controls-open .ui-explain,
+      body.controls-open .ui-4d {
+        display: none;
+      }
     }
     @media (pointer: coarse) {
       .ui-4d.available {
