@@ -11,9 +11,19 @@ export interface CoxeterAction {
   readonly diagram: CoxeterDiagram;
   readonly rank: number;
   readonly order: number;
-  /** rightMultiply[g * rank + i] = the element g·sᵢ. */
+  /**
+   * leftMultiply[g * rank + i] = the element sᵢ·g — the point-reflection
+   * table produced directly by the BFS (reflecting a chamber's point in
+   * simple mirror i is left multiplication).
+   */
+  readonly leftMultiply: Uint16Array | Uint32Array;
+  /**
+   * rightMultiply[g * rank + i] = the element g·sᵢ. Right multiplication
+   * by stabilizer generators closes **left cosets** g·W_S — exactly the
+   * face translates of the Wythoff construction.
+   */
   readonly rightMultiply: Uint16Array | Uint32Array;
-  /** BFS tree: parent[g]·s(parentGenerator[g]) = g; identity points at itself. */
+  /** BFS tree: s(parentGenerator[g])·parent[g] = g; identity points at itself. */
   readonly parent: Uint16Array | Uint32Array;
   readonly parentGenerator: Uint8Array;
   /** (−1)^wordLength — the determinant of the reflection product. */
@@ -77,12 +87,27 @@ export function enumerateCoxeterAction(diagram: CoxeterDiagram): CoxeterAction {
     );
   }
 
-  const Table = points.length <= 0xffff ? Uint16Array : Uint32Array;
+  // Derive the right-multiplication table by replaying BFS words: with
+  // g = s_p·parent(g), associativity gives g·sᵢ = s_p·(parent(g)·sᵢ),
+  // and BFS order guarantees parents are resolved before children.
+  const order = points.length;
+  const right = new Array<number>(order * rank);
+  for (let i = 0; i < rank; i++) right[i] = next[i]!; // identity row
+  for (let g = 1; g < order; g++) {
+    const p = parent[g]!;
+    const gen = parentGenerator[g]!;
+    for (let i = 0; i < rank; i++) {
+      right[g * rank + i] = next[right[p * rank + i]! * rank + gen]!;
+    }
+  }
+
+  const Table = order <= 0xffff ? Uint16Array : Uint32Array;
   return {
     diagram,
     rank,
-    order: points.length,
-    rightMultiply: Table.from(next),
+    order,
+    leftMultiply: Table.from(next),
+    rightMultiply: Table.from(right),
     parent: Table.from(parent),
     parentGenerator: Uint8Array.from(parentGenerator),
     parity: Int8Array.from(parity)

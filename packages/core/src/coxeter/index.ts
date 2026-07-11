@@ -27,3 +27,4 @@ export {
   type CoxeterAction
 } from './action.js';
 export { CoxeterRealization, realizeOrbit } from './realization.js';
+export { createWythoffPolytope, type WythoffOptions } from './wythoff.js';
