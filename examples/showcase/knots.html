@@ -87,6 +87,21 @@
       <hr />
       <label>duoprism ghost <input id="showGhost" type="checkbox" checked /></label>
     </div>
+    <template id="explainer">
+      <h2>Torus knots without the pinch</h2>
+      <h3>The trick to seeing it</h3>
+      <p>Wrap a string p times one way and q times the other way around a donut and you get a
+      (p,q) torus knot. On a 3D donut the string must crowd through the hole. On the 4D
+      <strong>Clifford torus</strong> the surface is perfectly flat — the knot winds with
+      constant speed, no pinching, no stretching: its most natural form.</p>
+      <h3>What you're seeing</h3>
+      <p>The orange curve is the knot; the faint blue ghost is the p×q duoprism whose vertices
+      the knot threads through — the same construction, discrete and continuous.</p>
+      <h3>Try this</h3>
+      <p>Set the spins <strong>equal</strong>: the double rotation's flow is tangent to the knot,
+      so it slides along itself like a self-propelled loop. Try (2,3) — the trefoil — then large
+      coprime pairs like (5,7).</p>
+    </template>
     <script type="module" src="/src/knots.ts"></script>
   </body>
 </html>

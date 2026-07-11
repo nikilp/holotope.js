@@ -107,6 +107,24 @@
       <button id="resetRotation">reset 4D drag</button>
       <label>cross-section <input id="showSlice" type="checkbox" checked /></label>
     </div>
+    <template id="explainer">
+      <h2>One tesseract, seen two ways</h2>
+      <h3>The trick to seeing it</h3>
+      <p>Imagine a flat 2D being trying to understand a cube. You could show them its
+      <strong>shadow</strong> (a square inside a square, connected at the corners), or push the
+      cube through their flat world and let them watch the <strong>slice</strong> (a square that
+      appears, holds steady, and vanishes). This page does exactly that, one dimension up.</p>
+      <h3>What you're seeing</h3>
+      <p><strong>Left:</strong> the tesseract's shadow — a 3D perspective projection. The small
+      inner cube is the far cell, the large outer one the near cell; they're the same size in 4D.</p>
+      <p><strong>Right:</strong> the slice — where the tesseract crosses our 3D world. Face-on it's
+      a perfect cube: the cube that "holds steady" while the tesseract passes through.</p>
+      <h3>Try this</h3>
+      <p>Drag <strong>slice w</strong> slowly from −1.6 to 1.6 — watch the cube appear and vanish.
+      Tilt the slice and it becomes a stranger shape, just as a tilted cube slices into hexagons.
+      Alt-drag to turn the tesseract in 4D and watch the "inner" cube trade places with the outer.
+      Click the slice to see which of the 8 cubes it came from.</p>
+    </template>
     <script type="module" src="/src/tesseract.ts"></script>
   </body>
 </html>

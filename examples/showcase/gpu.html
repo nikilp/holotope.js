@@ -83,6 +83,19 @@
       <label>faces (GPU) <input id="showFaces" type="checkbox" /></label>
       <label>CPU check overlay <input id="showCpu" type="checkbox" /></label>
     </div>
+    <template id="explainer">
+      <h2>Projecting 4D in the vertex shader</h2>
+      <h3>What's happening</h3>
+      <p>The 600-cell's 4D coordinates upload to the GPU <strong>once</strong>. Each frame, the
+      vertex shader rotates them in 4D and performs the perspective divide — the CPU sends only
+      a 4×4 matrix. This works because a 4D rotation is a linear map on exactly 4 numbers: it
+      fits the GPU's native mat4 like a glove.</p>
+      <h3>Try this</h3>
+      <p>Toggle the <strong>CPU check overlay</strong>: the blue wireframe is the same object
+      recomputed on the CPU in double precision. Solid blue means both paths agree to
+      sub-pixel — the differential test that keeps the fast path honest. Faces (GPU) adds the
+      1200 triangles, also for the price of one matrix.</p>
+    </template>
     <script type="module" src="/src/gpu.ts"></script>
   </body>
 </html>

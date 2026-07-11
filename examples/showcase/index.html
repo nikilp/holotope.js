@@ -71,6 +71,20 @@
         font-size: 11px;
         color: #5c6f96;
       }
+      .intro {
+        max-width: 640px;
+        margin: 0 0 8px;
+      }
+      .intro strong {
+        color: #d7e3ff;
+      }
+      h2.section {
+        color: #5c6f96;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        margin: 28px 0 10px;
+      }
       @media (max-width: 760px) {
         main {
           padding: 28px 16px 40px;
@@ -87,6 +101,14 @@
       <p class="tagline">N-dimensional geometry for TypeScript.</p>
       <p class="links"><a href="https://github.com/nikilp/holotope.js">GitHub</a></p>
 
+      <p class="intro">
+        There are two honest ways to see a 4D object from inside our 3D world: its
+        <strong>shadow</strong> (projection) and its <strong>slice</strong> (cross-section) —
+        the same two ways a flat being could see a cube. Every page shows both, computed
+        exactly. Start at the top; each example asks "what am I looking at?" if you want the story.
+      </p>
+
+      <h2 class="section">Start here</h2>
       <div class="grid">
         <a class="card" href="./tesseract.html">
           <h2>Tesseract — projection &amp; cross-section</h2>
@@ -97,6 +119,10 @@
           </p>
           <span class="tags">ProjectedEdges3D · SlicedComplex3D · Rotor4 · DragRotation4D</span>
         </a>
+      </div>
+
+      <h2 class="section">The shapes</h2>
+      <div class="grid">
         <a class="card" href="./polychora.html">
           <h2>All six regular polychora</h2>
           <p>
@@ -105,6 +131,19 @@
           </p>
           <span class="tags">CameraN · create120Cell · create600Cell · create24Cell</span>
         </a>
+        <a class="card" href="./wythoff.html">
+          <h2>Wythoff explorer — uniform polychora</h2>
+          <p>
+            Ring the mirrors of a Coxeter diagram and the uniform polychoron appears — every
+            combination of A4, B4, D4, F4, and H4 built exactly from group cosets, up to the
+            omnitruncated 120-cell, plus the snub 24-cell and grand antiprism.
+          </p>
+          <span class="tags">createWythoffPolytope · FaceLattice · exact tetToCell</span>
+        </a>
+      </div>
+
+      <h2 class="section">Curves &amp; flows</h2>
+      <div class="grid">
         <a class="card" href="./duoprisms.html">
           <h2>Duoprisms</h2>
           <p>
@@ -113,6 +152,28 @@
           </p>
           <span class="tags">createDuoprism · SlicedComplex3D · Clifford rotation</span>
         </a>
+        <a class="card" href="./knots.html">
+          <h2>Clifford torus knots</h2>
+          <p>
+            (p, q) torus knots living flat on the Clifford torus in S³ — the duoprism's vertex
+            path made continuous. Set the two spins equal and the double rotation slides the
+            knot along itself.
+          </p>
+          <span class="tags">createCliffordCurve · createDuoprism · isoclinic rotation</span>
+        </a>
+        <a class="card" href="./hopf.html">
+          <h2>Hopf fibration</h2>
+          <p>
+            S³ as a bundle of linked circles over S² — each fiber colored by its base point,
+            stereographically projected so every circle stays a circle. The isoclinic spin
+            slides the entire 3-sphere along its own fibers.
+          </p>
+          <span class="tags">createHopfFiber · stereographic projection · isoclinic flow</span>
+        </a>
+      </div>
+
+      <h2 class="section">Under the hood</h2>
+      <div class="grid">
         <a class="card" href="./gpu.html">
           <h2>GPU projection (WebGPU / TSL)</h2>
           <p>
@@ -129,33 +190,6 @@
             with live triangle-count and area readback comparison.
           </p>
           <span class="tags">SlicedComplexGPU · WGSL compute · storage buffers</span>
-        </a>
-        <a class="card" href="./wythoff.html">
-          <h2>Wythoff explorer — uniform polychora</h2>
-          <p>
-            Ring the mirrors of a Coxeter diagram and the uniform polychoron appears — every
-            combination of A4, B4, D4, F4, and H4 built exactly from group cosets, up to the
-            omnitruncated 120-cell, with per-cell colored cross-sections.
-          </p>
-          <span class="tags">createWythoffPolytope · FaceLattice · exact tetToCell</span>
-        </a>
-        <a class="card" href="./hopf.html">
-          <h2>Hopf fibration</h2>
-          <p>
-            S³ as a bundle of linked circles over S² — each fiber colored by its base point,
-            stereographically projected so every circle stays a circle. The isoclinic spin
-            slides the entire 3-sphere along its own fibers.
-          </p>
-          <span class="tags">createHopfFiber · stereographic projection · isoclinic flow</span>
-        </a>
-        <a class="card" href="./knots.html">
-          <h2>Clifford torus knots</h2>
-          <p>
-            (p, q) torus knots living flat on the Clifford torus in S³ — the duoprism's vertex
-            path made continuous. Set the two spins equal and the double rotation slides the
-            knot along itself.
-          </p>
-          <span class="tags">createCliffordCurve · createDuoprism · isoclinic rotation</span>
         </a>
       </div>
     </main>

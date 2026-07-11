@@ -125,6 +125,22 @@
       <label>faces <input id="showFaces" type="checkbox" /></label>
       <label>color cells <input id="colorCells" type="checkbox" checked /></label>
     </div>
+    <template id="explainer">
+      <h2>A machine that builds 4D shapes from symmetry alone</h2>
+      <h3>The trick to seeing it</h3>
+      <p>Every uniform polytope is the orbit of a single point bounced between mirrors. In 3D,
+      three mirrors angled just right generate a cube or an icosahedron from one seed point.
+      Here there are <strong>four mirrors</strong> in 4D, and the checkboxes choose which mirrors
+      the seed sits off of — that's the whole recipe (Wythoff's construction).</p>
+      <h3>What you're seeing</h3>
+      <p>Left: the shape's projected wireframe. Right: its live slice, colored by cell. The
+      f-vector counts its vertices, edges, faces, and cells — compare with published tables:
+      they match exactly, because the construction is exact group theory, not approximation.</p>
+      <h3>Try this</h3>
+      <p>Pick <strong>H4</strong> and check all four rings: the omnitruncated 120-cell, 14,400
+      vertices, built in an eyeblink. Then try the two exceptional entries — shapes that no mirror
+      recipe produces, made instead by carving pieces off the 600-cell.</p>
+    </template>
     <script type="module" src="/src/wythoff.ts"></script>
   </body>
 </html>

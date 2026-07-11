@@ -83,6 +83,20 @@
       <label>yz speed <input id="yzSpeed" type="range" min="0" max="1" step="0.01" value="0.15" /> <span class="value" id="yzSpeedValue">0.15</span></label>
       <label>CPU golden path <input id="showCpu" type="checkbox" checked /></label>
     </div>
+    <template id="explainer">
+      <h2>Slicing 4320 tetrahedra in a compute shader</h2>
+      <h3>What's happening</h3>
+      <p>Cross-sections are computed by testing every tetrahedron of the shape against the
+      cutting hyperplane (marching tetrahedra). Here that entire computation runs
+      <strong>on the GPU</strong>: the 120-cell's 4,320 tetrahedra are classified in parallel
+      each frame and the section triangles are written straight into the buffer the renderer
+      draws — the geometry never touches the CPU.</p>
+      <h3>Try this</h3>
+      <p>The left and right shapes are the GPU and CPU computing <strong>the same cut</strong>;
+      the readout above compares their triangle counts and areas live — they match to
+      floating-point precision at every offset and rotation. Drag the slice through the whole
+      shape and watch 720 dodecahedra stream past.</p>
+    </template>
     <script type="module" src="/src/compute.ts"></script>
   </body>
 </html>

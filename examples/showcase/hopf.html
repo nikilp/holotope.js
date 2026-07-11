@@ -79,6 +79,21 @@
       <label>fibers each <input id="fibersEach" type="range" min="2" max="24" step="1" value="10" /> <span class="value" id="fibersEachValue">10</span></label>
       <label>isoclinic spin <input id="spin" type="range" min="0" max="1" step="0.01" value="0.2" /> <span class="value" id="spinValue">0.20</span></label>
     </div>
+    <template id="explainer">
+      <h2>The 3-sphere is made of linked circles</h2>
+      <h3>The trick to seeing it</h3>
+      <p>Take the surface of a 4D ball — the 3-sphere. Hopf discovered it can be perfectly
+      combed into circles: one circle through every point, no two touching, every pair linked
+      exactly once. Each circle corresponds to one point of an ordinary sphere (its color here).</p>
+      <h3>What you're seeing</h3>
+      <p>Stereographic projection of those fibers into 3D — the same trick as flattening the
+      Earth onto a map, one dimension up. Circles over one latitude of the base sphere form a
+      donut; the latitudes nest all the donuts inside each other, filling all of space.</p>
+      <h3>Try this</h3>
+      <p>Raise <strong>latitudes</strong> and watch the nested tori appear. The isoclinic spin
+      slides every circle along itself — the whole 3-sphere flowing without moving. Alt-drag to
+      tip the projection pole and melt the picture into a new one.</p>
+    </template>
     <script type="module" src="/src/hopf.ts"></script>
   </body>
 </html>

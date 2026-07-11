@@ -14,6 +14,75 @@ import type { DragRotation4D } from '@holotope/three';
 export function setupShowcaseUI(options: { drag4d?: DragRotation4D } = {}): void {
   const style = document.createElement('style');
   style.textContent = /* css */ `
+    .ui-explain {
+      position: fixed;
+      bottom: 14px;
+      left: 14px;
+      z-index: 12;
+      padding: 7px 14px;
+      background: rgba(16, 18, 30, 0.92);
+      border: 1px solid #26304a;
+      border-radius: 999px;
+      color: #7fd4ff;
+      font: 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .ui-explain:hover {
+      border-color: #7fd4ff;
+    }
+    .ui-explain-panel {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(4, 5, 10, 0.72);
+      padding: 20px;
+    }
+    .ui-explain-panel.open {
+      display: flex;
+    }
+    .ui-explain-card {
+      max-width: 620px;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 26px 30px;
+      background: #10121e;
+      border: 1px solid #26304a;
+      border-radius: 12px;
+      color: #a9bbdd;
+      font: 14px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .ui-explain-card h2 {
+      margin: 0 0 10px;
+      color: #d7e3ff;
+      font-size: 17px;
+    }
+    .ui-explain-card h3 {
+      margin: 18px 0 4px;
+      color: #7fd4ff;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .ui-explain-card p {
+      margin: 6px 0;
+    }
+    .ui-explain-card strong {
+      color: #d7e3ff;
+    }
+    .ui-explain-close {
+      margin-top: 16px;
+      padding: 6px 16px;
+      background: #17203a;
+      border: 1px solid #26304a;
+      border-radius: 6px;
+      color: #d7e3ff;
+      font: inherit;
+      cursor: pointer;
+    }
     .ui-toggle {
       display: none;
       position: fixed;
@@ -102,6 +171,33 @@ export function setupShowcaseUI(options: { drag4d?: DragRotation4D } = {}): void
     toggle.textContent = open ? 'close' : 'controls';
   });
   document.body.appendChild(toggle);
+
+  // "What am I looking at?" overlay: pages provide the narrative in a
+  // <template id="explainer"> so the copy lives beside the page markup.
+  const template = document.getElementById('explainer') as HTMLTemplateElement | null;
+  if (template) {
+    const panel = document.createElement('div');
+    panel.className = 'ui-explain-panel';
+    const card = document.createElement('div');
+    card.className = 'ui-explain-card';
+    card.appendChild(template.content.cloneNode(true));
+    const close = document.createElement('button');
+    close.className = 'ui-explain-close';
+    close.textContent = 'got it';
+    close.addEventListener('click', () => panel.classList.remove('open'));
+    card.appendChild(close);
+    panel.appendChild(card);
+    panel.addEventListener('click', (e) => {
+      if (e.target === panel) panel.classList.remove('open');
+    });
+    document.body.appendChild(panel);
+
+    const explain = document.createElement('button');
+    explain.className = 'ui-explain';
+    explain.textContent = '? what am I looking at';
+    explain.addEventListener('click', () => panel.classList.add('open'));
+    document.body.appendChild(explain);
+  }
 
   const drag4d = options.drag4d;
   if (drag4d) {
