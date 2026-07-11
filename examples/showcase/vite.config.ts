@@ -29,7 +29,8 @@ export default defineConfig({
         duoprisms: local('./duoprisms.html'),
         gpu: local('./gpu.html'),
         compute: local('./compute.html'),
-        knots: local('./knots.html')
+        knots: local('./knots.html'),
+        wythoff: local('./wythoff.html')
       }
     }
   }
