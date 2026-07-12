@@ -31,7 +31,8 @@ export default defineConfig({
         compute: local('./compute.html'),
         knots: local('./knots.html'),
         wythoff: local('./wythoff.html'),
-        hopf: local('./hopf.html')
+        hopf: local('./hopf.html'),
+        scene: local('./scene.html')
       }
     }
   }

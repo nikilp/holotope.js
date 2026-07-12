@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Scene Graph &amp; Instancing</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0a0a12;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+      }
+      #hud {
+        position: fixed;
+        top: 12px;
+        left: 14px;
+        color: #8fa3c8;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        user-select: none;
+        pointer-events: none;
+      }
+      #hud strong {
+        color: #d7e3ff;
+      }
+      #hud a {
+        color: #7fd4ff;
+        text-decoration: none;
+        pointer-events: auto;
+      }
+      #stats {
+        color: #7fd4ff;
+      }
+      #controls {
+        position: fixed;
+        top: 12px;
+        right: 14px;
+        width: 240px;
+        padding: 12px 14px;
+        background: rgba(16, 18, 30, 0.85);
+        border: 1px solid #26304a;
+        border-radius: 8px;
+        color: #8fa3c8;
+        font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      #controls label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 6px 0;
+      }
+      #controls input[type='range'] {
+        flex: 1;
+        accent-color: #7fd4ff;
+      }
+      #controls .value {
+        width: 42px;
+        text-align: right;
+        color: #d7e3ff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js</strong> — a 4D scene graph and one-draw-call instancing.<br />
+      <span class="detail">Center: a hierarchy — moons orbit a planet that orbits in 4D, transforms composing
+      down the tree.<br />Background: hundreds of instanced 16-cells drawn in a single call.<br />
+      Drag to orbit · <strong>alt-drag to rotate everything in 4D</strong> (xw / yw).<br /></span>
+      <span id="stats">…</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="controls">
+      <label>instances <input id="instances" type="range" min="64" max="1024" step="64" value="512" /> <span class="value" id="instancesValue">512</span></label>
+      <label>orbit speed <input id="orbitSpeed" type="range" min="0" max="1" step="0.01" value="0.4" /> <span class="value" id="orbitSpeedValue">0.40</span></label>
+      <label>field spin <input id="fieldSpin" type="range" min="0" max="1" step="0.01" value="0.25" /> <span class="value" id="fieldSpinValue">0.25</span></label>
+    </div>
+    <template id="explainer">
+      <h2>Hierarchy and instancing, one dimension up</h2>
+      <h3>What's happening</h3>
+      <p>The center shows a <strong>scene graph</strong>: a planet node orbits in a 4D plane,
+      moon nodes orbit the planet in different planes, and each world transform is the
+      composition of its ancestors' rotations and translations — the same parent–child
+      machinery as three.js, with 4D rotors in place of quaternions.</p>
+      <p>The background field is <strong>instancing</strong>: hundreds of copies of one
+      16-cell, each with its own 4D rigid transform stored per instance on the GPU,
+      all drawn in a single call. The geometry uploads once; moving an instance costs
+      20 floats.</p>
+      <h3>Try this</h3>
+      <p>Push <strong>instances</strong> to 1024 and check the edge count in the corner —
+      the frame rate barely notices. Alt-drag rotates the shared 4D frame: hierarchy and
+      field turn together through the hidden dimension.</p>
+    </template>
+    <script type="module" src="/src/scene.ts"></script>
+  </body>
+</html>
