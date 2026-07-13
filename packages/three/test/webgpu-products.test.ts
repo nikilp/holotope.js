@@ -7,6 +7,10 @@ import {
   tetrahedralizeCuboidCells
 } from '@holotope/core';
 import { ProjectedSurfaceGPU } from '../src/webgpu/projected-surface-gpu.js';
+import { QuaternionJuliaGPU, compareQuaternionJuliaGPU } from '../src/webgpu/quaternion-julia-gpu.js';
+import { RaymarchedQuaternionJulia3D } from '../src/webgpu/raymarched-quaternion-julia.js';
+import { BicomplexJuliaGPU } from '../src/webgpu/bicomplex-julia-gpu.js';
+import { RaymarchedBicomplexJulia3D } from '../src/webgpu/raymarched-bicomplex-julia.js';
 
 // Construction-only tests: the node graph and static buffers build fine
 // without a GPU; rendering is verified in the browser showcase.
@@ -78,5 +82,129 @@ describe('ProjectedEdgesInstancedGPU', () => {
       for (let c = 0; c < 4; c++) expect(gpu[c]).toBeCloseTo(cpu.data[c]!, 5);
     }
     expect(() => product.setInstanceTransform(3, transform)).toThrow(/out of range/);
+  });
+});
+
+describe('QuaternionJuliaGPU', () => {
+  it('builds a packed compute evaluation and validates input shape', async () => {
+    const { QuaternionJuliaField } = await import('@holotope/core');
+    const field = new QuaternionJuliaField({
+      parameter: [0.156, 0, 0, -0.8],
+      maxIterations: 32,
+      escapeRadius: 4
+    });
+    const product = new QuaternionJuliaGPU(
+      field,
+      new Float32Array([0, 0, 0, 0, 1.25, -0.5, 0.25, 0.75])
+    );
+    expect(product.count).toBe(2);
+    expect(product.field).toBe(field);
+    expect(() => new QuaternionJuliaGPU(field, [])).toThrow(/positive multiple/);
+    expect(() => new QuaternionJuliaGPU(field, [0, 1, 2])).toThrow(/positive multiple/);
+    expect(() => new QuaternionJuliaGPU(field, [0, 0, 0, Number.NaN])).toThrow(/finite/);
+  });
+
+  it('summarizes CPU-vs-GPU record errors without hiding classification mismatches', async () => {
+    const { QuaternionJuliaField } = await import('@holotope/core');
+    const field = new QuaternionJuliaField({ parameter: [0, 0, 0, -1], maxIterations: 12 });
+    const points = new Float32Array([2, 0, 0, 0]);
+    const cpu = field.evalCPU(points);
+    const gpu = {
+      count: 1,
+      values: new Float32Array([cpu.value]),
+      magnitudes: new Float32Array([cpu.magnitude]),
+      potentials: new Float32Array([cpu.potential]),
+      distances: new Float32Array([cpu.distance]),
+      iterations: new Uint32Array([cpu.iterations]),
+      escaped: new Uint8Array([cpu.escaped ? 1 : 0]),
+      orbitTraps: new Float32Array([cpu.orbitTrap]),
+      derivativeBounds: new Float32Array([cpu.derivativeBound]),
+      finalPoints: new Float32Array(cpu.finalPoint)
+    };
+    const exact = compareQuaternionJuliaGPU(field, points, gpu);
+    expect(exact.escapeMismatches).toBe(0);
+    expect(exact.iterationMismatches).toBe(0);
+    expect(exact.maxFinalPointError).toBeLessThan(1e-6);
+
+    gpu.escaped[0] = gpu.escaped[0] ? 0 : 1;
+    gpu.iterations[0]! += 1;
+    const mismatch = compareQuaternionJuliaGPU(field, points, gpu);
+    expect(mismatch.escapeMismatches).toBe(1);
+    expect(mismatch.iterationMismatches).toBe(1);
+  });
+});
+
+describe('RaymarchedQuaternionJulia3D', () => {
+  it('builds a TSL fragment product from the CPU field and live slice', async () => {
+    const { HyperplaneSlice4, QuaternionJuliaField } = await import('@holotope/core');
+    const field = new QuaternionJuliaField({ parameter: [0.156, 0, 0, -0.8] });
+    const slice = HyperplaneSlice4.axisAligned(2);
+    const product = new RaymarchedQuaternionJulia3D(field, slice, {
+      extent: 1.7,
+      maxSteps: 96
+    });
+    expect(product.field).toBe(field);
+    expect(product.slice).toBe(slice);
+    expect(product.object.geometry.getAttribute('position').count).toBe(24);
+    slice.setNormal([0, 0, 0.5, 1]);
+    slice.offset = 0.2;
+    expect(() => product.update()).not.toThrow();
+    product.dispose();
+    expect(() => new RaymarchedQuaternionJulia3D(field, slice, { maxSteps: 0 })).toThrow(
+      /maxSteps/
+    );
+    expect(() => new RaymarchedQuaternionJulia3D(field, slice, { stepSafety: 1.2 })).toThrow(
+      /stepSafety/
+    );
+  });
+});
+
+describe('BicomplexJuliaGPU', () => {
+  it('builds two explicit complex factor pipelines from packed bicomplex points', async () => {
+    const { BicomplexJuliaField, idempotentToBicomplex } = await import('@holotope/core');
+    const field = new BicomplexJuliaField({
+      parameter: idempotentToBicomplex([0.745, -0.123], [0.156, -0.8]),
+      maxIterations: 32
+    });
+    const product = new BicomplexJuliaGPU(
+      field,
+      new Float32Array([0, 0, 0, 0, 0.5, -0.25, 0.75, -1])
+    );
+    expect(product.count).toBe(2);
+    expect(product.field).toBe(field);
+    expect(() => new BicomplexJuliaGPU(field, [])).toThrow(/positive multiple/);
+    expect(() => new BicomplexJuliaGPU(field, [0, 0, 0, Number.POSITIVE_INFINITY])).toThrow(
+      /finite/
+    );
+  });
+});
+
+describe('RaymarchedBicomplexJulia3D', () => {
+  it('builds a product-distance TSL graph from two complex factors', async () => {
+    const { BicomplexJuliaField, HyperplaneSlice4, idempotentToBicomplex } = await import(
+      '@holotope/core'
+    );
+    const field = new BicomplexJuliaField({
+      parameter: idempotentToBicomplex([0.745, -0.123], [0.156, -0.8])
+    });
+    const slice = HyperplaneSlice4.axisAligned(3);
+    const product = new RaymarchedBicomplexJulia3D(field, slice, {
+      extent: 1.7,
+      maxSteps: 128
+    });
+    expect(product.field).toBe(field);
+    expect(product.slice).toBe(slice);
+    expect(product.stepSafety).toBe(field.distanceEstimator.recommendedStepSafety);
+    expect(product.object.geometry.getAttribute('position').count).toBe(24);
+    slice.setNormal([0, 0, 0.5, 1]);
+    slice.offset = -0.15;
+    expect(() => product.update()).not.toThrow();
+    product.dispose();
+    expect(() => new RaymarchedBicomplexJulia3D(field, slice, { maxSteps: 0 })).toThrow(
+      /maxSteps/
+    );
+    expect(() => new RaymarchedBicomplexJulia3D(field, slice, { stepSafety: 1.1 })).toThrow(
+      /stepSafety/
+    );
   });
 });

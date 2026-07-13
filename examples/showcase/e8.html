@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — E8 to H4 Folding</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #080910; }
+      #app { width: 100%; height: 100%; }
+      #hud { position: fixed; top: 12px; left: 14px; color: #8fa3c8; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: none; pointer-events: none; }
+      #hud strong, .view-label strong { color: #d7e3ff; }
+      #hud a { color: #7fd4ff; text-decoration: none; pointer-events: auto; }
+      #counts { color: #7fd4ff; }
+      .view-label { position: fixed; bottom: 22px; width: 45%; color: #6f82a8; text-align: center; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+      #parallel-label { left: 2%; }
+      #perpendicular-label { right: 2%; }
+      #controls { position: fixed; top: 12px; right: 14px; width: 230px; padding: 12px 14px; background: rgba(16,18,30,.88); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+      #controls input[type='range'] { flex: 1; accent-color: #7fd4ff; }
+      #controls select { min-width: 125px; color: #d7e3ff; background: #10141f; border: 1px solid #33405f; border-radius: 4px; padding: 3px; }
+      #controls .value { width: 38px; text-align: right; color: #d7e3ff; }
+      #controls hr { border: none; border-top: 1px solid #26304a; margin: 8px 0; }
+      @media (max-width: 760px) { .detail { display: none; } .view-label { bottom: 12px; font-size: 10px; } #controls { top: auto; bottom: 54px; width: 190px; } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js</strong> — one exact E8 root system, two 4D readings.<br />
+      <span class="detail">The same 240 icosians are evaluated at φ (left) and its conjugate 1−φ (right).<br />
+      Cyan/magenta points retain root provenance; edge classes are decided in ℤ[φ], never by distance thresholds.<br />
+      Drag to orbit · <strong>alt-drag to rotate both 4-spaces together</strong>.<br /></span>
+      <span id="counts">240 roots · 6,720 E8 edges · 2,880 inter-shell struts</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="parallel-label" class="view-label"><strong>parallel space</strong><br />radii 1 and 1/φ</div>
+    <div id="perpendicular-label" class="view-label"><strong>perpendicular space</strong><br />radii 1 and φ</div>
+    <div id="controls">
+      <label>construction <select id="mode"><option value="roots">E8 roots · window off</option><option value="germ">Elser–Sloane · window on</option></select></label>
+      <hr />
+      <label>root points <input id="roots" type="checkbox" checked /></label>
+      <label class="root-only">600-cell shells <input id="shells" type="checkbox" checked /></label>
+      <label class="root-only">E8 in-shell edges <input id="inShell" type="checkbox" /></label>
+      <label class="root-only">inter-shell struts <input id="strut" type="checkbox" /></label>
+      <hr />
+      <label>guided motion <input id="motion" type="checkbox" checked /></label>
+      <label>speed <input id="speed" type="range" min="0" max="1" step="0.01" value="0.45" /> <span class="value" id="speedValue">0.45</span></label>
+    </div>
+    <template id="explainer">
+      <h2>One exact object, two conjugate shadows</h2>
+      <h3>The algebraic lens</h3>
+      <p>The 240 shortest vectors of the E8 lattice can be written as quaternions whose coordinates
+      belong to <strong>ℤ[φ]</strong>. Every coordinate a+bφ has two real readings: substitute the
+      golden ratio φ, or substitute its conjugate 1−φ. Reading all four quaternion coordinates one
+      way gives the left 4-space; reading them the other way gives the right.</p>
+      <h3>What the fold preserves</h3>
+      <p>Each side contains two concentric 600-cell vertex sets. Their radii exchange: the magenta
+      shell shrinks by 1/φ on the left and grows by φ on the right. Root identity and E8 adjacency
+      remain exact, but metric distance does not: some E8 edges become 600-cell edges, others become
+      chords, and 2,880 join the shells.</p>
+      <h3>Try this</h3>
+      <p>Start with both metric 600-cell skeletons, then enable <strong>E8 in-shell edges</strong>
+      to see how much more information the E8 edge graph carries. Alt-drag applies the same SO(4)
+      rotation to both readings, keeping their Galois relationship visible. Then switch the construction
+      to <strong>Elser–Sloane · window on</strong>: the cyan root shell lies exactly on the canonical
+      acceptance-window boundary, while 120 of the 2,160 norm-4 vectors form the new amber shell inside.
+      The left side shows their physical reading and the right side their internal identity.</p>
+    </template>
+    <script type="module" src="/src/e8.ts"></script>
+  </body>
+</html>

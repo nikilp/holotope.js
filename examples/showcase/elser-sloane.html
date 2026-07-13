@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Elser–Sloane Exact Sections</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #080910; }
+      #app { width: 100%; height: 100%; }
+      #hud { position: fixed; top: 12px; left: 14px; color: #8fa3c8; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: none; pointer-events: none; }
+      #hud strong, .view-label strong { color: #d7e3ff; }
+      #hud a { color: #7fd4ff; text-decoration: none; pointer-events: auto; }
+      #counts { color: #7fd4ff; }
+      #boundary, #inflationCount { color: #ffbd66; }
+      .view-label { position: fixed; bottom: 22px; width: 45%; color: #6f82a8; text-align: center; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+      #physical-label { left: 2%; }
+      #internal-label { right: 2%; }
+      #controls { position: fixed; top: 12px; right: 14px; width: 265px; padding: 12px 14px; background: rgba(16,18,30,.88); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+      #controls input[type='range'] { flex: 1; accent-color: #7fd4ff; }
+      #controls select { color: #d7e3ff; background: #10141f; border: 1px solid #33405f; border-radius: 4px; padding: 3px; }
+      #controls .value { min-width: 52px; text-align: right; color: #d7e3ff; }
+      #controls hr { border: none; border-top: 1px solid #26304a; margin: 8px 0; }
+      @media (max-width: 760px) { .detail { display: none; } .view-label { bottom: 12px; font-size: 10px; } #controls { top: auto; bottom: 54px; width: 205px; } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js</strong> — exact 3D sections of the 4D Elser–Sloane model set.<br />
+      <span class="detail">Complete E8 norm shells are tested against the 720-vertex canonical window.<br />
+      The left graph fixes one exact physical coordinate; the right shows the same points internally.<br /></span>
+      <span id="counts">…</span><br />
+      <span id="boundary">…</span><br />
+      <span id="inflationCount">…</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="physical-label" class="view-label"><strong>physical 3-space</strong><br />exact section</div>
+    <div id="internal-label" class="view-label"><strong>internal 4-space</strong><br />the same accepted lattice provenance</div>
+    <div id="controls">
+      <label>phason <select id="phason"><option value="canonical">canonical · singular</option><option value="regular">regular · exact /11</option></select></label>
+      <label>E8 norm bound <select id="norm"><option value="2">2 · roots</option><option value="4">4 · germ</option><option value="8" selected>8 · four shells</option><option value="10">10 · five shells</option></select></label>
+      <label>section f₄ <input id="section" type="range" min="0" max="0" step="1" value="0" /> <span class="value" id="sectionValue">0</span></label>
+      <label>φ-image highlight <input id="inflation" type="checkbox" checked /></label>
+      <hr />
+      <label>internal motion <input id="motion" type="checkbox" checked /></label>
+      <label>speed <input id="speed" type="range" min="0" max="0.6" step="0.01" value="0.18" /> <span class="value" id="speedValue">0.18</span></label>
+    </div>
+    <template id="explainer">
+      <h2>A theorem-backed 3D section of a 4D quasicrystal</h2>
+      <h3>Complete ambient shells</h3>
+      <p>The finite source is not an arbitrary coordinate box. It contains every E8 lattice vector up
+      to the selected quadratic norm, so the bound preserves complete symmetry orbits. Each vector is
+      accepted only when its exact internal coordinate lies in the canonical 720-vertex window.</p>
+      <h3>The exact section</h3>
+      <p>The physical four-space has coordinates f₁,…,f₄. The controls select an exact value of f₄
+      already present in the bounded model set; no thickness or floating tolerance is used. Elser and
+      Sloane identify an A₅ subgroup fixing f₄, so each constant-f₄ section has icosahedral symmetry.
+      The finite norm bound clips its radial extent but not its ambient symmetry orbits.</p>
+      <h3>Inflation as provenance</h3>
+      <p>The exact E8 automorphism acts by φ in physical space and by 1−φ internally. Amber points are
+      members of that integer-coordinate image which remain visible inside the current finite bound.
+      The right view carries the same edges and lattice identities into the acceptance window; its
+      guided motion changes only how that four-dimensional internal data is projected for display.</p>
+      <h3>Centered and regular cuts</h3>
+      <p>The canonical window origin preserves the section's icosahedral symmetry and its inflation
+      inclusion, but it is singular. The regular preset applies an exact eleventh-unit internal shift
+      chosen to avoid every one of the 1,200 facets. It demonstrates a nearby phason pattern without
+      boundary choices; the symmetry and same-origin inflation highlight are disabled because the
+      translated window no longer has those centered invariants.</p>
+    </template>
+    <script type="module" src="/src/elser-sloane.ts"></script>
+  </body>
+</html>

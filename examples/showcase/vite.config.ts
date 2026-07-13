@@ -32,7 +32,15 @@ export default defineConfig({
         knots: local('./knots.html'),
         wythoff: local('./wythoff.html'),
         hopf: local('./hopf.html'),
-        scene: local('./scene.html')
+        scene: local('./scene.html'),
+        e8: local('./e8.html'),
+        elserSloane: local('./elser-sloane.html'),
+        ammannBeenker: local('./ammann-beenker.html'),
+        penrose: local('./penrose.html'),
+        quaternionJulia: local('./quaternion-julia.html'),
+        bicomplexJulia: local('./bicomplex-julia.html'),
+        platonicBrots: local('./platonic-brots.html'),
+        akn: local('./akn.html')
       }
     }
   }

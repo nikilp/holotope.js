@@ -14,8 +14,8 @@ import { VecN, assertSameDim } from './vecn.js';
  * normalizations instead of Gram–Schmidt.
  *
  * The bivector → (q_L, q_R) split is the so(4) ≅ so(3) ⊕ so(3)
- * decomposition; the sign conventions are derived in the kitchen notes
- * and pinned by tests against `expBivector` and `MatN.rotationInPlane`.
+ * decomposition; the sign conventions are pinned by tests against
+ * `expBivector` and `MatN.rotationInPlane`.
  *
  * Quaternions are stored as Float64Array [i, j, k, real] so that a point's
  * coordinate layout (x₀, x₁, x₂, x₃) is itself a valid quaternion.

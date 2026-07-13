@@ -7,9 +7,13 @@ ordinary three.js objects.
 - `ProjectedEdges3D` — the projected 1-skeleton as `LineSegments`
 - `ProjectedSurface3D` — the projected 2-faces as a translucent `Mesh`
 - `SlicedComplex3D` — the exact 4D cross-section, with per-triangle picking provenance
+- `SampledSlicedField3D` — deterministic implicit-field sampling plus an inspectable approximate mesh
 - `DragRotation4D` — pointer controls for rotating through hidden planes
 - `@holotope/three/webgpu` — `ProjectedEdgesGPU` (vertex-shader 4D projection) and
-  `SlicedComplexGPU` (WGSL compute-shader slicing) for `WebGPURenderer`
+  `SlicedComplexGPU` (WGSL compute-shader slicing), `QuaternionJuliaGPU`
+  and `BicomplexJuliaGPU` (packed-point field evaluation), plus
+  `RaymarchedQuaternionJulia3D` and `RaymarchedBicomplexJulia3D`
+  (adaptive fragment-stage slicing) for `WebGPURenderer`
 
 `three` (≥0.185 <0.186) is a peer dependency.
 

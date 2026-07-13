@@ -99,6 +99,30 @@ export const coxeterB4 = (): CoxeterDiagram => path('B4', [3, 3, 4], 384);
 export const coxeterF4 = (): CoxeterDiagram => path('F4', [3, 4, 3], 1152);
 export const coxeterH4 = (): CoxeterDiagram => path('H4', [5, 3, 3], 14400);
 
+/**
+ * E8: a seven-node chain with a one-node branch at the trivalent node.
+ *
+ * The full Weyl group is intentionally not meant to be enumerated into a
+ * chamber table. Its root orbit has only 240 elements and is reached with
+ * `orbitDistanceTuples`, whose work is proportional to the orbit rather
+ * than the 696,729,600 group elements.
+ */
+export const coxeterE8 = (): CoxeterDiagram =>
+  createCoxeterDiagram(
+    'E8',
+    [
+      [1, 3, 2, 2, 2, 2, 2, 2],
+      [3, 1, 3, 2, 2, 2, 2, 2],
+      [2, 3, 1, 3, 2, 2, 2, 3],
+      [2, 2, 3, 1, 3, 2, 2, 2],
+      [2, 2, 2, 3, 1, 3, 2, 2],
+      [2, 2, 2, 2, 3, 1, 3, 2],
+      [2, 2, 2, 2, 2, 3, 1, 2],
+      [2, 2, 3, 2, 2, 2, 2, 1]
+    ],
+    696_729_600
+  );
+
 /** D₄: node 0 is the branch center, joined to 1, 2, 3 by marks of 3. */
 export const coxeterD4 = (): CoxeterDiagram =>
   createCoxeterDiagram(

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Quaternion Julia Slices</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #080910; }
+      #app { width: 100%; height: 100%; }
+      #hud { position: fixed; top: 12px; left: 14px; color: #8fa3c8; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: none; pointer-events: none; }
+      #hud strong { color: #d7e3ff; }
+      #hud a { color: #7fd4ff; text-decoration: none; pointer-events: auto; }
+      #stats { color: #7fd4ff; }
+      #escape { color: #ffbd66; }
+      #parity { color: #6ee7a8; }
+      #modeValue { color: #ff78bd; }
+      #parameterValue { color: #c99cff; }
+      #controls { position: fixed; top: 12px; right: 14px; width: 285px; padding: 12px 14px; background: rgba(16,18,30,.9); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+      #controls input[type='range'] { flex: 1; accent-color: #7fd4ff; }
+      #controls select { flex: 1; min-width: 0; color: #d7e3ff; background: #10141f; border: 1px solid #33405f; border-radius: 4px; padding: 3px; }
+      #controls .value { min-width: 42px; text-align: right; color: #d7e3ff; }
+      #badge { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); color: #6f82a8; text-align: center; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+      #badge strong { color: #d7e3ff; }
+      @media (max-width: 760px) { .detail { display: none; } #controls { top: auto; bottom: 54px; width: 220px; } #badge { display: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js</strong> — two honest views of q ↦ q² + c in the quaternions.<br />
+      <span class="detail">The field lives in R⁴; both products restrict it to the same affine 3-flat.<br /></span>
+      <span id="backend">initializing…</span> · <span id="modeValue">…</span><br />
+      <span id="parameterValue">…</span><br />
+      <span id="stats">…</span><br />
+      <span id="escape">…</span><br />
+      <span id="parity">…</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="controls">
+      <label>parameter <select id="preset">
+        <option value="rabbit">rabbit</option>
+        <option value="basilica">basilica</option>
+        <option value="spiral" selected>spiral</option>
+        <option value="dendrite">dendrite</option>
+        <option value="custom">custom</option>
+      </select></label>
+      <label>Re(c) <input id="parameterReal" type="range" min="-1.5" max="0.5" step="0.001" value="-0.8" /> <span class="value" id="parameterRealValue">−0.800</span></label>
+      <label>Im(c) <input id="parameterImaginary" type="range" min="-1.2" max="1.2" step="0.001" value="0.156" /> <span class="value" id="parameterImaginaryValue">0.156</span></label>
+      <label>rendering <select id="renderMode">
+        <option value="raymarch" selected>ray-marched field</option>
+        <option value="mesh">sampled diagnostic mesh</option>
+      </select></label>
+      <label>ray quality <select id="quality">
+        <option value="preview">72 steps · preview</option>
+        <option value="balanced" selected>112 steps · balanced</option>
+        <option value="fine">160 steps · fine</option>
+      </select></label>
+      <label>mesh resolution <select id="resolution">
+        <option value="30">30³ · quick</option>
+        <option value="38" selected>38³ · balanced</option>
+        <option value="46">46³ · detailed</option>
+      </select></label>
+      <label>slice tilt <input id="angle" type="range" min="0" max="75" step="1" value="0" /> <span class="value" id="angleValue">0°</span></label>
+      <label>slice offset <input id="offset" type="range" min="-0.55" max="0.55" step="0.01" value="0" /> <span class="value" id="offsetValue">0.00</span></label>
+      <label>view rotation <input id="rotate" type="checkbox" checked /></label>
+    </div>
+    <div id="badge"><strong>one field contract, two numerical products</strong><br />adaptive ray march for detail · sampled mesh for inspection</div>
+    <template id="explainer">
+      <h2>A four-dimensional function, restricted to a three-dimensional world</h2>
+      <h3>The field record</h3>
+      <p>Every CPU evaluation returns more than a color: escaped or bounded status, iteration count,
+      final quaternion, potential, orbit-trap distance, derivative bound, and a certified distance
+      estimate. Those records are available directly from the library without constructing this page.</p>
+      <h3>What is exact here?</h3>
+      <p>The sampled values are floating-point approximations, but their structural laws are pinned.
+      Because c lies in the real–i plane, rotating the j–k plane commutes with iteration. Restricting
+      to the real–i plane reproduces the ordinary complex Julia evaluator operation for operation.</p>
+      <h3>What the controls do</h3>
+      <p>At zero tilt the hyperplane contains the complex symmetry plane and shows the canonical
+      rotational suspension. Tilting introduces a real component into the slice normal, producing a
+      genuinely oblique section. Offset translates that 3-flat through the four-dimensional field.
+      The displayed mesh is explicitly approximate: a regular sample grid followed by marching
+      tetrahedra, never an exact <code>CellComplex</code>.</p>
+      <p>The named parameters are landmarks in one continuous complex parameter plane, not the only
+      quaternion Julia sets. Moving <strong>Re(c)</strong> and <strong>Im(c)</strong> switches to
+      custom mode and can pass continuously between connected bodies, dendrites, spirals, and
+      disconnected dust-like regimes.</p>
+      <h3>Why there are two renderers</h3>
+      <p><strong>Ray-marched field</strong> evaluates the restricted quaternion function adaptively
+      for every screen ray. It preserves structures far below the old voxel spacing and estimates
+      normals from the field itself. <strong>Sampled diagnostic mesh</strong> is deliberately more
+      literal: every Float64 grid record and source cell remains inspectable. The WebGPU backend also
+      evaluates a fixed probe set independently and reports its disagreement with the CPU golden path.</p>
+    </template>
+    <script type="module" src="/src/quaternion-julia.ts"></script>
+  </body>
+</html>

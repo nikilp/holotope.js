@@ -48,6 +48,7 @@
       .card {
         display: block;
         padding: 18px 20px;
+        overflow: hidden;
         background: rgba(16, 18, 30, 0.85);
         border: 1px solid #26304a;
         border-radius: 10px;
@@ -61,6 +62,20 @@
         color: #d7e3ff;
         font-size: 16px;
         margin: 0 0 6px;
+      }
+      .preview {
+        display: block;
+        width: calc(100% + 40px);
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+        margin: -18px -20px 16px;
+        background: #05050d;
+        border-bottom: 1px solid #26304a;
+        transition: filter 0.15s ease, transform 0.2s ease;
+      }
+      .card:hover .preview {
+        filter: saturate(1.12) brightness(1.06);
+        transform: scale(1.012);
       }
       .card p {
         margin: 0 0 10px;
@@ -111,6 +126,7 @@
       <h2 class="section">Start here</h2>
       <div class="grid">
         <a class="card" href="./tesseract.html">
+          <img class="preview" src="./previews/tesseract.jpg" alt="A projected tesseract beside its solid three-dimensional cross-section" />
           <h2>Tesseract — projection &amp; cross-section</h2>
           <p>
             One 4D object, two render products: a perspective-projected wireframe and the exact
@@ -124,6 +140,7 @@
       <h2 class="section">The shapes</h2>
       <div class="grid">
         <a class="card" href="./polychora.html">
+          <img class="preview" src="./previews/polychora.jpg" alt="The six regular four-dimensional polychora and their cross-sections" loading="lazy" decoding="async" />
           <h2>All six regular polychora</h2>
           <p>
             The complete set — 5-cell, tesseract, 16-cell, 24-cell, 120-cell, and 600-cell —
@@ -132,6 +149,7 @@
           <span class="tags">CameraN · create120Cell · create600Cell · create24Cell</span>
         </a>
         <a class="card" href="./wythoff.html">
+          <img class="preview" src="./previews/wythoff.jpg" alt="A Wythoff polychoron wireframe and its colored cross-section" loading="lazy" decoding="async" />
           <h2>Wythoff explorer — uniform polychora</h2>
           <p>
             Ring the mirrors of a Coxeter diagram and the uniform polychoron appears — every
@@ -142,9 +160,64 @@
         </a>
       </div>
 
+      <h2 class="section">Lattices &amp; folding</h2>
+      <div class="grid">
+        <a class="card" href="./e8.html">
+          <img class="preview" src="./previews/e8.jpg" alt="Two cyan E8 to H4 wireframe embeddings shown side by side" loading="lazy" decoding="async" />
+          <h2>E8 → H4 — two conjugate 4-spaces</h2>
+          <p>
+            The 240 exact E8 roots as icosians, read through the two real embeddings of ℤ[φ].
+            Two concentric 600-cells exchange radii while exact edge provenance separates their
+            skeleton, folded chords, and inter-shell struts. Switch on the canonical window to reveal
+            the exact two-shell Elser–Sloane germ.
+          </p>
+          <span class="tags">icosianE8Data · createFoldedE8Roots · Rotor4Track</span>
+        </a>
+        <a class="card" href="./elser-sloane.html">
+          <img class="preview" src="./previews/elser-sloane.jpg" alt="Paired physical and internal views of an Elser–Sloane section" loading="lazy" decoding="async" />
+          <h2>Elser–Sloane — exact 3D sections</h2>
+          <p>
+            Complete E8 norm shells pass through the 720-vertex canonical window, then an exact
+            constant-coordinate section reveals the theorem-backed icosahedral 3-space. Physical and
+            internal views share lattice provenance and the φ-inflation image.
+          </p>
+          <span class="tags">E8 norm shells · exact f₄ section · integer inflation</span>
+        </a>
+        <a class="card" href="./ammann-beenker.html">
+          <img class="preview" src="./previews/ammann-beenker.jpg" alt="An eightfold Ammann–Beenker patch beside its octagonal window" loading="lazy" decoding="async" />
+          <h2>Ammann–Beenker — octagonal model set</h2>
+          <p>
+            Project Z⁴ through a regular octagonal window to obtain an eightfold quasiperiodic
+            patch. The paired physical/internal view exposes exact star-map symmetry and
+            silver-mean inflation.
+          </p>
+          <span class="tags">Z[√2] · octagonal window · exact inflation automorphism</span>
+        </a>
+        <a class="card" href="./penrose.html">
+          <img class="preview" src="./previews/penrose.jpg" alt="A colored Penrose rhombus tiling beside its pentagonal windows" loading="lazy" decoding="async" />
+          <h2>Penrose — four pentagonal windows</h2>
+          <p>
+            A cyclotomic ℤ⁴ module whose sum class routes each internal coordinate through one of
+            four exact pentagons. Exact phason presets expose local rearrangements, the singular
+            centered cut, and all seven geometric vertex stars.
+          </p>
+          <span class="tags">Z[φ] · C₅ routing · exact multi-window phasons</span>
+        </a>
+        <a class="card" href="./akn.html">
+          <img class="preview" src="./previews/akn.jpg" alt="A three-dimensional icosahedral model set and its internal window" loading="lazy" decoding="async" />
+          <h2>AKN — 3D icosahedral model set</h2>
+          <p>
+            A primitive Z⁶ lattice viewed through paired golden 3-spaces. The physical quasicrystal
+            and its internal rhombic-triacontahedral window retain the same exact provenance.
+          </p>
+          <span class="tags">Z[φ] · 30-facet window · exact 3-fold/5-fold symmetry</span>
+        </a>
+      </div>
+
       <h2 class="section">Curves &amp; flows</h2>
       <div class="grid">
         <a class="card" href="./duoprisms.html">
+          <img class="preview" src="./previews/duoprisms.jpg" alt="Projected duoprism wireframes with a solid cross-section" loading="lazy" decoding="async" />
           <h2>Duoprisms</h2>
           <p>
             The product of two polygons — a p-gon in the xy plane times a q-gon in the zw plane,
@@ -153,6 +226,7 @@
           <span class="tags">createDuoprism · SlicedComplex3D · Clifford rotation</span>
         </a>
         <a class="card" href="./knots.html">
+          <img class="preview" src="./previews/knots.jpg" alt="A projected Clifford torus knot traced as linked curves" loading="lazy" decoding="async" />
           <h2>Clifford torus knots</h2>
           <p>
             (p, q) torus knots living flat on the Clifford torus in S³ — the duoprism's vertex
@@ -162,6 +236,7 @@
           <span class="tags">createCliffordCurve · createDuoprism · isoclinic rotation</span>
         </a>
         <a class="card" href="./hopf.html">
+          <img class="preview" src="./previews/hopf.jpg" alt="A multicolored family of linked Hopf fibers" loading="lazy" decoding="async" />
           <h2>Hopf fibration</h2>
           <p>
             S³ as a bundle of linked circles over S² — each fiber colored by its base point,
@@ -172,9 +247,43 @@
         </a>
       </div>
 
+      <h2 class="section">Implicit fields</h2>
+      <div class="grid">
+        <a class="card" href="./quaternion-julia.html">
+          <img class="preview" src="./previews/quaternion-julia.jpg" alt="A detailed purple ray-marched quaternion Julia slice" loading="lazy" decoding="async" />
+          <h2>Quaternion Julia — adaptive 3D slices</h2>
+          <p>
+            Evaluate q↦q²+c as a deterministic field on R⁴ and ray-march its restriction to an
+            affine 3-flat. The inspectable sampled mesh remains available beside the adaptive view.
+          </p>
+          <span class="tags">ImplicitField4 · RaymarchedQuaternionJulia3D · CPU↔GPU differential</span>
+        </a>
+        <a class="card" href="./bicomplex-julia.html">
+          <img class="preview" src="./previews/bicomplex-julia.jpg" alt="A layered cyan and magenta bicomplex Julia product surface" loading="lazy" decoding="async" />
+          <h2>Bicomplex Julia — product slices</h2>
+          <p>
+            An exact idempotent basis splits one four-dimensional quadratic field into two complex
+            Julia records. Choose the factors, then ray-march or sample an affine 3-flat through
+            their product geometry.
+          </p>
+          <span class="tags">C⊕C product law · RaymarchedBicomplexJulia3D · CPU↔GPU differential</span>
+        </a>
+        <a class="card" href="./platonic-brots.html">
+          <img class="preview" src="./previews/platonic-brots.jpg" alt="A bright tetrahedral escape-time solid within sampled field layers" loading="lazy" decoding="async" />
+          <h2>Platonic brots — escape-time solids</h2>
+          <p>
+            Three parameter-space slices of the tricomplex Mandelbrot set collapse exactly to a
+            regular octahedron, tetrahedron, and cube. Exact theorem meshes sit inside sampled
+            divergence-time layers from the same quadratic algorithm.
+          </p>
+          <span class="tags">tricomplex idempotents · exact halfspaces · escape-time certificates</span>
+        </a>
+      </div>
+
       <h2 class="section">Under the hood</h2>
       <div class="grid">
         <a class="card" href="./gpu.html">
+          <img class="preview" src="./previews/gpu.jpg" alt="A dense orange GPU-projected 600-cell wireframe" loading="lazy" decoding="async" />
           <h2>GPU projection (WebGPU / TSL)</h2>
           <p>
             The 600-cell projected 4D→3D in the vertex shader: geometry uploads once, each frame
@@ -183,6 +292,7 @@
           <span class="tags">ProjectedEdgesGPU · TSL positionNode · WebGPURenderer</span>
         </a>
         <a class="card" href="./scene.html">
+          <img class="preview" src="./previews/scene.jpg" alt="A central 4D scene hierarchy surrounded by hundreds of instanced polychora" loading="lazy" decoding="async" />
           <h2>Scene graph &amp; instancing</h2>
           <p>
             A 4D hierarchy — moons orbiting a planet orbiting in 4D, rotor transforms composing
@@ -192,6 +302,7 @@
           <span class="tags">SceneN · ObjectN · ProjectedEdgesInstancedGPU</span>
         </a>
         <a class="card" href="./compute.html">
+          <img class="preview" src="./previews/compute.jpg" alt="Matching GPU and CPU cross-sections of a 120-cell" loading="lazy" decoding="async" />
           <h2>GPU compute slicing</h2>
           <p>
             The 120-cell's 4320 tetrahedra marched against the hyperplane in a WGSL compute

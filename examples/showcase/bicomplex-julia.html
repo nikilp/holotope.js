@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Bicomplex Julia Products</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #080910; }
+      #app { width: 100%; height: 100%; }
+      #hud { position: fixed; top: 12px; left: 14px; color: #8fa3c8; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: none; pointer-events: none; }
+      #hud strong { color: #d7e3ff; }
+      #hud a { color: #7fd4ff; text-decoration: none; pointer-events: auto; }
+      #stats { color: #7fd4ff; }
+      #escape { color: #ffbd66; }
+      #backend { color: #7fd4ff; }
+      #parity { color: #6ee7a8; }
+      #factorValue { color: #ff87d2; }
+      #controls { position: fixed; top: 12px; right: 14px; width: 285px; padding: 12px 14px; background: rgba(16,18,30,.9); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+      #controls input[type='range'] { flex: 1; accent-color: #ff78c8; }
+      #controls select { flex: 1; min-width: 0; color: #d7e3ff; background: #10141f; border: 1px solid #33405f; border-radius: 4px; padding: 3px; }
+      #controls .value { min-width: 42px; text-align: right; color: #d7e3ff; }
+      #badge { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); color: #6f82a8; text-align: center; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+      #badge strong { color: #d7e3ff; }
+      @media (max-width: 760px) { .detail { display: none; } #controls { top: auto; bottom: 54px; width: 220px; } #badge { display: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js</strong> — bicomplex Julia dynamics as a product in disguise.<br />
+      <span class="detail">An exact basis change splits every R⁴ evaluation into two complex quadratic records.<br /></span>
+      <span id="backend">initializing…</span> · <span id="modeValue">…</span><br />
+      <span id="factorValue">…</span><br />
+      <span id="stats">…</span><br />
+      <span id="escape">…</span><br />
+      <span id="parity">…</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="controls">
+      <label>complex factors <select id="preset">
+        <option value="rabbitSpiral">rabbit × spiral</option>
+        <option value="basilicaSpiral">basilica × spiral</option>
+        <option value="basilicaRabbit">basilica × rabbit</option>
+        <option value="matchedSpiral">spiral × spiral</option>
+        <option value="custom">custom</option>
+      </select></label>
+      <label>factor 1 Re <input id="firstReal" type="range" min="-1.5" max="0.5" step="0.001" value="-0.123" /> <span class="value" id="firstRealValue">−0.123</span></label>
+      <label>factor 1 Im <input id="firstImaginary" type="range" min="-1.2" max="1.2" step="0.001" value="0.745" /> <span class="value" id="firstImaginaryValue">0.745</span></label>
+      <label>factor 2 Re <input id="secondReal" type="range" min="-1.5" max="0.5" step="0.001" value="-0.8" /> <span class="value" id="secondRealValue">−0.800</span></label>
+      <label>factor 2 Im <input id="secondImaginary" type="range" min="-1.2" max="1.2" step="0.001" value="0.156" /> <span class="value" id="secondImaginaryValue">0.156</span></label>
+      <label>rendering <select id="renderMode">
+        <option value="raymarch" selected>ray-marched product</option>
+        <option value="mesh">sampled diagnostic mesh</option>
+      </select></label>
+      <label>ray quality <select id="quality">
+        <option value="preview">112 steps · preview</option>
+        <option value="balanced" selected>176 steps · balanced</option>
+        <option value="fine">256 steps · fine</option>
+      </select></label>
+      <label>mesh resolution <select id="resolution">
+        <option value="30">30³ · quick</option>
+        <option value="38" selected>38³ · balanced</option>
+        <option value="46">46³ · detailed</option>
+      </select></label>
+      <label>slice tilt <input id="angle" type="range" min="0" max="90" step="1" value="0" /> <span class="value" id="angleValue">0°</span></label>
+      <label>slice offset <input id="offset" type="range" min="-0.6" max="0.6" step="0.01" value="0" /> <span class="value" id="offsetValue">0.00</span></label>
+      <label>view rotation <input id="rotate" type="checkbox" checked /></label>
+    </div>
+    <div id="badge"><strong>one R⁴ field = two complex records</strong><br />adaptive product-distance ray march · inspectable sampled mesh</div>
+    <template id="explainer">
+      <h2>A product fractal seen through a rotated basis</h2>
+      <h3>Idempotent coordinates</h3>
+      <p>Bicomplex numbers have zero divisors, but an exact linear change of basis separates the
+      quadratic iteration into two independent complex maps. The evaluation record retains both
+      factor records; a point is bounded precisely when both factors are bounded.</p>
+      <h3>Why this belongs beside model sets</h3>
+      <p>The four-dimensional object is a Cartesian product in its natural coordinates. Returning to
+      the visible bicomplex basis and taking an affine 3D section makes that product appear as an
+      oblique interlocking structure—the same product-and-slice logic used throughout the library.</p>
+      <h3>A four-real-dimensional parameter family</h3>
+      <p>The named pairs are landmarks rather than separate formulas. Each complex factor has its own
+      real and imaginary parameter, so the controls traverse a continuous four-real-dimensional
+      family. Changing one factor can alter only one side of the exact product while the other remains
+      fixed, making the origin of each visible feature easier to test.</p>
+      <h3>What the counters mean</h3>
+      <p>Ray-marched mode evaluates the factorized field adaptively for every visible fragment. Its
+      step count is a per-ray ceiling rather than a voxel resolution, and cyan/magenta indicates
+      which complex factor controls the local outside distance. The separate 256-probe line is a
+      4×4×4×4 CPU-versus-GPU record check rather than displayed geometry.</p>
+      <p>The diagnostic mesh evaluates a declared grid such as 38³ = 54,872 points. “Escaped” means
+      at least one factor exceeded the escape radius within the iteration budget; “still bounded in
+      both factors” is its finite-depth complement. Marching tetrahedra place approximate boundary
+      triangles between neighboring classifications and retain the source samples.</p>
+      <h3>Approximation contract</h3>
+      <p>The factorization and product law are exact statements. The ray marcher uses the proven
+      product-metric distance estimator with a conservative step factor; its terminal epsilon and
+      finite iteration budget remain numerical presentation choices. The alternative mesh remains
+      explicitly approximate, with its source grid, factor payloads, and source-cell provenance
+      available for inspection.</p>
+    </template>
+    <script type="module" src="/src/bicomplex-julia.ts"></script>
+  </body>
+</html>

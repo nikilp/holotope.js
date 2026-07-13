@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Platonic Brots</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #080910; }
+      #app { width: 100%; height: 100%; }
+      #hud { position: fixed; top: 12px; left: 14px; color: #8fa3c8; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: none; pointer-events: none; }
+      #hud strong { color: #d7e3ff; }
+      #hud a { color: #7fd4ff; text-decoration: none; pointer-events: auto; }
+      #shapeValue { color: #ffb45f; }
+      #theorem { color: #7fd4ff; }
+      #sample { color: #6ee7a8; }
+      #layer { color: #ff78c8; }
+      #controls { position: fixed; top: 12px; right: 14px; width: 285px; padding: 12px 14px; background: rgba(16,18,30,.9); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+      #controls input[type='range'] { flex: 1; accent-color: #ff8a62; }
+      #controls select { flex: 1; min-width: 0; color: #d7e3ff; background: #10141f; border: 1px solid #33405f; border-radius: 4px; padding: 3px; }
+      #controls .value { min-width: 34px; text-align: right; color: #d7e3ff; }
+      #badge { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); color: #6f82a8; text-align: center; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+      #badge strong { color: #d7e3ff; }
+      @media (max-width: 760px) { .detail { display: none; } #controls { top: auto; bottom: 54px; width: 220px; } #badge { display: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js</strong> — where an escape-time theorem becomes a Platonic solid.<br />
+      <span class="detail">These are 3D parameter-space slices of the tricomplex Mandelbrot set, not Julia surfaces.<br /></span>
+      <span id="shapeValue">…</span><br />
+      <span id="theorem">…</span><br />
+      <span id="sample">…</span><br />
+      <span id="layer">…</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="controls">
+      <label>slice <select id="shape">
+        <option value="airbrot">Airbrot · octahedron</option>
+        <option value="firebrot" selected>Firebrot · tetrahedron</option>
+        <option value="earthbrot">Earthbrot · cube</option>
+      </select></label>
+      <label>minimum dwell <input id="dwell" type="range" min="1" max="14" step="1" value="5" /> <span class="value" id="dwellValue">5</span></label>
+      <label>probe grid <select id="resolution">
+        <option value="32">32³ · quick</option>
+        <option value="40" selected>40³ · balanced</option>
+        <option value="48">48³ · detailed</option>
+      </select></label>
+      <label>exact solid <input id="solid" type="checkbox" checked /></label>
+      <label>view rotation <input id="rotate" type="checkbox" checked /></label>
+    </div>
+    <div id="badge"><strong>same quadratic algorithm, exact polyhedral boundary</strong><br />the colored exterior is finite divergence-time context</div>
+    <template id="explainer">
+      <h2>Why does a fractal algorithm produce a plain polyhedron?</h2>
+      <h3>Parameter space, not a Julia set</h3>
+      <p>A Julia set iterates the starting point while keeping its parameter fixed. A Mandelbrot set
+      instead asks which parameters keep the orbit of zero bounded. These pages therefore answer
+      different questions even though both use the quadratic map.</p>
+      <h3>The tricomplex theorem</h3>
+      <p>In the Airbrot, Firebrot, and Earthbrot bases, the tricomplex parameter splits into independent
+      real quadratic parameters. The real Mandelbrot interval is exactly [−2, 1/4]. Intersecting the
+      corresponding linear interval constraints produces, respectively, a regular octahedron, a
+      regular tetrahedron, and a cube.</p>
+      <h3>What is exact and what is sampled?</h3>
+      <p>The translucent solid, its vertices, faces, and edge length come from the exact dyadic
+      half-space theorem. Colored points are a finite grid outside it: their hue records how many
+      iterations the orbit survives before escaping. They provide algorithmic context but are not
+      part of the bounded set.</p>
+    </template>
+    <script type="module" src="/src/platonic-brots.ts"></script>
+  </body>
+</html>

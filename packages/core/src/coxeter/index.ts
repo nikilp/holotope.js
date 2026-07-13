@@ -17,6 +17,7 @@ export {
   coxeterD4,
   coxeterF4,
   coxeterH4,
+  coxeterE8,
   type CoxeterDiagram
 } from './diagram.js';
 export {

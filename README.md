@@ -2,7 +2,7 @@
 
 N-dimensional geometry for TypeScript.
 
-**[Live showcase →](https://nikilp.github.io/holotope.js/)** — the six regular polychora, duoprisms, exact 4D cross-sections, and GPU-computed slicing, running in the browser.
+**[Live showcase →](https://nikilp.github.io/holotope.js/)** — regular polychora, the E8→H4 folding, exact 4D cross-sections, and GPU-computed slicing, running in the browser.
 
 Holotope.js is an experimental open-source library for building, transforming, projecting, and rendering higher-dimensional geometry on the web. It provides a modular foundation for 4D and N-dimensional visual systems, including vectors, transforms, projections, polytopes, cell complexes, and rendering adapters.
 
@@ -15,6 +15,9 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ math                 VecN, MatN, plane rotations, so(n) exp, Rotor4 (+slerp), TransformN
   ├─ geometry             CellComplex (N-D counterpart of a mesh), tetrahedralization
   ├─ polytope             n-cube/simplex/orthoplex families; all six regular polychora; duoprisms
+  ├─ lattice              exact E8/icosians; cut-and-project model sets and windows
+  ├─ field                inspectable R4 Julia fields; exact tricomplex Mandelbrot parameter slices
+  ├─ coupling             provenance-driven parameters and exact equivariance certificates
   ├─ projection           CameraN, perspective/orthographic N→3, hyperplane slicing
   └─ coxeter              exact Coxeter groups, Wythoff construction of the uniform polychora
 
@@ -22,11 +25,16 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ ProjectedEdges3D     render product: projected 1-skeleton as LineSegments
   ├─ ProjectedSurface3D   render product: projected 2-faces as a translucent Mesh
   ├─ SlicedComplex3D      render product: exact 4D cross-section, with picking provenance
+  ├─ SampledSlicedField3D render product: sampled implicit-field section with retained records
   └─ DragRotation4D       pointer controls for rotating through hidden planes
 
 @holotope/three/webgpu    WebGPU/TSL fast paths (WebGPURenderer)
   ├─ ProjectedEdgesGPU    4D→3D projection in the vertex shader; updates are uniforms-only
-  └─ SlicedComplexGPU     marching-tetrahedra slicing in a WGSL compute shader
+  ├─ SlicedComplexGPU     marching-tetrahedra slicing in a WGSL compute shader
+  ├─ QuaternionJuliaGPU   packed-point field evaluation with readback for CPU differential checks
+  ├─ BicomplexJuliaGPU    two-factor field evaluation with record-level CPU differential checks
+  ├─ RaymarchedQuaternionJulia3D adaptive fragment-stage slicing without a voxel mesh
+  └─ RaymarchedBicomplexJulia3D product-distance ray marching after exact factorization
 ```
 
 A core correctness contract: **the n=3 specialization must reproduce ordinary three.js behavior.** The test suite verifies Holotope rotations and transforms against three.js `Matrix4` directly, and the GPU products are verified differentially against their Float64 CPU counterparts.
@@ -75,7 +83,7 @@ pnpm --filter @holotope/showcase dev   # run the showcase gallery locally
 
 Early research and prototyping. The API is expected to change while the core concepts are explored.
 
-The decisions that shape the library — and why — are in [`docs/architecture.md`](docs/architecture.md).
+The decisions that shape the library — and why — are in [`docs/architecture.md`](docs/architecture.md). See [`docs/implicit-fields.md`](docs/implicit-fields.md) for headless field evaluation, [`docs/model-sets.md`](docs/model-sets.md) for cut-and-project, and [`docs/couplings.md`](docs/couplings.md) for provenance-driven parameters.
 
 ## Roadmap (abridged)
 
@@ -83,6 +91,13 @@ The decisions that shape the library — and why — are in [`docs/architecture.
 - ✅ 4D camera/controls; `ProjectedSurface3D`; slicer provenance for picking
 - ✅ WebGPU/TSL acceleration: vertex-stage 4D projection, compute-shader slicing
 - ✅ Wythoff construction: exact face lattices for the uniform polychora (all rank-4 groups, snub 24-cell, grand antiprism)
+- ✅ Exact E8 root orbit + icosian folding into conjugate 4-spaces
+- ✅ Exact cut-and-project foundation + symbol-exact Fibonacci model set
+- ✅ Ammann–Beenker octagonal model set with exact 8-fold symmetry and silver inflation
+- ✅ 3D Ammann–Kramer–Neri model set with a derived 30-facet triacontahedral window
+- ✅ Elser–Sloane canonical model set: 720-vertex window, complete E8 shell bounds, inflation, exact 3D sections
+- ✅ Escape-time field core: R4 Julia products, GPU differentials, DE audits, and certified Platonic tricomplex parameter slices
+- ✅ Canonical couplings: Elser–Sloane internal-coordinate decoration, exact H4 equivariance, skew-product rotor flow, and periodic holonomy certificates
 - GPU surface/section rendering and the materials/transparency phase
 - `.hyper.json` container format and OFF import/export
 - `@holotope/physics`: N-D rigid bodies (bivector angular momentum), GJK in Rⁿ

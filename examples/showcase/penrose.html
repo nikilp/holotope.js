@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Penrose Multi-Window Model Set</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #080910; }
+      #canvas { display: block; width: 100%; height: 100%; }
+      #hud { position: fixed; top: 12px; left: 14px; color: #8fa3c8; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: none; pointer-events: none; }
+      #hud strong { color: #d7e3ff; }
+      #hud a { color: #7fd4ff; text-decoration: none; pointer-events: auto; }
+      #stats { color: #7fd4ff; }
+      #boundary { color: #ffbd66; }
+      #controls { position: fixed; top: 12px; right: 14px; width: 245px; padding: 12px 14px; background: rgba(16,18,30,.88); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+      #controls input[type='range'] { flex: 1; accent-color: #7fd4ff; }
+      #controls select { flex: 1; min-width: 0; background: #17203a; color: #d7e3ff; border: 1px solid #26304a; border-radius: 5px; font: inherit; padding: 3px 5px; }
+      #controls .value { width: 34px; text-align: right; color: #d7e3ff; }
+      @media (max-width: 760px) { .detail { display: none; } #controls { width: 205px; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="hud">
+      <strong>Holotope.js</strong> — rhombic Penrose tiling from an exact cyclotomic model set.<br />
+      <span class="detail">Left: one unit-edge tiling, colored by discrete window class.<br />
+      Right: the same provenance routed into four exact pentagonal windows.<br /></span>
+      <span id="stats">…</span><br />
+      <span id="boundary">…</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="controls">
+      <label>phason <select id="phason">
+        <option value="regular">regular (1,1)/7</option>
+        <option value="east">east (2,1)/7</option>
+        <option value="north">north (1,2)/7</option>
+        <option value="skew">skew (−1,1)/7</option>
+        <option value="centered">centered · singular</option>
+      </select></label>
+      <label>patch radius <input id="radius" type="range" min="6" max="15" step="0.5" value="9" /> <span class="value" id="radiusValue">9.0</span></label>
+      <label>tiling edges <input id="edges" type="checkbox" checked /></label>
+    </div>
+    <template id="explainer">
+      <h2>One plane, four pentagonal gates</h2>
+      <h3>The cyclotomic source</h3>
+      <p>Four integers name an element of ℤ[ζ₅]. Reading ζ₅ as a 72° rotation gives the
+      physical point. The star map <strong>ζ₅→ζ₅²</strong> gives its internal coordinate,
+      while the coefficient sum modulo five supplies a discrete class.</p>
+      <h3>Why there are four windows</h3>
+      <p>The four nonzero classes select the pentagons <strong>P, −φP, φP, and −P</strong>.
+      A point becomes a tiling vertex exactly when its internal reading lies in its class's
+      window. Connecting accepted points one cyclotomic unit apart produces the two Penrose
+      rhombs and all seven geometric vertex-star types.</p>
+      <h3>What the phason changes</h3>
+      <p>A phason translates every internal coordinate while leaving the projection direction
+      fixed. The regular presets use exact seventh-unit shifts and have no window-boundary hits.
+      Nearby choices change finite patches through local rearrangements while preserving the same
+      quasiperiodic scheme. The centered choice restores fivefold symmetry but is singular, so its
+      boundary inclusions are counted explicitly.</p>
+    </template>
+    <script type="module" src="/src/penrose.ts"></script>
+  </body>
+</html>

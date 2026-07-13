@@ -40,6 +40,18 @@
     "./projection": {
       "types": "./dist/projection/index.d.ts",
       "import": "./dist/projection/index.js"
+    },
+    "./lattice": {
+      "types": "./dist/lattice/index.d.ts",
+      "import": "./dist/lattice/index.js"
+    },
+    "./field": {
+      "types": "./dist/field/index.d.ts",
+      "import": "./dist/field/index.js"
+    },
+    "./coupling": {
+      "types": "./dist/coupling/index.d.ts",
+      "import": "./dist/coupling/index.js"
     }
   },
   "scripts": {

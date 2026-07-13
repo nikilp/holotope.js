@@ -17,7 +17,9 @@ GPU rasterization consumes 3D clip space and produces 2D fragments — there is 
 |---|---|
 | `ProjectedEdges3D` | the 1-skeleton, projected N→3, as line segments |
 | `SlicedComplex3D` | exact hyperplane cross-section of tetrahedral cells, as a mesh |
-| planned: `ProjectedSurface3D`, `ThickSliceVolume3D`, `RaymarchedField3D` | |
+| `SampledSlicedField3D` | approximate isosurface of an implicit R4 field restricted to a sampled affine 3-flat |
+| `RaymarchedQuaternionJulia3D` | adaptive fragment-stage restriction of a quaternion field to an affine 3-flat; no extracted mesh |
+| planned: `ThickSliceVolume3D`, general `RaymarchedField3D` | |
 
 Projections themselves (`PerspectiveProjection`, `OrthographicProjection`, `HyperplaneSlice4`) are first-class objects, not hidden defaults.
 
@@ -47,11 +49,23 @@ Every algorithm ships first as an auditable CPU reference implementation with co
 
 `@holotope/three` pins a narrow tested peer range (currently `>=0.185.0 <0.186.0`) rather than claiming broad compatibility: the adapter will grow into TSL/WebGPU internals that change between three.js releases. Compatibility widens per release after testing, not by default.
 
+## 9. Structured-space views retain provenance
+
+Some higher-dimensional objects have exact algebraic models that admit several real readings. E8's icosian model, for example, stores four coordinates in Z[phi]; evaluating phi or its algebraic conjugate produces two complementary R4 views. The exact ring-valued point remains the identity, while either Float64 embedding is only a renderable view of it.
+
+This extends the "last responsible moment" rule: an embedding may change metric relationships, so adjacency and shell membership are computed before conversion to Float64 and carried as provenance. A folded view never silently becomes the source object.
+
+Cut-and-project follows the same rule. Lattice coefficients, parallel/internal projections, and convex-window membership stay in the exact ring. Enumeration always names a finite coefficient box, and equality at a window facet is reported as a singular boundary event with an explicit convention. Only accepted physical/internal coordinates are converted for display.
+
 ## Roadmap
 
 1. ✅ Math kernel, cell complexes, polytopes, projections, CPU slicing, three.js adapter, tesseract demo
-2. Rotation backends (`Rotor4`, so(n) exp), 4D camera/controls, projection provenance for picking
-3. TSL vertex-stage projection and WebGPU compute slicing (CPU fallback retained)
-4. Materials/lighting policies for projected and sliced surfaces, transparency strategies
-5. `@holotope/physics`: N-D rigid bodies (bivector angular momentum), GJK in Rⁿ
-6. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback
+2. ✅ Rotation backends (`Rotor4`, so(n) exp), 4D camera/controls, projection provenance for picking
+3. ✅ TSL vertex-stage projection and WebGPU compute slicing (CPU fallback retained)
+4. ✅ Exact Coxeter/Wythoff construction and structured E8→H4 views
+5. ✅ Cut-and-project foundation; Fibonacci, Ammann–Beenker, 3D AKN, and exact Elser–Sloane sections
+6. ✅ Escape-time field core; CPU sampling, quaternion/bicomplex sliced products, both GPU differentials, quaternion ray marching, DE audits, slice redundancy, and Platonic tricomplex parameter certificates
+7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
+8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
+9. `@holotope/physics`: N-D rigid bodies (bivector angular momentum), GJK in Rⁿ
+10. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

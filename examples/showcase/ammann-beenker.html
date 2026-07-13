@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Ammann–Beenker Model Set</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #080910; }
+      #canvas { display: block; width: 100%; height: 100%; }
+      #hud { position: fixed; top: 12px; left: 14px; color: #8fa3c8; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: none; pointer-events: none; }
+      #hud strong { color: #d7e3ff; }
+      #hud a { color: #7fd4ff; text-decoration: none; pointer-events: auto; }
+      #stats { color: #7fd4ff; }
+      #inflationCount { color: #ffbd66; }
+      #controls { position: fixed; top: 12px; right: 14px; width: 235px; padding: 12px 14px; background: rgba(16,18,30,.88); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+      #controls input[type='range'] { flex: 1; accent-color: #7fd4ff; }
+      #controls select { flex: 1; min-width: 0; background: #17203a; color: #d7e3ff; border: 1px solid #26304a; border-radius: 5px; font: inherit; padding: 3px 5px; }
+      #controls .value { width: 34px; text-align: right; color: #d7e3ff; }
+      @media (max-width: 760px) { .detail { display: none; } #controls { width: 195px; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="hud">
+      <strong>Holotope.js</strong> — Ammann–Beenker from Z⁴ through an exact octagonal window.<br />
+      <span class="detail">Left: the 8-fold quasiperiodic vertex set and its unit edges.<br />
+      Right: the same vertices in internal space, colored by exact lattice provenance.<br /></span>
+      <span id="stats">…</span><br />
+      <span id="inflationCount">…</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="controls">
+      <label>phason <select id="phason">
+        <option value="canonical">canonical</option>
+        <option value="east">x + 1/4</option>
+        <option value="north">y + 1/4</option>
+        <option value="diagonal">x,y + 1/4</option>
+        <option value="skew">x + 1/4, y − 1/4</option>
+      </select></label>
+      <label>patch radius <input id="radius" type="range" min="5" max="11" step="0.5" value="8" /> <span class="value" id="radiusValue">8.0</span></label>
+      <label>tiling edges <input id="edges" type="checkbox" checked /></label>
+      <label>inflation image <input id="inflation" type="checkbox" checked /></label>
+    </div>
+    <template id="explainer">
+      <h2>Eightfold order from a four-dimensional lattice</h2>
+      <h3>Two readings of Z[ζ₈]</h3>
+      <p>A lattice coefficient vector names one cyclotomic integer. Reading ζ₈ as a 45° rotation
+      places it in physical space; the star map <strong>ζ₈→ζ₈³</strong> gives its internal-space
+      coordinate. A point survives exactly when the internal reading lies in the regular octagon.</p>
+      <h3>What you're seeing</h3>
+      <p>The two panels carry the same lattice provenance. Color is internal angle, so rotating by
+      45° permutes both panels coherently. The window is the projection of a unit four-cube and has
+      eight exact halfspaces over ℤ[√2]. This centered cut is nonsingular: the boundary-hit count is zero.</p>
+      <p>The <strong>phason</strong> presets translate internal coordinates by exact quarter units.
+      They produce distinct, locally related patterns without changing the projection direction or
+      using floating membership decisions.</p>
+      <h3>Silver-mean inflation</h3>
+      <p>Gold rings mark the visible part of the exact lattice automorphism. It expands physical
+      positions by <strong>1+√2</strong> while its conjugate <strong>1−√2</strong> contracts internal
+      positions back into the octagon. Self-similarity is therefore an integer transformation of
+      provenance, not a visual rescale.</p>
+    </template>
+    <script type="module" src="/src/ammann-beenker.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — AKN Icosahedral Model Set</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #080910; }
+      #app { width: 100%; height: 100%; }
+      #hud { position: fixed; top: 12px; left: 14px; color: #8fa3c8; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: none; pointer-events: none; }
+      #hud strong, .view-label strong { color: #d7e3ff; }
+      #hud a { color: #7fd4ff; text-decoration: none; pointer-events: auto; }
+      #stats { color: #ffbd66; }
+      .view-label { position: fixed; bottom: 22px; width: 44%; color: #6f82a8; text-align: center; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+      #physical-label { left: 3%; }
+      #internal-label { right: 3%; }
+      #controls { position: fixed; top: 12px; right: 14px; width: 235px; padding: 12px 14px; background: rgba(16,18,30,.88); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+      #controls input[type='range'] { flex: 1; accent-color: #7fd4ff; }
+      #controls select { flex: 1; min-width: 0; background: #17203a; color: #d7e3ff; border: 1px solid #26304a; border-radius: 5px; font: inherit; padding: 3px 5px; }
+      #controls .value { width: 34px; text-align: right; color: #d7e3ff; }
+      @media (max-width: 760px) { .detail { display: none; } .view-label { font-size: 10px; } #controls { width: 195px; } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js</strong> — 3D icosahedral model set from a primitive Z⁶ lattice.<br />
+      <span class="detail">Left: the Ammann–Kramer–Neri physical-space network.<br />
+      Right: the same provenance inside its rhombic-triacontahedral window.<br /></span>
+      <span id="stats">…</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="physical-label" class="view-label"><strong>physical R³</strong><br />golden-axis module and six edge directions</div>
+    <div id="internal-label" class="view-label"><strong>internal R³</strong><br />30 exact facets from the projected six-cube</div>
+    <div id="controls">
+      <label>phason <select id="phason">
+        <option value="centered">centered · singular</option>
+        <option value="regular">regular (1,1,2)/7</option>
+        <option value="east">east (2,1,2)/7</option>
+        <option value="skew">skew (1,−1,2)/7</option>
+      </select></label>
+      <label>patch radius <input id="radius" type="range" min="4" max="11" step="0.5" value="5" /> <span class="value" id="radiusValue">5.0</span></label>
+      <label>spin <input id="spin" type="range" min="0" max="0.4" step="0.01" value="0.12" /> <span class="value" id="spinValue">0.12</span></label>
+      <label>network edges <input id="edges" type="checkbox" checked /></label>
+      <label>window hull <input id="window" type="checkbox" checked /></label>
+    </div>
+    <template id="explainer">
+      <h2>A three-dimensional quasicrystal and its hidden half</h2>
+      <h3>The six-dimensional source</h3>
+      <p>Six integer coefficients combine six golden-axis vectors. Reading φ gives the physical
+      icosahedral module on the left; replacing φ by 1−φ gives the internal coordinate on the right.
+      The same coefficient tuple is the permanent identity of both points.</p>
+      <h3>The triacontahedral window</h3>
+      <p>The window is not a floating mesh baked into the demo. The core projects the six-cube and
+      derives one exact face pair from every pair of its six generator zones: 15 pairs, hence
+      <strong>30 exact rhombic facets</strong>. The translucent hull is only their rendered envelope.</p>
+      <h3>Symmetry and singularity</h3>
+      <p>Threefold and fivefold rotations are signed permutations of the six lattice coefficients,
+      verified before rendering. The fully symmetric centered cut is singular, so boundary points
+      are included by an explicit closed-window convention and counted in the corner. The other
+      presets translate internal space by exact seventh units; their zero boundary count certifies
+      a regular cut while the physical network changes through local phason rearrangements.</p>
+    </template>
+    <script type="module" src="/src/akn.ts"></script>
+  </body>
+</html>

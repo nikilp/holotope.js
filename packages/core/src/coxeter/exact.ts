@@ -37,6 +37,9 @@ export interface ExactRing {
   /** Exact hash key; equal keys ⇔ equal ring elements. */
   key(x: ExactValue): string;
   keyTuple(xs: readonly ExactValue[]): string;
+  /** Exact order in the selected real embedding: −1, 0, or +1. */
+  sign(x: ExactValue): -1 | 0 | 1;
+  compare(x: ExactValue, y: ExactValue): -1 | 0 | 1;
   /** One-time conversion to Float64 (a + b·ρ numerically). */
   toNumber(x: ExactValue): number;
 }
@@ -47,7 +50,8 @@ const ONE: ExactValue = { a: 1n, b: 0n };
 function makeRing(
   kind: ExactRingKind,
   mulRadicals: (bx: bigint, by: bigint) => ExactValue,
-  radicalValue: number
+  radicalValue: number,
+  exactSign: (x: ExactValue) => -1 | 0 | 1
 ): ExactRing {
   return {
     kind,
@@ -69,23 +73,42 @@ function makeRing(
     },
     key: (x) => `${x.a},${x.b}`,
     keyTuple: (xs) => xs.map((x) => `${x.a},${x.b}`).join('|'),
+    sign: exactSign,
+    compare: (x, y) => exactSign({ a: x.a - y.a, b: x.b - y.b }),
     toNumber: (x) => Number(x.a) + Number(x.b) * radicalValue
   };
 }
 
+function signInteger(value: bigint): -1 | 0 | 1 {
+  return value < 0n ? -1 : value > 0n ? 1 : 0;
+}
+
+/** Exact sign of u + v√k for positive nonsquare integer k. */
+function signQuadratic(u: bigint, v: bigint, k: bigint): -1 | 0 | 1 {
+  if (v === 0n) return signInteger(u);
+  if (u === 0n) return signInteger(v);
+  if ((u < 0n) === (v < 0n)) return signInteger(u);
+  const comparison = u * u - k * v * v;
+  if (comparison === 0n) return 0;
+  return u > 0n === comparison > 0n ? 1 : -1;
+}
+
 /** ℤ: ρ unused (b stays 0). */
-export const integerRing: ExactRing = makeRing('integer', () => ZERO, 0);
+export const integerRing: ExactRing = makeRing('integer', () => ZERO, 0, (x) => signInteger(x.a));
 
 /** ℤ[√2]: ρ² = 2. */
 export const sqrt2Ring: ExactRing = makeRing(
   'sqrt2',
   (bx, by) => ({ a: 2n * bx * by, b: 0n }),
-  Math.SQRT2
+  Math.SQRT2,
+  (x) => signQuadratic(x.a, x.b, 2n)
 );
 
 /** ℤ[φ]: ρ² = ρ + 1 (the golden ratio). */
 export const phiRing: ExactRing = makeRing(
   'phi',
   (bx, by) => ({ a: bx * by, b: bx * by }),
-  (1 + Math.sqrt(5)) / 2
+  (1 + Math.sqrt(5)) / 2,
+  // a+bφ = (2a+b+b√5)/2.
+  (x) => signQuadratic(2n * x.a + x.b, x.b, 5n)
 );
