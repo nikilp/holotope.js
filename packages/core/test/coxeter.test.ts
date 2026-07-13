@@ -32,6 +32,20 @@ const ALL_DIAGRAMS: Array<[string, () => CoxeterDiagram]> = [
   ['H4', coxeterH4]
 ];
 
+// Exact chamber enumeration is deterministic and immutable. Reuse it across
+// the independent relation checks so a loaded CI runner does not repeat the
+// 14,400-element H4 breadth-first search four times in one test file.
+const actionCache = new Map<string, CoxeterAction>();
+
+function actionFor(name: string, make: () => CoxeterDiagram): CoxeterAction {
+  let action = actionCache.get(name);
+  if (!action) {
+    action = enumerateCoxeterAction(make());
+    actionCache.set(name, action);
+  }
+  return action;
+}
+
 /** g·(sᵢsⱼ)^m as chamber IDs, using only the transition table. */
 function applyBraid(action: CoxeterAction, g: number, i: number, j: number, m: number): number {
   let x = g;
@@ -43,15 +57,15 @@ function applyBraid(action: CoxeterAction, g: number, i: number, j: number, m: n
 }
 
 describe('enumerateCoxeterAction', () => {
-  it.each(ALL_DIAGRAMS)('%s enumerates exactly its group order', (_, make) => {
+  it.each(ALL_DIAGRAMS)('%s enumerates exactly its group order', (name, make) => {
     const diagram = make();
     // The order check is built into enumeration; reaching here means the
     // exact BFS produced neither duplicates nor phantoms.
-    expect(enumerateCoxeterAction(diagram).order).toBe(diagram.order);
+    expect(actionFor(name, make).order).toBe(diagram.order);
   });
 
-  it.each(ALL_DIAGRAMS)('%s: sᵢ² = e as a permutation of all chambers', (_, make) => {
-    const action = enumerateCoxeterAction(make());
+  it.each(ALL_DIAGRAMS)('%s: sᵢ² = e as a permutation of all chambers', (name, make) => {
+    const action = actionFor(name, make);
     for (let g = 0; g < action.order; g++) {
       for (let i = 0; i < action.rank; i++) {
         const gi = action.rightMultiply[g * action.rank + i]!;
@@ -61,9 +75,9 @@ describe('enumerateCoxeterAction', () => {
     }
   });
 
-  it.each(ALL_DIAGRAMS)('%s: (sᵢsⱼ)^m(i,j) = e as a permutation of all chambers', (_, make) => {
+  it.each(ALL_DIAGRAMS)('%s: (sᵢsⱼ)^m(i,j) = e as a permutation of all chambers', (name, make) => {
     const diagram = make();
-    const action = enumerateCoxeterAction(diagram);
+    const action = actionFor(name, make);
     for (let i = 0; i < diagram.rank; i++) {
       for (let j = i + 1; j < diagram.rank; j++) {
         const m = diagram.matrix[i]![j]!;
@@ -75,14 +89,13 @@ describe('enumerateCoxeterAction', () => {
   });
 
   it('BFS tree reaches every element from the identity', () => {
-    const action = enumerateCoxeterAction(coxeterH4());
+    const action = actionFor('H4', coxeterH4);
     for (let g = 1; g < action.order; g++) {
       // Walk parents to the identity; word length is bounded by the
       // longest element of H4 (60 reflections).
       let steps = 0;
-      for (let x = g; x !== 0; x = action.parent[x]!) {
-        expect(++steps).toBeLessThanOrEqual(60);
-      }
+      for (let x = g; x !== 0 && steps <= 60; x = action.parent[x]!) steps++;
+      expect(steps).toBeLessThanOrEqual(60);
     }
   });
 });
