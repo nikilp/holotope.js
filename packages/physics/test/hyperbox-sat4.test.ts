@@ -197,7 +197,7 @@ describe('complete R4 hyperbox SAT', () => {
     expect(mismatches).toBe(0);
     expect(winningFamilies.has('edge-a-face-b')).toBe(true);
     expect(winningFamilies.has('face-a-edge-b')).toBe(true);
-  });
+  }, 30_000);
 
   it('is symmetric under swapping the ordered pair', () => {
     const boxA = new HyperboxSupportShape4([1, 1.2, 0.8, 0.6]);

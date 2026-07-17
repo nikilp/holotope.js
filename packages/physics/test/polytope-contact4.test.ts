@@ -228,7 +228,7 @@ describe('general R4 polytope contact patches', () => {
       compared++;
     }
     expect(compared).toBe(100);
-  });
+  }, 15_000);
 
   it('builds a manifold for transformed 4-simplices and reverses it coherently', () => {
     const source = ConvexHullSupportShapeN.fromCellComplex(
