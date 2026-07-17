@@ -24,7 +24,15 @@ import {
   type TricomplexPlatonicSlice3Id,
   type TricomplexPlatonicSlice3Spec
 } from '@holotope/core';
+import {
+  getFractalPalette,
+  sampleFractalPalette,
+  type FractalPaletteId,
+  type FractalRgb
+} from '@holotope/three';
 import { setupShowcaseUI } from './ui';
+
+type BrotsPalette = 'provenance' | Exclude<FractalPaletteId, 'classic'>;
 
 const container = document.getElementById('app')!;
 const scene = new Scene();
@@ -50,7 +58,7 @@ scene.add(rim);
 
 const product = new Group();
 scene.add(product);
-const palette: Record<TricomplexPlatonicSlice3Id, number> = {
+const SHAPE_COLORS: Record<TricomplexPlatonicSlice3Id, number> = {
   airbrot: 0x6bdcff,
   firebrot: 0xff835f,
   earthbrot: 0x72e1a6
@@ -59,6 +67,15 @@ let shape: TricomplexPlatonicSlice3Id = 'firebrot';
 let dwell = 5;
 let resolution = 40;
 let showSolid = true;
+let paletteId: BrotsPalette = 'provenance';
+
+function rgbToHex(rgb: FractalRgb): number {
+  return (
+    (Math.round(rgb[0] * 255) << 16) |
+    (Math.round(rgb[1] * 255) << 8) |
+    Math.round(rgb[2] * 255)
+  );
+}
 
 function disposeProduct(): void {
   for (const child of [...product.children]) {
@@ -131,12 +148,16 @@ function rebuild(): void {
     vertex[2] - spec.center[2]
   )));
   product.scale.setScalar(1.35 / maximumRadius);
+  const artisticPalette = paletteId === 'provenance' ? null : getFractalPalette(paletteId);
+  const solidColor = artisticPalette
+    ? rgbToHex(artisticPalette.surfaceHigh)
+    : SHAPE_COLORS[shape];
 
   const solid = new Mesh(
     exactGeometry(spec),
     new MeshPhysicalMaterial({
-      color: palette[shape],
-      emissive: new Color(palette[shape]).multiplyScalar(0.08),
+      color: solidColor,
+      emissive: new Color(solidColor).multiplyScalar(0.08),
       roughness: 0.28,
       metalness: 0.06,
       transparent: true,
@@ -183,11 +204,17 @@ function rebuild(): void {
         }
         if (evaluation.iterations < dwell) continue;
         positions.push(...local);
-        color.setHSL(
-          0.54 + Math.min(0.46, (evaluation.iterations - dwell) * 0.06),
-          0.9,
-          0.58
-        );
+        if (paletteId === 'provenance') {
+          // Exact pre-palette dwell coloring.
+          color.setHSL(
+            0.54 + Math.min(0.46, (evaluation.iterations - dwell) * 0.06),
+            0.9,
+            0.58
+          );
+        } else {
+          const normalized = Math.max(0, Math.min(1, (evaluation.iterations - dwell) / 18));
+          color.setHex(sampleFractalPalette(paletteId, normalized));
+        }
         colors.push(color.r, color.g, color.b);
       }
     }
@@ -232,6 +259,12 @@ resolution = Number(resolutionInput.value);
 const solidInput = document.getElementById('solid') as HTMLInputElement;
 solidInput.addEventListener('change', () => { showSolid = solidInput.checked; rebuild(); });
 showSolid = solidInput.checked;
+const paletteInput = document.getElementById('palette') as HTMLSelectElement;
+paletteInput.addEventListener('change', () => {
+  paletteId = paletteInput.value as BrotsPalette;
+  rebuild();
+});
+paletteId = paletteInput.value as BrotsPalette;
 const rotateInput = document.getElementById('rotate') as HTMLInputElement;
 rotateInput.addEventListener('change', () => { controls.autoRotate = rotateInput.checked; });
 controls.autoRotate = rotateInput.checked;

@@ -1,0 +1,33 @@
+{
+  "name": "@holotope/physics",
+  "version": "0.0.1",
+  "description": "Dimension-aware rigid-body mechanics and convex collision queries for Holotope.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikilp/holotope.js.git",
+    "directory": "packages/physics"
+  },
+  "homepage": "https://nikilp.github.io/holotope.js/",
+  "bugs": "https://github.com/nikilp/holotope.js/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@holotope/core": "workspace:*"
+  },
+  "keywords": ["physics", "rigid-body", "collision", "ccd", "gjk", "4d", "nd", "bivector", "momentum"]
+}

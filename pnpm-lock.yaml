@@ -20,6 +20,9 @@ importers:
       '@holotope/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@holotope/physics':
+        specifier: workspace:*
+        version: link:../../packages/physics
       '@holotope/three':
         specifier: workspace:*
         version: link:../../packages/three
@@ -38,6 +41,12 @@ importers:
         version: 6.4.3(@types/node@22.20.0)
 
   packages/core: {}
+
+  packages/physics:
+    dependencies:
+      '@holotope/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/three:
     dependencies:

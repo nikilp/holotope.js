@@ -34,6 +34,13 @@ export {
   type ExtractedIsosurface3
 } from './isosurface.js';
 export {
+  traceFieldSliceRay3,
+  type FieldSliceRayHit3,
+  type FieldSliceRayMiss3,
+  type FieldSliceRayResult3,
+  type TraceFieldSliceRay3Options
+} from './ray.js';
+export {
   containsTricomplexPlatonicSlice3,
   evaluateTricomplexMandelbrotSlice3,
   tricomplexMandelbrotComponents3,

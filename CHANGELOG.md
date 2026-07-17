@@ -1,30 +1,59 @@
 # Changelog
 
-## 0.0.3 — 2026-07-14
+## v0.0.4
 
-### `@holotope/core`
+### `@holotope/core@0.0.4`
 
-- Add a composable N-dimensional scene graph, one-draw-call instancing data, SO(4) keyframe
-  tracks, and procedural double/isoclinic rotations.
-- Add exact E8/icosian folding and a cut-and-project foundation with explicit boundary
-  conventions and retained lattice provenance.
-- Add Fibonacci, Ammann–Beenker, Penrose, Ammann–Kramer–Neri, and Elser–Sloane model sets,
-  including exact inflation and section helpers.
-- Add inspectable quaternion, bicomplex, and tricomplex escape-time fields, distance records,
-  and certified Platonic parameter slices.
-- Add renderer-independent provenance decorations, exact finite equivariance checks,
-  skew-product rotor flows, and periodic-orbit holonomy certificates.
+- Added deterministic symmetric eigensystems and graph-Laplacian modes for any
+  `CellComplex` 1-skeleton, including canonical handling of repeated
+  eigenspaces.
+- Added renderer-independent implicit-field ray records and distance-estimator
+  audit utilities.
+- Extended R4 rotor/bivector operations and slice-source provenance used by
+  animation, mechanics, and representation tracing.
 
-### `@holotope/three`
+### `@holotope/three@0.0.4`
 
-- Add instanced WebGPU projection for scene-graph objects.
-- Add sampled implicit-field sections with retained field records.
-- Add differential-tested quaternion and bicomplex WebGPU evaluators and adaptive ray-marched
-  3D slices.
+- Added a unified representation-hit contract across projected surfaces,
+  exact cross-sections, sampled fields, and WebGPU render products.
+- Added reusable field relief and fractal-palette products.
+- Reworked quaternion and bicomplex Julia ray marching around a shared implicit
+  field realization with settled supersampling and CPU/GPU differential data.
+
+### `@holotope/physics@0.0.1`
+
+- Introduced momentum-primary R4 rigid bodies, exact convex mass properties,
+  fixed-step world integration, and renderer-neutral pose binding.
+- Added dimension-independent support shapes, GJK distance, conservative swept
+  broadphase, linear time-of-impact casts, and analytic infinite-plane casts.
+- Added bounded R4 EPA penetration, compiled convex-polytope topology, complete
+  polytope and hyperbox contact manifolds, exact smooth/mixed contact families,
+  and capability-aware narrowphase dispatch.
+- Added persistent normal response with a coupled three-dimensional tangent
+  friction ball, mixed collider orchestration, and opt-in continuous event
+  stepping with explicit rotational and kinematic fallbacks.
 
 ### Showcase
 
-- Add interactive E8 folding, exact quasicrystal/model-set, and implicit-field demonstrations.
-- Add representative previews for every public demonstration to the gallery.
+- Clarified which pages demonstrate reusable dimensional primitives, exact
+  mathematical consumers, and renderer/compute validation.
+- Added source-trace language to the projection/cross-section entry point.
+- Added a torque-free R4 rigid-body page comparing embedded R3 motion with
+  coupled six-plane R4 motion and exposing conservation signals.
+- Upgraded quaternion and bicomplex field pages with adaptive ray realization,
+  inspectable sampled products, parameter controls, and artistic palettes.
 
-[Compare with 0.0.2](https://github.com/nikilp/holotope.js/compare/v0.0.2...v0.0.3)
+## v0.0.3
+
+- Added exact lattice/model-set foundations, higher-dimensional field products,
+  certified couplings, R4 scene graphs, instanced rendering, and rotation
+  animation.
+
+## v0.0.2
+
+- Added guided showcase narratives and responsive per-page explanations.
+
+## v0.0.1
+
+- Initial N-dimensional geometry, projection, slicing, and three.js adapter
+  release.

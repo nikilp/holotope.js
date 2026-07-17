@@ -8,3 +8,4 @@ export * from './animation/index.js';
 export * from './lattice/index.js';
 export * from './field/index.js';
 export * from './coupling/index.js';
+export * from './spectral/index.js';

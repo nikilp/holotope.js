@@ -47,6 +47,12 @@
         <option value="40" selected>40³ · balanced</option>
         <option value="48">48³ · detailed</option>
       </select></label>
+      <label>color scheme <select id="palette">
+        <option value="provenance" selected>provenance · original</option>
+        <option value="ember">ember · copper / cream</option>
+        <option value="porcelain">porcelain · ink / ivory</option>
+        <option value="spectral">spectral · cyan / violet / gold</option>
+      </select></label>
       <label>exact solid <input id="solid" type="checkbox" checked /></label>
       <label>view rotation <input id="rotate" type="checkbox" checked /></label>
     </div>
@@ -67,6 +73,9 @@
       half-space theorem. Colored points are a finite grid outside it: their hue records how many
       iterations the orbit survives before escaping. They provide algorithmic context but are not
       part of the bounded set.</p>
+      <p>The default provenance scheme is the original view: solid color identifies the named slice
+      and point hue carries divergence dwell. Artistic schemes preserve that solid-versus-sampled
+      distinction while remapping presentation; they do not alter a probe or theorem decision.</p>
     </template>
     <script type="module" src="/src/platonic-brots.ts"></script>
   </body>

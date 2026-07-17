@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@holotope/core": "workspace:*",
+    "@holotope/physics": "workspace:*",
     "@holotope/three": "workspace:*",
     "three": "0.185.1"
   },

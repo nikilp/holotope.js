@@ -10,6 +10,7 @@ import {
   rotateQuaternionJuliaSymmetry,
   sampleFieldPoints4,
   sampleFieldSlice3,
+  traceFieldSliceRay3,
   type FieldEvaluation4,
   type ImplicitField4
 } from '@holotope/core';
@@ -224,5 +225,69 @@ describe('headless field probes and sampled slices', () => {
         )
       ).toBeCloseTo(1, 1);
     }
+  });
+});
+
+describe('headless affine-slice ray hits', () => {
+  const field = new QuaternionJuliaField({
+    parameter: [0, 0, 0, 0],
+    maxIterations: 40,
+    escapeRadius: 4
+  });
+  const slice = HyperplaneSlice4.axisAligned(3);
+
+  it('finds and retains an inspectable R4 record at the unit-ball boundary', () => {
+    const result = traceFieldSliceRay3(field, slice, [2, 0, 0], [-1, 0, 0], {
+      extent: 2.5,
+      surfaceEpsilon: 1e-5,
+      normalEpsilon: 1e-4,
+      maxSteps: 256
+    });
+    expect(result.hit).toBe(true);
+    if (!result.hit) return;
+    expect(result.position[0]).toBeCloseTo(1, 4);
+    expect(result.position[1]).toBe(0);
+    expect(result.point4[0]).toBeCloseTo(result.position[0], 12);
+    expect(result.point4.slice(1)).toEqual([0, 0, 0]);
+    expect(result.normal[0]).toBeGreaterThan(0.99);
+    expect(result.startedInside).toBe(false);
+    expect(result.record).toEqual(field.evalCPU(result.point4));
+  });
+
+  it('reports box misses, bounded-volume exits, and starts inside explicitly', () => {
+    expect(traceFieldSliceRay3(field, slice, [3, 3, 0], [1, 0, 0], { extent: 2 })).toEqual({
+      hit: false,
+      reason: 'box',
+      steps: 0
+    });
+    const miss = traceFieldSliceRay3(field, slice, [2, 1.5, 0], [-1, 0, 0], {
+      extent: 2.5,
+      maxSteps: 256
+    });
+    expect(miss.hit).toBe(false);
+    if (!miss.hit) expect(miss.reason).toBe('bounds');
+
+    const inside = traceFieldSliceRay3(field, slice, [0, 0, 0], [1, 0, 0]);
+    expect(inside.hit).toBe(true);
+    if (inside.hit) {
+      expect(inside.startedInside).toBe(true);
+      expect(inside.distance).toBe(0);
+      expect(inside.normal).toEqual([-1, 0, 0]);
+    }
+  });
+
+  it('requires an explicit safety policy for undeclared distance estimators', () => {
+    const undeclared: ImplicitField4 = {
+      id: 'undeclared',
+      symmetries: [],
+      sliceTheorems: [],
+      evalCPU: (point) => field.evalCPU(point)
+    };
+    expect(() => traceFieldSliceRay3(undeclared, slice, [2, 0, 0], [-1, 0, 0])).toThrow(
+      /stepSafety/
+    );
+    expect(() =>
+      traceFieldSliceRay3(undeclared, slice, [2, 0, 0], [-1, 0, 0], { stepSafety: 0.5 })
+    ).not.toThrow();
   });
 });

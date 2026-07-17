@@ -57,7 +57,8 @@ export class SlicedComplex3D {
   private readonly tets: Uint32Array;
   private readonly worldPositions: Float64Array;
   private readonly positionAttribute: BufferAttribute;
-  private readonly projection: Projection | undefined;
+  /** Optional second reduction applied after the exact ambient R4 section. */
+  readonly projection: Projection | undefined;
   private readonly ambientSection: Float64Array | undefined;
   private readonly provenance: Uint32Array;
   private readonly colorAttribute: BufferAttribute | undefined;

@@ -135,6 +135,42 @@ describe('Rotor4', () => {
     }
   });
 
+  it('principal log inverts coherent bivector increments', () => {
+    for (let trial = 0; trial < 40; trial++) {
+      const expected = randomBivector(4, 0.5);
+      const recovered = Rotor4.fromBivector(expected).log();
+      for (let component = 0; component < 6; component++) {
+        expect(recovered.coeffs[component]!).toBeCloseTo(
+          expected.coeffs[component]!,
+          12
+        );
+      }
+    }
+  });
+
+  it('rejects the non-unique logarithm of a central inversion', () => {
+    const centralInversion = Rotor4.fromPlanes([
+      { i: 0, j: 1, angle: Math.PI },
+      { i: 2, j: 3, angle: Math.PI }
+    ]);
+    expect(() => centralInversion.log()).toThrow(/no unique logarithm/);
+  });
+
+  it('factors every SO(4) matrix back into the paired-quaternion cover', () => {
+    for (let trial = 0; trial < 25; trial++) {
+      const expected = Rotor4.fromBivector(randomBivector(4));
+      const recovered = Rotor4.fromMatrix(expected.toMatrix());
+      expectMatricesClose(recovered.toMatrix(), expected.toMatrix(), 11);
+    }
+  });
+
+  it('rejects reflections and matrices off the rotation manifold', () => {
+    const reflection = MatN.identity(4).set(0, 0, -1);
+    expect(() => Rotor4.fromMatrix(reflection)).toThrow(/determinant \+1/);
+    const scaled = MatN.identity(4).set(0, 0, 2);
+    expect(() => Rotor4.fromMatrix(scaled)).toThrow(/orthonormal/);
+  });
+
   it('rotor composition matches matrix composition', () => {
     const r1 = Rotor4.fromBivector(randomBivector(4));
     const r2 = Rotor4.fromBivector(randomBivector(4));

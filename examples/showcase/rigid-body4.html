@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Torque-Free R4 Rigid Body</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #060711; }
+      #app { width: 100%; height: 100%; }
+      #hud { position: fixed; top: 14px; left: 16px; right: 330px; z-index: 4; color: #91a5ca; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: none; pointer-events: none; }
+      #hud strong { color: #e7ecff; }
+      #hud .live { color: #71e8c1; }
+      #hud .energy { color: #ffbf69; }
+      #hud .planes { color: #84c8ff; }
+      #hud a { color: #72dcff; text-decoration: none; pointer-events: auto; }
+      #controls { position: fixed; top: 14px; right: 16px; z-index: 5; width: 276px; padding: 12px 14px; background: rgba(12,14,29,.94); border: 1px solid #2b3457; border-radius: 9px; color: #91a5ca; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls label { display: flex; align-items: center; justify-content: space-between; gap: 9px; margin: 7px 0; }
+      #controls input[type='range'] { flex: 1; accent-color: #71e8c1; }
+      #controls select, #controls button { color: #e7ecff; background: #11162b; border: 1px solid #35436d; border-radius: 4px; padding: 4px 6px; font: inherit; }
+      #controls button { cursor: pointer; }
+      #controls .value { width: 38px; text-align: right; color: #e7ecff; }
+      #controls .buttons { display: flex; gap: 8px; margin-top: 10px; }
+      #controls .buttons button { flex: 1; }
+      @media (max-width: 850px) { #hud { right: 108px; } #hud .detail { display: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Torque-free R⁴ rigid body</strong> — angular momentum is a six-plane bivector.<br />
+      <span class="detail">Faint wireframes are earlier simulation poses. Drag orbits the projected view; <strong>Alt-drag rotates the R⁴ observation frame</strong>.<br /></span>
+      <span id="mode" class="planes">…</span><br />
+      <span id="inertia" class="planes">…</span><br />
+      <span id="velocity" class="planes">…</span><br />
+      <span id="conservation" class="energy">…</span><br />
+      <span id="stepState" class="live">…</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="controls">
+      <label>motion <select id="preset"><option value="intermediate">embedded R³ flip</option><option value="double" selected>coupled R⁴ double tumble</option><option value="generic">generic six-plane motion</option></select></label>
+      <label>time scale <input id="speed" type="range" min="0.2" max="2" step="0.05" value="0.8" /><span id="speedValue" class="value">0.80</span></label>
+      <label>fixed solver <select id="fixedHz"><option value="60">60 Hz</option><option value="120" selected>120 Hz</option><option value="240">240 Hz</option></select></label>
+      <label>4D view distance <input id="viewDistance" type="range" min="3.8" max="9" step="0.1" value="5.8" /><span id="viewDistanceValue" class="value">5.8</span></label>
+      <label>pose traces <input id="afterimages" type="checkbox" checked /></label>
+      <div class="buttons"><button id="pause">pause</button><button id="reset">reset motion</button></div>
+    </div>
+    <template id="explainer">
+      <h2>Torque-free rotation has six plane directions in R⁴</h2>
+      <h3>What changes beyond R³?</h3>
+      <p>In three dimensions an angular-velocity bivector has three independent plane components. In four dimensions it has six: 01, 02, 03, 12, 13, and 23. There is no single rotation axis that contains the whole state.</p>
+      <h3>What the presets compare</h3>
+      <p><strong>Embedded R³</strong> activates only 01, 02, and 12 and reproduces the familiar unstable intermediate-axis flip. <strong>Coupled R⁴</strong> activates complementary planes in both Spin(4) factors. The generic preset excites all six components.</p>
+      <h3>What is being checked?</h3>
+      <p>The body stores world angular momentum as its primary state, derives angular velocity through principal-plane inertia, and retracts orientation onto Spin(4). The live readout exposes relative energy drift, momentum-norm drift, and rotation-matrix orthogonality instead of asking the rendering to certify the mechanics.</p>
+      <p>The solid is a perspective projection of one R⁴ cuboid. Alt-drag changes only the observation frame; it does not disturb the simulated body.</p>
+    </template>
+    <script type="module" src="/src/rigid-body4.ts"></script>
+  </body>
+</html>

@@ -8,6 +8,7 @@ GPU rasterization consumes 3D clip space and produces 2D fragments — there is 
 
 - **`@holotope/core`** — a zero-dependency kernel where all N-dimensional state lives and stays N-dimensional until the last responsible moment. Float64 on the CPU is the source of truth.
 - **Renderer adapters** (`@holotope/three` first) — thin packages that turn *projections* of that state into ordinary renderer objects. three.js is a peer dependency, never forked and never subclassed: its 3D assumptions (`Vector3` positions, quaternions, frusta) are load-bearing, and quaternions do not even generalize past 4D.
+- **`@holotope/physics`** — a separate headless simulation world. It consumes core geometry and math but does not depend on a renderer or make a visible projection/slice authoritative. Render-object synchronization remains an explicit adapter boundary.
 
 ## 2. Render products are explicit
 
@@ -18,10 +19,33 @@ GPU rasterization consumes 3D clip space and produces 2D fragments — there is 
 | `ProjectedEdges3D` | the 1-skeleton, projected N→3, as line segments |
 | `SlicedComplex3D` | exact hyperplane cross-section of tetrahedral cells, as a mesh |
 | `SampledSlicedField3D` | approximate isosurface of an implicit R4 field restricted to a sampled affine 3-flat |
-| `RaymarchedQuaternionJulia3D` | adaptive fragment-stage restriction of a quaternion field to an affine 3-flat; no extracted mesh |
-| planned: `ThickSliceVolume3D`, general `RaymarchedField3D` | |
+| `RaymarchedField3D` | adaptive fragment-stage restriction of any `ImplicitFieldNode4` to an affine 3-flat; no extracted mesh |
+| `RaymarchedQuaternionJulia3D`, `RaymarchedBicomplexJulia3D` | convenience specializations which pair a field node and record-driven style with `RaymarchedField3D` |
+| planned: `ThickSliceVolume3D` | |
 
 Projections themselves (`PerspectiveProjection`, `OrthographicProjection`, `HyperplaneSlice4`) are first-class objects, not hidden defaults.
+
+A projection is generally many-to-one, so traceability is not implemented by
+pretending to invert a 3D coordinate. Render products carry the identity of the
+source primitive or evaluation record alongside the representation. Exact
+slices additionally have an affine lift back into their ambient hyperplane.
+See [representation provenance](representation-provenance.md) for the current
+lookup contracts and their precision boundary.
+
+GPU field rendering is split at three explicit seams. `ImplicitFieldNode4` is
+the mathematical realization and is always paired with its CPU
+`ImplicitField4`; `RaymarchedField3D` owns ray transport and the live slice;
+`RaymarchedFieldStyle3D` maps the packed record to color. A new field family can
+therefore reuse the renderer without inheriting another family's palette or
+copying its ray loop.
+
+The CPU and GPU products share observable hit semantics. `traceFieldSliceRay3`
+is the deterministic headless reference; `RaymarchedField3D.intersectRay()`
+adapts a Three.js world-space ray and returns the slice-space hit, ambient R4
+point, normal, and full CPU evaluation record. The fragment product writes the
+marched surface depth—not its proxy cube depth—so ordinary scene depth testing
+remains meaningful. Its monotonic `revision` is the invalidation boundary for
+temporal render pipelines.
 
 ## 3. The n=3 invariant
 
@@ -30,6 +54,14 @@ Projections themselves (`PerspectiveProjection`, `OrthographicProjection`, `Hype
 ## 4. Geometry is topology-first
 
 `CellComplex` stores vertices in ambient Rⁿ plus cell groups by intrinsic dimension (edges, faces, 3-cells…), with `ambientDim` explicit on every object and never inferred from buffer sizes. Simplex-based algorithms (slicing, future volume/physics work) operate on tetrahedralized cells; `tetrahedralizeCuboidCells` provides the Kuhn 6-tetrahedra decomposition.
+
+Topology-only operators preserve that separation. The unweighted graph
+Laplacian is constructed from canonical 1-cell incidence and is invariant under
+embedding, translation, rotation, and scale. Sparse `Lx` is the primary
+contract; dense materialization and deterministic Jacobi modes are the
+auditable reference path. Repeated eigenvalues are represented by clustered
+eigenspaces and basis-independent projectors rather than unstable individual
+eigenvector identities.
 
 ## 5. Rotations without quaternions
 
@@ -67,5 +99,6 @@ Cut-and-project follows the same rule. Lattice coefficients, parallel/internal p
 6. ✅ Escape-time field core; CPU sampling, quaternion/bicomplex sliced products, both GPU differentials, quaternion ray marching, DE audits, slice redundancy, and Platonic tricomplex parameter certificates
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
-9. `@holotope/physics`: N-D rigid bodies (bivector angular momentum), GJK in Rⁿ
-10. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback
+9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, conservative linear casts, and opt-in R4 event stepping, bounded general R4 EPA penetration, persistent clipped vertex-polytope manifolds with reusable dimension-independent facet topology, complete vertex-polytope/plane support-face contact, capability-aware narrowphase, exact N-D N-ball contacts, oriented-hyperbox and R4 mixed analytic contacts, persistent kinematics, coupled three-ball friction impulses, and deterministic mixed-shape orchestration; rotational CCD and joints pending
+11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

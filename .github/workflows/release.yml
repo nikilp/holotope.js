@@ -1,7 +1,7 @@
 name: Release
 
-# Publishes @holotope/core and @holotope/three to npm when a v* tag is
-# pushed (or manually via workflow_dispatch). Authenticates through npm
+# Publishes @holotope/core, @holotope/three, and @holotope/physics to npm when
+# a v* tag is pushed (or manually via workflow_dispatch). Authenticates through npm
 # trusted publishing (OIDC): no token is stored in the repository —
 # npmjs.com lists this repo + workflow as a trusted publisher for each
 # package.
@@ -10,6 +10,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      include-physics:
+        description: 'Publish @holotope/physics (disable for its one-time npm bootstrap)'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -39,6 +44,23 @@ jobs:
         run: pnpm vitest run
 
       - name: Publish
-        # pnpm rewrites workspace:* to real versions; --no-git-checks
-        # because tag builds check out a detached HEAD.
-        run: pnpm publish -r --no-git-checks
+        # An explicit dependency order keeps first publication auditable. The
+        # registry check makes manual dispatches and tag reruns idempotent.
+        # pnpm rewrites workspace:* to real versions; --no-git-checks is
+        # required because tag builds check out a detached HEAD.
+        shell: bash
+        run: |
+          packages=(core three)
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-physics'] }}" == "true" ]]; then
+            packages+=(physics)
+          fi
+          for package in "${packages[@]}"; do
+            directory="packages/$package"
+            name=$(node -p "require('./$directory/package.json').name")
+            version=$(node -p "require('./$directory/package.json').version")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already published; skipping"
+              continue
+            fi
+            pnpm --dir "$directory" publish --no-git-checks --access public
+          done

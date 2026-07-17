@@ -117,27 +117,29 @@
       <p class="links"><a href="https://github.com/nikilp/holotope.js">GitHub</a></p>
 
       <p class="intro">
-        There are two honest ways to see a 4D object from inside our 3D world: its
-        <strong>shadow</strong> (projection) and its <strong>slice</strong> (cross-section) —
-        the same two ways a flat being could see a cube. Every page shows both, computed
-        exactly. Start at the top; each example asks "what am I looking at?" if you want the story.
+        Higher-dimensional structures become visually accessible through complementary views:
+        projections, cross-sections, exact algebraic embeddings, cut-and-project sets, and sampled
+        or ray-marched fields. The gallery leads with reusable dimension-bridging capabilities;
+        mathematical studies then exercise those capabilities without being presented as separate
+        core primitives. Each page says what its view preserves and where approximation enters.
       </p>
 
-      <h2 class="section">Start here</h2>
+      <h2 class="section">Dimension bridge — start here</h2>
       <div class="grid">
         <a class="card" href="./tesseract.html">
           <img class="preview" src="./previews/tesseract.jpg" alt="A projected tesseract beside its solid three-dimensional cross-section" />
           <h2>Tesseract — projection &amp; cross-section</h2>
           <p>
             One 4D object, two render products: a perspective-projected wireframe and the exact
-            cross-section where the tesseract meets a hyperplane. Alt-drag to rotate it through
-            the fourth dimension.
+            cross-section where the tesseract meets a hyperplane. Pick the section to trace its
+            visible triangle back to the source 4D cell; Alt-drag rotates the source through hidden
+            planes.
           </p>
           <span class="tags">ProjectedEdges3D · SlicedComplex3D · Rotor4 · DragRotation4D</span>
         </a>
       </div>
 
-      <h2 class="section">The shapes</h2>
+      <h2 class="section">Exact polytope construction</h2>
       <div class="grid">
         <a class="card" href="./polychora.html">
           <img class="preview" src="./previews/polychora.jpg" alt="The six regular four-dimensional polychora and their cross-sections" loading="lazy" decoding="async" />
@@ -160,7 +162,7 @@
         </a>
       </div>
 
-      <h2 class="section">Lattices &amp; folding</h2>
+      <h2 class="section">Exact model sets &amp; folding</h2>
       <div class="grid">
         <a class="card" href="./e8.html">
           <img class="preview" src="./previews/e8.jpg" alt="Two cyan E8 to H4 wireframe embeddings shown side by side" loading="lazy" decoding="async" />
@@ -214,7 +216,7 @@
         </a>
       </div>
 
-      <h2 class="section">Curves &amp; flows</h2>
+      <h2 class="section">Mathematical studies — curves &amp; flows</h2>
       <div class="grid">
         <a class="card" href="./duoprisms.html">
           <img class="preview" src="./previews/duoprisms.jpg" alt="Projected duoprism wireframes with a solid cross-section" loading="lazy" decoding="async" />
@@ -247,7 +249,7 @@
         </a>
       </div>
 
-      <h2 class="section">Implicit fields</h2>
+      <h2 class="section">Inspectable implicit fields</h2>
       <div class="grid">
         <a class="card" href="./quaternion-julia.html">
           <img class="preview" src="./previews/quaternion-julia.jpg" alt="A detailed purple ray-marched quaternion Julia slice" loading="lazy" decoding="async" />
@@ -280,7 +282,21 @@
         </a>
       </div>
 
-      <h2 class="section">Under the hood</h2>
+      <h2 class="section">Higher-dimensional mechanics</h2>
+      <div class="grid">
+        <a class="card" href="./rigid-body4.html">
+          <img class="preview" src="./previews/rigid-body4.png" alt="An anisotropic four-dimensional rigid body leaving projected pose traces as it tumbles" loading="lazy" decoding="async" />
+          <h2>Torque-free rigid motion in R⁴</h2>
+          <p>
+            Compare an embedded three-dimensional intermediate-axis flip with motion across all
+            six rotation planes of R⁴. Momentum-primary integration exposes energy, momentum, and
+            Spin(4) orthogonality signals while the projected body evolves.
+          </p>
+          <span class="tags">RigidBody4 · bivector momentum · principal-plane inertia · fixed-step binding</span>
+        </a>
+      </div>
+
+      <h2 class="section">Renderer &amp; compute validation</h2>
       <div class="grid">
         <a class="card" href="./gpu.html">
           <img class="preview" src="./previews/gpu.jpg" alt="A dense orange GPU-projected 600-cell wireframe" loading="lazy" decoding="async" />

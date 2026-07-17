@@ -5,4 +5,32 @@ export {
   SampledSlicedField3D,
   type SampledSlicedField3DOptions
 } from './sampled-sliced-field.js';
+export {
+  representationHitFromProjectedEdge,
+  representationHitFromProjectedSurface,
+  representationHitFromSampledSlicedField,
+  representationHitFromSlicedComplex,
+  type AmbientPointStatus,
+  type RepresentationAmbiguity,
+  type RepresentationCellSourceN,
+  type RepresentationFieldRecordSource4,
+  type RepresentationHitN,
+  type RepresentationIntersection3D,
+  type RepresentationKind3D,
+  type RepresentationSampleCellSource4,
+  type RepresentationSourceN
+} from './representation-hit.js';
+export {
+  FieldRelief3D,
+  type FieldRelief3DOptions,
+  type FieldReliefSample
+} from './field-relief.js';
+export {
+  FRACTAL_PALETTES,
+  getFractalPalette,
+  sampleFractalPalette,
+  type FractalPaletteDefinition,
+  type FractalPaletteId,
+  type FractalRgb
+} from './fractal-palette.js';
 export { DragRotation4D, type DragRotation4DOptions } from './drag-rotation4d.js';

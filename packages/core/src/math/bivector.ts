@@ -1,4 +1,5 @@
 import { MatN, type PlaneRotation } from './matn.js';
+import { VecN, assertSameDim } from './vecn.js';
 
 /**
  * An element of so(n) — the Lie algebra of N-dimensional rotations —
@@ -83,6 +84,22 @@ export class BivectorN {
     }
     return m;
   }
+}
+
+/** Exterior product of two vectors: (a ∧ b)_ij = a_i b_j - a_j b_i. */
+export function wedgeVectors(left: VecN, right: VecN): BivectorN {
+  assertSameDim(left.dim, right.dim);
+  const result = new BivectorN(left.dim);
+  for (let i = 0; i < left.dim; i++) {
+    for (let j = i + 1; j < left.dim; j++) {
+      result.set(
+        i,
+        j,
+        left.data[i]! * right.data[j]! - left.data[j]! * right.data[i]!
+      );
+    }
+  }
+  return result;
 }
 
 /**

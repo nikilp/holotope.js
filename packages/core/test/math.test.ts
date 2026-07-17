@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MatN, TransformN, VecN, rotationFromPlanes } from '@holotope/core';
+import {
+  MatN,
+  TransformN,
+  VecN,
+  rotationFromPlanes,
+  wedgeVectors
+} from '@holotope/core';
 
 describe('VecN', () => {
   it('performs basic arithmetic', () => {
@@ -82,6 +88,20 @@ describe('MatN', () => {
       const v = r.applyTo(new VecN(src.subarray(p * 4, p * 4 + 4)));
       for (let c = 0; c < 4; c++) expect(dst[p * 4 + c]).toBeCloseTo(v.data[c]!, 14);
     }
+  });
+});
+
+describe('exterior products', () => {
+  it('wedges vectors in any dimension with the bivector plane convention', () => {
+    const wedge = wedgeVectors(
+      new VecN([2, -1, 3, 4, 0.5]),
+      new VecN([-2, 5, 1, 0, 7])
+    );
+    expect(wedge.n).toBe(5);
+    expect(wedge.get(0, 1)).toBe(8);
+    expect(wedge.get(1, 0)).toBe(-8);
+    expect(wedge.get(2, 4)).toBe(20.5);
+    expect(() => wedgeVectors(new VecN(3), new VecN(4))).toThrow(/dimension mismatch/);
   });
 });
 

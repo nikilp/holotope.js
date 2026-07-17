@@ -45,6 +45,32 @@ console.log(probes.records, samples.valueRange, surface.triangleCount);
 
 The sampler uses Float64 and deterministic traversal order, making it suitable as a golden path for tests, parameter searches, and future CPU/GPU differential checks. Full family-specific records remain available in `records`, alongside packed numeric channels for efficient downstream processing. The extracted marching-tetrahedra surface is intentionally marked `approximate`; the sample arrays and source grid-cell index for every triangle remain available.
 
+The same core also provides a deterministic ray-hit reference for headless
+inspection and renderer picking:
+
+```ts
+import { traceFieldSliceRay3 } from '@holotope/core';
+
+const hit = traceFieldSliceRay3(
+  field,
+  slice,
+  [3, 0, 0],
+  [-1, 0, 0],
+  { extent: 2, maxSteps: 160 }
+);
+
+if (hit.hit) {
+  console.log(hit.position, hit.point4, hit.normal, hit.record);
+}
+```
+
+The result retains both the 3D position in the slice frame and its ambient R4
+point. Its distance channel must be conservative under the selected
+`stepSafety`; fields without a declared estimator must provide that safety
+factor explicitly. A ray whose first in-box sample is already inside is marked
+`startedInside`, because an outside-only distance estimator cannot determine an
+exit surface from that state.
+
 ## Sampled Three.js product
 
 `SampledSlicedField3D` wraps the same headless pipeline in an ordinary Three.js `Mesh`:
@@ -112,7 +138,23 @@ quadratic factors independently, then combines their distance estimates in the
 orthogonal product metric. The combined state remains derivable from the two
 retained factor records rather than becoming an independent source of truth.
 
-`RaymarchedQuaternionJulia3D` uses the same field parameter and affine slice but evaluates them adaptively for each fragment. No regular voxel grid or extracted triangle surface is involved:
+`RaymarchedField3D` is the common adaptive render product. It consumes an
+`ImplicitFieldNode4`: a TSL realization paired with the CPU field, an iteration
+limit, a conservative step recommendation, and a packed `vec4` record. The
+packed channels have stable transport semantics — distance, iteration/dwell,
+field-defined feature, and outside flag — while the complete family-specific
+record remains available from `field.evalCPU()`.
+
+The renderer owns the affine slice, ray-box interval, march loop, gradient
+normals, update lifecycle, and proxy object. A separate
+`RaymarchedFieldStyle3D` maps the record and geometric shading signals to color.
+This prevents field mathematics, transport, and presentation from becoming one
+family-specific shader.
+
+`RaymarchedQuaternionJulia3D` is a convenience specialization using
+`QuaternionJuliaNode4` and the quaternion record style. It keeps the concise API
+while evaluating the same field parameter and affine slice adaptively for each
+fragment. No regular voxel grid or extracted triangle surface is involved:
 
 ```ts
 import { RaymarchedQuaternionJulia3D } from '@holotope/three/webgpu';
@@ -128,8 +170,8 @@ slice.offset = 0.2;
 raymarched.update();
 ```
 
-`RaymarchedBicomplexJulia3D` applies the same rendering contract to the exact
-two-factor product:
+`RaymarchedBicomplexJulia3D` applies the same generic rendering product to
+`BicomplexJuliaNode4` and the exact two-factor product:
 
 ```ts
 import { RaymarchedBicomplexJulia3D } from '@holotope/three/webgpu';
@@ -141,9 +183,62 @@ const product = new RaymarchedBicomplexJulia3D(bicomplexField, slice, {
 scene.add(product.object);
 ```
 
-The fragment graph changes each R4 point to idempotent coordinates, evaluates both complex factors, and sphere-traces their distances combined in the orthogonal product metric. Its color may expose which factor controls the local outside distance; this is record-driven shading, not a change to the field.
+The field node changes each R4 point to idempotent coordinates, evaluates both
+complex factors, and packs their distance combined in the orthogonal product
+metric. Its style may expose which factor controls the local outside distance;
+this is record-driven presentation, not a change to the field or renderer.
 
-Both ray products reconstruct the R4 point from the full `HyperplaneSlice4` frame and compute normals from field gradients. The containing box is only a ray proxy: its exit faces are rendered so rays remain available after the camera enters the box. High-frequency quaternion orbit bands are attenuated from their screen-space derivatives when they become smaller than a pixel. The products are transparent with depth writes disabled; compositing actual hit depth, picking a ray hit, and exporting a surface remain separate future contracts. Use the sampled product when per-sample records or mesh provenance are required.
+The common ray product reconstructs the R4 point from the full
+`HyperplaneSlice4` frame and computes normals from field gradients. The
+containing box is only a ray proxy: its exit faces are rendered so rays remain
+available after the camera enters the box. The quaternion style attenuates
+high-frequency orbit bands from their screen-space derivatives when they become
+smaller than a pixel. Missed fragments are discarded and hits write their
+marched surface depth by default, rather than the proxy cube's depth. Set
+`writeDepth: false` only when the surrounding composition requires it.
+
+`RaymarchedField3D.intersectRay()` transforms a Three.js world-space `Ray` into
+the product's local slice frame, runs the CPU golden trace, and returns the
+world/local position and normal, ambient R4 point, trace count, and complete
+family record. This is the picking contract; a proxy-box `Raycaster` hit is not
+mistaken for a field-surface hit. The product's `revision` increments when
+`update()` refreshes slice state and can invalidate temporal accumulation.
+Exporting an explicit surface remains a separate contract. Use the sampled
+product when a mesh and per-face provenance are required.
+
+## Settled-view supersampling
+
+`SettledSupersampling3D` is an optional orchestration layer around Three.js's
+native `SSAAPassNode`. It does not introduce a Holotope-specific accumulator or
+replace the application's renderer. Moving cameras render directly; after the
+camera, projection, viewport, and tracked product revisions remain unchanged,
+one supersampled frame is resolved and then replayed from its linear render
+target until invalidated.
+
+```ts
+import { SettledSupersampling3D } from '@holotope/three/webgpu';
+
+const settled = new SettledSupersampling3D(renderer, scene, camera, {
+  sampleLevel: 2, // 2^2 = four jittered samples
+  settleFrames: 2,
+  settleEpsilon: 1e-6,
+  revisionSources: [raymarched]
+});
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  settled.render();
+});
+```
+
+Camera matrices and drawing-buffer size are observed automatically. Revision
+sources cover Holotope products such as `RaymarchedField3D`; call
+`settled.invalidate()` when ordinary scene objects, materials, lights, or any
+other untracked application state changes. The small explicit settling
+tolerance lets damped controls reach a stable state without making visible
+camera motion eligible for reuse. The adapter deliberately uses a
+still-view policy: it improves stable inspection without pretending to solve
+temporal reprojection, animated-scene history rejection, or XR sampling.
 
 ## Exact structure and approximate pictures
 

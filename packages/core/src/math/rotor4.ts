@@ -33,6 +33,85 @@ export class Rotor4 {
     return new Rotor4(Float64Array.of(0, 0, 0, 1), Float64Array.of(0, 0, 0, 1));
   }
 
+  /**
+   * Factors an SO(4) matrix into the paired-quaternion cover used by Rotor4.
+   * The factorization is convention-derived: the sixteen maps
+   * `p ↦ e_i p e_j` form an orthogonal matrix basis, so their coefficients
+   * form the rank-one outer product `q_L q_Rᵀ`.
+   */
+  static fromMatrix(matrix: MatN, tolerance = 1e-10): Rotor4 {
+    if (matrix.n !== 4) {
+      throw new Error(`Rotor4.fromMatrix: expected a 4×4 matrix, got ${matrix.n}×${matrix.n}`);
+    }
+    if (!Number.isFinite(tolerance) || tolerance <= 0) {
+      throw new Error('Rotor4.fromMatrix: tolerance must be finite and positive');
+    }
+    if (matrix.orthogonalityError() > tolerance) {
+      throw new Error('Rotor4.fromMatrix: matrix must be orthonormal');
+    }
+    if (Math.abs(matrix.determinant() - 1) > tolerance * 10) {
+      throw new Error('Rotor4.fromMatrix: matrix must have determinant +1');
+    }
+
+    const associate = new Float64Array(16);
+    const leftBasis = new Float64Array(4);
+    const pointBasis = new Float64Array(4);
+    const rightBasis = new Float64Array(4);
+    for (let left = 0; left < 4; left++) {
+      leftBasis.fill(0);
+      leftBasis[left] = 1;
+      for (let right = 0; right < 4; right++) {
+        rightBasis.fill(0);
+        rightBasis[right] = 1;
+        let coefficient = 0;
+        for (let col = 0; col < 4; col++) {
+          pointBasis.fill(0);
+          pointBasis[col] = 1;
+          const transformed = qmul(qmul(leftBasis, pointBasis), rightBasis);
+          for (let row = 0; row < 4; row++) {
+            coefficient += matrix.get(row, col) * transformed[row]!;
+          }
+        }
+        associate[left * 4 + right] = coefficient / 4;
+      }
+    }
+
+    // Select the row with largest norm, fix that left component positive,
+    // recover q_R from the row, then project every row onto q_R for q_L.
+    let pivotRow = 0;
+    let pivotNorm = 0;
+    for (let row = 0; row < 4; row++) {
+      let normSquared = 0;
+      for (let col = 0; col < 4; col++) normSquared += associate[row * 4 + col]! ** 2;
+      const norm = Math.sqrt(normSquared);
+      if (norm > pivotNorm) {
+        pivotNorm = norm;
+        pivotRow = row;
+      }
+    }
+    if (pivotNorm < 1e-15) {
+      throw new Error('Rotor4.fromMatrix: paired-quaternion factorization is degenerate');
+    }
+    const right = new Float64Array(4);
+    for (let col = 0; col < 4; col++) right[col] = associate[pivotRow * 4 + col]! / pivotNorm;
+    const left = new Float64Array(4);
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) left[row]! += associate[row * 4 + col]! * right[col]!;
+    }
+    qnormalize(left);
+    qnormalize(right);
+    const rotor = new Rotor4(left, right);
+    const reconstructed = rotor.toMatrix();
+    let error = 0;
+    for (let index = 0; index < 16; index++) {
+      error = Math.max(error, Math.abs(reconstructed.data[index]! - matrix.data[index]!));
+    }
+    if (error > tolerance * 20) {
+      throw new Error(`Rotor4.fromMatrix: factorization residual ${error} exceeds tolerance`);
+    }
+    return rotor;
+  }
+
   /** Exponential of a 4D bivector, split into left/right isoclinic parts. */
   static fromBivector(b: BivectorN): Rotor4 {
     if (b.n !== 4) throw new Error(`Rotor4: bivector must be 4D, got n=${b.n}`);
@@ -84,6 +163,33 @@ export class Rotor4 {
       Float64Array.of(-this.left[0]!, -this.left[1]!, -this.left[2]!, this.left[3]!),
       Float64Array.of(-this.right[0]!, -this.right[1]!, -this.right[2]!, this.right[3]!)
     );
+  }
+
+  /**
+   * Principal paired-quaternion logarithm in the kernel's bivector basis.
+   *
+   * The double-cover sign is chosen once for the pair, matching `slerp`.
+   * A relative central inversion has no unique logarithm and is rejected;
+   * coherent animation/kinematic samples should subdivide before that point.
+   */
+  log(): BivectorN {
+    for (const factor of [this.left, this.right]) {
+      const length = Math.hypot(factor[0]!, factor[1]!, factor[2]!, factor[3]!);
+      if (!Number.isFinite(length) || Math.abs(length - 1) > 1e-10) {
+        throw new Error('Rotor4.log: rotor factors must be finite and normalized');
+      }
+    }
+    const sign = this.left[3]! + this.right[3]! < 0 ? -1 : 1;
+    const u = quaternionLogVector(this.left, sign);
+    const v = quaternionLogVector(this.right, sign);
+    return new BivectorN(4, [
+      u[2]! - v[2]!,
+      v[1]! - u[1]!,
+      -(u[0]! + v[0]!),
+      u[0]! - v[0]!,
+      -(u[1]! + v[1]!),
+      -(u[2]! + v[2]!)
+    ]);
   }
 
   /**
@@ -156,6 +262,22 @@ function expPure(u1: number, u2: number, u3: number): Float64Array {
   if (angle < 1e-300) return Float64Array.of(0, 0, 0, 1);
   const s = Math.sin(angle) / angle;
   return Float64Array.of(u1 * s, u2 * s, u3 * s, Math.cos(angle));
+}
+
+function quaternionLogVector(quaternion: Float64Array, sign: number): Float64Array {
+  const x = sign * quaternion[0]!;
+  const y = sign * quaternion[1]!;
+  const z = sign * quaternion[2]!;
+  const real = sign * quaternion[3]!;
+  const vectorLength = Math.hypot(x, y, z);
+  if (vectorLength < 1e-14) {
+    if (real < 0) {
+      throw new Error('Rotor4.log: relative central inversion has no unique logarithm');
+    }
+    return new Float64Array(3);
+  }
+  const scale = Math.atan2(vectorLength, real) / vectorLength;
+  return Float64Array.of(x * scale, y * scale, z * scale);
 }
 
 /** Hamilton product in [i, j, k, real] layout. */

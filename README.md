@@ -2,7 +2,7 @@
 
 N-dimensional geometry for TypeScript.
 
-**[Live showcase →](https://nikilp.github.io/holotope.js/)** — regular polychora, the E8→H4 folding, exact 4D cross-sections, and GPU-computed slicing, running in the browser.
+**[Live showcase →](https://nikilp.github.io/holotope.js/)** — dimension-traceable projections and cross-sections, exact constructions, inspectable fields, GPU realization, and torque-free R4 mechanics running in the browser.
 
 Holotope.js is an experimental open-source library for building, transforming, projecting, and rendering higher-dimensional geometry on the web. It provides a modular foundation for 4D and N-dimensional visual systems, including vectors, transforms, projections, polytopes, cell complexes, and rendering adapters.
 
@@ -12,12 +12,13 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
 
 ```
 @holotope/core            zero-dependency N-D kernel
-  ├─ math                 VecN, MatN, plane rotations, so(n) exp, Rotor4 (+slerp), TransformN
+  ├─ math                 VecN, MatN, exterior products, so(n) exp, Rotor4 (+slerp), TransformN
   ├─ geometry             CellComplex (N-D counterpart of a mesh), tetrahedralization
   ├─ polytope             n-cube/simplex/orthoplex families; all six regular polychora; duoprisms
   ├─ lattice              exact E8/icosians; cut-and-project model sets and windows
   ├─ field                inspectable R4 Julia fields; exact tricomplex Mandelbrot parameter slices
   ├─ coupling             provenance-driven parameters and exact equivariance certificates
+  ├─ spectral             symmetric eigensystems and CellComplex graph-Laplacian modes
   ├─ projection           CameraN, perspective/orthographic N→3, hyperplane slicing
   └─ coxeter              exact Coxeter groups, Wythoff construction of the uniform polychora
 
@@ -35,6 +36,17 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ BicomplexJuliaGPU    two-factor field evaluation with record-level CPU differential checks
   ├─ RaymarchedQuaternionJulia3D adaptive fragment-stage slicing without a voxel mesh
   └─ RaymarchedBicomplexJulia3D product-distance ray marching after exact factorization
+
+@holotope/physics         headless higher-dimensional mechanics
+  ├─ mass properties      convex R4 volume, COM, covariance, and principal inertia
+  ├─ RigidBody4           world bivector momentum + Spin(4) orientation
+  ├─ PhysicsWorld4        fixed-step gravity, force, torque, and ballistic integration
+  ├─ ObjectN binding      fixed-step pose snapshots and renderer-neutral interpolation
+  ├─ collision queries    support/GJK, swept broadphase, linear CCD, EPA, polytope manifolds
+  ├─ narrowphase          typed distance, shallow, penetration, deep-manifold capabilities
+  ├─ contact response     warm-started normal impulses + coupled R4 friction ball
+  ├─ contact pipeline     mixed glomes, planes, hyperboxes, vertex polytopes
+  └─ hyperbox pipeline    specialized homogeneous box orchestration
 ```
 
 A core correctness contract: **the n=3 specialization must reproduce ordinary three.js behavior.** The test suite verifies Holotope rotations and transforms against three.js `Matrix4` directly, and the GPU products are verified differentially against their Float64 CPU counterparts.
@@ -83,7 +95,7 @@ pnpm --filter @holotope/showcase dev   # run the showcase gallery locally
 
 Early research and prototyping. The API is expected to change while the core concepts are explored.
 
-The decisions that shape the library — and why — are in [`docs/architecture.md`](docs/architecture.md). See [`docs/implicit-fields.md`](docs/implicit-fields.md) for headless field evaluation, [`docs/model-sets.md`](docs/model-sets.md) for cut-and-project, and [`docs/couplings.md`](docs/couplings.md) for provenance-driven parameters.
+The decisions that shape the library — and why — are in [`docs/architecture.md`](docs/architecture.md). See [`docs/representation-provenance.md`](docs/representation-provenance.md) for tracing 3D representations back to N-D sources, [`docs/physics.md`](docs/physics.md) for ballistic rigid-body mechanics, [`docs/spectral-analysis.md`](docs/spectral-analysis.md) for graph-Laplacian modes, [`docs/implicit-fields.md`](docs/implicit-fields.md) for headless field evaluation, [`docs/model-sets.md`](docs/model-sets.md) for cut-and-project, and [`docs/couplings.md`](docs/couplings.md) for provenance-driven parameters.
 
 ## Roadmap (abridged)
 
@@ -98,9 +110,10 @@ The decisions that shape the library — and why — are in [`docs/architecture.
 - ✅ Elser–Sloane canonical model set: 720-vertex window, complete E8 shell bounds, inflation, exact 3D sections
 - ✅ Escape-time field core: R4 Julia products, GPU differentials, DE audits, and certified Platonic tricomplex parameter slices
 - ✅ Canonical couplings: Elser–Sloane internal-coordinate decoration, exact H4 equivariance, skew-product rotor flow, and periodic holonomy certificates
+- ✅ Spectral foundation: deterministic symmetric eigensystems and dimension-independent CellComplex graph-Laplacian modes
 - GPU surface/section rendering and the materials/transparency phase
 - `.hyper.json` container format and OFF import/export
-- `@holotope/physics`: N-D rigid bodies (bivector angular momentum), GJK in Rⁿ
+- ◐ `@holotope/physics`: ballistic bodies, support/GJK, dimension-independent swept broadphase and linear CCD, bounded R4 EPA penetration, persistent clipped vertex-polytope manifolds with reusable N-D facet topology, complete vertex-polytope/plane support-face contact, exact N-D smooth and R4 mixed analytic contact, coupled three-ball friction, and deterministic mixed-shape response; rotational CCD and joints next
 
 ## License
 

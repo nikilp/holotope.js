@@ -1,7 +1,7 @@
 # @holotope/core
 
-Zero-dependency N-dimensional geometry kernel: vectors and matrices of any
-dimension, plane rotations and the so(n) exponential map, a paired-quaternion
+Zero-dependency N-dimensional geometry kernel: vectors, matrices, and exterior
+products in any dimension, plane rotations and the so(n) exponential map, a paired-quaternion
 `Rotor4` fast path with slerp, N-D rigid transforms and cameras, cell
 complexes, polytope builders (n-cube, simplex, orthoplex, all six regular
 polychora, duoprisms), perspective/orthographic N→3 projection, and exact
@@ -18,6 +18,9 @@ adds provenance-driven parameter decorations, including the canonical
 Elser–Sloane internal-coordinate map and an exact finite-orbit equivariance
 checker for its H4 action. `SkewProductFlow` adds state-dependent SO(4) fiber
 dynamics with periodic-orbit closure and holonomy reports.
+The spectral layer provides a deterministic symmetric eigensolver plus sparse
+unweighted graph Laplacians, connected components, complete modal bases, and
+basis-independent repeated-mode projectors for any `CellComplex` 1-skeleton.
 
 Renderable coordinates run in Float64 on the CPU, while supported lattice,
 window, and group decisions stay in exact quadratic rings. The kernel is renderer-agnostic; pair it with

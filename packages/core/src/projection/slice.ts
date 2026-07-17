@@ -57,6 +57,25 @@ export class HyperplaneSlice4 {
     const n = this.normal.data;
     return n[0]! * x0 + n[1]! * x1 + n[2]! * x2 + n[3]! * x3 - this.offset;
   }
+
+  /** Embed one point from this slice's 3D display frame back into ambient R4. */
+  embedPoint(point: ArrayLike<number>): [number, number, number, number] {
+    if (point.length !== 3) {
+      throw new Error(`HyperplaneSlice4.embedPoint: expected a 3D point, got ${point.length}D`);
+    }
+    if (![point[0], point[1], point[2]].every((coordinate) => Number.isFinite(coordinate))) {
+      throw new Error('HyperplaneSlice4.embedPoint: coordinates must be finite');
+    }
+    const normal = this.normal.data;
+    const out: [number, number, number, number] = [0, 0, 0, 0];
+    for (let component = 0; component < 4; component++) {
+      out[component] = normal[component]! * this.offset;
+      for (let axis = 0; axis < 3; axis++) {
+        out[component] = out[component]! + this.basis[axis]![component]! * point[axis]!;
+      }
+    }
+    return out;
+  }
 }
 
 /**

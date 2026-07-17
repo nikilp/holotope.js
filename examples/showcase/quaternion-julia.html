@@ -13,9 +13,10 @@
       #stats { color: #7fd4ff; }
       #escape { color: #ffbd66; }
       #parity { color: #6ee7a8; }
+      #sampling { color: #9da9ff; }
       #modeValue { color: #ff78bd; }
       #parameterValue { color: #c99cff; }
-      #controls { position: fixed; top: 12px; right: 14px; width: 285px; padding: 12px 14px; background: rgba(16,18,30,.9); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #controls { position: fixed; top: 12px; right: 14px; width: 300px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 12px 14px; background: rgba(16,18,30,.9); border: 1px solid #26304a; border-radius: 8px; color: #8fa3c8; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
       #controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
       #controls input[type='range'] { flex: 1; accent-color: #7fd4ff; }
       #controls select { flex: 1; min-width: 0; color: #d7e3ff; background: #10141f; border: 1px solid #33405f; border-radius: 4px; padding: 3px; }
@@ -28,13 +29,14 @@
   <body>
     <div id="app"></div>
     <div id="hud">
-      <strong>Holotope.js</strong> — two honest views of q ↦ q² + c in the quaternions.<br />
-      <span class="detail">The field lives in R⁴; both products restrict it to the same affine 3-flat.<br /></span>
+      <strong>Holotope.js</strong> — complementary readings of q ↦ q² + c in the quaternions.<br />
+      <span class="detail">A 3D zero-set section and an inspectable 2D field relief sample the same R⁴ evaluator.<br /></span>
       <span id="backend">initializing…</span> · <span id="modeValue">…</span><br />
       <span id="parameterValue">…</span><br />
       <span id="stats">…</span><br />
       <span id="escape">…</span><br />
       <span id="parity">…</span><br />
+      <span id="sampling">still-frame SSAA off</span><br />
       <a href="./index.html">← all examples</a>
     </div>
     <div id="controls">
@@ -48,8 +50,15 @@
       <label>Re(c) <input id="parameterReal" type="range" min="-1.5" max="0.5" step="0.001" value="-0.8" /> <span class="value" id="parameterRealValue">−0.800</span></label>
       <label>Im(c) <input id="parameterImaginary" type="range" min="-1.2" max="1.2" step="0.001" value="0.156" /> <span class="value" id="parameterImaginaryValue">0.156</span></label>
       <label>rendering <select id="renderMode">
-        <option value="raymarch" selected>ray-marched field</option>
-        <option value="mesh">sampled diagnostic mesh</option>
+        <option value="raymarch" selected>surface · ray-marched (original)</option>
+        <option value="mesh">surface · diagnostic mesh (original)</option>
+        <option value="relief">field relief · height + color</option>
+      </select></label>
+      <label>palette <select id="palette">
+        <option value="classic" selected>classic · original colors</option>
+        <option value="ember">ember · copper / cream</option>
+        <option value="porcelain">porcelain · ink / ivory</option>
+        <option value="spectral">spectral · cyan / violet / gold</option>
       </select></label>
       <label>ray quality <select id="quality">
         <option value="preview">72 steps · preview</option>
@@ -61,13 +70,22 @@
         <option value="38" selected>38³ · balanced</option>
         <option value="46">46³ · detailed</option>
       </select></label>
-      <label>slice tilt <input id="angle" type="range" min="0" max="75" step="1" value="0" /> <span class="value" id="angleValue">0°</span></label>
+      <label>relief resolution <select id="reliefResolution">
+        <option value="96">96² · quick</option>
+        <option value="160" selected>160² · balanced</option>
+        <option value="240">240² · detailed</option>
+      </select></label>
+      <label>relief height <input id="reliefHeight" type="range" min="0.25" max="1.6" step="0.05" value="0.9" /> <span class="value" id="reliefHeightValue">0.90</span></label>
+      <label>relief plane <input id="reliefDepth" type="range" min="-1" max="1" step="0.02" value="0" /> <span class="value" id="reliefDepthValue">0.00</span></label>
+      <label>slice tilt A <input id="angle" type="range" min="0" max="75" step="1" value="0" /> <span class="value" id="angleValue">0°</span></label>
+      <label>slice tilt B <input id="secondaryAngle" type="range" min="-60" max="60" step="1" value="0" /> <span class="value" id="secondaryAngleValue">0°</span></label>
       <label>slice offset <input id="offset" type="range" min="-0.55" max="0.55" step="0.01" value="0" /> <span class="value" id="offsetValue">0.00</span></label>
       <label>view rotation <input id="rotate" type="checkbox" checked /></label>
+      <label>still-frame SSAA <input id="ssaa" type="checkbox" /></label>
     </div>
-    <div id="badge"><strong>one field contract, two numerical products</strong><br />adaptive ray march for detail · sampled mesh for inspection</div>
+    <div id="badge"><strong>one field contract, three representations</strong><br />original surface modes retained · relief makes scalar structure legible</div>
     <template id="explainer">
-      <h2>A four-dimensional function, restricted to a three-dimensional world</h2>
+      <h2>A four-dimensional function, read through lower-dimensional coordinates</h2>
       <h3>The field record</h3>
       <p>Every CPU evaluation returns more than a color: escaped or bounded status, iteration count,
       final quaternion, potential, orbit-trap distance, derivative bound, and a certified distance
@@ -86,12 +104,22 @@
       quaternion Julia sets. Moving <strong>Re(c)</strong> and <strong>Im(c)</strong> switches to
       custom mode and can pass continuously between connected bodies, dendrites, spirals, and
       disconnected dust-like regimes.</p>
-      <h3>Why there are two renderers</h3>
+      <h3>Why there are three representations</h3>
       <p><strong>Ray-marched field</strong> evaluates the restricted quaternion function adaptively
       for every screen ray. It preserves structures far below the old voxel spacing and estimates
       normals from the field itself. <strong>Sampled diagnostic mesh</strong> is deliberately more
       literal: every Float64 grid record and source cell remains inspectable. The WebGPU backend also
       evaluates a fixed probe set independently and reports its disagreement with the CPU golden path.</p>
+      <p><strong>Field relief</strong> samples a declared 2D plane inside the selected 3-flat. Height
+      encodes dwell near the boundary and color includes orbit-trap bands. It is intentionally not
+      presented as another geometric slice of the zero set: it is an explanatory graph of retained
+      field records, closer to the richly terraced fractal images often used for visual intuition.</p>
+      <p>The two original surface modes and their original blue–magenta palette remain selectable.
+      Other palettes alter presentation only; they do not change the field, slice, or escape decisions.</p>
+      <p><strong>Still-frame SSAA</strong> is an optional presentation layer around Three.js's native
+      supersampling pass. Moving views render directly; after the camera settles, four jittered samples
+      are captured once and the resolved image is reused until the camera, viewport, slice, field, or
+      palette changes. Turn off view rotation to see it settle. The original renderer remains the default.</p>
     </template>
     <script type="module" src="/src/quaternion-julia.ts"></script>
   </body>

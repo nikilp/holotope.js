@@ -4,6 +4,12 @@ three.js adapter for [`@holotope/core`](https://www.npmjs.com/package/@holotope/
 turns explicit projections and cross-sections of N-dimensional geometry into
 ordinary three.js objects.
 
+Picking remains connected to the source through `RepresentationHitN` and the
+`representationHitFrom*` adapters. Projected products return exact source-cell
+identity without claiming an inverse point; affine slices return exact ambient
+points; sampled and raymarched fields declare their approximation and
+first-hit policies.
+
 - `ProjectedEdges3D` — the projected 1-skeleton as `LineSegments`
 - `ProjectedSurface3D` — the projected 2-faces as a translucent `Mesh`
 - `SlicedComplex3D` — the exact 4D cross-section, with per-triangle picking provenance

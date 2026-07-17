@@ -1,6 +1,6 @@
 {
   "name": "@holotope/three",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "three.js adapter for Holotope: renders projected N-dimensional geometry as three.js objects.",
   "license": "MIT",
   "repository": {

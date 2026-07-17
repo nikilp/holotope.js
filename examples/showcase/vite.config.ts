@@ -13,6 +13,7 @@ export default defineConfig({
     alias: [
       { find: '@holotope/three/webgpu', replacement: local('../../packages/three/src/webgpu/index.ts') },
       { find: '@holotope/three', replacement: local('../../packages/three/src/index.ts') },
+      { find: '@holotope/physics', replacement: local('../../packages/physics/src/index.ts') },
       { find: '@holotope/core', replacement: local('../../packages/core/src/index.ts') }
     ]
   },
@@ -40,6 +41,7 @@ export default defineConfig({
         quaternionJulia: local('./quaternion-julia.html'),
         bicomplexJulia: local('./bicomplex-julia.html'),
         platonicBrots: local('./platonic-brots.html'),
+        rigidBody4: local('./rigid-body4.html'),
         akn: local('./akn.html')
       }
     }
