@@ -4,7 +4,8 @@ import {
   XpbdDistanceConstraintN,
   XpbdParticleN,
   XpbdWorldN,
-  type XpbdScalarConstraintN
+  type XpbdScalarConstraintN,
+  type XpbdVelocityResponseN
 } from '../src/index.js';
 
 function expectArrayClose(
@@ -227,6 +228,131 @@ describe('XpbdWorldN', () => {
     expect(b.position.toArray().slice(1)).toEqual([0, 0, 0, 0, 0]);
   });
 
+  it('applies ordered velocity responses after reconstruction in every substep', () => {
+    const particle = new XpbdParticleN({
+      id: 'response-point', position: [0, 0], velocity: [1, 0]
+    });
+    const observed: string[] = [];
+    const scale: XpbdVelocityResponseN = {
+      id: 'scale',
+      dimension: 2,
+      particles: [particle],
+      apply: ({ substepIndex, solve }) => {
+        observed.push(`scale:${substepIndex}:${solve.constraints.length}`);
+        particle.velocity.multiplyScalar(0.5);
+        return { kineticEnergyChange: 0 };
+      }
+    };
+    const offset: XpbdVelocityResponseN = {
+      id: 'offset',
+      dimension: 2,
+      particles: [particle],
+      apply: ({ substepIndex }) => {
+        observed.push(`offset:${substepIndex}`);
+        particle.velocity.data[0]! += 1;
+        return {};
+      }
+    };
+    const world = new XpbdWorldN({ dimension: 2 })
+      .addParticle(particle)
+      .addVelocityResponse(scale)
+      .addVelocityResponse(offset);
+    const result = world.step(0.2, 2);
+
+    expect(observed).toEqual([
+      'scale:0:0', 'offset:0',
+      'scale:1:0', 'offset:1'
+    ]);
+    expectArrayClose(particle.position.data, [0.25, 0], 14);
+    expectArrayClose(particle.velocity.data, [1.75, 0], 14);
+    expect(result.constraintSolves.map((substep) =>
+      substep.velocityResponses.map((entry) => entry.response.id)
+    )).toEqual([['scale', 'offset'], ['scale', 'offset']]);
+    expect(world.velocityResponses).toEqual([scale, offset]);
+    world.removeVelocityResponse(scale);
+    expect(world.velocityResponses).toEqual([offset]);
+  });
+
+  it('rolls back forbidden velocity-response mutations and late failures', () => {
+    const run = (
+      id: string,
+      apply: (a: XpbdParticleN, b: XpbdParticleN) => void
+    ): void => {
+      const a = new XpbdParticleN({
+        id: `${id}-a`, position: [0, 0], velocity: [1, 2]
+      }).applyForce([3, 4]);
+      const b = new XpbdParticleN({
+        id: `${id}-b`, position: [5, 6], velocity: [7, 8]
+      }).applyForce([9, 10]);
+      const response: XpbdVelocityResponseN = {
+        id,
+        dimension: 2,
+        particles: [a],
+        apply: () => {
+          apply(a, b);
+          return {};
+        }
+      };
+      const world = new XpbdWorldN({ dimension: 2 })
+        .addParticle(a)
+        .addParticle(b)
+        .addVelocityResponse(response);
+      const before = [
+        a.position.toArray(), a.velocity.toArray(), a.force.toArray(),
+        a.gravityScale,
+        b.position.toArray(), b.velocity.toArray(), b.force.toArray(),
+        b.gravityScale
+      ];
+      expect(() => world.step(0.1)).toThrow();
+      expect([
+        a.position.toArray(), a.velocity.toArray(), a.force.toArray(),
+        a.gravityScale,
+        b.position.toArray(), b.velocity.toArray(), b.force.toArray(),
+        b.gravityScale
+      ]).toEqual(before);
+    };
+
+    run('moves-position', (a) => { a.position.data[0]! += 1; });
+    run('changes-force', (a) => { a.force.data[0]! += 1; });
+    run('changes-gravity', (a) => { a.gravityScale = 3; });
+    run('touches-foreign', (_a, b) => { b.velocity.data[0]! += 1; });
+    run('non-finite', (a) => { a.velocity.data[0] = Number.NaN; });
+
+    const malformedParticle = new XpbdParticleN({
+      id: 'malformed-a', position: [0, 0], velocity: [1, 0]
+    }).applyForce([2, 0]);
+    const malformed = {
+      id: 'malformed',
+      dimension: 2,
+      particles: [malformedParticle],
+      apply: () => null
+    } as unknown as XpbdVelocityResponseN;
+    const malformedWorld = new XpbdWorldN({ dimension: 2 })
+      .addParticle(malformedParticle)
+      .addVelocityResponse(malformed);
+    expect(() => malformedWorld.step(0.1)).toThrow(/returned no evaluation/);
+    expectArrayClose(malformedParticle.position.data, [0, 0]);
+    expectArrayClose(malformedParticle.velocity.data, [1, 0]);
+    expectArrayClose(malformedParticle.force.data, [2, 0]);
+
+    const particle = new XpbdParticleN({ id: 'throw-a', position: [0, 0] });
+    const throwing: XpbdVelocityResponseN = {
+      id: 'throwing',
+      dimension: 2,
+      particles: [particle],
+      apply: () => {
+        particle.velocity.data[0] = 4;
+        throw new Error('late velocity failure');
+      }
+    };
+    const world = new XpbdWorldN({ dimension: 2 })
+      .addParticle(particle)
+      .addVelocityResponse(throwing);
+    expect(() => world.step(0.1)).toThrow(/late velocity failure/);
+    expectArrayClose(particle.position.data, [0, 0]);
+    expectArrayClose(particle.velocity.data, [0, 0]);
+  });
+
   it('restores the complete world state after a late evaluator failure', () => {
     const a = new XpbdParticleN({
       id: 'a', position: [1.5, 0], velocity: [0.2, -0.1]
@@ -276,6 +402,35 @@ describe('XpbdWorldN', () => {
     expect(() => world.addConstraint(new XpbdDistanceConstraintN({
       id: 'external-link', pointA: a, pointB: external, restLength: 1
     }))).toThrow(/registered particle/);
+    expect(() => world.addVelocityResponse({
+      id: 'external-response',
+      dimension: 4,
+      particles: [external],
+      apply: () => ({})
+    })).toThrow(/registered/);
+    expect(() => world.addVelocityResponse({
+      id: 'wrong-dimension-response',
+      dimension: 3,
+      particles: [a],
+      apply: () => ({})
+    })).toThrow(/world is R4/);
+    expect(() => world.addVelocityResponse({
+      id: 'repeated-response',
+      dimension: 4,
+      particles: [a, a],
+      apply: () => ({})
+    })).toThrow(/repeats a particle identity/);
+
+    const response: XpbdVelocityResponseN = {
+      id: 'response',
+      dimension: 4,
+      particles: [a],
+      apply: () => ({})
+    };
+    world.addVelocityResponse(response);
+    expect(() => world.addVelocityResponse({ ...response })).toThrow(/duplicate/);
+    expect(() => world.removeParticle(a)).toThrow(/still referenced/);
+    world.removeVelocityResponse(response);
 
     const constraint = new XpbdDistanceConstraintN({
       id: 'link', pointA: a, pointB: b, restLength: 1

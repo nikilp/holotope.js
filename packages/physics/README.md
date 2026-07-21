@@ -43,8 +43,10 @@ particle–hyperplane contact provides the first inequality consumer.
 This does not replace or silently couple to the velocity-level R4 rigid
 constraint solver.
 `XpbdWorldN` wraps that kernel in explicit RN point-mass prediction, velocity
-reconstruction, force accumulation, substeps, ownership checks, and atomic
-world-step rollback.
+reconstruction, ordered post-projection velocity responses, force accumulation,
+substeps, ownership checks, and atomic world-step rollback. Its first responses
+provide exact particle–plane Coulomb friction over the complete RN tangent ball
+and named timestep-invariant exponential damping.
 
 World-frame angular momentum is authoritative. Free flight therefore does not
 numerically integrate a gyroscopic force or silently lose momentum; angular
@@ -153,11 +155,13 @@ cross or land on the zero-measure set.
 
 `XpbdParticleN` adds velocity, force, gravity scale, and a stable world-local id
 to that point coordinate. `XpbdWorldN.step()` performs semi-implicit prediction,
-XPBD projection, then velocity reconstruction for every substep. Forces are
-held across the outer step and clear only on success. Constraints may reference
-only registered particles; late evaluator errors restore all positions,
-velocities, and force accumulators. Fixed particles remain outside prediction
-and do not acquire an inferred kinematic trajectory.
+XPBD projection, velocity reconstruction, then ordered
+`XpbdVelocityResponseN` policies for every substep. Responses may change only
+declared registered velocities and retain their evidence beside the matching
+solve result. Forces are held across the outer step and clear only on success.
+Late evaluator or response errors restore position, velocity, force, and
+gravity scale transactionally. Fixed particles remain outside prediction and
+do not acquire an inferred kinematic trajectory.
 
 `compileXpbdParticleBindingN()` owns the topology-neutral one-particle-per-
 source-vertex correspondence and transactional source write-back. It keeps
@@ -172,8 +176,13 @@ oriented RN hyperplane as a non-negative scalar relation.
 `compileXpbdParticleHyperplaneFamilyN()` composes one such constraint per
 source vertex over an existing particle binding, retaining source ordinal,
 compile-time gap, clearance, compliance, and exact particle identity. It is a
-discrete point-contact reference, not deformable surface contact, friction, or
-continuous collision.
+discrete point-contact reference. The optional
+`compileXpbdParticleHyperplaneFrictionFamilyN()` consumes the same normal
+solves after velocity reconstruction and projects the desired stopping impulse
+onto the complete RN Coulomb tangent ball. In R4 that is an isotropic
+three-ball, not three scalar clamps. `XpbdExponentialVelocityDampingN` provides
+separate timestep-invariant decay with an inverse-seconds rate. These are not
+deformable surface contact, restitution, or continuous collision.
 
 `compileXpbdDistanceNetworkN()` turns one explicitly selected two-vertex
 `CellComplex` 1-cell group into distance constraints. It can retain its

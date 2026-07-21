@@ -175,12 +175,14 @@ rigid Jacobian incorrectly nor replaces the velocity-level rigid contact
 pipeline. Later point-mass and deformable systems may consume this golden path;
 accelerated backends must be tested against it.
 `XpbdWorldN` is the first such consumer: it owns RN point prediction, constraint
-projection, velocity reconstruction, force accumulation, and transactional
-step semantics. Pure state-dependent force providers are reevaluated before
-every substep and accumulated separately from persistent external force;
-provider or constraint failure rolls the complete particle state back. It
-remains distinct from `PhysicsWorld4`, whose generalized coordinates include
-Spin(4) orientation and bivector momentum.
+projection, velocity reconstruction, ordered post-projection velocity
+responses, force accumulation, and transactional step semantics. Pure
+state-dependent force providers are reevaluated before every substep and
+accumulated separately from persistent external force. A velocity response may
+change only declared particle velocities; the world rejects other mutations.
+Provider, constraint, or response failure rolls the complete particle state
+back. It remains distinct from `PhysicsWorld4`, whose generalized coordinates
+include Spin(4) orientation and bivector momentum.
 
 Simplex measure has two deliberately separate contracts. A Gram determinant
 provides unsigned intrinsic k-measure for any `k <= N`, including embedded
@@ -221,8 +223,14 @@ The first projected consumer is exact RN point–hyperplane contact.
 oriented half-space, while `XpbdParticleHyperplaneFamilyN` binds one such
 constraint to every source vertex over an existing particle binding. Source
 ordinal, particle identity, clearance, compliance, and compile-time gap remain
-explicit. This is a discrete point-contact coordinate, not deformable surface
-collision, friction, or a swept no-tunnelling certificate.
+explicit. `XpbdParticleHyperplaneFrictionFamilyN` composes over the same exact
+normal and source identities after velocity reconstruction. Its desired
+stopping impulse is projected onto the complete RN tangent ball; R4 therefore
+uses one isotropic three-ball, not coordinate clamps. Named exponential
+velocity damping is a separate response with an inverse-seconds rate and
+substep-invariant decay. These remain discrete particle/immovable-plane
+policies, not deformable surface collision or a swept no-tunnelling
+certificate.
 
 `compileXpbdDistanceNetworkN()` is the first topology-to-simulation compiler.
 The caller explicitly selects one two-vertex 1-cell group from a `CellComplex`;
@@ -272,5 +280,5 @@ only where subgroup geometry supplies an honest abelian coordinate.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with assembled StVK energy/forces, intrinsic simplex mass lumping, topology-neutral source-particle bindings, per-substep RN force providers, and projected XPBD scalar relations including exact RN particle–hyperplane contact plus unsigned intrinsic and signed full-dimensional simplex coordinates, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; robust large-strain laws, implicit material solvers, bending, inversion barriers and complete collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with assembled StVK energy/forces, intrinsic simplex mass lumping, topology-neutral source-particle bindings, per-substep RN force providers, and projected XPBD scalar relations including exact RN particle–hyperplane contact plus unsigned intrinsic and signed full-dimensional simplex coordinates, ordered post-projection RN velocity policies with isotropic particle–plane Coulomb friction and timestep-invariant damping, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; robust large-strain laws, implicit material solvers, bending, inversion barriers and complete collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

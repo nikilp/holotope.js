@@ -86,6 +86,9 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 - RN point/XPBD: `XpbdConstraintSolverN`, `XpbdParticleN`, `XpbdWorldN`,
   particle binding, distance-network, simplex-measure, StVK, and
   particle--hyperplane contact families.
+- RN velocity policies: `XpbdVelocityResponseN`,
+  `compileXpbdParticleHyperplaneFrictionFamilyN` (complete Coulomb tangent
+  ball), and `XpbdExponentialVelocityDampingN` (inverse-seconds decay).
 
 Canonical complete physics export barrel: `packages/physics/src/index.ts`.
 

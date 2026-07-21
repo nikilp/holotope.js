@@ -168,3 +168,42 @@ APIs; it is not automatically enabled by merely adding multiple bodies to
 `PhysicsWorld4`. The Kitchen contact laboratories are the most complete
 integration references while that public convenience layer remains under
 development.
+
+## Add a frictional RN floor to a particle system
+
+Normal contact is a position inequality; Coulomb friction is an ordered
+post-reconstruction velocity policy over the same exact contact identities.
+
+```ts
+import {
+  HyperplaneColliderN,
+  XpbdExponentialVelocityDampingN,
+  compileXpbdParticleHyperplaneFamilyN,
+  compileXpbdParticleHyperplaneFrictionFamilyN
+} from '@holotope/physics';
+
+const floor = compileXpbdParticleHyperplaneFamilyN({
+  id: 'floor',
+  source,
+  particles: binding.particles,
+  plane: new HyperplaneColliderN([0, 1, 0, 0], -2)
+});
+floor.addToWorld(world);
+
+compileXpbdParticleHyperplaneFrictionFamilyN({
+  id: 'floor-friction',
+  contacts: floor,
+  friction: 0.6
+}).addToWorld(world);
+
+world.addVelocityResponse(new XpbdExponentialVelocityDampingN({
+  id: 'ambient-damping',
+  particles: binding.particles,
+  rate: 0.18 // inverse seconds
+}));
+```
+
+Register friction after its normal family. Register damping after friction when
+you want the contact evidence to describe the undamped reconstructed velocity.
+The friction response acts on the complete RN tangent vector; it does not pick
+visible axes or inspect a rendered floor.

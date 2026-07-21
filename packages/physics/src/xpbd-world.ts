@@ -99,12 +99,41 @@ export interface XpbdWorldForceProviderResultN {
   readonly evaluation: XpbdForceProviderEvaluationN;
 }
 
+/** Evidence returned by one post-projection velocity response. */
+export interface XpbdVelocityResponseEvaluationN {
+  /** Optional total kinetic-energy change caused by this response. */
+  readonly kineticEnergyChange?: number;
+}
+
+export interface XpbdVelocityResponseContextN {
+  readonly deltaTime: number;
+  readonly substepIndex: number;
+  /** Position-level solve whose reconstructed velocities are now available. */
+  readonly solve: XpbdSolveResultN;
+}
+
+/** Ordered RN velocity policy applied after XPBD velocity reconstruction. */
+export interface XpbdVelocityResponseN {
+  readonly id: string;
+  readonly dimension: number;
+  /** Exact registered particles whose velocities this policy may mutate. */
+  readonly particles: readonly XpbdParticleN[];
+  apply(context: XpbdVelocityResponseContextN): XpbdVelocityResponseEvaluationN;
+}
+
+export interface XpbdWorldVelocityResponseResultN {
+  readonly response: XpbdVelocityResponseN;
+  readonly evaluation: XpbdVelocityResponseEvaluationN;
+}
+
 export interface XpbdWorldSubstepResultN {
   readonly index: number;
   readonly deltaTime: number;
   /** Provider evaluations at the configuration preceding this substep. */
   readonly forceProviders: readonly XpbdWorldForceProviderResultN[];
   readonly solve: XpbdSolveResultN;
+  /** Ordered policies applied after velocity reconstruction. */
+  readonly velocityResponses: readonly XpbdWorldVelocityResponseResultN[];
 }
 
 export interface XpbdWorldStepResultN {
@@ -122,6 +151,7 @@ interface ParticleSnapshotN {
   readonly position: Float64Array;
   readonly velocity: Float64Array;
   readonly force: Float64Array;
+  readonly gravityScale: number;
 }
 
 interface EvaluatedForcesN {
@@ -130,6 +160,8 @@ interface EvaluatedForcesN {
 }
 
 const EMPTY_FORCE_PROVIDER_RESULTS: readonly XpbdWorldForceProviderResultN[] =
+  Object.freeze([]);
+const EMPTY_VELOCITY_RESPONSE_RESULTS: readonly XpbdWorldVelocityResponseResultN[] =
   Object.freeze([]);
 
 /**
@@ -145,6 +177,7 @@ export class XpbdWorldN {
   private readonly registeredParticles: XpbdParticleN[] = [];
   private readonly registeredConstraints: XpbdScalarConstraintN[] = [];
   private readonly registeredForceProviders: XpbdForceProviderN[] = [];
+  private readonly registeredVelocityResponses: XpbdVelocityResponseN[] = [];
 
   constructor(options: XpbdWorldNOptions) {
     if (!Number.isSafeInteger(options.dimension) || options.dimension < 1) {
@@ -178,6 +211,10 @@ export class XpbdWorldN {
     return this.registeredForceProviders;
   }
 
+  get velocityResponses(): readonly XpbdVelocityResponseN[] {
+    return this.registeredVelocityResponses;
+  }
+
   addParticle(particle: XpbdParticleN): this {
     if (!(particle instanceof XpbdParticleN)) {
       throw new Error('XpbdWorldN.addParticle: expected an XpbdParticleN');
@@ -200,10 +237,13 @@ export class XpbdWorldN {
     if (index < 0) return this;
     if (
       this.registeredConstraints.some((constraint) => constraint.points.includes(particle)) ||
-      this.registeredForceProviders.some((provider) => provider.particles.includes(particle))
+      this.registeredForceProviders.some((provider) => provider.particles.includes(particle)) ||
+      this.registeredVelocityResponses.some((response) =>
+        response.particles.includes(particle)
+      )
     ) {
       throw new Error(
-        `XpbdWorldN.removeParticle: particle "${particle.id}" is still referenced by a constraint or force provider`
+        `XpbdWorldN.removeParticle: particle "${particle.id}" is still referenced by a constraint, force provider, or velocity response`
       );
     }
     this.registeredParticles.splice(index, 1);
@@ -244,8 +284,32 @@ export class XpbdWorldN {
     return this;
   }
 
+  addVelocityResponse(response: XpbdVelocityResponseN): this {
+    this.validateVelocityResponseOwnership(
+      response,
+      'XpbdWorldN.addVelocityResponse'
+    );
+    if (this.registeredVelocityResponses.includes(response)) return this;
+    if (this.registeredVelocityResponses.some(
+      (existing) => existing.id === response.id
+    )) {
+      throw new Error(
+        `XpbdWorldN.addVelocityResponse: duplicate velocity response id "${response.id}"`
+      );
+    }
+    this.registeredVelocityResponses.push(response);
+    return this;
+  }
+
+  removeVelocityResponse(response: XpbdVelocityResponseN): this {
+    const index = this.registeredVelocityResponses.indexOf(response);
+    if (index >= 0) this.registeredVelocityResponses.splice(index, 1);
+    return this;
+  }
+
   /**
-   * Predicts, projects, and reconstructs velocity for one complete step.
+   * Predicts, projects, reconstructs velocity, and applies ordered responses
+   * for one complete step.
    * External forces remain constant across substeps and clear after successful
    * return. State-dependent providers are reevaluated before every substep.
    */
@@ -269,11 +333,17 @@ export class XpbdWorldN {
         this.predict(substepDuration, evaluatedForces.forces);
         const solve = this.solver.solve(this.registeredConstraints, substepDuration);
         this.reconstructVelocities(priorPositions, substepDuration);
+        const velocityResponses = this.applyVelocityResponses({
+          deltaTime: substepDuration,
+          substepIndex: index,
+          solve
+        });
         constraintSolves.push(Object.freeze({
           index,
           deltaTime: substepDuration,
           forceProviders: evaluatedForces.results,
-          solve
+          solve,
+          velocityResponses
         }));
       }
       for (const particle of this.registeredParticles) particle.clearForce();
@@ -336,6 +406,16 @@ export class XpbdWorldN {
         );
       }
       forceProviderIds.add(provider.id);
+    }
+    const velocityResponseIds = new Set<string>();
+    for (const response of this.registeredVelocityResponses) {
+      this.validateVelocityResponseOwnership(response, 'XpbdWorldN.step');
+      if (velocityResponseIds.has(response.id)) {
+        throw new Error(
+          `XpbdWorldN.step: duplicate velocity response id "${response.id}"`
+        );
+      }
+      velocityResponseIds.add(response.id);
     }
   }
 
@@ -413,6 +493,101 @@ export class XpbdWorldN {
         throw new Error(`${caller}: every force-provider particle must be registered`);
       }
     }
+  }
+
+  private validateVelocityResponseOwnership(
+    response: XpbdVelocityResponseN,
+    caller: string
+  ): void {
+    if (typeof response !== 'object' || response === null) {
+      throw new Error(`${caller}: expected an RN velocity response`);
+    }
+    if (typeof response.id !== 'string' || response.id.trim().length === 0) {
+      throw new Error(`${caller}: velocity response id must be a non-empty string`);
+    }
+    if (response.dimension !== this.dimension) {
+      throw new Error(
+        `${caller}: velocity response is R${response.dimension}, world is R${this.dimension}`
+      );
+    }
+    if (!Array.isArray(response.particles) || response.particles.length === 0) {
+      throw new Error(`${caller}: velocity response must contain registered particles`);
+    }
+    if (typeof response.apply !== 'function') {
+      throw new Error(`${caller}: velocity response must define apply()`);
+    }
+    const uniqueParticles = new Set<XpbdParticleN>();
+    for (const particle of response.particles) {
+      if (!(particle instanceof XpbdParticleN)) {
+        throw new Error(`${caller}: velocity-response particles must be XpbdParticleN values`);
+      }
+      if (uniqueParticles.has(particle)) {
+        throw new Error(`${caller}: velocity response repeats a particle identity`);
+      }
+      uniqueParticles.add(particle);
+      if (!this.registeredParticles.includes(particle)) {
+        throw new Error(`${caller}: every velocity-response particle must be registered`);
+      }
+    }
+  }
+
+  private applyVelocityResponses(
+    context: XpbdVelocityResponseContextN
+  ): readonly XpbdWorldVelocityResponseResultN[] {
+    if (this.registeredVelocityResponses.length === 0) {
+      return EMPTY_VELOCITY_RESPONSE_RESULTS;
+    }
+    const results: XpbdWorldVelocityResponseResultN[] = [];
+    for (const response of this.registeredVelocityResponses) {
+      const declared = new Set(response.particles);
+      const before = this.registeredParticles.map(snapshotParticle);
+      const evaluation = response.apply(context);
+      if (typeof evaluation !== 'object' || evaluation === null) {
+        throw new Error(
+          `XpbdWorldN.step: velocity response "${response.id}" returned no evaluation`
+        );
+      }
+      if (
+        evaluation.kineticEnergyChange !== undefined &&
+        !Number.isFinite(evaluation.kineticEnergyChange)
+      ) {
+        throw new Error(
+          `XpbdWorldN.step: velocity response "${response.id}" kineticEnergyChange must be finite`
+        );
+      }
+      for (let index = 0; index < this.registeredParticles.length; index++) {
+        const particle = this.registeredParticles[index]!;
+        const snapshot = before[index]!;
+        if (!arraysEqual(particle.position.data, snapshot.position)) {
+          throw new Error(
+            `XpbdWorldN.step: velocity response "${response.id}" mutated particle positions`
+          );
+        }
+        if (!arraysEqual(particle.force.data, snapshot.force)) {
+          throw new Error(
+            `XpbdWorldN.step: velocity response "${response.id}" mutated particle forces`
+          );
+        }
+        if (particle.gravityScale !== snapshot.gravityScale) {
+          throw new Error(
+            `XpbdWorldN.step: velocity response "${response.id}" mutated gravity scale`
+          );
+        }
+        if (!declared.has(particle) &&
+          !arraysEqual(particle.velocity.data, snapshot.velocity)) {
+          throw new Error(
+            `XpbdWorldN.step: velocity response "${response.id}" mutated an undeclared particle`
+          );
+        }
+        vector(
+          particle.velocity,
+          this.dimension,
+          `XpbdWorldN.step: velocity response "${response.id}" particle velocity`
+        );
+      }
+      results.push(Object.freeze({ response, evaluation }));
+    }
+    return Object.freeze(results);
   }
 
   private evaluateForceProviders(): EvaluatedForcesN {
@@ -529,7 +704,8 @@ function snapshotParticle(particle: XpbdParticleN): ParticleSnapshotN {
     particle,
     position: particle.position.data.slice(),
     velocity: particle.velocity.data.slice(),
-    force: particle.force.data.slice()
+    force: particle.force.data.slice(),
+    gravityScale: particle.gravityScale
   };
 }
 
@@ -537,6 +713,15 @@ function restoreParticle(snapshot: ParticleSnapshotN): void {
   snapshot.particle.position.data.set(snapshot.position);
   snapshot.particle.velocity.data.set(snapshot.velocity);
   snapshot.particle.force.data.set(snapshot.force);
+  snapshot.particle.gravityScale = snapshot.gravityScale;
+}
+
+function arraysEqual(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index++) {
+    if (a[index] !== b[index]) return false;
+  }
+  return true;
 }
 
 function vector(

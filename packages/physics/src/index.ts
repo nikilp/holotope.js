@@ -151,11 +151,20 @@ export {
   type XpbdForceProviderEvaluationN,
   type XpbdForceProviderN,
   type XpbdParticleNOptions,
+  type XpbdVelocityResponseContextN,
+  type XpbdVelocityResponseEvaluationN,
+  type XpbdVelocityResponseN,
   type XpbdWorldForceProviderResultN,
   type XpbdWorldNOptions,
   type XpbdWorldStepResultN,
-  type XpbdWorldSubstepResultN
+  type XpbdWorldSubstepResultN,
+  type XpbdWorldVelocityResponseResultN
 } from './xpbd-world.js';
+export {
+  XpbdExponentialVelocityDampingN,
+  type XpbdExponentialVelocityDampingEvaluationN,
+  type XpbdExponentialVelocityDampingNOptions
+} from './xpbd-velocity-damping.js';
 export {
   XpbdDistanceNetworkN,
   compileXpbdDistanceNetworkN,
@@ -186,6 +195,19 @@ export {
   type XpbdParticleHyperplaneFamilyVertexContextN,
   type XpbdParticleHyperplaneFamilyVertexScalarN
 } from './xpbd-hyperplane-contact.js';
+export {
+  XpbdParticleHyperplaneFrictionFamilyN,
+  XpbdParticleHyperplaneFrictionN,
+  compileXpbdParticleHyperplaneFrictionFamilyN,
+  type CompileXpbdParticleHyperplaneFrictionFamilyNOptions,
+  type XpbdParticleHyperplaneFrictionEvaluationN,
+  type XpbdParticleHyperplaneFrictionFamilyContactEvaluationN,
+  type XpbdParticleHyperplaneFrictionFamilyContactN,
+  type XpbdParticleHyperplaneFrictionFamilyEvaluationN,
+  type XpbdParticleHyperplaneFrictionFamilyVertexScalarN,
+  type XpbdParticleHyperplaneFrictionNOptions,
+  type XpbdParticleHyperplaneFrictionStateN
+} from './xpbd-hyperplane-friction.js';
 export {
   XpbdOrientedSimplexMeasureConstraintN,
   XpbdSimplexSquaredMeasureConstraintN,

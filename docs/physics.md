@@ -1025,7 +1025,9 @@ v^*=v+h\left(g_s g+w f\right),
 \qquad
 x'=\operatorname{project}_{XPBD}(\widetilde x,h),
 \qquad
-v'=\frac{x'-x}{h}.
+v'=\frac{x'-x}{h},
+\qquad
+v''=\operatorname{respond}(v',h).
 \]
 
 Here `w` is inverse mass, `g_s` is the particle's gravity scale, and `f` is the
@@ -1040,14 +1042,17 @@ prediction and velocity reconstruction do not move it. The world neither
 infers a kinematic path nor a collision velocity when a caller explicitly
 edits such a point between steps.
 
-Every constraint or force-provider point must be one of the registered particle
-objects. Particle, constraint, and provider ids are unique, and removing a
-point still referenced by either policy refuses. A world step snapshots
-position, velocity, and force; any late constraint or provider failure restores
-the complete state and original accumulators. The result retains one
-`XpbdSolveResultN` and the ordered provider evaluations per substep, while
-separately aggregating raw constraint value, compliant residual, and projected
-KKT residual.
+Every constraint, force-provider, or velocity-response point must be one of the
+registered particle objects. Particle, constraint, provider, and response ids
+are unique, and removing a point still referenced by any policy refuses. After
+velocity reconstruction, ordered `XpbdVelocityResponseN` policies receive the
+matching position solve and may mutate only the velocities of their declared
+particles. The world rejects position, force, gravity-scale, foreign-velocity,
+or non-finite mutations. A world step snapshots the complete particle state;
+any late constraint, provider, or response failure restores it and the original
+accumulators. Each substep result retains its solve, ordered provider evidence,
+and ordered response evidence, while the outer result separately aggregates raw
+constraint value, compliant residual, and projected KKT residual.
 
 ```ts
 import { XpbdParticleN, XpbdWorldN } from '@holotope/physics';
@@ -1065,6 +1070,12 @@ const step = world.step(1 / 60, 2);
 console.log(step.maxAbsCompliantResidual);
 console.log(step.maxAbsProjectedKktResidual);
 ```
+
+`XpbdExponentialVelocityDampingN` is the first general response. Its authored
+rate has units of inverse seconds and each substep applies
+`exp(-rate * h)`. Subdividing one duration therefore leaves the final decay
+factor unchanged, unlike an anonymous per-frame multiplier. Its evaluation
+reports the factor, affected particle count, and kinetic-energy change.
 
 ### RN point–hyperplane contact
 
@@ -1085,8 +1096,15 @@ identity, clearance, compliance, and stable constraint id.
 ```ts
 import {
   HyperplaneColliderN,
+  XpbdWorldN,
   compileXpbdParticleHyperplaneFamilyN
 } from '@holotope/physics';
+
+const world4 = binding.addToWorld(new XpbdWorldN({
+  dimension: 4,
+  gravity: [0, -9.81, 0, 0],
+  solverIterations: 8
+}));
 
 const floorContacts = compileXpbdParticleHyperplaneFamilyN({
   id: 'floor',
@@ -1100,10 +1118,53 @@ const floorContacts = compileXpbdParticleHyperplaneFamilyN({
 floorContacts.addToWorld(world4);
 ```
 
-This is discrete point contact. It does not claim deformable face contact,
-friction, restitution, adhesion, self-collision, or a swept no-tunnelling
-guarantee. The plane is source-space mechanics; no rendered projection is used
-to determine its normal.
+The optional `compileXpbdParticleHyperplaneFrictionFamilyN()` composes directly
+over that normal family. For an active contact it interprets the XPBD position
+multiplier as the normal impulse `J_n = lambda_n / h`, computes the complete
+ambient tangent velocity
+
+\[
+v_t=v-n(n\cdot v),
+\]
+
+and projects the desired stopping impulse onto the isotropic Coulomb ball
+`||J_t|| <= mu J_n`. No tangent basis is introduced. The implementation is the
+same in every ambient dimension; in R4 the admissible tangent impulse is a true
+three-ball rather than three independent coordinate clamps.
+
+```ts
+import {
+  XpbdExponentialVelocityDampingN,
+  compileXpbdParticleHyperplaneFrictionFamilyN
+} from '@holotope/physics';
+
+const floorFriction = compileXpbdParticleHyperplaneFrictionFamilyN({
+  id: 'floor-friction',
+  contacts: floorContacts,
+  friction: ({ sourceVertexIndex }) => sourceVertexIndex === 0 ? 0.8 : 0.5
+});
+floorFriction.addToWorld(world4); // after the normal family
+
+world4.addVelocityResponse(new XpbdExponentialVelocityDampingN({
+  id: 'ambient-damping',
+  particles: binding.particles,
+  rate: 0.18
+}));
+```
+
+Per-contact evidence distinguishes disabled, inactive, sticking, and sliding
+states and reports normal/tangent impulse, tangent speed, the Coulomb limit,
+and kinetic-energy change. Family evidence retains each source vertex ordinal
+and aggregates contact counts, impulse, residual slip, and energy. Response
+order is meaningful: the example applies contact friction before ambient
+damping.
+
+This remains discrete particle contact against an immovable plane. It does not
+claim deformable face contact, restitution, adhesion, rolling resistance,
+self-collision, continuous collision, or a swept no-tunnelling guarantee.
+Cross-step XPBD multiplier persistence is also separate: cached multipliers
+need an explicit timestep-scaling and retirement contract. The plane is
+source-space mechanics; no rendered projection determines its normal.
 
 An explicitly selected two-vertex 1-cell group can be compiled from shared
 topology rather than reconstructed as private simulation data:
@@ -1165,9 +1226,11 @@ consumers observe the evolved source without losing its cell identity.
 The XPBD projection kernel implements equations 17–18 of Macklin, Müller, and Chentanez,
 [“XPBD: Position-Based Simulation of Compliant Constrained Dynamics”
 (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf).
-Damping, coupled compliance, frictional and surface contact, robust
+Coupled position constraints, surface-feature contact, restitution, robust
 large-strain materials, continuous collision, and accelerated backends remain
-separate later consumers.
+separate later consumers. Named exponential damping and discrete
+particle--hyperplane Coulomb friction are the first post-reconstruction
+velocity consumers described above.
 
 ### Bilateral R4 point joints
 
