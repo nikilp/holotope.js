@@ -131,6 +131,13 @@ and leaves only SO(2) rotation in the orthogonal plane. First-axis antipodes and
 degenerate second bisectors are typed refusals. This is deliberately distinct
 from oriented-plane preservation, which would leave a two-angle torus free.
 
+`PlanarRotationCoordinate4` attaches one phase-reference direction to each
+side of that joint. It reports a signed wrapped angle, a persistent unwrapped
+angle, the positively oriented complementary-plane bivector, and its angular
+speed. A sample exactly half a turn from the preceding branch is a typed
+`unwrap-ambiguous` result until the caller chooses its sign; samples must be
+frequent enough that an unobserved advance never reaches `pi`.
+
 For automatic mixed contact, register `GlomeCollider4`, `PolytopeCollider4`,
 `HyperplaneContactCollider4`, and/or `HyperboxCollider4` instances with
 `ContactPipeline4`, then call `pipeline.stepWorld(world, fixedDt)`. Finite

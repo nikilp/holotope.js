@@ -10,6 +10,8 @@
   policy, basis-invariant bias, transported warm starts, and full diagnostics.
 - Added distinct direction-preservation and planar-rotation policies classified
   by their SO(3) and SO(2) stabilizers rather than an ambiguous “4D hinge.”
+- Added an oriented planar-rotation phase with explicit branch tokens,
+  multi-turn unwrapping, half-turn ambiguity, and angular-rate diagnostics.
 
 ## v0.0.5
 

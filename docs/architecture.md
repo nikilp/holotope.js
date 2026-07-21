@@ -167,6 +167,9 @@ three-row block; fixing an ordered orthonormal two-frame leaves only SO(2)
 rotation in its complementary plane and produces five rows. Preserving an
 oriented plane alone would instead leave an SO(2) x SO(2) torus. These remain
 distinct public types—there is no dimensionally misleading universal “hinge.”
+The one-dimensional SO(2) stabilizer admits a signed, continuously unwrapped
+phase; the SO(3) direction stabilizer does not. Actuation is therefore added
+only where subgroup geometry supplies an honest abelian coordinate.
 
 ## Roadmap
 
@@ -179,5 +182,5 @@ distinct public types—there is no dimensionally misleading universal “hinge.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, conservative linear casts, opt-in R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, a common small equality-block solver, direction preservation with its SO(3) stabilizer, and planar rotation with one SO(2) free; abelian motors/limits, rotational CCD, and full-frame policies pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, conservative linear casts, opt-in R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, a common small equality-block solver, direction preservation with its SO(3) stabilizer, and planar rotation with a continuously unwrapped SO(2) phase; coupled abelian motors/limits, rotational CCD, and full-frame policies pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

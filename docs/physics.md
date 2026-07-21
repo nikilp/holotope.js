@@ -1153,9 +1153,50 @@ world.step(fixedDt, 1, (dt) => {
 ```
 
 The free phase is abelian and therefore can support a globally unwrapped
-scalar coordinate. Motors and limits are intentionally a following policy
-layer; this increment first proves the five-row geometry and conservation
-laws without conflating them with actuation.
+scalar coordinate. `PlanarRotationCoordinate4` supplies that coordinate by
+attaching one unit phase-reference direction to each side. The ordered fixed
+frame orients its complement through the canonical orientation of R4:
+
+\[
+\det[m_0\ m_1\ p_0\ p_1] > 0,
+\qquad F=p_0\wedge p_1.
+\]
+
+After projecting both phase references into the common complementary plane,
+their signed relative angle is evaluated with `atan2`. Its instantaneous rate
+is
+
+\[
+\dot\theta=F\cdot\omega_A-F\cdot\omega_B.
+\]
+
+The returned branch token retains wrapped and unwrapped angles. Successive
+samples choose the unique increment in `(-pi,pi)`. An exact half-turn has two
+equally short lifts, so it returns `status: 'unwrap-ambiguous'` until the caller
+provides `halfTurnDirection: 1 | -1`. As with every sampled unwrap, advances of
+one or more unobserved turns cannot be reconstructed; the phase change between
+observations must stay below `pi`.
+
+```ts
+import { PlanarRotationCoordinate4 } from '@holotope/physics';
+
+const phase = new PlanarRotationCoordinate4({
+  joint: rotation,
+  localPhaseDirectionA: [0, 0, 1, 0],
+  worldPhaseDirectionB: [0, 0, 1, 0]
+});
+
+const sample = phase.evaluation();
+if (sample.status === 'regular') {
+  console.log(sample.angle, sample.angularSpeed);
+}
+```
+
+Motors and limits remain the following policy layer. On anisotropic bodies the
+five equality rows and the free-angle row couple through `J M^-1 J^T`; solving
+a bounded scalar row afterward can reintroduce forbidden frame speed. The
+motor/limit solver must therefore project the bounded coordinate while
+satisfying the five equalities coherently.
 
 ### Broadphase candidate providers
 
@@ -1594,6 +1635,9 @@ The test suite pins:
 - five-row planar-rotation finite differences, full-SO(4) anisotropic block
   solves, typed two-frame chart failures, transported basis invariance, exact
   SO(2) stabilizer freedom, embedded-R3 closure, and pair momentum conservation.
+- signed planar-phase differentials, common-SO(4) invariance, positive ambient
+  orientation, multi-turn unwrap continuity, explicit half-turn branches, and
+  embedded-R3 signed-angle closure.
 
 A manifold is not implied by a black-box convex support query. EPA supplies a
 bounded general R4 minimum-translation witness; a response-grade general

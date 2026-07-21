@@ -151,8 +151,18 @@ export {
   type OrthonormalTwoFrameInput4,
   type PlanarRotationConstraintBlock4Options,
   type PlanarRotationConstraintEvaluation4,
-  type PlanarRotationJoint4Options
+  type PlanarRotationJoint4Options,
+  type RegularPlanarRotationConstraint4
 } from './planar-rotation-joint4.js';
+export {
+  PlanarRotationCoordinate4,
+  planarRotationPhase4,
+  type PlanarRotationCoordinate4Options,
+  type PlanarRotationCoordinateEvaluation4,
+  type PlanarRotationPhase4Options,
+  type PlanarRotationPhaseBranch4,
+  type PlanarRotationPhaseEvaluation4
+} from './planar-rotation-coordinate4.js';
 export {
   ConvexHullSupportShapeN,
   GlomeSupportShapeN,

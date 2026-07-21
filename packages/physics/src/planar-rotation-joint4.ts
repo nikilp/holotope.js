@@ -62,6 +62,11 @@ export type PlanarRotationConstraintEvaluation4 =
       readonly secondBisectorGuard: number;
     };
 
+export type RegularPlanarRotationConstraint4 = Extract<
+  PlanarRotationConstraintEvaluation4,
+  { readonly status: 'regular' }
+>;
+
 /**
  * Builds the five-row Stiefel coordinate which fixes an ordered orthonormal
  * two-frame and leaves only rotation in its complementary plane free.
@@ -349,7 +354,56 @@ function orthogonalComplementBasis2_4(
       'planarRotationConstraintBlock4: could not construct complementary frame'
     );
   }
+  if (determinantColumns4(normal0, normal1, basis[0]!, basis[1]!) < 0) {
+    basis[1]!.multiplyScalar(-1);
+  }
   return basis as [VecN, VecN];
+}
+
+function determinantColumns4(
+  column0: VecN,
+  column1: VecN,
+  column2: VecN,
+  column3: VecN
+): number {
+  const a = column0.data;
+  const b = column1.data;
+  const c = column2.data;
+  const d = column3.data;
+  return (
+    a[0]! * determinant3(
+      b[1]!, c[1]!, d[1]!,
+      b[2]!, c[2]!, d[2]!,
+      b[3]!, c[3]!, d[3]!
+    ) -
+    b[0]! * determinant3(
+      a[1]!, c[1]!, d[1]!,
+      a[2]!, c[2]!, d[2]!,
+      a[3]!, c[3]!, d[3]!
+    ) +
+    c[0]! * determinant3(
+      a[1]!, b[1]!, d[1]!,
+      a[2]!, b[2]!, d[2]!,
+      a[3]!, b[3]!, d[3]!
+    ) -
+    d[0]! * determinant3(
+      a[1]!, b[1]!, c[1]!,
+      a[2]!, b[2]!, c[2]!,
+      a[3]!, b[3]!, c[3]!
+    )
+  );
+}
+
+function determinant3(
+  a00: number, a01: number, a02: number,
+  a10: number, a11: number, a12: number,
+  a20: number, a21: number, a22: number
+): number {
+  return (
+    a00 * (a11 * a22 - a12 * a21) -
+    a01 * (a10 * a22 - a12 * a20) +
+    a02 * (a10 * a21 - a11 * a20)
+  );
 }
 
 function orthonormalFrame2(
