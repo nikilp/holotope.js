@@ -11,8 +11,9 @@ pipelines. A Float64 EPA fallback adds bounded minimum-translation witnesses for
 general full-dimensional convex R4 pairs; vertex-enumerable R4 polytopes
 graduate that witness into a complete clipped manifold with persistent source
 feature identities. Opt-in event stepping resolves certified linear impacts;
-rotational CCD, orientation-coordinate joint families, and sleeping remain
-separate later contracts.
+the branch-aware SO(4) logarithm and its analytic Jacobians now form the local
+coordinate kernel for rotational constraints. Rotational CCD, concrete
+orientation-joint policies, and sleeping remain separate later contracts.
 
 ## Convex mass properties
 
@@ -991,6 +992,51 @@ retain the same total linear- and angular-momentum identity as a distance
 equality. A fixed-world endpoint is an external constraint and does not carry
 that closed-system guarantee.
 
+### SO(4) orientation coordinates
+
+`Rotor4` represents an SO(4) orientation by two unit quaternions with the
+shared double-cover identification `(qL, qR) ~ (-qL, -qR)`. A relative
+orientation therefore cannot choose the sign of each factor independently.
+`relativeOrientationCoordinates4()` compares the two valid pair lifts, returns
+the selected pair sign as a branch token, and accepts that token on the next
+coherent evaluation. The scalar guard `|qL.w + qR.w|` vanishes on the complete
+pair-geodesic cut locus. At that locus the function returns
+`status: 'cut-locus'` and no bivector error.
+
+```ts
+import {
+  orientationDlog4,
+  relativeOrientationCoordinates4
+} from '@holotope/physics';
+
+const coordinate = relativeOrientationCoordinates4(current, target, {
+  trivialization: 'world-left',
+  previousBranch
+});
+
+if (coordinate.status === 'regular') {
+  const jacobian = orientationDlog4(coordinate.error, 'world-left');
+  previousBranch = coordinate.branch;
+  // A joint policy may now map authored coordinates through `jacobian`.
+} else {
+  // Retain a prior chart or choose an authored branch.
+}
+```
+
+The lexicographic bivector chart `(01,02,03,12,13,23)` is related to the two
+quaternion-log vectors by `splitBivectorPair4()` and
+`combineBivectorPair4()`. In this convention the factor Lie bracket is twice
+the ordinary cross product. `orientationDexp4()` and `orientationDlog4()` use
+that scale exactly; world-left and body-right trivializations exchange the
+factor signs because `Rotor4` composes its right quaternion in reverse order.
+`angularVelocityOperatorNorm4()` returns the tight norm of the dense 4x4 skew
+map, `|u| + |v|`, without constructing that matrix.
+
+These functions deliberately stop at local geometry. They do not decide what
+an authored rotational joint preserves, how limits cross a branch, or how a
+motor should spend force. Those remain explicit policies over this common
+coordinate and the existing rigid-Jacobian solver.
+
 ### Broadphase candidate providers
 
 Candidate generation is a separate dimension-independent contract.
@@ -1437,7 +1483,7 @@ surfaces unless an explicit collider is constructed from them. The finite
 broadphase is conservative AABB sweep-and-prune; infinite planes use an
 exhaustive lane. Linear CCD uses conservative swept AABBs before its certified
 casts, with the exhaustive candidate provider retained as a reference lane.
-Rotational CCD, spatial trees, orientation-coordinate joints and limits,
+Rotational CCD, spatial trees, concrete orientation-coordinate joints and limits,
 distance servos, rolling resistance, and sleeping are not implied by this
 stage. Point and distance joints plus scalar Jacobian rows are a constraint
 foundation, not a claim that hinge-like orientation families are already

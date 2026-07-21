@@ -9,7 +9,10 @@ contact patches, warm-started contact response with a coupled R4 tangent
 friction ball, a coupled four-coordinate bilateral point joint, scalar rigid
 Jacobian rows with generalized-force bounds, rigid distance equalities,
 two-guardian distance intervals, force-limited distance motors, and
-deterministic mixed-shape collider/body orchestration.
+deterministic mixed-shape collider/body orchestration. Its rotational
+foundation also exposes paired-bivector coordinates, branch-aware relative
+SO(4) logarithms, analytic exponential/logarithm Jacobians, and the exact
+angular-velocity operator norm.
 Candidate generation is dimension-independent and includes exhaustive and
 temporally coherent sweep-and-prune providers; static and linearly swept AABBs
 share the same candidate contract, while infinite planes remain in an explicit
@@ -28,7 +31,7 @@ velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
 Spatial-tree broadphases, rotational CCD, orientation-coordinate joint
-families, distance servos, rolling resistance, and sleeping are not yet part
+policies, distance servos, rolling resistance, and sleeping are not yet part
 of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
@@ -93,6 +96,16 @@ when solving them together. The coordinate geometry is also exposed through
 direction branch and refuse transverse or negative-branch relative motion;
 diagnostics may still observe one-sided distance growth without manufacturing
 a solve gradient.
+
+`relativeOrientationCoordinates4()` provides the analogous local coordinate
+for rotation. It chooses one lift of the paired-quaternion double cover,
+returns a reusable branch token for coherent timesteps, and reports the full
+SO(4) logarithm cut locus as a discriminated result rather than manufacturing
+an axis. `orientationDexp4()` and `orientationDlog4()` expose the matching 6x6
+Jacobians in either world-left or body-right trivialization. The right factor
+uses the opposite Jacobian sign because `Rotor4` composes that quaternion in
+reverse order. These are proof-kernel primitives; no hinge, cone, limit, or
+motor policy is implied yet.
 
 For automatic mixed contact, register `GlomeCollider4`, `PolytopeCollider4`,
 `HyperplaneContactCollider4`, and/or `HyperboxCollider4` instances with

@@ -3,6 +3,19 @@ export {
   rotateBivector4
 } from './bivector4.js';
 export {
+  angularVelocityOperatorNorm4,
+  combineBivectorPair4,
+  orientationDexp4,
+  orientationDlog4,
+  relativeOrientationCoordinates4,
+  splitBivectorPair4,
+  type BivectorPairCoordinates4,
+  type OrientationBranchToken4,
+  type OrientationTrivialization4,
+  type RelativeOrientationCoordinates4,
+  type RelativeOrientationOptions4
+} from './orientation-coordinates4.js';
+export {
   massPropertiesFromCellComplex4,
   massPropertiesFromConvexBoundary4,
   massPropertiesFromTetrahedralization4,
