@@ -161,6 +161,13 @@ linear and six angular response coordinates instead of reducing mechanics to a
 visible 3D representation. New policies can compose rows without redefining
 the coordinate or weakening the Float64 CPU reference path.
 
+Rotational policies are classified by the stabilizer of the geometric datum
+they preserve. Fixing one oriented direction leaves SO(3) free and produces a
+three-row block; fixing an ordered orthonormal two-frame leaves only SO(2)
+rotation in its complementary plane and produces five rows. Preserving an
+oriented plane alone would instead leave an SO(2) x SO(2) torus. These remain
+distinct public types—there is no dimensionally misleading universal “hinge.”
+
 ## Roadmap
 
 1. ✅ Math kernel, cell complexes, polytopes, projections, CPU slicing, three.js adapter, tesseract demo
@@ -172,5 +179,5 @@ the coordinate or weakening the Float64 CPU reference path.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, conservative linear casts, opt-in R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, a common small equality-block solver, and direction preservation with its SO(3) stabilizer; rotational CCD and planar/full-frame orientation policies pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, conservative linear casts, opt-in R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, a common small equality-block solver, direction preservation with its SO(3) stabilizer, and planar rotation with one SO(2) free; abelian motors/limits, rotational CCD, and full-frame policies pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

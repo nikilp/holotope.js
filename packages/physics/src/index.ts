@@ -145,6 +145,15 @@ export {
   type PointJointSolver4Options
 } from './point-joint4.js';
 export {
+  PlanarRotationJoint4,
+  planarRotationConstraintBlock4,
+  type OrthonormalTwoFrame4,
+  type OrthonormalTwoFrameInput4,
+  type PlanarRotationConstraintBlock4Options,
+  type PlanarRotationConstraintEvaluation4,
+  type PlanarRotationJoint4Options
+} from './planar-rotation-joint4.js';
+export {
   ConvexHullSupportShapeN,
   GlomeSupportShapeN,
   RoundedSupportShapeN,

@@ -13,8 +13,10 @@ deterministic mixed-shape collider/body orchestration. Its rotational
 foundation also exposes paired-bivector coordinates, branch-aware relative
 SO(4) logarithms, analytic exponential/logarithm Jacobians, and the exact
 angular-velocity operator norm. A common one-to-six-row equality-block solver
-now serves both point joints and the first genuinely R4 rotational policy:
-preservation of one oriented material direction with its SO(3) stabilizer free.
+now serves point joints and two genuinely R4 rotational policies: preservation
+of one oriented material direction with its SO(3) stabilizer free, and
+preservation of an ordered two-frame with one complementary SO(2) rotation
+free.
 Candidate generation is dimension-independent and includes exhaustive and
 temporally coherent sweep-and-prune providers; static and linearly swept AABBs
 share the same candidate contract, while infinite planes remain in an explicit
@@ -32,8 +34,8 @@ numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
-Spatial-tree broadphases, rotational CCD, planar-rotation and full-frame joint
-policies, distance servos, rolling resistance, and sleeping are not yet part
+Spatial-tree broadphases, rotational CCD, planar-rotation motors and limits,
+full-frame joint policies, distance servos, rolling resistance, and sleeping are not yet part
 of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
@@ -122,6 +124,12 @@ fixed-world direction. `constraint()` returns either a regular three-row block
 or a typed `antipodal` refusal. The three rows constrain the tangent space of
 the direction sphere and leave the non-abelian SO(3) stabilizer free, so the
 joint deliberately exposes no fictitious scalar “hinge angle.”
+
+`PlanarRotationJoint4` binds an ordered body-local orthonormal two-frame to a
+local or fixed-world frame. Its five-row Stiefel constraint fixes that frame
+and leaves only SO(2) rotation in the orthogonal plane. First-axis antipodes and
+degenerate second bisectors are typed refusals. This is deliberately distinct
+from oriented-plane preservation, which would leave a two-angle torus free.
 
 For automatic mixed contact, register `GlomeCollider4`, `PolytopeCollider4`,
 `HyperplaneContactCollider4`, and/or `HyperboxCollider4` instances with

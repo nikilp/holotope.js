@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### `@holotope/physics`
+
+- Added branch-aware relative SO(4) coordinates, analytic exponential and
+  logarithm Jacobians, and the exact angular-velocity operator norm.
+- Added a shared one-to-six-row equality-block solver with explicit rank
+  policy, basis-invariant bias, transported warm starts, and full diagnostics.
+- Added distinct direction-preservation and planar-rotation policies classified
+  by their SO(3) and SO(2) stabilizers rather than an ambiguous “4D hinge.”
+
 ## v0.0.5
 
 ### `@holotope/core@0.0.5`

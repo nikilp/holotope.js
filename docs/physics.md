@@ -12,8 +12,9 @@ general full-dimensional convex R4 pairs; vertex-enumerable R4 polytopes
 graduate that witness into a complete clipped manifold with persistent source
 feature identities. Opt-in event stepping resolves certified linear impacts;
 the branch-aware SO(4) logarithm and its analytic Jacobians now form the local
-coordinate kernel for rotational constraints. Rotational CCD, concrete
-orientation-joint policies, and sleeping remain separate later contracts.
+coordinate kernel for rotational constraints. Direction preservation and
+one-parameter planar rotation are explicit stabilizer-classified policies;
+rotational CCD, their motor/limit layer, and sleeping remain later contracts.
 
 ## Convex mass properties
 
@@ -1107,6 +1108,55 @@ world.step(fixedDt, 1, (dt) => {
 });
 ```
 
+### Planar rotation and its SO(2) stabilizer
+
+`PlanarRotationJoint4` preserves an ordered orthonormal two-frame. The
+stabilizer of that datum in SO(4) is rotation in the complementary two-plane,
+so exactly one rotational degree of freedom remains and five are constrained.
+This is the closest analogue of a revolute joint, but the API names its actual
+geometry rather than calling several inequivalent R4 mechanisms “hinges.”
+
+Let `(a0,a1)` and `(b0,b1)` be the current world frames. The first normalized
+bisector `m0` supplies three direction rows in `m0^perp`. Projecting `a1+b1`
+into that space and normalizing gives `m1`; two transported vectors spanning
+`span(m0,m1)^perp` supply the remaining rows. On the constraint manifold their
+bivector span contains every plane except the complementary generator
+`p0 wedge p1`, which is exactly the free SO(2).
+
+The two-frame input is validated and never silently orthonormalized. A first
+axis antipode returns `status: 'first-antipodal'`; a vanished projected second
+bisector returns `status: 'second-degenerate'`. Neither chart failure invents
+a correction plane. The coordinate frames are transported across calls, and
+the equality-block solver re-expresses warm impulses when those bases move.
+
+```ts
+import {
+  ConstraintBlockSolver4,
+  PlanarRotationJoint4
+} from '@holotope/physics';
+
+const rotation = new PlanarRotationJoint4({
+  id: 'body/planar-rotation',
+  bodyA,
+  // This ordered frame is fixed; its orthogonal plane is free to rotate.
+  localFixedFrameA: [[1, 0, 0, 0], [0, 1, 0, 0]],
+  worldFixedFrameB: [[1, 0, 0, 0], [0, 1, 0, 0]]
+});
+const blocks = new ConstraintBlockSolver4({ iterations: 8 });
+
+world.step(fixedDt, 1, (dt) => {
+  const evaluation = rotation.constraint();
+  if (evaluation.status === 'regular') {
+    blocks.solve([evaluation.block], dt);
+  }
+});
+```
+
+The free phase is abelian and therefore can support a globally unwrapped
+scalar coordinate. Motors and limits are intentionally a following policy
+layer; this increment first proves the five-row geometry and conservation
+laws without conflating them with actuation.
+
 ### Broadphase candidate providers
 
 Candidate generation is a separate dimension-independent contract.
@@ -1541,6 +1591,9 @@ The test suite pins:
   timestep-consistent acceleration, guardian enforcement of velocity created
   by other rows, motor/interval composition, and the distinction between energy
   input and internal-force momentum conservation.
+- five-row planar-rotation finite differences, full-SO(4) anisotropic block
+  solves, typed two-frame chart failures, transported basis invariance, exact
+  SO(2) stabilizer freedom, embedded-R3 closure, and pair momentum conservation.
 
 A manifold is not implied by a black-box convex support query. EPA supplies a
 bounded general R4 minimum-translation witness; a response-grade general
@@ -1553,11 +1606,11 @@ surfaces unless an explicit collider is constructed from them. The finite
 broadphase is conservative AABB sweep-and-prune; infinite planes use an
 exhaustive lane. Linear CCD uses conservative swept AABBs before its certified
 casts, with the exhaustive candidate provider retained as a reference lane.
-Rotational CCD, spatial trees, planar/full-frame joints and rotational limits,
+Rotational CCD, spatial trees, planar-rotation motors/limits, full-frame joints,
 distance servos, rolling resistance, and sleeping are not implied by this
-stage. Point and distance joints plus scalar Jacobian rows are a constraint
-foundation, not a claim that hinge-like orientation families are already
-defined in R4.
+stage. The landed direction and planar-rotation policies are distinct
+stabilizer families, not a claim that every mechanism called a “hinge” in R4
+has one meaning.
 Exact total angular-momentum conservation applies when the two impulse anchors
 coincide; penetrated witness pairs are distinct constraint anchors and
 positional stabilization is intentionally non-conservative.
