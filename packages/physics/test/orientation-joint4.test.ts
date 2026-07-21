@@ -230,6 +230,38 @@ describe('OrientationJoint4 binding and block response', () => {
     expectArrayClose(totalAngularMomentum(bodyA, bodyB), momentumBefore, 2e-14);
   });
 
+  it('transfers angular momentum only to a dynamic body at a fixed world frame', () => {
+    const value = body({
+      rotation: Rotor4.fromBivector(
+        new BivectorN(4, [0.21, -0.16, 0.08, 0.14, -0.19, 0.11])
+      ),
+      angularVelocity: new BivectorN(4, [0.7, -0.3, 0.5, 0.2, -0.6, 0.4])
+    });
+    const worldFrame = Rotor4.fromBivector(
+      new BivectorN(4, [-0.12, 0.18, -0.09, 0.23, 0.07, -0.15])
+    );
+    const joint = new OrientationJoint4({
+      id: 'fixed-world',
+      bodyA: value,
+      worldFrameB: worldFrame
+    });
+    const targetBefore = joint.worldFrameB();
+    const evaluation = joint.constraint();
+    expect(evaluation.status).toBe('regular');
+    if (evaluation.status !== 'regular') return;
+    expect(evaluation.block.rows.every((row) => row.participantB === null))
+      .toBe(true);
+    new ConstraintBlockSolver4({
+      iterations: 1,
+      baumgarte: 0,
+      warmStart: false
+    }).solve([evaluation.block], 1 / 60);
+    expect(Math.hypot(...evaluation.block.rows.map(constraintRowSpeed4)))
+      .toBeLessThan(2e-10);
+    expectArrayClose(joint.worldFrameB().left, targetBefore.left, 1e-15);
+    expectArrayClose(joint.worldFrameB().right, targetBefore.right, 1e-15);
+  });
+
   it('binds authored local frames and preserves explicit branch history', () => {
     const rotationA = Rotor4.fromBivector(
       new BivectorN(4, [0.2, -0.15, 0.08, 0.17, -0.11, 0.13])
