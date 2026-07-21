@@ -263,6 +263,11 @@ export {
   type KinematicBodyPosePlan4
 } from './kinematic-body4.js';
 export {
+  KinematicTrackDriver4,
+  type KinematicTrackDriver4Options,
+  type PositionSampler4
+} from './kinematic-track-driver4.js';
+export {
   applyRigidBodyPosePlan4,
   planRigidBodyPose4,
   type RigidBodyPosePlan4

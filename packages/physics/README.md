@@ -202,6 +202,13 @@ rotating hyperboxes, polytopes, and offset glomes use rigid casts. A legacy
 velocity-only `RigidMotion4` still produces a typed partial fallback because no
 geometry path can be inferred honestly from velocity alone.
 
+`KinematicTrackDriver4` produces those segments from one position sampler and
+one `Rotor4Track` on a fixed clock. It samples each accepted boundary once,
+caches the shared endpoint between consecutive segments, and refuses to replace
+a segment before the body reaches it. CCD therefore consumes a frozen physical
+trajectory even when an event step is subdivided; animation is never resampled
+inside the collision loop. The adapter has no renderer or mixer dependency.
+
 `NarrowphaseDispatcherN` is the common query boundary. Its `best` mode selects
 the strongest honest capability for the configured pair and margins; explicit
 requests never silently fall back. Stable ordered pair IDs provide coherent GJK

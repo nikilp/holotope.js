@@ -243,6 +243,42 @@ const platform = new HyperboxCollider4({
 pipeline.addCollider(platform);
 ```
 
+`KinematicTrackDriver4` is the renderer-independent bridge from authored
+animation to those physical segments. It samples a position function and a
+`Rotor4Track` at fixed clock boundaries, creates a persistent
+`KinematicBody4`, and installs the next segment only after the current one is
+exhausted:
+
+```ts
+import { Rotor4Track } from '@holotope/core';
+import { KinematicTrackDriver4 } from '@holotope/physics';
+
+const trackDriver = new KinematicTrackDriver4({
+  fixedStep: 1 / 120,
+  positionAt: (time) => [Math.sin(time), 0, 0, 0],
+  rotationTrack
+});
+
+pipeline.addCollider(new HyperboxCollider4({
+  id: 'animated-platform',
+  halfExtents: [2, 0.25, 1, 1],
+  participant: trackDriver.body
+}));
+
+pipeline.stepWorldContinuous(world, trackDriver.fixedStep);
+trackDriver.advanceSegment();
+```
+
+Each accepted boundary is sampled once. The cached end pose of one segment is
+the next segment's start, so stateful animation samplers cannot produce a seam
+by being asked twice for the same clock time. Continuous collision may split
+and replay suffixes of the frozen segment without resampling animation. A
+sampler failure, malformed position, discontinuous body pose, or relative
+central inversion is refused before the driver clock or body trajectory is
+changed. The fixed step must be fine enough to represent the intended authored
+path between its endpoint samples; no endpoint-only adapter can infer hidden
+turns across a branch cut.
+
 `ContactPipeline4.stepWorldContinuous()` is the opt-in rigid R4 event loop. It
 integrates forces into velocity once per substep, advances poses to the earliest
 certified linear or rotational impact, invokes the existing complete
