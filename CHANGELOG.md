@@ -17,6 +17,9 @@
   projected KKT diagnostics.
 - Added torque-limited planar SO(2) motors and two-sided continuous-angle
   guardians that remain coupled to all five frame constraints.
+- Added a six-row fixed-relative-frame orientation joint with invariant
+  frame-local SO(4) error, exact analytic rate rows, explicit branch history,
+  and typed cut-locus refusal.
 - Added explicit world-left R4 screw trajectories, auditable support-shape
   radius inference, and conservative rigid compact/compact and compact/plane
   casts using the exact SO(4) angular operator norm.

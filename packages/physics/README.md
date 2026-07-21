@@ -13,10 +13,11 @@ deterministic mixed-shape collider/body orchestration. Its rotational
 foundation also exposes paired-bivector coordinates, branch-aware relative
 SO(4) logarithms, analytic exponential/logarithm Jacobians, and the exact
 angular-velocity operator norm. A common one-to-six-row equality-block solver
-now serves point joints and two genuinely R4 rotational policies: preservation
+now serves point joints and three genuinely R4 rotational policies: preservation
 of one oriented material direction with its SO(3) stabilizer free, and
 preservation of an ordered two-frame with one complementary SO(2) rotation
-free.
+free, or preservation of a complete relative material frame with no rotational
+stabilizer free.
 Candidate generation is dimension-independent and includes exhaustive and
 temporally coherent sweep-and-prune providers; static and linearly swept AABBs
 share the same candidate contract, while infinite planes remain in an explicit
@@ -37,7 +38,7 @@ velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
 Spatial-tree broadphases, complete pose trajectories for externally prescribed
-kinematic motion, full-frame joint policies, distance servos, rolling
+kinematic motion, distance servos, rolling
 resistance, and sleeping are not yet part of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
@@ -130,6 +131,17 @@ fixed-world direction. `constraint()` returns either a regular three-row block
 or a typed `antipodal` refusal. The three rows constrain the tangent space of
 the direction sphere and leave the non-abelian SO(3) stabilizer free, so the
 joint deliberately exposes no fictitious scalar “hinge angle.”
+
+`OrientationJoint4` binds a complete body-local frame to another material
+frame or a fixed world frame. Its six equality rows are the full rotational
+analogue of a weld; combine them with the four rows of `PointJoint4` when both
+orientation and translation must be fixed. The error is
+`log(inverse(frameB) * frameA)`, expressed in frame B, and the analytic
+world-left rate rows are exact negatives for the two participants. This makes
+the coordinate invariant under common world rotation and keeps internal
+angular impulses equal and opposite. The paired-quaternion lift is retained
+across evaluations, while the non-unique SO(4) cut locus returns a typed result
+with no solver block.
 
 `PlanarRotationJoint4` binds an ordered body-local orthonormal two-frame to a
 local or fixed-world frame. Its five-row Stiefel constraint fixes that frame

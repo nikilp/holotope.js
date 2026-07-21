@@ -1167,6 +1167,53 @@ world.step(fixedDt, 1, (dt) => {
 });
 ```
 
+### Fixed-relative-frame orientation
+
+`OrientationJoint4` preserves a complete oriented material frame. Its
+stabilizer is the identity, so it contributes all six rotational equality
+rows. It is intentionally not called a universal weld: composing it with the
+four translational rows of `PointJoint4` gives the complete R4 weld.
+
+For current material frames `A` and `B`, the coordinate is expressed in frame
+B:
+
+\[
+E=B^{-1}A,\qquad e=\log(E).
+\]
+
+If `omega_A` and `omega_B` are world-left angular velocities and
+`Ad_(B^-1)` rotates a world bivector into frame B, its exact rate is
+
+\[
+\dot e=D\log_{\mathrm{left}}(e)\,
+       \operatorname{Ad}_{B^{-1}}(\omega_A-\omega_B).
+\]
+
+The two participant Jacobians are therefore exact negatives. The coordinate
+does not change under a common world-left rotation, and every internal row
+impulse adds equal-and-opposite world bivector momentum. At the full SO(4) cut
+locus the logarithm is non-unique, so `constraint()` returns `cut-locus`
+without a block. Its pair-level branch token otherwise persists from one
+evaluation to the next and can be deliberately cleared with `resetBranch()`.
+
+```ts
+const orientation = new OrientationJoint4({
+  id: 'body/frame',
+  bodyA,
+  localFrameA,
+  bodyB,
+  localFrameB
+});
+const blocks = new ConstraintBlockSolver4({ iterations: 8 });
+
+world.step(fixedDt, 1, (dt) => {
+  const evaluation = orientation.constraint();
+  if (evaluation.status === 'regular') {
+    blocks.solve([evaluation.block], dt);
+  }
+});
+```
+
 ### Planar rotation and its SO(2) stabilizer
 
 `PlanarRotationJoint4` preserves an ordered orthonormal two-frame. The
@@ -1744,6 +1791,10 @@ The test suite pins:
 - signed planar-phase differentials, common-SO(4) invariance, positive ambient
   orientation, multi-turn unwrap continuity, explicit half-turn branches, and
   embedded-R3 signed-angle closure.
+- six-row fixed-frame differentials for both participants, common-world
+  invariance, exact anisotropic block response, pair momentum conservation,
+  local material-frame binding, cut-locus refusal, branch hysteresis,
+  embedded-R3 closure, and long-running world-step stability.
 
 A manifold is not implied by a black-box convex support query. EPA supplies a
 bounded general R4 minimum-translation witness; a response-grade general
@@ -1756,9 +1807,9 @@ surfaces unless an explicit collider is constructed from them. The finite
 broadphase is conservative AABB sweep-and-prune; infinite planes use an
 exhaustive lane. Linear CCD uses conservative swept AABBs before its certified
 casts, with the exhaustive candidate provider retained as a reference lane.
-Rotational CCD, spatial trees, planar-rotation motors/limits, full-frame joints,
-distance servos, rolling resistance, and sleeping are not implied by this
-stage. The landed direction and planar-rotation policies are distinct
+Spatial trees, externally prescribed kinematic trajectories, distance servos,
+rolling resistance, and sleeping are not implied by this stage. The landed
+direction, planar-rotation, and fixed-frame policies are distinct
 stabilizer families, not a claim that every mechanism called a “hinge” in R4
 has one meaning.
 Exact total angular-momentum conservation applies when the two impulse anchors

@@ -112,6 +112,13 @@ export {
   type DirectionJoint4Options
 } from './direction-joint4.js';
 export {
+  OrientationJoint4,
+  orientationConstraintBlock4,
+  type OrientationConstraintBlock4Options,
+  type OrientationConstraintEvaluation4,
+  type OrientationJoint4Options
+} from './orientation-joint4.js';
+export {
   DistanceJoint4,
   DistanceCoordinate4,
   evaluateDistanceCoordinateN,
