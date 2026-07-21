@@ -119,16 +119,31 @@ export {
   type OrientationJoint4Options
 } from './orientation-joint4.js';
 export {
-  DistanceJoint4,
-  DistanceCoordinate4,
   evaluateDistanceCoordinateN,
   evaluateDistanceConstraintN,
-  type DistanceCoordinate4Options,
   type DistanceCoordinateEvaluationN,
-  type DistanceConstraintEvaluationN,
+  type DistanceConstraintEvaluationN
+} from './distance-coordinate-n.js';
+export {
+  DistanceJoint4,
+  DistanceCoordinate4,
+  type DistanceCoordinate4Options,
   type DistanceJoint4Options,
   type DistanceJointConstraint4
 } from './distance-joint4.js';
+export {
+  XpbdConstraintSolverN,
+  XpbdDistanceConstraintN,
+  type XpbdConstraintResultN,
+  type XpbdConstraintSolverNOptions,
+  type XpbdConstraintStatusN,
+  type XpbdDistanceConstraintEvaluationN,
+  type XpbdDistanceConstraintNOptions,
+  type XpbdPointN,
+  type XpbdScalarConstraintEvaluationN,
+  type XpbdScalarConstraintN,
+  type XpbdSolveResultN
+} from './xpbd-constraint.js';
 export {
   DistanceIntervalJoint4,
   type DistanceIntervalConstraint4,

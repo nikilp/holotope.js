@@ -10,6 +10,12 @@
   forward evaluator for affine sections, slice charts, coordinate projections,
   orthographic projection, and certified perspective branches.
 
+### `@holotope/physics`
+
+- Added an atomic dimension-generic Float64 XPBD scalar-constraint kernel with
+  physical compliance, total-multiplier force and residual diagnostics, typed
+  zero-response evidence, and an exact RN distance consumer.
+
 ### Showcase
 
 - Routed the canonical source-to-simulation markers through the headless

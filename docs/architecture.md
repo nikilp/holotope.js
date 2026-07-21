@@ -83,10 +83,13 @@ temporal render pipelines.
 
 In-memory source-cell references anchor identity to a particular complex and
 group object plus a group-local ordinal and vertex tuple. They survive geometry
-and group-order changes but retire on topology replacement. Equivalent
-regenerated complexes do not silently acquire the same identity; persistent
-IDs remain deferred until producer lifecycle and interchange semantics are
-specified.
+and group-order changes but retire on topology replacement. For compatible
+regeneration, `SourceCellIdN` adds the structural `(groupKey, ordinal)` layer
+without replacing that fast object identity. Explicit `CellGroup.key` values
+survive group reordering; unkeyed groups use a labelled order-derived fallback.
+Resolution verifies ambient dimension, metadata, and the source vertex tuple,
+so changed topology returns typed retirement evidence instead of silently
+retargeting an observation.
 
 Topology-only operators preserve that separation. The unweighted graph
 Laplacian is constructed from canonical 1-cell incidence and is invariant under
@@ -161,6 +164,14 @@ linear and six angular response coordinates instead of reducing mechanics to a
 visible 3D representation. New policies can compose rows without redefining
 the coordinate or weakening the Float64 CPU reference path.
 
+Position-level compliance is a separate dimension-generic layer.
+`XpbdConstraintSolverN` consumes RN point coordinates, inverse masses, scalar
+equalities, and gradients. It implements the total-multiplier XPBD update with
+physical compliance and explicit compliant residuals. It neither reuses an R4
+rigid Jacobian incorrectly nor replaces the velocity/contact pipeline. Later
+point-mass and deformable systems may consume this golden path; accelerated
+backends must be tested against it.
+
 Rotational policies are classified by the stabilizer of the geometric datum
 they preserve. Fixing one oriented direction leaves SO(3) free and produces a
 three-row block; fixing an ordered orthonormal two-frame leaves only SO(2)
@@ -182,5 +193,5 @@ only where subgroup geometry supplies an honest abelian coordinate.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; spatial trees, distance servos, rolling resistance, and sleeping pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase and XPBD scalar compliance, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; point-mass/deformable consumers, spatial trees, distance servos, rolling resistance, and sleeping pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

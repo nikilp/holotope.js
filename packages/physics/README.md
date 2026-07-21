@@ -32,6 +32,12 @@ casts are analytic. R4 also has explicit constant-generator rigid trajectories
 and conservative compact/compact and compact/plane casts whose angular
 closing bound uses the exact SO(4) operator norm.
 
+A separate `XpbdConstraintSolverN` supplies an auditable dimension-generic
+Float64 position-level kernel for compliant scalar equalities. It exposes the
+total XPBD multiplier, signed force estimate, and compliant residual, while
+`XpbdDistanceConstraintN` provides the first exact RN consumer. This does not
+replace or silently couple to the velocity-level R4 rigid constraint solver.
+
 World-frame angular momentum is authoritative. Free flight therefore does not
 numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the
@@ -102,6 +108,16 @@ when solving them together. The coordinate geometry is also exposed through
 direction branch and refuse transverse or negative-branch relative motion;
 diagnostics may still observe one-sided distance growth without manufacturing
 a solve gradient.
+
+`XpbdConstraintSolverN` instead projects scalar equalities over mutable RN point
+coordinates. One solve batch has an explicit dimension and initializes one
+total multiplier per constraint. Compliance is physical inverse stiffness and
+is scaled by `1 / dt^2` inside the update; results report the corresponding
+signed force and `C + alpha/dt^2 * lambda` residual. Custom evaluators are pure,
+dimension-checked functions with one gradient per unique point. Invalid batches
+restore every participating position. `XpbdDistanceConstraintN` reuses the
+same exact distance coordinate and coincidence-branch rule as the rigid
+adapter.
 
 `relativeOrientationCoordinates4()` provides the analogous local coordinate
 for rotation. It chooses one lift of the paired-quaternion double cover,

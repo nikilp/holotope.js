@@ -16,9 +16,11 @@ the branch-aware SO(4) logarithm and its analytic Jacobians now form the local
 coordinate kernel for rotational constraints. Direction preservation and
 one-parameter planar rotation are explicit stabilizer-classified policies;
 the planar policy's torque-limited motor and continuous-angle guardians are
-implemented. Prescribed compact-body pose trajectories share the same contact
-and CCD path as dynamic bodies; moving infinite planes and sleeping remain
-later contracts.
+implemented. A separate dimension-generic XPBD reference kernel now projects
+compliant scalar equalities over point coordinates without imposing R4 rigid
+body semantics. Prescribed compact-body pose trajectories share the same
+contact and CCD path as dynamic bodies; moving infinite planes and sleeping
+remain later contracts.
 
 ## Convex mass properties
 
@@ -792,6 +794,74 @@ artificially damped.
 `NormalContactSolver4` and
 `normalContactConstraintsFromHyperboxPatch4()` remain available as explicit
 frictionless compatibility interfaces.
+
+### Dimension-generic compliant point constraints
+
+`XpbdConstraintSolverN` is the Float64 reference path for scalar extended
+position-based dynamics (XPBD) over point generalized coordinates. It is
+dimension-explicit and independent of the velocity-level R4 rigid solver. For
+a scalar equality `C(x) = 0`, inverse point masses `w_i`, gradients `g_i`,
+physical compliance `alpha`, and step duration `h`, each sequential visit uses
+
+\[
+\widetilde\alpha=\frac{\alpha}{h^2},
+\qquad
+W=\sum_i w_i\|g_i\|^2,
+\]
+
+\[
+\Delta\lambda=
+\frac{-C(x)-\widetilde\alpha\lambda}
+{W+\widetilde\alpha},
+\qquad
+\Delta x_i=w_i g_i\Delta\lambda.
+\]
+
+The total multiplier starts at zero for each `solve()` call, so one call is one
+position-projection phase of a time step. Results expose `lambda`, the signed
+force estimate `lambda / h^2`, and the compliant residual
+`C + alpha-tilde * lambda`; constraint value alone is not a convergence test
+when compliance is nonzero. A batch has one explicit ambient dimension, and
+every point and gradient must agree with it. A constraint whose weighted
+gradient has no movable response returns `no-dynamic-response` instead of
+dividing by zero.
+
+```ts
+import { VecN } from '@holotope/core';
+import {
+  XpbdConstraintSolverN,
+  XpbdDistanceConstraintN
+} from '@holotope/physics';
+
+const fixed = { position: new VecN([0, 0, 0, 0]), inverseMass: 0 };
+const point = { position: new VecN([1.4, 0, 0, 0]), inverseMass: 1 };
+const spring = new XpbdDistanceConstraintN({
+  id: 'spring',
+  pointA: point,
+  pointB: fixed,
+  restLength: 1,
+  compliance: 1e-3
+});
+
+const result = new XpbdConstraintSolverN({
+  dimension: 4,
+  iterations: 8
+}).solve([spring], 1 / 60);
+```
+
+Custom scalar constraints provide one pure evaluation and one gradient per
+unique point. The reference implementation snapshots all participating
+positions and restores them if validation or a later evaluation fails, so a
+malformed batch cannot leave a partial Gauss--Seidel correction. The exact RN
+distance consumer retains the prior coherent direction and requires an
+explicit branch at coincidence.
+
+This kernel implements equations 17–18 of Macklin, Müller, and Chentanez,
+[“XPBD: Position-Based Simulation of Compliant Constrained Dynamics”
+(2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf). A
+particle integrator, damping, inequality constraints, coupled compliance,
+deformable constitutive models, collision, and accelerated backends remain
+separate later consumers.
 
 ### Bilateral R4 point joints
 
@@ -1728,6 +1798,10 @@ The test suite pins:
 - bounded anisotropic energy error with approximately quadratic timestep scaling;
 - the invariant embedded 3D rotation subalgebra;
 - force, gravity, torque, and accumulator semantics.
+- closed-form XPBD scalar multipliers, compliant residuals, force scaling,
+  mass-weighted corrections, fixed-point evidence, R2/R3/R4/R7 specialization,
+  Euclidean invariance, coupled-chain convergence, degeneracy refusal, and
+  atomic rollback after custom-evaluator failure;
 - analytic glome–glome and axis-aligned box–box convex distances;
 - deterministic randomized box-pair differentials in R4;
 - transformed support points, rank-deficient simplices, and R3 specialization;
