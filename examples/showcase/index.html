@@ -82,6 +82,28 @@
         font-size: 13px;
         color: #8fa3c8;
       }
+      .card.feature {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.8fr);
+        padding: 0;
+      }
+      .card.feature .preview {
+        width: 100%;
+        height: 100%;
+        min-height: 300px;
+        aspect-ratio: auto;
+        margin: 0;
+        border-right: 1px solid #26304a;
+        border-bottom: 0;
+      }
+      .card-body {
+        align-self: center;
+        padding: 24px;
+      }
+      .card.feature h2 {
+        font-size: 19px;
+      }
       .tags {
         font-size: 11px;
         color: #5c6f96;
@@ -100,12 +122,31 @@
         letter-spacing: 0.14em;
         margin: 28px 0 10px;
       }
+      .section-intro {
+        max-width: 760px;
+        margin: -2px 0 12px;
+        color: #6f83a8;
+        font-size: 13px;
+      }
       @media (max-width: 760px) {
         main {
           padding: 28px 16px 40px;
         }
         h1 {
           font-size: 22px;
+        }
+        .card.feature {
+          grid-template-columns: 1fr;
+        }
+        .card.feature .preview {
+          height: auto;
+          min-height: 0;
+          aspect-ratio: 16 / 9;
+          border-right: 0;
+          border-bottom: 1px solid #26304a;
+        }
+        .card-body {
+          padding: 18px 20px;
         }
       }
     </style>
@@ -117,26 +158,36 @@
       <p class="links"><a href="https://github.com/nikilp/holotope.js">GitHub</a></p>
 
       <p class="intro">
-        Higher-dimensional structures become visually accessible through complementary views:
-        projections, cross-sections, exact algebraic embeddings, cut-and-project sets, and sampled
-        or ray-marched fields. The gallery leads with reusable dimension-bridging capabilities;
-        mathematical studies then exercise those capabilities without being presented as separate
-        core primitives. Each page says what its view preserves and where approximation enters.
+        Holotope keeps an authoritative N-dimensional source behind every lower-dimensional view.
+        Projections, sections, interactions, and simulations remain explicitly connected, so a
+        visible point can retain its source identity without pretending that a many-to-one view has
+        a unique inverse. Start with the workbench; the pages below it are focused capability and
+        mathematical studies built on the same framework.
       </p>
 
-      <h2 class="section">Dimension bridge — start here</h2>
+      <h2 class="section">Start here</h2>
       <div class="grid">
-        <a class="card" href="./dimension-bridge.html">
-          <img class="preview" src="./previews/tesseract.jpg" alt="Three linked representations of one simulated four-dimensional body" />
-          <h2>Source → representations → simulation</h2>
-          <p>
-            One R4 body feeds a perspective view, a coordinate-subspace view, and an exact affine
-            section. Select any view to retain the same source-backed material point, constrain it
-            on explicit R4 topology, then follow it through torque-free motion without making a
-            visible representation authoritative.
-          </p>
-          <span class="tags">RepresentationHitN · SourceEdgeCoordinateN · CoordinateProjection · RigidBody4</span>
+        <a class="card feature" href="./dimension-bridge.html">
+          <img class="preview" src="./previews/dimension-bridge.jpg" alt="One selected four-dimensional material point traced through three linked representations" />
+          <div class="card-body">
+            <h2>Source → representations → interaction → simulation</h2>
+            <p>
+              One R4 body feeds a perspective view, a coordinate-subspace view, and an exact affine
+              section. Select any view to retain the same source-backed material point, constrain it
+              on explicit R4 topology, then follow it through torque-free motion without making a
+              visible representation authoritative.
+            </p>
+            <span class="tags">RepresentationHitN · SourceEdgeCoordinateN · CoordinateProjection · RigidBody4</span>
+          </div>
         </a>
+      </div>
+
+      <h2 class="section">Framework capabilities</h2>
+      <p class="section-intro">
+        These pages isolate the reusable bridge: explicit representation products, source-space
+        mechanics and scene state, plus GPU paths checked against auditable Float64 CPU results.
+      </p>
+      <div class="grid">
         <a class="card" href="./tesseract.html">
           <img class="preview" src="./previews/tesseract.jpg" alt="A projected tesseract beside its solid three-dimensional cross-section" />
           <h2>Foundation — projection &amp; cross-section</h2>
@@ -147,6 +198,44 @@
             planes.
           </p>
           <span class="tags">ProjectedEdges3D · SlicedComplex3D · Rotor4 · DragRotation4D</span>
+        </a>
+        <a class="card" href="./rigid-body4.html">
+          <img class="preview" src="./previews/rigid-body4.png" alt="An anisotropic four-dimensional rigid body leaving projected pose traces as it tumbles" loading="lazy" decoding="async" />
+          <h2>Source-space mechanics in R⁴</h2>
+          <p>
+            Compare an embedded three-dimensional intermediate-axis flip with motion across all
+            six rotation planes of R⁴. Momentum-primary integration exposes energy, momentum, and
+            Spin(4) orthogonality signals while the projected body evolves.
+          </p>
+          <span class="tags">RigidBody4 · bivector momentum · principal-plane inertia · fixed-step binding</span>
+        </a>
+        <a class="card" href="./scene.html">
+          <img class="preview" src="./previews/scene.jpg" alt="A central 4D scene hierarchy surrounded by hundreds of instanced polychora" loading="lazy" decoding="async" />
+          <h2>Scene graph &amp; instancing</h2>
+          <p>
+            A 4D hierarchy — moons orbiting a planet orbiting in 4D, rotor transforms composing
+            down the tree — over a field of hundreds of instanced 16-cells rendered in a single
+            draw call.
+          </p>
+          <span class="tags">SceneN · ObjectN · ProjectedEdgesInstancedGPU</span>
+        </a>
+        <a class="card" href="./gpu.html">
+          <img class="preview" src="./previews/gpu.jpg" alt="A dense orange GPU-projected 600-cell wireframe" loading="lazy" decoding="async" />
+          <h2>GPU projection (WebGPU / TSL)</h2>
+          <p>
+            The 600-cell projected 4D→3D in the vertex shader: geometry uploads once, each frame
+            changes only a mat4 uniform. Toggle the CPU golden path on top to verify they coincide.
+          </p>
+          <span class="tags">ProjectedEdgesGPU · TSL positionNode · WebGPURenderer</span>
+        </a>
+        <a class="card" href="./compute.html">
+          <img class="preview" src="./previews/compute.jpg" alt="Matching GPU and CPU cross-sections of a 120-cell" loading="lazy" decoding="async" />
+          <h2>GPU compute slicing</h2>
+          <p>
+            The 120-cell's 4320 tetrahedra are intersected with a hyperplane in a WGSL compute
+            shader. The CPU golden path renders beside it with live count and area comparison.
+          </p>
+          <span class="tags">SlicedComplexGPU · WGSL compute · storage buffers</span>
         </a>
       </div>
 
@@ -293,52 +382,6 @@
         </a>
       </div>
 
-      <h2 class="section">Higher-dimensional mechanics</h2>
-      <div class="grid">
-        <a class="card" href="./rigid-body4.html">
-          <img class="preview" src="./previews/rigid-body4.png" alt="An anisotropic four-dimensional rigid body leaving projected pose traces as it tumbles" loading="lazy" decoding="async" />
-          <h2>Torque-free rigid motion in R⁴</h2>
-          <p>
-            Compare an embedded three-dimensional intermediate-axis flip with motion across all
-            six rotation planes of R⁴. Momentum-primary integration exposes energy, momentum, and
-            Spin(4) orthogonality signals while the projected body evolves.
-          </p>
-          <span class="tags">RigidBody4 · bivector momentum · principal-plane inertia · fixed-step binding</span>
-        </a>
-      </div>
-
-      <h2 class="section">Renderer &amp; compute validation</h2>
-      <div class="grid">
-        <a class="card" href="./gpu.html">
-          <img class="preview" src="./previews/gpu.jpg" alt="A dense orange GPU-projected 600-cell wireframe" loading="lazy" decoding="async" />
-          <h2>GPU projection (WebGPU / TSL)</h2>
-          <p>
-            The 600-cell projected 4D→3D in the vertex shader: geometry uploads once, each frame
-            changes only a mat4 uniform. Toggle the CPU golden path on top to verify they coincide.
-          </p>
-          <span class="tags">ProjectedEdgesGPU · TSL positionNode · WebGPURenderer</span>
-        </a>
-        <a class="card" href="./scene.html">
-          <img class="preview" src="./previews/scene.jpg" alt="A central 4D scene hierarchy surrounded by hundreds of instanced polychora" loading="lazy" decoding="async" />
-          <h2>Scene graph &amp; instancing</h2>
-          <p>
-            A 4D hierarchy — moons orbiting a planet orbiting in 4D, rotor transforms composing
-            down the tree — over a field of hundreds of instanced 16-cells rendered in a single
-            draw call. The first pieces of the interactive engine.
-          </p>
-          <span class="tags">SceneN · ObjectN · ProjectedEdgesInstancedGPU</span>
-        </a>
-        <a class="card" href="./compute.html">
-          <img class="preview" src="./previews/compute.jpg" alt="Matching GPU and CPU cross-sections of a 120-cell" loading="lazy" decoding="async" />
-          <h2>GPU compute slicing</h2>
-          <p>
-            The 120-cell's 4320 tetrahedra marched against the hyperplane in a WGSL compute
-            shader — the cross-section is born on the GPU. The CPU golden path renders beside it,
-            with live triangle-count and area readback comparison.
-          </p>
-          <span class="tags">SlicedComplexGPU · WGSL compute · storage buffers</span>
-        </a>
-      </div>
     </main>
   </body>
 </html>

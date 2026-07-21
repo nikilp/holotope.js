@@ -103,6 +103,11 @@
       #controls button:hover { border-color: #72e6c0; color: white; }
       #controls button:disabled { cursor: default; opacity: .42; }
       #controls .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+      #guidedTrace {
+        grid-column: 1 / -1;
+        border-color: #60713a;
+        color: #efffa8;
+      }
       #edgeEditor {
         margin-top: 10px;
         padding-top: 10px;
@@ -203,6 +208,7 @@
         <span>keep section incident to selected R4 point</span>
       </label>
       <div class="buttons">
+        <button id="guidedTrace" type="button">load a guided source trace</button>
         <button id="pause" type="button">pause simulation</button>
         <button id="reset" type="button">reset</button>
       </div>
@@ -233,7 +239,7 @@
       <h3>Observe</h3>
       <p>The blue view is perspective, the green view keeps the x, y, and w coordinates, and the warm view is an exact affine cross-section. Each map preserves and loses different information.</p>
       <h3>Trace</h3>
-      <p>Click any solid. The selected point is lifted to R4 when the map permits it, stored in the body's material frame, and shown in every other view. Source identity, point precision, and global overlap are reported separately.</p>
+      <p>Click any solid—or load the guided trace. The selected point is lifted to R4 when the map permits it, stored in the body's material frame, and shown in every other view. Source identity, point precision, and global overlap are reported separately.</p>
       <h3>Constrain</h3>
       <p>Bind the point to its nearest explicit source edge. The <strong>source t</strong> control then edits one R4 coordinate. Every marker is regenerated from that coordinate; moving a marker on screen is never mistaken for a unique inverse.</p>
       <h3>Simulate</h3>

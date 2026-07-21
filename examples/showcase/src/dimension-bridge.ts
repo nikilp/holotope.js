@@ -249,6 +249,7 @@ const speedInput = document.getElementById('speed') as HTMLInputElement;
 const sliceOffsetInput = document.getElementById('sliceOffset') as HTMLInputElement;
 const followInput = document.getElementById('followSelection') as HTMLInputElement;
 const pauseButton = document.getElementById('pause') as HTMLButtonElement;
+const guidedTraceButton = document.getElementById('guidedTrace') as HTMLButtonElement;
 const bindEdgeButton = document.getElementById('bindEdge') as HTMLButtonElement;
 const edgeParameterInput = document.getElementById('edgeParameter') as HTMLInputElement;
 
@@ -632,6 +633,41 @@ const pointer = new Vector2();
 let pointerDownX = 0;
 let pointerDownY = 0;
 
+function loadGuidedTrace(): void {
+  perspectiveSurface.object.updateWorldMatrix(true, false);
+  camera.updateMatrixWorld(true);
+  const projectedCenter = perspectiveGroup.position.clone().project(camera);
+  const offsets = [
+    [0, 0],
+    [-0.06, 0],
+    [0.06, 0],
+    [0, -0.06],
+    [0, 0.06]
+  ] as const;
+  for (const [dx, dy] of offsets) {
+    raycaster.setFromCamera(
+      pointer.set(projectedCenter.x + dx, projectedCenter.y + dy),
+      camera
+    );
+    const intersection = raycaster.intersectObject(perspectiveSurface.object, false)
+      .find((candidate) => candidate.faceIndex !== undefined);
+    if (intersection === undefined) continue;
+    selectHit(
+      representationHitFromProjectedSurface(perspectiveSurface, {
+        point: intersection.point,
+        faceIndex: intersection.faceIndex!
+      }),
+      'perspective',
+      intersection.faceIndex!
+    );
+    bindSelectionToNearestSourceEdge();
+    return;
+  }
+  document.getElementById('traceTitle')!.textContent = 'Guided trace is temporarily out of view';
+  document.getElementById('traceSummary')!.textContent =
+    'Reset the camera or click any visible solid to create the same source-backed trace.';
+}
+
 renderer.domElement.addEventListener('pointerdown', (event) => {
   pointerDownX = event.clientX;
   pointerDownY = event.clientY;
@@ -683,6 +719,7 @@ renderer.domElement.addEventListener('pointerup', (event) => {
 });
 
 pauseButton.addEventListener('click', () => setPaused(!paused));
+guidedTraceButton.addEventListener('click', loadGuidedTrace);
 document.getElementById('reset')!.addEventListener('click', resetBody);
 bindEdgeButton.addEventListener('click', bindSelectionToNearestSourceEdge);
 
