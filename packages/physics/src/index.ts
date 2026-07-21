@@ -153,6 +153,16 @@ export {
   type XpbdWorldSubstepResultN
 } from './xpbd-world.js';
 export {
+  XpbdDistanceNetworkN,
+  compileXpbdDistanceNetworkN,
+  type CompileXpbdDistanceNetworkNOptions,
+  type XpbdDistanceNetworkEdgeComplianceN,
+  type XpbdDistanceNetworkEdgeContextN,
+  type XpbdDistanceNetworkEdgeN,
+  type XpbdDistanceNetworkVertexContextN,
+  type XpbdDistanceNetworkVertexScalarN
+} from './xpbd-network.js';
+export {
   DistanceIntervalJoint4,
   type DistanceIntervalConstraint4,
   type DistanceIntervalEvaluation4,

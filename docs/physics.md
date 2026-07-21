@@ -899,6 +899,51 @@ const step = world.step(1 / 60, 2);
 console.log(step.maxAbsCompliantResidual);
 ```
 
+An explicitly selected two-vertex 1-cell group can be compiled from shared
+topology rather than reconstructed as private simulation data:
+
+```ts
+import { createHypercube } from '@holotope/core';
+import {
+  XpbdWorldN,
+  compileXpbdDistanceNetworkN
+} from '@holotope/physics';
+
+const source = createHypercube({ dim: 4, size: 1 });
+const edges = source.cellsOfDim(1)[0]!;
+edges.key = 'tesseract-edges';
+
+const network = compileXpbdDistanceNetworkN({
+  id: 'elastic-tesseract',
+  source,
+  edgeGroup: edges,
+  inverseMass: ({ sourceVertexIndex }) => sourceVertexIndex === 0 ? 0 : 1,
+  compliance: 1e-5
+});
+
+const world4 = network.addToWorld(new XpbdWorldN({
+  dimension: 4,
+  gravity: [0, -9.81, 0, 0],
+  solverIterations: 12
+}));
+world4.step(1 / 60, 2);
+network.writeSourcePositions();
+```
+
+This operation is intentionally a compiler, not a material assumption. It
+creates one particle per source vertex so source ordinals remain total, but it
+creates constraints only for the selected edge family. Inverse mass, gravity
+scale, initial velocity, and edge compliance are independent scalar policies.
+Duplicate source edges remain distinct constraints.
+
+Each compiled edge retains a live `SourceCellReferenceN` and a structural
+`SourceCellIdN`. Particle state does not alias `CellComplex.positions` while the
+world is stepping. The explicit `writeSourcePositions()` call first validates
+every particle coordinate and source edge, then writes the entire packed source
+buffer. Retired or changed topology therefore refuses before a partial update.
+Once synchronized, projections, sections, graph-Laplacian analysis, and other
+consumers observe the evolved source without losing its cell identity.
+
 This kernel implements equations 17–18 of Macklin, Müller, and Chentanez,
 [“XPBD: Position-Based Simulation of Compliant Constrained Dynamics”
 (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf). A

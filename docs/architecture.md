@@ -176,6 +176,22 @@ projection, velocity reconstruction, force accumulation, and transactional
 step semantics. It remains distinct from `PhysicsWorld4`, whose generalized
 coordinates include Spin(4) orientation and bivector momentum.
 
+`compileXpbdDistanceNetworkN()` is the first topology-to-simulation compiler.
+The caller explicitly selects one two-vertex 1-cell group from a `CellComplex`;
+the compiler creates one live particle per source vertex and one distance
+constraint per selected source edge. Each edge product retains both an
+in-memory source reference and a structural `SourceCellIdN`, while inverse
+mass, gravity scale, velocity, and compliance remain separate material
+policies. Simulation therefore does not reinterpret every geometric edge as a
+physical spring.
+
+Particles deliberately copy positions rather than aliasing the source buffer.
+`writeSourcePositions()` is the explicit synchronization boundary: it validates
+the complete particle layout and all edge lineage first, then updates the
+source positions in one pass. Projection, slicing, spectral operators, and
+rendering can consequently consume the same evolved topology without making
+any lower-dimensional representation authoritative.
+
 Rotational policies are classified by the stabilizer of the geometric datum
 they preserve. Fixing one oriented direction leaves SO(3) free and produces a
 three-row block; fixing an ordered orthonormal two-frame leaves only SO(2)
@@ -197,5 +213,5 @@ only where subgroup geometry supplies an honest abelian coordinate.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase and XPBD scalar compliance, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; point-mass/deformable consumers, spatial trees, distance servos, rolling resistance, and sleeping pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase and XPBD scalar compliance, an RN point world and provenance-preserving `CellComplex` distance networks, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; bending and volumetric deformable constraints, spatial trees, distance servos, rolling resistance, and sleeping pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

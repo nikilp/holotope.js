@@ -66,7 +66,7 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ contact pipeline     mixed glomes, planes, hyperboxes, vertex polytopes
   ├─ rigid constraints    scalar rows + 1..6-row blocks; point and stabilizer-classified rotation joints
   ├─ distance policies    N-D geometry + R4 equality, guardians, and motor bindings
-  ├─ compliant points     dimension-generic Float64 XPBD constraints + point world
+  ├─ compliant networks   Float64 XPBD constraints + point world + CellComplex compiler
   └─ hyperbox pipeline    specialized homogeneous box orchestration
 ```
 
@@ -136,7 +136,7 @@ The decisions that shape the library — and why — are in [`docs/architecture.
 - ✅ Immutable named constraint composition with stable evidence replacement, removal, snapshots, and keyed diagnostics
 - GPU surface/section rendering and the materials/transparency phase
 - `.hyper.json` container format and OFF import/export
-- ◐ `@holotope/physics`: ballistic and prescribed-kinematic bodies, fixed-clock animation-to-trajectory driving, support/GJK, dimension-independent swept broadphase, Float64 XPBD scalar compliance, and linear CCD, explicit R4 rigid trajectories, conservative rotational casts, and a shared pose-plan event loop, bounded R4 EPA penetration, persistent clipped polytope manifolds, analytic mixed contact, coupled three-ball friction, deterministic mixed-shape response, point/distance policies, branch-aware SO(4) coordinates, exact small equality/one-bounded blocks, SO(3)-stabilizer direction, SO(2)-stabilizer planar rotation with motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; point-mass/deformable consumers, spatial trees, distance servos, rolling resistance, and sleeping remain
+- ◐ `@holotope/physics`: ballistic and prescribed-kinematic bodies, fixed-clock animation-to-trajectory driving, support/GJK, dimension-independent swept broadphase, Float64 XPBD scalar compliance, a renderer-neutral RN point world, provenance-preserving `CellComplex` distance networks, and linear CCD, explicit R4 rigid trajectories, conservative rotational casts, and a shared pose-plan event loop, bounded R4 EPA penetration, persistent clipped polytope manifolds, analytic mixed contact, coupled three-ball friction, deterministic mixed-shape response, point/distance policies, branch-aware SO(4) coordinates, exact small equality/one-bounded blocks, SO(3)-stabilizer direction, SO(2)-stabilizer planar rotation with motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; bending and volumetric deformable constraints, spatial trees, distance servos, rolling resistance, and sleeping remain
 
 ## License
 

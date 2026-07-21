@@ -130,6 +130,15 @@ only registered particles; late evaluator errors restore all positions,
 velocities, and force accumulators. Fixed particles remain outside prediction
 and do not acquire an inferred kinematic trajectory.
 
+`compileXpbdDistanceNetworkN()` turns one explicitly selected two-vertex
+`CellComplex` 1-cell group into that live point state. It creates one particle
+per source vertex, retains structural source identity on every compiled edge,
+and accepts material policies independently from topology. Source positions do
+not alias the simulation. `writeSourcePositions()` validates the complete
+lineage and particle state before synchronizing positions in one pass, allowing
+the same evolved complex to feed representation and analysis consumers without
+making a rendered projection authoritative.
+
 `relativeOrientationCoordinates4()` provides the analogous local coordinate
 for rotation. It chooses one lift of the paired-quaternion double cover,
 returns a reusable branch token for coherent timesteps, and reports the full

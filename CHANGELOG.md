@@ -18,6 +18,9 @@
 - Added a renderer-neutral RN point-mass world with semi-implicit prediction,
   XPBD projection, velocity reconstruction, substep force semantics, registered
   ownership, and atomic position/velocity/force rollback.
+- Added an explicit `CellComplex` 1-cell-to-XPBD compiler that preserves source
+  vertex and edge identity, keeps material policy separate from topology, and
+  validates lineage before atomically writing simulated RN positions back.
 
 ### Showcase
 
