@@ -1,9 +1,14 @@
-import { VecN, wedgeVectors } from '@holotope/core';
-import type { ContactTangentBasis4, RigidMotion4 } from './contact-kinematics4.js';
+import { VecN } from '@holotope/core';
+import type { ContactTangentBasis4 } from './contact-kinematics4.js';
+import { contactTangentBasis4 } from './contact-kinematics4.js';
 import {
-  contactTangentBasis4,
-  velocityAtWorldPoint4
-} from './contact-kinematics4.js';
+  applyPointPairImpulse4,
+  constraintRowCoupling4,
+  constraintRowResponse4,
+  pointConstraintRow4,
+  pointPairRelativeVelocity4,
+  type ConstraintParticipant4
+} from './constraint-row4.js';
 import type { HyperboxContactPatch4 } from './hyperbox-contact4.js';
 import type { HyperboxHyperplaneContactPatch4 } from './mixed-contact4.js';
 import type { PolytopeContactPatch4 } from './polytope-contact4.js';
@@ -12,7 +17,7 @@ import { RigidBody4 } from './rigid-body4.js';
 import type { SmoothPointContactPatchN } from './smooth-contact.js';
 
 /** Dynamic body, prescribed rigid motion, or an immovable participant. */
-export type ContactParticipant4 = RigidBody4 | RigidMotion4 | null;
+export type ContactParticipant4 = ConstraintParticipant4;
 
 export interface ContactConstraint4 {
   /** Must be unique within a solver; persistent IDs retain warm impulses. */
@@ -325,7 +330,9 @@ export class ContactSolver4 {
     }
     const frictionCoefficient = source.friction ?? 0;
     assertNonNegativeFinite('friction', frictionCoefficient);
-    const normalResponse = pairPointVelocityResponse(source, normal).dot(normal);
+    const normalResponse = constraintRowResponse4(
+      directionalRow(source, normal, 'normal-response')
+    );
     if (!(normalResponse > 0) || !Number.isFinite(normalResponse)) {
       throw new Error('ContactSolver4.solve: contact needs a dynamic participant');
     }
@@ -644,47 +651,20 @@ export function normalContactConstraintFromSmoothPointPatch4(
   );
 }
 
-function pairPointVelocityResponse(
-  constraint: ContactConstraint4,
-  impulseDirection: VecN
-): VecN {
-  return participantPointVelocityResponse(
-    constraint.participantA,
-    constraint.anchorA,
-    impulseDirection
-  ).add(
-    participantPointVelocityResponse(
-      constraint.participantB,
-      constraint.anchorB,
-      impulseDirection
-    )
-  );
-}
-
-function participantPointVelocityResponse(
-  participant: ContactParticipant4,
-  anchor: VecN,
-  impulseDirection: VecN
-): VecN {
-  if (!(participant instanceof RigidBody4)) return new VecN(4);
-  const lever = anchor.clone().sub(participant.position);
-  const angularImpulse = wedgeVectors(lever, impulseDirection);
-  const angularVelocity = participant.inverseInertiaWorld(angularImpulse);
-  return impulseDirection
-    .clone()
-    .multiplyScalar(participant.invMass)
-    .add(angularVelocity.toSkewMatrix().applyTo(lever));
-}
-
 function tangentResponseMatrix(
   constraint: ContactConstraint4,
   basis: ContactTangentBasis4
 ): Float64Array {
+  const rows = basis.map((direction, index) =>
+    directionalRow(constraint, direction, `tangent-response-${index}`)
+  );
   const response = new Float64Array(9);
   for (let column = 0; column < 3; column++) {
-    const velocity = pairPointVelocityResponse(constraint, basis[column]!);
     for (let row = 0; row < 3; row++) {
-      response[row * 3 + column] = basis[row]!.dot(velocity);
+      response[row * 3 + column] = constraintRowCoupling4(
+        rows[row]!,
+        rows[column]!
+      );
     }
   }
   for (let row = 0; row < 3; row++) {
@@ -698,18 +678,8 @@ function tangentResponseMatrix(
   return response;
 }
 
-function participantVelocity(
-  participant: ContactParticipant4,
-  anchor: VecN
-): VecN {
-  if (participant instanceof RigidBody4) return participant.velocityAtWorldPoint(anchor);
-  if (participant === null) return new VecN(4);
-  return velocityAtWorldPoint4(participant, anchor);
-}
-
 function relativeVelocity(constraint: ContactConstraint4): VecN {
-  return participantVelocity(constraint.participantA, constraint.anchorA)
-    .sub(participantVelocity(constraint.participantB, constraint.anchorB));
+  return pointPairRelativeVelocity4(constraint);
 }
 
 function relativeNormalSpeed(
@@ -744,16 +714,22 @@ function applyPairWorldImpulse(
   constraint: ContactConstraint4,
   impulse: VecN
 ): void {
-  if (impulse.lengthSq() === 0) return;
-  if (constraint.participantA instanceof RigidBody4) {
-    constraint.participantA.applyImpulseAtWorldPoint(impulse, constraint.anchorA);
-  }
-  if (constraint.participantB instanceof RigidBody4) {
-    constraint.participantB.applyImpulseAtWorldPoint(
-      impulse.clone().multiplyScalar(-1),
-      constraint.anchorB
-    );
-  }
+  applyPointPairImpulse4(constraint, impulse);
+}
+
+function directionalRow(
+  constraint: ContactConstraint4,
+  direction: VecN,
+  suffix: string
+) {
+  return pointConstraintRow4({
+    id: `${constraint.id}|${suffix}`,
+    participantA: constraint.participantA,
+    participantB: constraint.participantB,
+    anchorA: constraint.anchorA,
+    anchorB: constraint.anchorB,
+    direction
+  });
 }
 
 function coordinatesInTangentBasis(

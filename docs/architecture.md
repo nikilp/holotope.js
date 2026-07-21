@@ -23,14 +23,40 @@ GPU rasterization consumes 3D clip space and produces 2D fragments — there is 
 | `RaymarchedQuaternionJulia3D`, `RaymarchedBicomplexJulia3D` | convenience specializations which pair a field node and record-driven style with `RaymarchedField3D` |
 | planned: `ThickSliceVolume3D` | |
 
-Projections themselves (`PerspectiveProjection`, `OrthographicProjection`, `HyperplaneSlice4`) are first-class objects, not hidden defaults.
+Projections themselves (`PerspectiveProjection`, `OrthographicProjection`, `HyperplaneSlice4`) are first-class objects, not hidden defaults. Orthographic
+and perspective projections expose Float64 homogeneous matrices, packed
+homogeneous evaluation, and exact affine inverse fibres. Perspective fibres
+carry every stage's open validity half-space: final homogeneous depth alone
+cannot certify an iterated projection when an earlier divide may have reached
+its viewpoint.
 
 A projection is generally many-to-one, so traceability is not implemented by
 pretending to invert a 3D coordinate. Render products carry the identity of the
-source primitive or evaluation record alongside the representation. Exact
-slices additionally have an affine lift back into their ambient hyperplane.
+source primitive or evaluation record alongside the representation. Projected
+segments and triangles additionally retain Float64 homogeneous evidence, so a
+valid point on the selected nondegenerate source simplex has a
+perspective-correct conditional lift. Exact slices have an affine lift back
+into their ambient hyperplane. Selected-point precision and global projection
+overlap remain separate facts.
 See [representation provenance](representation-provenance.md) for the current
 lookup contracts and their precision boundary.
+
+The shared `RepresentationHitN` vocabulary lives in core, not in a renderer
+adapter. Each hit carries a dimension-checked lineage of the actual operations
+that produced it. Section, chart, projection, field restriction, sampling, and
+ray realization remain distinct recipe kinds because they have different
+precision and inverse semantics; there is no universal `invert()` facade.
+
+Source-coordinate inference has the same separation. A deterministic Float64
+linear-constraint primitive owns weighting, unit normalization, rank,
+null-space priors, conditioning, and residual certificates. Edge parameters
+and barycentric simplex weights both consume it, but their closed-segment and
+closed-simplex domain policies remain distinct. A common solver therefore does
+not pretend that unlike geometric parameterizations are interchangeable.
+Longer-lived consumers compose these observations through immutable named
+constraint-system snapshots. Stable keys identify replaceable evidence;
+optional labels remain presentation metadata. Core owns copied coefficients
+and targets, so a historical snapshot cannot change through caller mutation.
 
 GPU field rendering is split at three explicit seams. `ImplicitFieldNode4` is
 the mathematical realization and is always paired with its CPU
@@ -55,6 +81,13 @@ temporal render pipelines.
 
 `CellComplex` stores vertices in ambient Rⁿ plus cell groups by intrinsic dimension (edges, faces, 3-cells…), with `ambientDim` explicit on every object and never inferred from buffer sizes. Simplex-based algorithms (slicing, future volume/physics work) operate on tetrahedralized cells; `tetrahedralizeCuboidCells` provides the Kuhn 6-tetrahedra decomposition.
 
+In-memory source-cell references anchor identity to a particular complex and
+group object plus a group-local ordinal and vertex tuple. They survive geometry
+and group-order changes but retire on topology replacement. Equivalent
+regenerated complexes do not silently acquire the same identity; persistent
+IDs remain deferred until producer lifecycle and interchange semantics are
+specified.
+
 Topology-only operators preserve that separation. The unweighted graph
 Laplacian is constructed from canonical 1-cell incidence and is invariant under
 embedding, translation, rotation, and scale. Sparse `Lx` is the primary
@@ -71,7 +104,13 @@ General N-D rotations are orthonormal matrices built from Givens plane rotations
 
 - Float64 for all CPU math; Float32 only at the GPU boundary.
 - Degeneracies are policy, not accident: slice distances snap to zero within epsilon and count as non-negative, so hyperplane-coincident cells are suppressed while neighbors emit shared faces exactly once — cross-sections are continuous as the slice reaches a boundary cell.
-- Perspective divides are clamped, with proper 4D frustum clipping planned as an explicit stage.
+- Every CPU section vertex may retain its source edge and exact interpolation
+  parameter. Animated slice normals transport the preceding display frame by
+  default; canonical axis-based recomputation remains an explicit option.
+- The existing affine render path clamps perspective divides. Its homogeneous
+  CPU reference does not hide that guard: it reports every intermediate raw
+  denominator, the corresponding projective-domain margin, and whether the
+  legacy path clamped. Proper geometric clipping remains a separate stage.
 
 ## 7. CPU golden path before GPU
 
@@ -89,6 +128,39 @@ This extends the "last responsible moment" rule: an embedding may change metric 
 
 Cut-and-project follows the same rule. Lattice coefficients, parallel/internal projections, and convex-window membership stay in the exact ring. Enumeration always names a finite coefficient box, and equality at a window facet is reported as a singular boundary event with an explicit convention. Only accepted physical/internal coordinates are converted for display.
 
+## 10. Physics coordinates, bindings, and policies are separate layers
+
+A mechanical coordinate should not be fused to one solver policy. Distance is
+therefore evaluated first as dimension-independent geometry: displacement,
+length, and unit gradient. `DistanceCoordinate4` then binds that coordinate to
+R4 body-local or fixed-world anchors. Equality, closed-interval, and velocity-
+motor behavior are separate policy objects over the same binding contract.
+
+At the dynamics layer, `ConstraintRow4` represents one scalar R4 rigid
+Jacobian. Optional generalized-force bounds make the same primitive support
+unrestricted equalities, one-sided inequalities, and finite actuators. Bounds
+are converted to impulse units using the fixed substep duration and projected
+during iteration; saturation is judged by a projected KKT residual rather than
+by an equality residual that cannot vanish at an active bound. Aggregate row
+impulses, errors, and speeds remain coordinate-scale diagnostics, not physical
+totals across heterogeneous Jacobians.
+
+A closed distance interval is represented by two persistent unilateral
+guardian rows, not by selecting one row before the solve. Their interior speed
+targets bound the next first-order distance from both sides. Because both rows
+remain in projected iteration, they can respond to unsafe velocity introduced
+by another constraint after pre-solve observation. Crossing classification is
+a separate diagnostic and never determines which rows enter the solver.
+At exact anchor coincidence, the scalar gradient is singular: a solve must
+name one positive direction branch and refuse transverse or negative-branch
+motion rather than disguising it as the derivative of that scalar coordinate.
+
+This layering preserves two boundaries. The reusable coordinate geometry does
+not acquire R4 inertia assumptions, while the R4 solver retains all four
+linear and six angular response coordinates instead of reducing mechanics to a
+visible 3D representation. New policies can compose rows without redefining
+the coordinate or weakening the Float64 CPU reference path.
+
 ## Roadmap
 
 1. ✅ Math kernel, cell complexes, polytopes, projections, CPU slicing, three.js adapter, tesseract demo
@@ -100,5 +172,5 @@ Cut-and-project follows the same rule. Lattice coefficients, parallel/internal p
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, conservative linear casts, and opt-in R4 event stepping, bounded general R4 EPA penetration, persistent clipped vertex-polytope manifolds with reusable dimension-independent facet topology, complete vertex-polytope/plane support-face contact, capability-aware narrowphase, exact N-D N-ball contacts, oriented-hyperbox and R4 mixed analytic contacts, persistent kinematics, coupled three-ball friction impulses, and deterministic mixed-shape orchestration; rotational CCD and joints pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, conservative linear casts, and opt-in R4 event stepping, bounded general R4 EPA penetration, persistent clipped vertex-polytope manifolds with reusable dimension-independent facet topology, complete vertex-polytope/plane support-face contact, capability-aware narrowphase, exact N-D N-ball contacts, oriented-hyperbox and R4 mixed analytic contacts, persistent kinematics, coupled three-ball friction impulses, deterministic mixed-shape orchestration, coupled point joints, force-bounded scalar rigid-Jacobian rows, and distance equality, two-guardian interval, and force-limited motor policies over shared dimension-independent geometry; rotational CCD and orientation-coordinate joint families pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

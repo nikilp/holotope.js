@@ -7,7 +7,19 @@ import {
   MeshStandardMaterial,
   type Material
 } from 'three';
-import type { CellComplex, Projection, TransformN } from '@holotope/core';
+import {
+  VecN,
+  createSourceCellReferenceN,
+  isHomogeneousProjection,
+  liftHomogeneousSimplexPointN,
+  type CellComplex,
+  type HomogeneousProjection,
+  type HomogeneousSimplexLiftN,
+  type HomogeneousSimplexVertexN,
+  type Projection,
+  type SourceCellReferenceN,
+  type TransformN
+} from '@holotope/core';
 
 export interface ProjectedSurface3DOptions {
   material?: Material;
@@ -37,8 +49,12 @@ export class ProjectedSurface3D {
   private readonly projectedVertices: Float32Array;
   private readonly soupToVertex: Uint32Array;
   private readonly triangleToFace: Uint32Array;
+  private readonly faceReferences: readonly SourceCellReferenceN[];
   private readonly positionAttribute: BufferAttribute;
   private readonly normalAttribute: BufferAttribute;
+  private readonly homogeneousProjection: HomogeneousProjection | null;
+  private readonly homogeneousPositions: Float64Array;
+  private readonly homogeneousValidity: Uint8Array;
 
   constructor(
     complex: CellComplex,
@@ -52,6 +68,9 @@ export class ProjectedSurface3D {
     }
     this.complex = complex;
     this.projection = projection;
+    this.homogeneousProjection = isHomogeneousProjection(projection)
+      ? projection
+      : null;
 
     const faceGroups = complex.cellsOfDim(2);
     if (faceGroups.length === 0) {
@@ -62,10 +81,12 @@ export class ProjectedSurface3D {
     // every soup vertex and the source 2-cell of every triangle.
     const soupToVertex: number[] = [];
     const triangleToFace: number[] = [];
+    const faceReferences: SourceCellReferenceN[] = [];
     let faceOffset = 0;
     for (const g of faceGroups) {
       const cellCount = g.indices.length / g.verticesPerCell;
       for (let cell = 0; cell < cellCount; cell++) {
+        faceReferences.push(createSourceCellReferenceN(complex, g, cell));
         const base = cell * g.verticesPerCell;
         const corner = (k: number): number => g.indices[base + k]!;
         if (g.verticesPerCell < 3) {
@@ -84,9 +105,12 @@ export class ProjectedSurface3D {
     }
     this.soupToVertex = Uint32Array.from(soupToVertex);
     this.triangleToFace = Uint32Array.from(triangleToFace);
+    this.faceReferences = faceReferences;
 
     this.worldPositions = new Float64Array(complex.positions.length);
     this.projectedVertices = new Float32Array(complex.vertexCount * 3);
+    this.homogeneousPositions = new Float64Array(complex.vertexCount * 4);
+    this.homogeneousValidity = new Uint8Array(complex.vertexCount);
     this.positionAttribute = new BufferAttribute(new Float32Array(soupToVertex.length * 3), 3);
     this.positionAttribute.setUsage(DynamicDrawUsage);
     this.normalAttribute = new BufferAttribute(new Float32Array(soupToVertex.length * 3), 3);
@@ -126,12 +150,40 @@ export class ProjectedSurface3D {
 
   /** Source-complex vertex indices of a rendered triangle. */
   faceVertices(faceIndex: number): [number, number, number] {
+    this.sourceFaceOfTriangle(faceIndex);
     const base = faceIndex * 3;
     return [
       this.soupToVertex[base]!,
       this.soupToVertex[base + 1]!,
       this.soupToVertex[base + 2]!
     ];
+  }
+
+  /** Lifecycle-aware reference to the source 2-cell of a rendered triangle. */
+  sourceReferenceOfTriangle(faceIndex: number): SourceCellReferenceN {
+    return this.faceReferences[this.sourceFaceOfTriangle(faceIndex)]!;
+  }
+
+  /**
+   * Lifts one point on a rendered triangle to its current ambient N-D source
+   * simplex. The point must be in this object's local representation frame.
+   */
+  liftTrianglePoint(
+    faceIndex: number,
+    pointLocal: ArrayLike<number>
+  ): HomogeneousSimplexLiftN {
+    if (this.homogeneousProjection === null) {
+      return {
+        kind: 'unavailable',
+        reason: 'unsupported-projection',
+        details: {}
+      };
+    }
+    return liftHomogeneousSimplexPointN(
+      this.faceVertices(faceIndex).map((vertex) => this.homogeneousVertex(vertex)),
+      pointLocal,
+      { tolerance: 1e-5 }
+    );
   }
 
   /** Recomputes projected positions and flat normals. Call per frame. */
@@ -143,6 +195,16 @@ export class ProjectedSurface3D {
       this.worldPositions.set(this.complex.positions);
     }
     this.projection.projectPositions(this.worldPositions, count, this.projectedVertices);
+    if (this.homogeneousProjection !== null) {
+      this.homogeneousProjection.projectHomogeneousPositions(
+        this.worldPositions,
+        count,
+        this.homogeneousPositions,
+        this.homogeneousValidity
+      );
+    } else {
+      this.homogeneousValidity.fill(0);
+    }
 
     const positions = this.positionAttribute.array as Float32Array;
     for (let s = 0; s < this.soupToVertex.length; s++) {
@@ -178,6 +240,22 @@ export class ProjectedSurface3D {
       }
     }
     this.normalAttribute.needsUpdate = true;
+  }
+
+  private homogeneousVertex(vertex: number): HomogeneousSimplexVertexN {
+    const ambientDim = this.complex.ambientDim;
+    const sourceOffset = vertex * ambientDim;
+    const projectedOffset = vertex * 4;
+    return {
+      sourcePoint: new VecN(
+        this.worldPositions.subarray(sourceOffset, sourceOffset + ambientDim)
+      ),
+      coordinates: this.homogeneousPositions.subarray(
+        projectedOffset,
+        projectedOffset + 4
+      ),
+      valid: this.homogeneousValidity[vertex] === 1
+    };
   }
 
   dispose(): void {

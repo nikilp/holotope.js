@@ -7,6 +7,7 @@ import {
   createHypercube,
   rotationFromPlanes,
   sliceTetrahedra,
+  sliceTetrahedraAmbient,
   tetrahedralizeCuboidCells
 } from '@holotope/core';
 
@@ -93,12 +94,12 @@ describe('HyperplaneSlice4', () => {
     }
   });
 
-  it('setNormal matches a fresh instance and keeps normal/basis references', () => {
+  it('canonical setNormal matches a fresh instance and keeps frame references', () => {
     const slice = HyperplaneSlice4.axisAligned(3, 0.1);
     const normalRef = slice.normal;
     const basisRefs = [...slice.basis];
 
-    slice.setNormal([1, 2, 0, 3]);
+    slice.setNormal([1, 2, 0, 3], { frame: 'canonical' });
     const fresh = new HyperplaneSlice4({ normal: new VecN([1, 2, 0, 3]), offset: 0.1 });
 
     expect(slice.normal).toBe(normalRef);
@@ -118,6 +119,52 @@ describe('HyperplaneSlice4', () => {
     expect(Array.from(outA.subarray(0, countA * 3))).toEqual(
       Array.from(outB.subarray(0, countB * 3))
     );
+  });
+
+  it('transports the display frame continuously across a canonical axis switch', () => {
+    const slice = new HyperplaneSlice4({ normal: [0.72, 0.69, 0, 0.05] });
+    const point = new VecN([0.2, -0.1, 0.35, 0.4]);
+    let previousBasis = slice.basis.map((axis) => Float64Array.from(axis));
+    let previousCoordinates = previousBasis.map((axis) => {
+      let coordinate = 0;
+      for (let component = 0; component < 4; component++) {
+        coordinate += axis[component]! * point.data[component]!;
+      }
+      return coordinate;
+    });
+
+    for (let step = 1; step <= 80; step++) {
+      const blend = step / 80;
+      slice.setNormal([
+        0.72 - 0.06 * blend,
+        0.69 + 0.06 * blend,
+        0.02 * Math.sin(blend * Math.PI),
+        0.05
+      ]);
+      for (let axis = 0; axis < 3; axis++) {
+        let alignment = 0;
+        let coordinate = 0;
+        for (let component = 0; component < 4; component++) {
+          alignment += previousBasis[axis]![component]! * slice.basis[axis]![component]!;
+          coordinate += slice.basis[axis]![component]! * point.data[component]!;
+        }
+        expect(alignment).toBeGreaterThan(0.999);
+        expect(Math.abs(coordinate - previousCoordinates[axis]!)).toBeLessThan(0.002);
+        previousCoordinates[axis] = coordinate;
+      }
+      previousBasis = slice.basis.map((axis) => Float64Array.from(axis));
+    }
+
+    const vectors = [slice.normal.data, ...slice.basis];
+    for (let left = 0; left < 4; left++) {
+      for (let right = 0; right < 4; right++) {
+        let dot = 0;
+        for (let component = 0; component < 4; component++) {
+          dot += vectors[left]![component]! * vectors[right]![component]!;
+        }
+        expect(dot).toBeCloseTo(left === right ? 1 : 0, 12);
+      }
+    }
   });
 
   it('setNormal rejects wrong-dimension normals', () => {
@@ -257,6 +304,71 @@ describe('sliceTetrahedraAmbient', () => {
 });
 
 describe('slice provenance', () => {
+  it('reconstructs every emitted vertex from its source edge and parameter', () => {
+    const { complex, tets } = tesseractTets();
+    const slice = new HyperplaneSlice4({ normal: [1, -2, 0.5, 3], offset: 0.2 });
+    const out = new Float64Array((tets.length / 4) * 24);
+    const edgeVertices = new Uint32Array((tets.length / 4) * 12);
+    const edgeParameters = new Float64Array((tets.length / 4) * 6);
+    const count = sliceTetrahedraAmbient(
+      complex.positions,
+      tets,
+      slice,
+      out,
+      undefined,
+      undefined,
+      { edgeVertices, edgeParameters }
+    );
+    expect(count).toBeGreaterThan(0);
+    for (let vertex = 0; vertex < count; vertex++) {
+      const from = edgeVertices[vertex * 2]!;
+      const to = edgeVertices[vertex * 2 + 1]!;
+      const parameter = edgeParameters[vertex]!;
+      expect(parameter).toBeGreaterThanOrEqual(0);
+      expect(parameter).toBeLessThanOrEqual(1);
+      for (let coordinate = 0; coordinate < 4; coordinate++) {
+        const expected = complex.positions[from * 4 + coordinate]! + parameter * (
+          complex.positions[to * 4 + coordinate]! -
+          complex.positions[from * 4 + coordinate]!
+        );
+        expect(out[vertex * 4 + coordinate]!).toBeCloseTo(expected, 13);
+      }
+    }
+  });
+
+  it('copies crossing provenance consistently across a two-two quad split', () => {
+    const positions = new Float64Array([
+      0, 0, 0, -1,
+      1, 0, 0, -2,
+      0, 1, 0, 1,
+      0, 0, 1, 2
+    ]);
+    const tets = new Uint32Array([0, 1, 2, 3]);
+    const out = new Float64Array(24);
+    const edgeVertices = new Uint32Array(12);
+    const edgeParameters = new Float64Array(6);
+    const count = sliceTetrahedraAmbient(
+      positions,
+      tets,
+      HyperplaneSlice4.axisAligned(3),
+      out,
+      undefined,
+      undefined,
+      { edgeVertices, edgeParameters }
+    );
+    expect(count).toBe(6);
+    expect(Array.from(edgeVertices.subarray(0, 2))).toEqual(
+      Array.from(edgeVertices.subarray(6, 8))
+    );
+    expect(Array.from(edgeVertices.subarray(4, 6))).toEqual(
+      Array.from(edgeVertices.subarray(8, 10))
+    );
+    expect(edgeParameters[0]).toBe(edgeParameters[3]);
+    expect(edgeParameters[2]).toBe(edgeParameters[4]);
+    expect(Array.from(out.subarray(0, 4))).toEqual(Array.from(out.subarray(12, 16)));
+    expect(Array.from(out.subarray(8, 12))).toEqual(Array.from(out.subarray(16, 20)));
+  });
+
   it('every emitted triangle references a tet that straddles the hyperplane', async () => {
     const { sliceTetrahedraAmbient } = await import('@holotope/core');
     const { complex, tets } = tesseractTets();

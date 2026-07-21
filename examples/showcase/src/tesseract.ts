@@ -29,7 +29,8 @@ import {
   DragRotation4D,
   ProjectedEdges3D,
   ProjectedSurface3D,
-  SlicedComplex3D
+  SlicedComplex3D,
+  representationHitFromSlicedComplex
 } from '@holotope/three';
 import { setupShowcaseUI } from './ui';
 
@@ -175,6 +176,11 @@ const highlightCube = (cube: number | null): void => {
 
 const raycaster = new Raycaster();
 const pointerNdc = new Vector2();
+const traceTitle = document.getElementById('traceTitle')!;
+const tracePoint = document.getElementById('tracePoint')!;
+const traceLineage = document.getElementById('traceLineage')!;
+const formatR4 = (values: ArrayLike<number>): string =>
+  `[${Array.from(values, (value) => value.toFixed(3)).join(', ')}]`;
 let downX = 0;
 let downY = 0;
 renderer.domElement.addEventListener('pointerdown', (e) => {
@@ -190,12 +196,28 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     .find((h) => h.faceIndex !== undefined && h.object.visible);
   if (!hit) {
     highlightCube(null);
+    traceTitle.textContent = 'Source trace';
+    tracePoint.textContent = 'Click either orange section to inspect what its visible point preserves.';
+    traceLineage.textContent = 'The two views share source identity but have different inverse semantics.';
     return;
   }
   const product = hit.object === section.object ? section : overlay;
-  const tet = product.sourceTetOfFace(hit.faceIndex!);
+  const representationHit = representationHitFromSlicedComplex(product, {
+    point: hit.point,
+    faceIndex: hit.faceIndex ?? null
+  });
+  if (representationHit.source.kind !== 'cell') return;
+  const tet = representationHit.source.cellIndex;
   // tetrahedralizeCuboidCells emits 6 Kuhn tets per cube, cube-major.
-  highlightCube(Math.floor(tet / 6));
+  const cube = Math.floor(tet / 6);
+  highlightCube(cube);
+
+  const view = product === section ? 'exact affine slice' : 'slice through perspective projection';
+  traceTitle.textContent = `${view} → source cube ${cube + 1} / 8`;
+  tracePoint.textContent = representationHit.ambientPoint
+    ? `${representationHit.ambientPointStatus} R4 point ${formatR4(representationHit.ambientPoint.data)} · ambiguity ${representationHit.ambiguity}`
+    : `${representationHit.ambientPointStatus} R4 point · source tetrahedron ${tet} still identified · ambiguity ${representationHit.ambiguity}`;
+  traceLineage.textContent = `lineage ${representationHit.lineage.steps.map((step) => step.kind).join(' → ')} · source vertices [${representationHit.source.vertexIndices.join(', ')}]`;
 });
 
 // Controls

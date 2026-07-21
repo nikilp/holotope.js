@@ -6,6 +6,23 @@ N-dimensional geometry for TypeScript.
 
 Holotope.js is an experimental open-source library for building, transforming, projecting, and rendering higher-dimensional geometry on the web. It provides a modular foundation for 4D and N-dimensional visual systems, including vectors, transforms, projections, polytopes, cell complexes, and rendering adapters.
 
+## Design thesis
+
+Projection, slicing, higher-dimensional algebra, numerical simulation, and
+scientific visualization each have deep existing traditions. Holotope does not
+claim novelty for every constituent algorithm. Its purpose is to connect those
+pieces into one accountable dimensional framework: an authoritative N-D source,
+explicit lower-dimensional maps, traceable source identity, constrained
+interaction through those maps, and simulation that continues to operate on the
+source rather than its picture.
+
+Established theory and compatible open implementations are inputs to that
+framework when they survive the same requirements as native work: clear
+attribution and licensing, an auditable Float64 CPU reference, explicit
+degeneracy policy, and differential tests. The intended outcome is higher
+dimensional intuition grounded in inspectable mathematics rather than isolated
+visual effects.
+
 ## Architecture
 
 Higher-dimensional state stays higher-dimensional until the last responsible moment. The zero-dependency core does all N-D math in Float64 on the CPU; renderer adapters turn explicit **projections** of that state into ordinary 3D objects.
@@ -19,7 +36,8 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ field                inspectable R4 Julia fields; exact tricomplex Mandelbrot parameter slices
   ├─ coupling             provenance-driven parameters and exact equivariance certificates
   ├─ spectral             symmetric eigensystems and CellComplex graph-Laplacian modes
-  ├─ projection           CameraN, perspective/orthographic N→3, hyperplane slicing
+  ├─ projection           CameraN, homogeneous N→3 maps, inverse fibres, simplex lifts, slicing
+  ├─ representation       map lineage, source references, and renderer-independent hit results
   └─ coxeter              exact Coxeter groups, Wythoff construction of the uniform polychora
 
 @holotope/three           three.js adapter (three as peer dependency)
@@ -46,6 +64,8 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ narrowphase          typed distance, shallow, penetration, deep-manifold capabilities
   ├─ contact response     warm-started normal impulses + coupled R4 friction ball
   ├─ contact pipeline     mixed glomes, planes, hyperboxes, vertex polytopes
+  ├─ rigid constraints    coupled point joints + force-bounded scalar Jacobian rows
+  ├─ distance policies    N-D geometry + R4 equality, guardians, and motor bindings
   └─ hyperbox pipeline    specialized homogeneous box orchestration
 ```
 
@@ -100,7 +120,7 @@ The decisions that shape the library — and why — are in [`docs/architecture.
 ## Roadmap (abridged)
 
 - ✅ Rotation backends: so(n) exponential map, paired-quaternion `Rotor4` fast path + slerp
-- ✅ 4D camera/controls; `ProjectedSurface3D`; slicer provenance for picking
+- ✅ 4D camera/controls; map lineage, projected-simplex lifts, and edge-exact slice provenance
 - ✅ WebGPU/TSL acceleration: vertex-stage 4D projection, compute-shader slicing
 - ✅ Wythoff construction: exact face lattices for the uniform polychora (all rank-4 groups, snub 24-cell, grand antiprism)
 - ✅ Exact E8 root orbit + icosian folding into conjugate 4-spaces
@@ -111,9 +131,11 @@ The decisions that shape the library — and why — are in [`docs/architecture.
 - ✅ Escape-time field core: R4 Julia products, GPU differentials, DE audits, and certified Platonic tricomplex parameter slices
 - ✅ Canonical couplings: Elser–Sloane internal-coordinate decoration, exact H4 equivariance, skew-product rotor flow, and periodic holonomy certificates
 - ✅ Spectral foundation: deterministic symmetric eigensystems and dimension-independent CellComplex graph-Laplacian modes
+- ✅ Source-coordinate constraints: deterministic weighted Float64 solving with shared compatibility, rank, null-space, conditioning, and residual diagnostics
+- ✅ Immutable named constraint composition with stable evidence replacement, removal, snapshots, and keyed diagnostics
 - GPU surface/section rendering and the materials/transparency phase
 - `.hyper.json` container format and OFF import/export
-- ◐ `@holotope/physics`: ballistic bodies, support/GJK, dimension-independent swept broadphase and linear CCD, bounded R4 EPA penetration, persistent clipped vertex-polytope manifolds with reusable N-D facet topology, complete vertex-polytope/plane support-face contact, exact N-D smooth and R4 mixed analytic contact, coupled three-ball friction, and deterministic mixed-shape response; rotational CCD and joints next
+- ◐ `@holotope/physics`: ballistic bodies, support/GJK, dimension-independent swept broadphase and linear CCD, bounded R4 EPA penetration, persistent clipped vertex-polytope manifolds with reusable N-D facet topology, complete vertex-polytope/plane support-face contact, exact N-D smooth and R4 mixed analytic contact, coupled three-ball friction, deterministic mixed-shape response, a four-coordinate R4 point joint, force-bounded scalar rigid-Jacobian rows, and distance equality, two-guardian interval, and force-limited motor policies over shared N-D geometry; rotational CCD and orientation-coordinate joint families next
 
 ## License
 

@@ -6,7 +6,7 @@ import type { DragRotation4D } from '@holotope/three';
  * On narrow screens the fixed top-right controls panel becomes a
  * collapsible bottom sheet behind a "controls" chip, and the HUD keeps
  * only its headline (lines marked `.detail` hide). On touch devices a
- * round "4D" button appears: while active, every one-finger drag rotates
+ * labelled "4D drag" button appears: while active, every one-finger drag rotates
  * through the hidden dimension (DragRotation4D with modifier 'none')
  * instead of orbiting — phones have no Alt key. Pages should disable
  * their OrbitControls while `drag4d.modifier === 'none'`.
@@ -104,22 +104,34 @@ export function setupShowcaseUI(options: { drag4d?: DragRotation4D } = {}): void
       right: 14px;
       bottom: calc(18px + env(safe-area-inset-bottom));
       z-index: 10;
-      width: 54px;
-      height: 54px;
+      min-width: 88px;
+      height: 52px;
+      padding: 6px 10px;
       align-items: center;
       justify-content: center;
+      flex-direction: column;
+      gap: 3px;
       background: rgba(16, 18, 30, 0.92);
       border: 1px solid #26304a;
-      border-radius: 50%;
+      border-radius: 12px;
       color: #8fa3c8;
-      font: 700 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
+    }
+    .ui-4d-state {
+      color: #6f83a9;
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: .02em;
     }
     .ui-4d.active {
       border-color: #7fd4ff;
       color: #0a0a12;
       background: #7fd4ff;
+    }
+    .ui-4d.active .ui-4d-state {
+      color: #193449;
     }
     @media (max-width: 760px) {
       #hud {
@@ -207,12 +219,26 @@ export function setupShowcaseUI(options: { drag4d?: DragRotation4D } = {}): void
   if (drag4d) {
     const mode4d = document.createElement('button');
     mode4d.className = 'ui-4d available';
-    mode4d.textContent = '4D';
-    mode4d.title = 'Toggle: drag rotates in 4D instead of orbiting';
+    mode4d.type = 'button';
+    mode4d.title = 'Arm 4D drag mode; the next one-finger drag rotates through xw / yw instead of orbiting the 3D camera';
+    mode4d.setAttribute('aria-label', 'Enable 4D drag mode');
+    mode4d.setAttribute('aria-pressed', 'false');
+    const modeLabel = document.createElement('span');
+    modeLabel.textContent = '4D drag';
+    const modeState = document.createElement('span');
+    modeState.className = 'ui-4d-state';
+    modeState.textContent = 'tap to arm';
+    mode4d.append(modeLabel, modeState);
     mode4d.addEventListener('click', () => {
       const activate = drag4d.modifier !== 'none';
       drag4d.modifier = activate ? 'none' : 'alt';
       mode4d.classList.toggle('active', activate);
+      mode4d.setAttribute('aria-pressed', String(activate));
+      mode4d.setAttribute(
+        'aria-label',
+        activate ? 'Disable 4D drag mode' : 'Enable 4D drag mode'
+      );
+      modeState.textContent = activate ? 'drag object' : 'tap to arm';
     });
     document.body.appendChild(mode4d);
   }

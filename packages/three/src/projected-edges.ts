@@ -6,7 +6,19 @@ import {
   LineSegments,
   type Material
 } from 'three';
-import type { CellComplex, Projection, TransformN } from '@holotope/core';
+import {
+  VecN,
+  createSourceCellReferenceN,
+  isHomogeneousProjection,
+  liftHomogeneousSimplexPointN,
+  type CellComplex,
+  type HomogeneousProjection,
+  type HomogeneousSimplexLiftN,
+  type HomogeneousSimplexVertexN,
+  type Projection,
+  type SourceCellReferenceN,
+  type TransformN
+} from '@holotope/core';
 
 export interface ProjectedEdges3DOptions {
   material?: Material;
@@ -30,6 +42,10 @@ export class ProjectedEdges3D {
 
   private readonly worldPositions: Float64Array;
   private readonly positionAttribute: BufferAttribute;
+  private readonly edgeReferences: readonly SourceCellReferenceN[];
+  private readonly homogeneousProjection: HomogeneousProjection | null;
+  private readonly homogeneousPositions: Float64Array;
+  private readonly homogeneousValidity: Uint8Array;
 
   constructor(complex: CellComplex, projection: Projection, options: ProjectedEdges3DOptions = {}) {
     if (complex.ambientDim !== projection.fromDim) {
@@ -39,6 +55,9 @@ export class ProjectedEdges3D {
     }
     this.complex = complex;
     this.projection = projection;
+    this.homogeneousProjection = isHomogeneousProjection(projection)
+      ? projection
+      : null;
 
     const edgeGroups = complex.cellsOfDim(1);
     if (edgeGroups.length === 0) {
@@ -47,13 +66,21 @@ export class ProjectedEdges3D {
     let indexLength = 0;
     for (const g of edgeGroups) indexLength += g.indices.length;
     const index = new Uint32Array(indexLength);
+    const edgeReferences: SourceCellReferenceN[] = [];
     let offset = 0;
     for (const g of edgeGroups) {
       index.set(g.indices, offset);
       offset += g.indices.length;
+      const cellCount = g.indices.length / g.verticesPerCell;
+      for (let cell = 0; cell < cellCount; cell++) {
+        edgeReferences.push(createSourceCellReferenceN(complex, g, cell));
+      }
     }
+    this.edgeReferences = edgeReferences;
 
     this.worldPositions = new Float64Array(complex.positions.length);
+    this.homogeneousPositions = new Float64Array(complex.vertexCount * 4);
+    this.homogeneousValidity = new Uint8Array(complex.vertexCount);
     this.positionAttribute = new BufferAttribute(new Float32Array(complex.vertexCount * 3), 3);
     this.positionAttribute.setUsage(DynamicDrawUsage);
 
@@ -85,6 +112,16 @@ export class ProjectedEdges3D {
       count,
       this.positionAttribute.array as Float32Array
     );
+    if (this.homogeneousProjection !== null) {
+      this.homogeneousProjection.projectHomogeneousPositions(
+        this.worldPositions,
+        count,
+        this.homogeneousPositions,
+        this.homogeneousValidity
+      );
+    } else {
+      this.homogeneousValidity.fill(0);
+    }
     this.positionAttribute.needsUpdate = true;
   }
 
@@ -100,6 +137,51 @@ export class ProjectedEdges3D {
       throw new Error(`ProjectedEdges3D: segmentIndex ${segmentIndex} out of range`);
     }
     return [index.getX(segmentIndex * 2), index.getX(segmentIndex * 2 + 1)];
+  }
+
+  /** Lifecycle-aware reference to the source edge of a rendered segment. */
+  sourceReferenceOfSegment(segmentIndex: number): SourceCellReferenceN {
+    this.edgeVertices(segmentIndex);
+    return this.edgeReferences[segmentIndex]!;
+  }
+
+  /**
+   * Lifts one point on a rendered segment to the current ambient N-D edge.
+   * The point must be in this object's local representation coordinates.
+   */
+  liftSegmentPoint(
+    segmentIndex: number,
+    pointLocal: ArrayLike<number>
+  ): HomogeneousSimplexLiftN {
+    if (this.homogeneousProjection === null) {
+      return {
+        kind: 'unavailable',
+        reason: 'unsupported-projection',
+        details: {}
+      };
+    }
+    const [from, to] = this.edgeVertices(segmentIndex);
+    return liftHomogeneousSimplexPointN(
+      [this.homogeneousVertex(from), this.homogeneousVertex(to)],
+      pointLocal,
+      { tolerance: 1e-5 }
+    );
+  }
+
+  private homogeneousVertex(vertex: number): HomogeneousSimplexVertexN {
+    const ambientDim = this.complex.ambientDim;
+    const sourceOffset = vertex * ambientDim;
+    const projectedOffset = vertex * 4;
+    return {
+      sourcePoint: new VecN(
+        this.worldPositions.subarray(sourceOffset, sourceOffset + ambientDim)
+      ),
+      coordinates: this.homogeneousPositions.subarray(
+        projectedOffset,
+        projectedOffset + 4
+      ),
+      valid: this.homogeneousValidity[vertex] === 1
+    };
   }
 
   dispose(): void {

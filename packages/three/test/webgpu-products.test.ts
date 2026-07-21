@@ -123,6 +123,10 @@ describe('RaymarchedField3D contract', () => {
     expect(representationHit).not.toBeNull();
     expect(representationHit!.ambientPointStatus).toBe('approximate');
     expect(representationHit!.ambiguity).toBe('first-ray-hit');
+    expect(representationHit!.lineage.steps.map((step) => step.kind)).toEqual([
+      'field-restriction',
+      'ray-realization'
+    ]);
     expect(representationHit!.ambientPoint!.data[0]).toBeCloseTo(sectionRadius, 2);
     expect(representationHit!.source.kind).toBe('field-record');
     if (representationHit!.source.kind === 'field-record') {

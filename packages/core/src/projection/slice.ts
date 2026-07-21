@@ -7,6 +7,24 @@ export interface HyperplaneSlice4Options {
   offset?: number;
 }
 
+export type SliceFrameUpdatePolicy = 'continuous' | 'canonical';
+
+export interface HyperplaneSlice4SetNormalOptions {
+  /**
+   * `continuous` transports the preceding display basis into the new
+   * hyperplane. `canonical` recomputes the deterministic axis-based frame.
+   */
+  readonly frame?: SliceFrameUpdatePolicy;
+}
+
+/** Optional source-edge and interpolation data for every emitted slice vertex. */
+export interface SliceVertexProvenanceBuffers {
+  /** Packed source vertex pairs, two entries per emitted vertex. */
+  readonly edgeVertices: Uint32Array;
+  /** `p = from + t * (to - from)`, one entry per emitted vertex. */
+  readonly edgeParameters: Float64Array;
+}
+
 /**
  * An affine hyperplane in R^4, `{ x : ⟨normal, x⟩ = offset }`, together with
  * an orthonormal basis of the hyperplane used as the display frame: sliced
@@ -44,11 +62,19 @@ export class HyperplaneSlice4 {
    * display basis recomputed **in place**, so render products holding a
    * reference to `normal` or `basis` see the new frame on their next update.
    */
-  setNormal(normal: VecN | ArrayLike<number>): this {
+  setNormal(
+    normal: VecN | ArrayLike<number>,
+    { frame = 'continuous' }: HyperplaneSlice4SetNormalOptions = {}
+  ): this {
     const n = normal instanceof VecN ? normal : new VecN(normal);
     if (n.dim !== 4) throw new Error(`HyperplaneSlice4: normal must be 4D, got ${n.dim}D`);
     this.normal.copy(n).normalize();
-    const fresh = computeComplementBasis(this.normal);
+    if (frame !== 'continuous' && frame !== 'canonical') {
+      throw new Error(`HyperplaneSlice4.setNormal: unknown frame policy ${String(frame)}`);
+    }
+    const fresh = frame === 'continuous'
+      ? transportComplementBasis(this.normal, this.basis)
+      : computeComplementBasis(this.normal);
     for (let k = 0; k < 3; k++) this.basis[k]!.set(fresh[k]!);
     return this;
   }
@@ -75,6 +101,63 @@ export class HyperplaneSlice4 {
       }
     }
     return out;
+  }
+}
+
+/**
+ * Projects the preceding frame into the new hyperplane before orthonormalizing.
+ * For a continuously moving normal this selects the nearby frame instead of
+ * snapping when the canonical coordinate-axis ordering changes.
+ */
+function transportComplementBasis(
+  normal: VecN,
+  previous: readonly Float64Array[]
+): [Float64Array, Float64Array, Float64Array] {
+  const candidates = [
+    ...previous,
+    ...[0, 1, 2, 3].map((axis) => VecN.basis(4, axis).data)
+  ];
+  const basis: Float64Array[] = [];
+  const nd = normal.data;
+  for (const candidate of candidates) {
+    const vector = Float64Array.from(candidate);
+    orthogonalize(vector, nd, basis);
+    // A second pass keeps the transported frame orthogonal near rank loss.
+    orthogonalize(vector, nd, basis);
+    const norm = Math.hypot(...vector);
+    if (norm <= 1e-12) continue;
+    for (let coordinate = 0; coordinate < 4; coordinate++) {
+      vector[coordinate]! /= norm;
+    }
+    basis.push(vector);
+    if (basis.length === 3) break;
+  }
+  if (basis.length !== 3) {
+    throw new Error('HyperplaneSlice4: could not transport a complete display frame');
+  }
+  return basis as [Float64Array, Float64Array, Float64Array];
+}
+
+function orthogonalize(
+  vector: Float64Array,
+  normal: Float64Array,
+  basis: readonly Float64Array[]
+): void {
+  let dot = 0;
+  for (let coordinate = 0; coordinate < 4; coordinate++) {
+    dot += vector[coordinate]! * normal[coordinate]!;
+  }
+  for (let coordinate = 0; coordinate < 4; coordinate++) {
+    vector[coordinate]! -= dot * normal[coordinate]!;
+  }
+  for (const existing of basis) {
+    dot = 0;
+    for (let coordinate = 0; coordinate < 4; coordinate++) {
+      dot += vector[coordinate]! * existing[coordinate]!;
+    }
+    for (let coordinate = 0; coordinate < 4; coordinate++) {
+      vector[coordinate]! -= dot * existing[coordinate]!;
+    }
   }
 }
 
@@ -133,6 +216,9 @@ function computeComplementBasis(normal: VecN): [Float64Array, Float64Array, Floa
  * @param outProvenance  optional per-triangle provenance: the source tetra
  *                       index (position in `tets` / 4) of each emitted
  *                       triangle; must hold `(tets.length / 4) * 2` entries
+ * @param outVertexProvenance optional source edge and interpolation parameter
+ *                       for every emitted vertex; buffers must hold six
+ *                       vertices per source tetrahedron
  * @returns number of vertices written (a multiple of 3)
  */
 export function sliceTetrahedraAmbient(
@@ -141,13 +227,23 @@ export function sliceTetrahedraAmbient(
   slice: HyperplaneSlice4,
   outPositions: Float64Array,
   epsilon = 1e-9,
-  outProvenance?: Uint32Array
+  outProvenance?: Uint32Array,
+  outVertexProvenance?: SliceVertexProvenanceBuffers
 ): number {
   const tetCount = tets.length / 4;
   if (outPositions.length < tetCount * 24) {
     throw new Error(
       `sliceTetrahedraAmbient: output buffer too small (${outPositions.length} < ${tetCount * 24})`
     );
+  }
+  if (
+    outVertexProvenance !== undefined &&
+    (
+      outVertexProvenance.edgeVertices.length < tetCount * 12 ||
+      outVertexProvenance.edgeParameters.length < tetCount * 6
+    )
+  ) {
+    throw new Error('sliceTetrahedraAmbient: vertex provenance buffer too small');
   }
 
   const neg: number[] = [];
@@ -161,12 +257,32 @@ export function sliceTetrahedraAmbient(
   // ambient 4D coordinates to outPositions.
   const emitCrossing = (from: number, to: number, sFrom: number, sTo: number): void => {
     const t = sFrom / (sFrom - sTo);
+    const outputVertex = out / 4;
+    if (outVertexProvenance !== undefined) {
+      outVertexProvenance.edgeVertices[outputVertex * 2] = from;
+      outVertexProvenance.edgeVertices[outputVertex * 2 + 1] = to;
+      outVertexProvenance.edgeParameters[outputVertex] = t;
+    }
     const a = from * 4;
     const b = to * 4;
     for (let c = 0; c < 4; c++) {
       outPositions[out++] =
         worldPositions[a + c]! + t * (worldPositions[b + c]! - worldPositions[a + c]!);
     }
+  };
+
+  const copyEmittedVertex = (sourceVertex: number): void => {
+    const outputVertex = out / 4;
+    outPositions.copyWithin(out, sourceVertex * 4, sourceVertex * 4 + 4);
+    if (outVertexProvenance !== undefined) {
+      outVertexProvenance.edgeVertices[outputVertex * 2] =
+        outVertexProvenance.edgeVertices[sourceVertex * 2]!;
+      outVertexProvenance.edgeVertices[outputVertex * 2 + 1] =
+        outVertexProvenance.edgeVertices[sourceVertex * 2 + 1]!;
+      outVertexProvenance.edgeParameters[outputVertex] =
+        outVertexProvenance.edgeParameters[sourceVertex]!;
+    }
+    out += 4;
   };
 
   const recordTriangles = (tet: number, count: number): void => {
@@ -219,10 +335,9 @@ export function sliceTetrahedraAmbient(
       emitCrossing(neg[0]!, nonneg[1]!, negS[0]!, posS[1]!);
       emitCrossing(neg[1]!, nonneg[1]!, negS[1]!, posS[1]!);
       // Second triangle: quad vertices 0, 2, 3.
-      outPositions.copyWithin(out, quadStart, quadStart + 4);
-      out += 4;
-      outPositions.copyWithin(out, quadStart + 8, quadStart + 12);
-      out += 4;
+      const quadStartVertex = quadStart / 4;
+      copyEmittedVertex(quadStartVertex);
+      copyEmittedVertex(quadStartVertex + 2);
       emitCrossing(neg[1]!, nonneg[0]!, negS[1]!, posS[0]!);
       recordTriangles(tet, 2);
     }
@@ -247,7 +362,8 @@ export function sliceTetrahedra(
   slice: HyperplaneSlice4,
   outPositions: Float32Array,
   epsilon = 1e-9,
-  outProvenance?: Uint32Array
+  outProvenance?: Uint32Array,
+  outVertexProvenance?: SliceVertexProvenanceBuffers
 ): number {
   const tetCount = tets.length / 4;
   if (outPositions.length < tetCount * 18) {
@@ -264,7 +380,8 @@ export function sliceTetrahedra(
     slice,
     ambientScratch,
     epsilon,
-    outProvenance
+    outProvenance,
+    outVertexProvenance
   );
   for (let v = 0; v < count; v++) {
     const p = v * 4;

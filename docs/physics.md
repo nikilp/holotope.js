@@ -11,7 +11,8 @@ pipelines. A Float64 EPA fallback adds bounded minimum-translation witnesses for
 general full-dimensional convex R4 pairs; vertex-enumerable R4 polytopes
 graduate that witness into a complete clipped manifold with persistent source
 feature identities. Opt-in event stepping resolves certified linear impacts;
-rotational CCD, joints, and sleeping remain separate later contracts.
+rotational CCD, orientation-coordinate joint families, and sleeping remain
+separate later contracts.
 
 ## Convex mass properties
 
@@ -682,6 +683,314 @@ artificially damped.
 `normalContactConstraintsFromHyperboxPatch4()` remain available as explicit
 frictionless compatibility interfaces.
 
+### Bilateral R4 point joints
+
+`PointJointSolver4` constrains two world-space anchors to have one shared
+velocity. Unlike contact, this is a bilateral constraint: its impulse may point
+anywhere in R4. The four coordinates are solved as one block because an
+off-centre impulse along one coordinate can change anchor velocity along the
+others through the full six-plane inertia operator.
+
+For relative anchor velocity `v = vA - vB`, the solver constructs the symmetric
+positive-definite response
+
+\[
+K_{ij} = e_i^T(W_A + W_B)e_j,
+\]
+
+where `W` includes inverse linear mass and the angular response of
+`r ∧ e_j`. One Cholesky solve produces the unconstrained update
+
+\[
+\Delta\lambda = K^{-1}(v_{target} - v).
+\]
+
+There is no component-wise projection: all four coordinates remain coupled.
+`PointJointResult4` exposes `K`, its inverse effective-mass matrix, initial
+anchor error and velocity, bounded bias target, warm and accumulated world
+impulses, and the final residual.
+
+`PointJoint4` is the persistent pose binding. It stores body-local anchors and
+resolves a fresh `PointJointConstraint4` at the current poses; a fixed-world
+joint stores its second anchor directly in world R4.
+
+```ts
+import { PointJoint4, PointJointSolver4 } from '@holotope/physics';
+
+const pin = new PointJoint4({
+  id: 'pin/body-a',
+  bodyA,
+  localAnchorA: [0, 0.5, 0, 0.25],
+  worldAnchorB: [0, 2, 0, 0]
+});
+const jointSolver = new PointJointSolver4({ iterations: 8 });
+
+world.step(fixedDt, 1, (substepDt) => {
+  jointSolver.solve([pin.constraint()], substepDt);
+});
+```
+
+The low-level constraint also accepts a prescribed `RigidMotion4` or `null` at
+either side when the caller supplies current world anchors. At least one side
+must be dynamic. Persistent IDs warm-start the full R4 impulse and retire
+immediately when absent or when participant identity changes.
+
+Equal and opposite impulses at a coincident anchor conserve total linear and
+angular momentum. If numerical drift separates the two anchors, Baumgarte bias
+deliberately trades exact angular-momentum conservation for bounded positional
+repair, just as separated penetration witnesses do in contact. Set
+`baumgarte: 0` when a momentum-only velocity solve is required.
+
+### Scalar rigid-Jacobian rows with force bounds
+
+`ConstraintRow4` is the reusable scalar primitive beneath distance equalities,
+unilateral distance bounds, and distance motors. A row stores one R4 rigid
+Jacobian per participant: four coefficients act on linear velocity and six
+bivector coefficients act on angular velocity. Its generalized coordinate
+speed is
+
+\[
+v_c = J_A v_A + J_B v_B,
+\qquad
+k = J M^{-1}J^T,
+\qquad
+m_{eff}=k^{-1}.
+\]
+
+`ConstraintRowSolver4` performs projected Gauss--Seidel updates. Authored
+`minForce` and `maxForce` are generalized-force bounds, so a step of duration
+`Δt` converts them to impulse bounds before projection:
+
+\[
+\lambda_{min}=f_{min}\Delta t,
+\qquad
+\lambda_{max}=f_{max}\Delta t,
+\]
+
+\[
+\lambda' =
+\Pi_{[\lambda_{min},\lambda_{max}]}
+\left(\lambda + m_{eff}(v_{target}-v_c)\right),
+\qquad
+\Delta\lambda=\lambda'-\lambda.
+\]
+
+Omitting the bounds gives the unrestricted equality row. Setting one bound to
+zero produces a unilateral row; finite bounds produce force-limited behavior
+that remains consistent when the fixed timestep changes. A signed
+`positionError` contributes bounded Baumgarte bias to the authored
+`velocityTarget`. Its sign follows the Jacobian orientation: positive error is
+reduced by negative coordinate speed.
+
+The solver exposes both `residualSpeed` and `projectedResidualSpeed`. The raw
+equality residual may correctly remain nonzero when a force bound is active.
+The projected residual instead tests the bounded-row optimality condition:
+
+\[
+r_p = \frac{
+\lambda-\Pi_{[\lambda_{min},\lambda_{max}]}
+(\lambda+m_{eff}(v_{target}-v_c))
+}{m_{eff}}.
+\]
+
+This sign matches `residualSpeed = v_c - v_target`; `r_p = 0` means the row is
+solved even at saturation. `impulseState` reports whether the impulse is
+unbounded, within bounds, at either bound, or fixed. Warm starts retain scalar
+impulse, timestep, participant identities, and the previous Jacobian. The old
+generalized impulse is timestep-scaled, projected onto the current row, and
+clamped before application, so coherent direction changes and exact row-sign
+reversal remain safe.
+
+Low-level row values inherit the coordinate scale chosen by `J`. In
+particular, generalized force, impulse, position error, and coordinate speed
+need not share units across unlike rows. The solve aggregates
+`sumAbsoluteCoordinateImpulse`, `maxResidualSpeed`,
+`maxProjectedResidualSpeed`, and `maxAbsoluteCoordinateError` are convergence
+and debugging diagnostics; they are not physical totals that may be summed or
+compared without a shared coordinate convention.
+
+`pointConstraintRow4()` constructs the exact linear and lever-arm bivector
+coefficients for a world-space point direction. Purely angular coordinates may
+instead provide their six-plane Jacobian directly.
+
+### Distance coordinates in N dimensions and R4
+
+The geometric part of a distance constraint is dimension-independent. For
+anchors `a` and `b` and positive rest length `ℓ`,
+
+\[
+C = \|a-b\|-\ell,
+\qquad
+n = \frac{a-b}{\|a-b\|},
+\qquad
+\dot C = n\cdot(v_A-v_B).
+\]
+
+`evaluateDistanceCoordinateN()` returns `a-b`, `n`, and the current distance
+for any `VecN` dimension. `evaluateDistanceConstraintN()` additionally returns
+the signed equality error. Coincident anchors have no unique distance gradient,
+so that case requires an explicit nonzero `directionHint`; the API never
+substitutes an arbitrary coordinate axis.
+
+`DistanceCoordinate4` binds that geometry to two body-local anchors, or to one
+body-local anchor and a fixed world point. It retains the most recent coherent
+direction for subsequent coincident evaluations. Equality, interval, and motor
+policies share this binding instead of independently redefining R4 lever arms.
+
+#### Rigid distance equality
+
+`DistanceJoint4` binds that geometry to R4 rigid bodies. It stores local
+anchors, captures the construction distance when `restLength` is omitted, and
+returns a `DistanceJointConstraint4` consumable by the general row solver:
+
+```ts
+import {
+  ConstraintRowSolver4,
+  DistanceJoint4
+} from '@holotope/physics';
+
+const rod = new DistanceJoint4({
+  id: 'rod/a-b',
+  bodyA,
+  localAnchorA: [0.4, 0, 0, 0.2],
+  bodyB,
+  localAnchorB: [-0.3, 0.1, 0, 0],
+  restLength: 1.5
+});
+const rows = new ConstraintRowSolver4({ iterations: 8 });
+
+world.step(fixedDt, 1, (substepDt) => {
+  rows.solve([rod.constraint()], substepDt);
+});
+```
+
+The point impulses are `λn` and `-λn`. Because `n` is parallel to the anchor
+separation, their net torque is `(a-b)∧(λn)=0`; a body-to-body distance solve
+therefore conserves total linear momentum and all six components of total
+angular momentum even when its anchors are separated. Baumgarte stabilization
+changes kinetic energy but not that internal-force momentum identity. A zero
+rest length instead belongs to `PointJoint4`, whose four-coordinate gradient
+remains defined at coincidence.
+
+#### Distance interval
+
+`DistanceIntervalJoint4` constrains the same scalar coordinate to a closed
+interval
+
+\[
+\ell_{min} \le \|a-b\| \le \ell_{max},
+\qquad 0\le\ell_{min}<\ell_{max}.
+\]
+
+`constraints(dt)` always returns two unilateral guardian rows with stable
+`:minimum` and `:maximum` ID suffixes. At the minimum, `minForce: 0` permits
+only a positive radial impulse, so the row may push the anchors apart but
+cannot pull them together. At the maximum, `maxForce: 0` permits only a
+negative radial impulse, so the row may pull inward but cannot push outward.
+
+While the coordinate lies inside the interval, their targets are
+
+\[
+v_{min}=\frac{\ell_{min}-\ell}{\Delta t},
+\qquad
+v_{max}=\frac{\ell_{max}-\ell}{\Delta t}.
+\]
+
+Together they enforce the first-order safe-speed corridor
+
+\[
+v_{min}\le\dot\ell\le v_{max},
+\]
+
+so constant substep velocity cannot cross either boundary. Outside the
+interval, the violated row instead carries signed position error and zero
+authored speed; the solver's bounded Baumgarte term supplies recovery bias.
+The opposite guardian remains present.
+
+Keeping both rows in every solve is stronger than selecting a row from the
+velocity observed before solving. A motor, contact, or another joint may create
+unsafe radial speed during projected Gauss--Seidel iteration. A guardian row
+that is already in the row set sees that updated velocity and projects it back
+into the corridor. When row order is authored directly, place producers such
+as the distance motor before the two guardians so the final guardians observe
+their update.
+
+`interval(dt)` is diagnostic only. It reports the current or first-order
+destination bound as `minimum` or `maximum`, and otherwise reports `inactive`,
+including correct destination selection for full-span crossings. It does not
+return a solver row and must not be used to select the row set;
+`constraints(dt)` is the sole solver input.
+
+At exact coincidence, `\|a-b\|` has no single scalar gradient. Guardian rows
+therefore require an authored `directionHint` and accept only the chosen
+positive branch: relative motion must be longitudinal and non-negative along
+that direction. Transverse or negative-branch motion is refused rather than
+being assigned an incorrect scalar derivative. The diagnostic `interval(dt)`
+can still use `\|v_A-v_B\|` to report one-sided distance growth, but that
+observation does not manufacture a valid solve branch. A positive minimum also
+requires the hint at construction so recovery has an explicit direction.
+
+#### Force-limited distance motor
+
+`DistanceMotor4` prescribes radial coordinate speed with symmetric generalized
+force bounds. Positive `targetSpeed` lengthens the anchor distance, negative
+speed shortens it, and `maxForce` produces
+
+\[
+-f_{max}\le f\le f_{max}.
+\]
+
+Both policy values are mutable between solves. Because the motor and interval
+are independent rows on the same coordinate, the motor composes with both
+guardian rows in the same solver:
+
+```ts
+import {
+  ConstraintRowSolver4,
+  DistanceIntervalJoint4,
+  DistanceMotor4
+} from '@holotope/physics';
+
+const interval = new DistanceIntervalJoint4({
+  id: 'link/a-b',
+  bodyA,
+  localAnchorA: [0.4, 0, 0, 0.2],
+  bodyB,
+  localAnchorB: [-0.3, 0.1, 0, 0],
+  minLength: 1,
+  maxLength: 2
+});
+const motor = new DistanceMotor4({
+  id: 'drive/a-b',
+  bodyA,
+  localAnchorA: [0.4, 0, 0, 0.2],
+  bodyB,
+  localAnchorB: [-0.3, 0.1, 0, 0],
+  targetSpeed: 0.5,
+  maxForce: 20
+});
+const rows = new ConstraintRowSolver4({ iterations: 8 });
+
+world.step(fixedDt, 1, (substepDt) => {
+  const guardians = interval.constraints(substepDt);
+  rows.solve(
+    [motor.constraint(), ...guardians],
+    substepDt
+  );
+});
+```
+
+The motor is deliberately ordered before the guardians: each guardian then
+sees any radial speed the motor introduced, including when the pre-solve
+diagnostic state was inactive.
+
+A motor at coincidence also requires `directionHint`, because “positive
+lengthening” otherwise has no unique world direction. A body-to-body motor may
+inject or remove kinetic energy, but its equal and opposite radial impulses
+retain the same total linear- and angular-momentum identity as a distance
+equality. A fixed-world endpoint is an external constraint and does not carry
+that closed-system guarantee.
+
 ### Broadphase candidate providers
 
 Candidate generation is a separate dimension-independent contract.
@@ -1095,6 +1404,27 @@ The test suite pins:
   sweep-and-prune and the exhaustive continuous provider in a distractor scene;
 - explicit angular and prescribed-motion fallback plus bounded event-limit
   remainder without a fabricated continuous guarantee.
+- analytic and randomized full-SO(4) point-joint block solves, hidden-axis
+  lever coupling, embedded-R3 invariance, coincident-anchor momentum
+  conservation, persistent warm starts, and fixed-world gravity support.
+- dimension-independent distance gradients through R7, translation and
+  embedding invariance, explicit coincident-anchor directions, unrestricted
+  stretch/compression impulses, separated-anchor six-plane momentum
+  conservation, embedded-R3 invariance, and long-running gravity tethers;
+- scalar rigid-Jacobian differentials over randomized full-SO(4) anisotropic
+  bodies, prescribed-motion response, coherent warm-row projection, and a
+  pure xw angular coordinate;
+- force-to-impulse bound scaling, one-sided complementarity, saturated-row KKT
+  residuals, bounded warm-start projection, fixed rows, and malformed bound
+  refusal;
+- diagnostic crossing classification, two stable distance-guardian IDs,
+  interior safe-speed corridors, lower/upper impulse signs, stale warm-impulse
+  removal, full-span crossings, exact-coincidence branch refusal, embedded-R3
+  closure, and full-SO(4) pair momentum conservation;
+- positive and negative distance-motor tracking, exact force saturation,
+  timestep-consistent acceleration, guardian enforcement of velocity created
+  by other rows, motor/interval composition, and the distinction between energy
+  input and internal-force momentum conservation.
 
 A manifold is not implied by a black-box convex support query. EPA supplies a
 bounded general R4 minimum-translation witness; a response-grade general
@@ -1107,8 +1437,11 @@ surfaces unless an explicit collider is constructed from them. The finite
 broadphase is conservative AABB sweep-and-prune; infinite planes use an
 exhaustive lane. Linear CCD uses conservative swept AABBs before its certified
 casts, with the exhaustive candidate provider retained as a reference lane.
-Rotational CCD, spatial trees, joints, rolling resistance, and sleeping are not
-implied by this stage.
+Rotational CCD, spatial trees, orientation-coordinate joints and limits,
+distance servos, rolling resistance, and sleeping are not implied by this
+stage. Point and distance joints plus scalar Jacobian rows are a constraint
+foundation, not a claim that hinge-like orientation families are already
+defined in R4.
 Exact total angular-momentum conservation applies when the two impulse anchors
 coincide; penetrated witness pairs are distinct constraint anchors and
 positional stabilization is intentionally non-conservative.

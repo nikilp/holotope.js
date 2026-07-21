@@ -1,6 +1,10 @@
 export { ProjectedEdges3D, type ProjectedEdges3DOptions } from './projected-edges.js';
 export { ProjectedSurface3D, type ProjectedSurface3DOptions } from './projected-surface.js';
-export { SlicedComplex3D, type SlicedComplex3DOptions } from './sliced-complex.js';
+export {
+  SlicedComplex3D,
+  type SliceCrossingProvenanceN,
+  type SlicedComplex3DOptions
+} from './sliced-complex.js';
 export {
   SampledSlicedField3D,
   type SampledSlicedField3DOptions
@@ -10,16 +14,19 @@ export {
   representationHitFromProjectedSurface,
   representationHitFromSampledSlicedField,
   representationHitFromSlicedComplex,
-  type AmbientPointStatus,
-  type RepresentationAmbiguity,
-  type RepresentationCellSourceN,
-  type RepresentationFieldRecordSource4,
-  type RepresentationHitN,
-  type RepresentationIntersection3D,
-  type RepresentationKind3D,
-  type RepresentationSampleCellSource4,
-  type RepresentationSourceN
+  type RepresentationIntersection3D
 } from './representation-hit.js';
+export type {
+  AmbientPointStatus,
+  RepresentationAmbiguity,
+  RepresentationCellSourceN,
+  RepresentationDetailValue,
+  RepresentationFieldRecordSource4,
+  RepresentationHitN,
+  RepresentationKind3D,
+  RepresentationSampleCellSource4,
+  RepresentationSourceN
+} from '@holotope/core';
 export {
   FieldRelief3D,
   type FieldRelief3DOptions,

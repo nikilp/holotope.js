@@ -1,7 +1,14 @@
-import { VecN } from '@holotope/core';
-import type { FieldEvaluation4 } from '@holotope/core';
+import {
+  VecN,
+  createRepresentationLineageN,
+  fieldRestrictionMapRecipe4
+} from '@holotope/core';
+import type {
+  FieldEvaluation4,
+  RayRealizationMapRecipe3,
+  RepresentationHitN
+} from '@holotope/core';
 import type { Ray } from 'three/webgpu';
-import type { RepresentationHitN } from '../representation-hit.js';
 import type {
   RaymarchedField3D,
   RaymarchedFieldIntersection
@@ -14,6 +21,14 @@ export function representationHitFromRaymarchedField<
   product: RaymarchedField3D<Record>,
   intersection: RaymarchedFieldIntersection<Record>
 ): RepresentationHitN<Record> {
+  const rayRecipe: RayRealizationMapRecipe3 = {
+    kind: 'ray-realization',
+    fromDim: 3,
+    toDim: 3,
+    maxSteps: product.maxSteps,
+    surfaceEpsilon: product.surfaceEpsilon,
+    stepSafety: product.stepSafety
+  };
   return {
     representation: 'raymarched-field',
     point3: intersection.point.toArray(),
@@ -21,6 +36,10 @@ export function representationHitFromRaymarchedField<
     ambientPointStatus: 'approximate',
     ambientPoint: new VecN(intersection.point4),
     ambiguity: 'first-ray-hit',
+    lineage: createRepresentationLineageN(4, [
+      fieldRestrictionMapRecipe4(product.field.id, product.slice),
+      rayRecipe
+    ]),
     source: {
       kind: 'field-record',
       field: product.field,

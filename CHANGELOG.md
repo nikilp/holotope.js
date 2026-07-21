@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.0.5
+
+### `@holotope/core@0.0.5`
+
+- Added homogeneous orthographic and iterated-perspective maps with explicit
+  validity domains, affine inverse fibres, and conditional projected-simplex
+  lifts.
+- Added renderer-independent representation lineage, lifecycle-aware in-memory
+  source-cell references, and exact section-edge construction provenance.
+- Added source-edge and source-simplex coordinates plus a deterministic
+  Float64 linear-constraint solver with compatibility, rank, null-space,
+  conditioning, and residual certificates.
+- Added immutable named constraint systems for stable evidence composition,
+  replacement, removal, and reproducible snapshots.
+
+### `@holotope/three@0.0.5`
+
+- Connected projected edges, projected surfaces, exact sections, sampled
+  fields, and WebGPU field hits to the shared representation-lineage contract.
+- Added conditional ambient-point recovery for valid projected segments and
+  triangles while preserving global projection-overlap ambiguity separately.
+- Extended exact sliced-complex products with source-edge interpolation records
+  for every emitted vertex.
+
+### `@holotope/physics@0.0.5`
+
+- Added coupled R4 point joints and a reusable force-bounded scalar rigid-body
+  constraint row.
+- Added dimension-independent distance-coordinate geometry with R4 equality,
+  closed-interval guardian, and force-limited motor policies.
+- Added projected KKT residuals, explicit coincidence branches, persistent
+  warm starting, and deterministic multi-row diagnostics.
+
+### Showcase
+
+- Extended the projection/cross-section entry point with a live source trace:
+  the exact affine slice reports its recovered R4 point, while the projected
+  view retains source identity and explicitly reports inverse ambiguity.
+- Clarified the public design thesis around accountable composition of existing
+  mathematics rather than isolated higher-dimensional effects.
+
 ## v0.0.4
 
 ### `@holotope/core@0.0.4`

@@ -81,6 +81,40 @@
         border-color: #7fd4ff;
         color: #d7e3ff;
       }
+      #trace {
+        position: fixed;
+        left: 50%;
+        bottom: 14px;
+        z-index: 8;
+        width: min(660px, calc(100vw - 300px));
+        min-height: 58px;
+        transform: translateX(-50%);
+        padding: 9px 13px;
+        background: rgba(16, 18, 30, 0.9);
+        border: 1px solid #26304a;
+        border-radius: 8px;
+        color: #8fa3c8;
+        font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        pointer-events: none;
+      }
+      #trace strong {
+        color: #d7e3ff;
+      }
+      #tracePoint {
+        color: #73e3c0;
+      }
+      #traceLineage {
+        color: #7fd4ff;
+      }
+      @media (max-width: 760px) {
+        #trace {
+          left: 12px;
+          right: 12px;
+          bottom: 76px;
+          width: auto;
+          transform: none;
+        }
+      }
     </style>
   </head>
   <body>
@@ -107,6 +141,11 @@
       <button id="resetRotation">reset 4D drag</button>
       <label>cross-section <input id="showSlice" type="checkbox" checked /></label>
     </div>
+    <div id="trace">
+      <strong id="traceTitle">Source trace</strong><br />
+      <span id="tracePoint">Click either orange section to inspect what its visible point preserves.</span><br />
+      <span id="traceLineage">The two views share source identity but have different inverse semantics.</span>
+    </div>
     <template id="explainer">
       <h2>One tesseract, seen two ways</h2>
       <h3>The trick to seeing it</h3>
@@ -123,7 +162,9 @@
       <p>Drag <strong>slice w</strong> slowly from −1.6 to 1.6 — watch the cube appear and vanish.
       Tilt the slice and it becomes a stranger shape, just as a tilted cube slices into hexagons.
       Alt-drag to turn the tesseract in 4D and watch the "inner" cube trade places with the outer.
-      Click the slice to see which of the 8 cubes it came from.</p>
+      Click either orange section to see which source cell produced it. The right slice gives an
+      exact R4 point; the projected overlay preserves source identity while honestly reporting that
+      its visible point has projection-overlap ambiguity.</p>
     </template>
     <script type="module" src="/src/tesseract.ts"></script>
   </body>

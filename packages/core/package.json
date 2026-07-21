@@ -1,6 +1,6 @@
 {
   "name": "@holotope/core",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "N-dimensional geometry, transforms, polytopes, and projection for TypeScript.",
   "license": "MIT",
   "repository": {
@@ -56,6 +56,10 @@
     "./spectral": {
       "types": "./dist/spectral/index.d.ts",
       "import": "./dist/spectral/index.js"
+    },
+    "./representation": {
+      "types": "./dist/representation/index.d.ts",
+      "import": "./dist/representation/index.js"
     }
   },
   "scripts": {

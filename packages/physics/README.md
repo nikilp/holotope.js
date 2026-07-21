@@ -6,7 +6,10 @@ implements 4D convex mass properties, principal-plane inertia, dynamic
 fixed-step interpolation into the renderer-neutral `ObjectN` scene graph. The
 current Stage D layer adds support/GJK queries, complete oriented-hyperbox
 contact patches, warm-started contact response with a coupled R4 tangent
-friction ball, and deterministic mixed-shape collider/body orchestration.
+friction ball, a coupled four-coordinate bilateral point joint, scalar rigid
+Jacobian rows with generalized-force bounds, rigid distance equalities,
+two-guardian distance intervals, force-limited distance motors, and
+deterministic mixed-shape collider/body orchestration.
 Candidate generation is dimension-independent and includes exhaustive and
 temporally coherent sweep-and-prune providers; static and linearly swept AABBs
 share the same candidate contract, while infinite planes remain in an explicit
@@ -24,8 +27,9 @@ numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
-Spatial-tree broadphases, rotational CCD, joints, rolling resistance, and
-sleeping are not yet part of this package. R4 Coulomb
+Spatial-tree broadphases, rotational CCD, orientation-coordinate joint
+families, distance servos, rolling resistance, and sleeping are not yet part
+of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
 
@@ -58,6 +62,37 @@ const alpha = 0.5; // normally renderAccumulator / fixedStep
 binding.capture().apply(alpha);
 scene4.updateWorld();
 ```
+
+`PointJoint4` binds a body-local anchor to another body or a fixed world point.
+Resolve it inside the world's velocity-constraint callback and pass the result
+to `PointJointSolver4`; the solver exposes the complete 4x4 point response and
+solves all four bilateral coordinates as one block.
+
+`ConstraintRowSolver4` solves scalar rigid-Jacobian rows with optional
+`minForce` and `maxForce`. It converts those generalized-force bounds to
+impulse bounds using the substep duration, then projects every accumulated
+impulse. Omitting both bounds gives an unrestricted equality row. Results
+separate raw equality residual from same-sign projected KKT residual, so valid
+saturation is distinguishable from a row that has not converged. Aggregate
+coordinate impulse, error, and residual values are scale-dependent solver
+diagnostics, not physical totals across unlike rows.
+
+`DistanceCoordinate4` is the persistent anchor binding shared by three
+policies. `DistanceJoint4` enforces a positive rest length.
+`DistanceIntervalJoint4.constraints(dt)` always returns stable minimum and
+maximum unilateral guardian rows. Inside `[minLength, maxLength]`, their speed
+targets bound the next first-order position; outside, signed error produces
+recovery bias. Keeping both guardians in the solve lets them catch unsafe
+radial velocity introduced by motors or other rows during iteration.
+`interval(dt)` reports the currently observed crossing state for diagnostics
+only. `DistanceMotor4` tracks radial speed with symmetric `maxForce`, with
+positive speed lengthening the coordinate. Place its row before both guardians
+when solving them together. The coordinate geometry is also exposed through
+`evaluateDistanceCoordinateN()` and `evaluateDistanceConstraintN()` for any
+`VecN` dimension. At exact coincidence, solver rows require an authored scalar
+direction branch and refuse transverse or negative-branch relative motion;
+diagnostics may still observe one-sided distance growth without manufacturing
+a solve gradient.
 
 For automatic mixed contact, register `GlomeCollider4`, `PolytopeCollider4`,
 `HyperplaneContactCollider4`, and/or `HyperboxCollider4` instances with

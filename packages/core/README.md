@@ -4,8 +4,21 @@ Zero-dependency N-dimensional geometry kernel: vectors, matrices, and exterior
 products in any dimension, plane rotations and the so(n) exponential map, a paired-quaternion
 `Rotor4` fast path with slerp, N-D rigid transforms and cameras, cell
 complexes, polytope builders (n-cube, simplex, orthoplex, all six regular
-polychora, duoprisms), perspective/orthographic N→3 projection, and exact
-hyperplane slicing via marching tetrahedra. Its structured-space layer also
+polychora, duoprisms), perspective/orthographic/coordinate-subspace N→3 projection with Float64
+homogeneous evaluation, explicit inverse fibres, and perspective-correct
+segment/triangle lifting, and exact hyperplane slicing via marching
+tetrahedra with source-edge interpolation provenance. A renderer-independent
+representation layer adds dimension-checked map lineage, capability-sensitive
+hit results, auditable in-memory source-cell references, and explicit
+dimension-independent source-edge coordinates plus multi-view source-parameter
+consensus for constrained interaction. A deterministic linear coordinate-
+constraint solver gives edge and barycentric source-simplex coordinates one
+shared vocabulary for compatibility, rank, unresolved degrees, conditioning,
+and residual certificates while leaving each coordinate domain explicit.
+Immutable named constraint-system snapshots add stable replacement/removal and
+keyed diagnostics without introducing editor state. The simplex path extends
+this to multi-view homogeneous triangulation. Its
+structured-space layer also
 includes the exact 240-root E8 orbit and the icosian folding into conjugate
 4-spaces, plus exact cut-and-project lattices, flats, convex windows, and
 finite model-set patches, including complete-shell Elser–Sloane sections.

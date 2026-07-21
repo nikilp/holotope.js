@@ -123,6 +123,37 @@ describe('SlicedComplex3D with projection (section-in-projection overlay)', () =
 });
 
 describe('SlicedComplex3D picking provenance', () => {
+  it('reconstructs every rendered corner from its retained source-edge crossing', () => {
+    const complex = makeTesseract();
+    const slice = new HyperplaneSlice4({ normal: [1, -2, 0.5, 3], offset: 0.2 });
+    const sliced = new SlicedComplex3D(complex, slice);
+    const positions = sliced.geometry.getAttribute('position');
+    for (let face = 0; face < sliced.triangleCount; face++) {
+      for (let corner = 0; corner < 3; corner++) {
+        const crossing = sliced.sourceCrossingOfFaceVertex(face, corner);
+        const [from, to] = crossing.edgeVertices;
+        const ambient = new Float64Array(4);
+        for (let coordinate = 0; coordinate < 4; coordinate++) {
+          ambient[coordinate] = complex.positions[from * 4 + coordinate]! +
+            crossing.parameter * (
+              complex.positions[to * 4 + coordinate]! -
+              complex.positions[from * 4 + coordinate]!
+            );
+        }
+        const vertex = face * 3 + corner;
+        for (let axis = 0; axis < 3; axis++) {
+          let expected = 0;
+          for (let coordinate = 0; coordinate < 4; coordinate++) {
+            expected += slice.basis[axis]![coordinate]! * ambient[coordinate]!;
+          }
+          expect(positions.array[vertex * 3 + axis]!).toBeCloseTo(expected, 5);
+        }
+      }
+    }
+    expect(() => sliced.sourceCrossingOfFaceVertex(0, 3)).toThrow(/corner/);
+    sliced.dispose();
+  });
+
   it('maps every rendered face to a straddling source tet', () => {
     const complex = makeTesseract();
     const slice = HyperplaneSlice4.axisAligned(3, 0.2);

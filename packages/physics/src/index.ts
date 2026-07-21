@@ -61,6 +61,61 @@ export {
   type PhysicsWorld4VelocityConstraintCallback
 } from './world4.js';
 export {
+  ConstraintRowSolver4,
+  applyConstraintRowImpulse4,
+  applyPointPairImpulse4,
+  constraintRowCoupling4,
+  constraintRowResponse4,
+  constraintRowSpeed4,
+  participantVelocityAtPoint4,
+  pointConstraintRow4,
+  pointPairRelativeVelocity4,
+  type ConstraintImpulseState4,
+  type ConstraintParticipant4,
+  type ConstraintRow4,
+  type ConstraintRowResult4,
+  type ConstraintRowSolveResult4,
+  type ConstraintRowSolver4Options,
+  type PointConstraintRow4Options,
+  type PointConstraintPair4,
+  type RigidJacobian4
+} from './constraint-row4.js';
+export {
+  DistanceJoint4,
+  DistanceCoordinate4,
+  evaluateDistanceCoordinateN,
+  evaluateDistanceConstraintN,
+  type DistanceCoordinate4Options,
+  type DistanceCoordinateEvaluationN,
+  type DistanceConstraintEvaluationN,
+  type DistanceJoint4Options,
+  type DistanceJointConstraint4
+} from './distance-joint4.js';
+export {
+  DistanceIntervalJoint4,
+  type DistanceIntervalConstraint4,
+  type DistanceIntervalEvaluation4,
+  type DistanceIntervalJoint4Options,
+  type DistanceIntervalState4
+} from './distance-interval4.js';
+export {
+  DistanceMotor4,
+  type DistanceMotor4Options,
+  type DistanceMotorConstraint4
+} from './distance-motor4.js';
+export {
+  PointJoint4,
+  PointJointSolver4,
+  applyPairPointImpulse4,
+  pointJointResponseMatrix4,
+  type PointJoint4Options,
+  type PointJointConstraint4,
+  type PointJointParticipant4,
+  type PointJointResult4,
+  type PointJointSolveResult4,
+  type PointJointSolver4Options
+} from './point-joint4.js';
+export {
   ConvexHullSupportShapeN,
   GlomeSupportShapeN,
   RoundedSupportShapeN,

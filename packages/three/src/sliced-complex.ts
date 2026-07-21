@@ -8,11 +8,14 @@ import {
   type Material
 } from 'three';
 import {
+  createSourceCellReferenceN,
   sliceTetrahedra,
   sliceTetrahedraAmbient,
   type CellComplex,
   type HyperplaneSlice4,
   type Projection,
+  type SliceVertexProvenanceBuffers,
+  type SourceCellReferenceN,
   type TransformN
 } from '@holotope/core';
 
@@ -35,6 +38,13 @@ export interface SlicedComplex3DOptions {
   colorForTet?: (tetIndex: number) => number;
 }
 
+/** Exact construction record for one emitted section vertex. */
+export interface SliceCrossingProvenanceN {
+  readonly edgeVertices: readonly [number, number];
+  /** `point = from + parameter * (to - from)` in current ambient R4 state. */
+  readonly parameter: number;
+}
+
 /**
  * Render product: the exact cross-section of a 4D cell complex with a
  * hyperplane, rendered as a three.js Mesh.
@@ -55,12 +65,14 @@ export class SlicedComplex3D {
   readonly object: Mesh;
 
   private readonly tets: Uint32Array;
+  private readonly tetReferences: readonly SourceCellReferenceN[];
   private readonly worldPositions: Float64Array;
   private readonly positionAttribute: BufferAttribute;
   /** Optional second reduction applied after the exact ambient R4 section. */
   readonly projection: Projection | undefined;
   private readonly ambientSection: Float64Array | undefined;
   private readonly provenance: Uint32Array;
+  private readonly crossingProvenance: SliceVertexProvenanceBuffers;
   private readonly colorAttribute: BufferAttribute | undefined;
   private readonly tetColors: Float32Array | undefined;
 
@@ -86,11 +98,17 @@ export class SlicedComplex3D {
     let tetIndexLength = 0;
     for (const g of tetGroups) tetIndexLength += g.indices.length;
     this.tets = new Uint32Array(tetIndexLength);
+    const tetReferences: SourceCellReferenceN[] = [];
     let offset = 0;
     for (const g of tetGroups) {
       this.tets.set(g.indices, offset);
       offset += g.indices.length;
+      const cellCount = g.indices.length / g.verticesPerCell;
+      for (let cell = 0; cell < cellCount; cell++) {
+        tetReferences.push(createSourceCellReferenceN(complex, g, cell));
+      }
     }
+    this.tetReferences = tetReferences;
 
     this.projection = options.projection;
     if (this.projection && this.projection.fromDim !== 4) {
@@ -103,6 +121,10 @@ export class SlicedComplex3D {
     const maxVertices = (this.tets.length / 4) * 6; // 2 triangles per tetra worst case
     this.ambientSection = this.projection ? new Float64Array(maxVertices * 4) : undefined;
     this.provenance = new Uint32Array((this.tets.length / 4) * 2);
+    this.crossingProvenance = {
+      edgeVertices: new Uint32Array(maxVertices * 2),
+      edgeParameters: new Float64Array(maxVertices)
+    };
     this.positionAttribute = new BufferAttribute(new Float32Array(maxVertices * 3), 3);
     this.positionAttribute.setUsage(DynamicDrawUsage);
 
@@ -159,7 +181,8 @@ export class SlicedComplex3D {
         this.slice,
         this.ambientSection,
         undefined,
-        this.provenance
+        this.provenance,
+        this.crossingProvenance
       );
       this.projection.projectPositions(
         this.ambientSection,
@@ -173,7 +196,8 @@ export class SlicedComplex3D {
         this.slice,
         this.positionAttribute.array as Float32Array,
         undefined,
-        this.provenance
+        this.provenance,
+        this.crossingProvenance
       );
     }
     this.geometry.setDrawRange(0, vertexCount);
@@ -245,8 +269,52 @@ export class SlicedComplex3D {
 
   /** The four source-complex vertex indices of a tetrahedron by index. */
   sourceTetVertices(tetIndex: number): [number, number, number, number] {
+    if (!Number.isSafeInteger(tetIndex) || tetIndex < 0 || tetIndex >= this.tets.length / 4) {
+      throw new Error(`SlicedComplex3D: tetIndex ${tetIndex} out of range`);
+    }
     const base = tetIndex * 4;
     return [this.tets[base]!, this.tets[base + 1]!, this.tets[base + 2]!, this.tets[base + 3]!];
+  }
+
+  /** Lifecycle-aware reference to one concatenated source tetrahedron. */
+  sourceReferenceOfTet(tetIndex: number): SourceCellReferenceN {
+    this.sourceTetVertices(tetIndex);
+    return this.tetReferences[tetIndex]!;
+  }
+
+  /** Lifecycle-aware reference to the source tetrahedron of a rendered face. */
+  sourceReferenceOfFace(faceIndex: number): SourceCellReferenceN {
+    return this.sourceReferenceOfTet(this.sourceTetOfFace(faceIndex));
+  }
+
+  /** Source edge and exact interpolation parameter of one rendered corner. */
+  sourceCrossingOfFaceVertex(
+    faceIndex: number,
+    corner: number
+  ): SliceCrossingProvenanceN {
+    this.sourceTetOfFace(faceIndex);
+    if (!Number.isSafeInteger(corner) || corner < 0 || corner > 2) {
+      throw new Error(`SlicedComplex3D: corner ${corner} out of range`);
+    }
+    const vertex = faceIndex * 3 + corner;
+    return {
+      edgeVertices: [
+        this.crossingProvenance.edgeVertices[vertex * 2]!,
+        this.crossingProvenance.edgeVertices[vertex * 2 + 1]!
+      ],
+      parameter: this.crossingProvenance.edgeParameters[vertex]!
+    };
+  }
+
+  /** Exact construction records for the three corners of one rendered face. */
+  sourceCrossingsOfFace(
+    faceIndex: number
+  ): readonly [SliceCrossingProvenanceN, SliceCrossingProvenanceN, SliceCrossingProvenanceN] {
+    return [
+      this.sourceCrossingOfFaceVertex(faceIndex, 0),
+      this.sourceCrossingOfFaceVertex(faceIndex, 1),
+      this.sourceCrossingOfFaceVertex(faceIndex, 2)
+    ];
   }
 
   dispose(): void {
