@@ -2,7 +2,19 @@
 
 ## Unreleased
 
-### `@holotope/physics`
+## v0.0.6
+
+### `@holotope/core@0.0.6`
+
+- Kept the core API aligned with the synchronized workspace release; no public
+  core API changed since 0.0.5.
+
+### `@holotope/three@0.0.6`
+
+- Kept the three.js adapter aligned with the synchronized workspace release;
+  no public adapter API changed since 0.0.5.
+
+### `@holotope/physics@0.0.6`
 
 - Added branch-aware relative SO(4) coordinates, analytic exponential and
   logarithm Jacobians, and the exact angular-velocity operator norm.
@@ -29,6 +41,19 @@
 - Added pose-owning `KinematicBody4` segments and coherent pose-pair trajectory
   construction, connecting authored motion to collider synchronization,
   contact velocity, discrete stepping, swept broadphase, and rigid CCD.
+- Added `KinematicTrackDriver4`, which samples authored `Rotor4Track` motion on
+  the fixed physics clock and extracts coherent linear and angular velocities
+  for contact and continuous-collision consumers.
+
+### Showcase
+
+- Added a canonical source-to-simulation bridge: one authoritative R4 body
+  feeds perspective, coordinate-subspace, and exact affine-section views.
+- Added cross-view source-backed selection, explicit source-edge coordinates,
+  retained material-point motion, named section-incidence policy, and compact
+  lineage, ambiguity, numerical, and conservation evidence.
+- Retained the original tesseract projection/cross-section page as the simpler
+  foundation and fallback.
 
 ## v0.0.5
 
