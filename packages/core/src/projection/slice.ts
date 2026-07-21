@@ -50,8 +50,9 @@ export class HyperplaneSlice4 {
   }
 
   /**
-   * Slice orthogonal to a coordinate axis (default: w). For hiddenAxis 3 the
-   * display frame is exactly x, y, z.
+   * Slice orthogonal to a coordinate axis (default: w). Axis indices are
+   * `0=x`, `1=y`, `2=z`, `3=w`; for hiddenAxis 3 the display frame is exactly
+   * x, y, z.
    */
   static axisAligned(hiddenAxis = 3, offset = 0): HyperplaneSlice4 {
     return new HyperplaneSlice4({ normal: VecN.basis(4, hiddenAxis), offset });

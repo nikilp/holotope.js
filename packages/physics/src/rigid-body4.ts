@@ -152,7 +152,11 @@ export class RigidBody4 {
     return rotateBivector4(body, rotation);
   }
 
-  /** Applies a world-space linear impulse at a world-space point. */
+  /**
+   * Applies a world-space R4 linear impulse at a world-space R4 point.
+   * Both arrays are `[x, y, z, w]`; an impulse at `position` adds no angular
+   * momentum, while an offset point contributes the wedge `r ∧ impulse`.
+   */
   applyImpulseAtWorldPoint(
     impulse: VecN | ArrayLike<number>,
     point: VecN | ArrayLike<number>
@@ -168,6 +172,11 @@ export class RigidBody4 {
     return this;
   }
 
+  /**
+   * Sets world-space R4 angular velocity. The bivector must have six plane
+   * coefficients in `[xy, xz, xw, yz, yw, zw]` order; it is converted to the
+   * authoritative world-frame angular momentum using this body's inertia.
+   */
   setAngularVelocityWorld(velocityWorld: BivectorN): this {
     if (velocityWorld.n !== 4) {
       throw new Error(`RigidBody4: angular velocity must be 4D, got n=${velocityWorld.n}`);

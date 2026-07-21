@@ -116,7 +116,7 @@ pnpm --filter @holotope/showcase dev   # run the showcase gallery locally
 
 Early research and prototyping. The API is expected to change while the core concepts are explored.
 
-The decisions that shape the library — and why — are in [`docs/architecture.md`](docs/architecture.md). See [`docs/representation-provenance.md`](docs/representation-provenance.md) for tracing 3D representations back to N-D sources, [`docs/physics.md`](docs/physics.md) for ballistic rigid-body mechanics, [`docs/spectral-analysis.md`](docs/spectral-analysis.md) for graph-Laplacian modes, [`docs/implicit-fields.md`](docs/implicit-fields.md) for headless field evaluation, [`docs/model-sets.md`](docs/model-sets.md) for cut-and-project, and [`docs/couplings.md`](docs/couplings.md) for provenance-driven parameters.
+Start with the task-oriented [`docs/mental-model.md`](docs/mental-model.md), then use the verified [`docs/cookbook.md`](docs/cookbook.md). The decisions that shape the library — and why — are in [`docs/architecture.md`](docs/architecture.md). See [`docs/representation-provenance.md`](docs/representation-provenance.md) for tracing 3D representations back to N-D sources, [`docs/physics.md`](docs/physics.md) for ballistic rigid-body mechanics, [`docs/spectral-analysis.md`](docs/spectral-analysis.md) for graph-Laplacian modes, [`docs/implicit-fields.md`](docs/implicit-fields.md) for headless field evaluation, [`docs/model-sets.md`](docs/model-sets.md) for cut-and-project, and [`docs/couplings.md`](docs/couplings.md) for provenance-driven parameters. [`llms.txt`](llms.txt) is the concise AI-assistant context file.
 
 ## Roadmap (abridged)
 

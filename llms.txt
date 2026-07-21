@@ -1,0 +1,152 @@
+# Holotope.js
+
+> TypeScript toolkit for accountable higher-dimensional geometry: authoritative
+> R^N state, explicit projection or slicing, traceable source identity, and
+> source-space simulation. Experimental API; target ES modules.
+
+## Read this first
+
+- README.md — installation, package overview, runnable public examples.
+- docs/mental-model.md — package responsibilities and the source → representation → interaction loop.
+- docs/cookbook.md — verified task-oriented snippets.
+- docs/representation-provenance.md — what a pick can and cannot recover.
+- docs/physics.md — rigid mechanics, contact capability boundaries, and RN XPBD.
+
+## Package map
+
+- `@holotope/core`: zero-dependency Float64 N-D math, geometry, polytopes,
+  projections, slicing, source references, fields, lattices, spectral analysis.
+- `@holotope/physics`: headless R4 rigid bodies and RN point/XPBD systems.
+  It never renders and it does not automatically make all registered rigid
+  bodies collide.
+- `@holotope/three`: Three.js peer-dependency adapters. Products expose an
+  ordinary `.object` and must be updated from authoritative source state.
+- `@holotope/three/webgpu`: optional WebGPU/TSL realization paths. Preserve
+  the Float64 CPU path for validation and source-space semantics.
+
+## Non-negotiable model rules
+
+1. Keep the source in R^N. Do not simulate or edit the projected Three mesh as
+   though it were the source object.
+2. Projection can be ambiguous; an exact slice is a different observation.
+3. A `RepresentationHitN` always identifies a source record when supported;
+   use `ambientPoint` only when `ambientPointStatus === 'exact'`.
+4. `RigidBody4` / `PhysicsWorld4` and `XpbdParticleN` / `XpbdWorldN` are
+   separate simulation layers.
+5. All R4 vectors use `[x, y, z, w]`. R4 bivectors use
+   `[xy, xz, xw, yz, yw, zw]` = `[01, 02, 03, 12, 13, 23]`.
+
+## Primary imports
+
+```ts
+// @holotope/core
+import {
+  VecN, MatN, BivectorN, Rotor4, TransformN,
+  CellComplex, createHypercube, tetrahedralizeCuboidCells,
+  PerspectiveProjection, CoordinateProjection, HyperplaneSlice4
+} from '@holotope/core';
+
+// @holotope/physics
+import {
+  massPropertiesFromCellComplex4, RigidBody4, PhysicsWorld4,
+  XpbdParticleN, XpbdWorldN, compileXpbdParticleBindingN,
+  compileXpbdParticleHyperplaneFamilyN
+} from '@holotope/physics';
+
+// @holotope/three
+import {
+  ProjectedEdges3D, ProjectedSurface3D, SlicedComplex3D, DragRotation4D,
+  representationHitFromProjectedEdge,
+  representationHitFromProjectedSurface,
+  representationHitFromSlicedComplex
+} from '@holotope/three';
+```
+
+## Core anchors
+
+- Vectors/transforms: `VecN`, `MatN`, `BivectorN`, `Rotor4`, `TransformN`.
+- Topology: `CellComplex`, cuboid tetrahedralization, source-cell references.
+- Observation: `PerspectiveProjection`, `CoordinateProjection`,
+  `OrthographicProjection`, `HyperplaneSlice4`, inverse fibres and map lineage.
+- Fields: quaternion and bicomplex Julia evaluators, generic samples and
+  isosurface records.
+- Scientific structures: regular polychora, Coxeter/Wythoff construction,
+  model sets, graph-Laplacian modes, couplings.
+
+Canonical complete core export barrel: `packages/core/src/index.ts`.
+
+## Physics anchors
+
+- Rigid: `massPropertiesFromCellComplex4`, `RigidBody4`, `PhysicsWorld4`,
+  `RigidBodyObject4Binding`.
+- Rigid collision/query: `HyperplaneColliderN`, `Hyperbox4`, support shapes,
+  GJK, EPA, linear casts, narrowphase dispatch, named contact pipelines.
+- Rigid constraints: point, distance, direction, orientation, planar rotation,
+  motors, and bounded blocks.
+- RN point/XPBD: `XpbdConstraintSolverN`, `XpbdParticleN`, `XpbdWorldN`,
+  particle binding, distance-network, simplex-measure, StVK, and
+  particle--hyperplane contact families.
+
+Canonical complete physics export barrel: `packages/physics/src/index.ts`.
+
+## Three anchors
+
+- `ProjectedEdges3D`: projected 1-skeleton render product.
+- `ProjectedSurface3D`: projected 2-face mesh with source-triangle picking.
+- `SlicedComplex3D`: exact 4D section from tetrahedral 3-cells.
+- `SampledSlicedField3D`, `FieldRelief3D`: field visualization products.
+- `DragRotation4D`: pointer deltas → visual `Rotor4`, default Alt drag in xw/yw.
+- `representationHitFrom…`: map a Three ray intersection to source-aware
+  `RepresentationHitN`.
+
+Canonical complete Three export barrel: `packages/three/src/index.ts`.
+
+## Minimal, accurate patterns
+
+```ts
+// Project and slice the same R4 geometry.
+const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+const pose = TransformN.identity(4);
+const shadow = new ProjectedEdges3D(
+  complex, new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+);
+const section = new SlicedComplex3D(complex, HyperplaneSlice4.axisAligned(3, 0));
+scene.add(shadow.object, section.object);
+shadow.update(pose);
+section.update(pose);
+```
+
+```ts
+// Sweep a W slice; this is an exact cross-section, not a camera motion.
+slice.offset = 0.8 * Math.sin(time);
+slice.setNormal([0.15, 0, 0, 1]); // normalizes and keeps a continuous frame
+section.update(pose);
+```
+
+```ts
+// R4 physical angular velocity: coefficients are xy, xz, xw, yz, yw, zw.
+body.setAngularVelocityWorld(BivectorN.fromPlanes(4, [
+  { i: 0, j: 3, angle: 0.6 },
+  { i: 1, j: 2, angle: -0.2 }
+]));
+world.step(1 / 120);
+surface.update(new TransformN(4, body.rotation, body.position));
+```
+
+```ts
+// Pick a projected triangle. Exact ambient lift depends on projection and hit.
+const hit = representationHitFromProjectedSurface(surface, intersection);
+if (hit.ambientPointStatus === 'exact') {
+  useSourcePoint(hit.ambientPoint);
+}
+```
+
+## Avoid these invented APIs or assumptions
+
+- Do not expect a `PhysicsWorld4.addBody()` call alone to create collisions.
+- Do not expect projected picks to always yield a unique R4 point.
+- Do not create a `SlicedComplex3D` from a raw cuboid complex without the
+  required tetrahedral 3-cells.
+- Do not treat `DragRotation4D` as physical angular velocity or torque.
+- Do not guess exports: inspect the canonical barrel listed above when the
+  needed feature is not in this file.
