@@ -25,6 +25,9 @@
   constraint based on Float64 Gram determinants and cofactor gradients, with
   explicit compliance units, embedded-dimensional parity, and typed zero-
   response behavior for collapsed simplices.
+- Added a provenance-preserving `CellComplex` simplex-family compiler that
+  shares existing RN particles, separates source-derived rest geometry from
+  live state, and atomically attaches structurally identified constraints.
 
 ### Showcase
 

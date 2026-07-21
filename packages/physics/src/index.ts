@@ -170,6 +170,15 @@ export {
   type XpbdSimplexSquaredMeasureConstraintNOptions
 } from './xpbd-simplex-measure.js';
 export {
+  XpbdSimplexMeasureFamilyN,
+  compileXpbdSimplexMeasureFamilyN,
+  type CompileXpbdSimplexMeasureFamilyNOptions,
+  type XpbdSimplexMeasureFamilyCellContextN,
+  type XpbdSimplexMeasureFamilyCellN,
+  type XpbdSimplexMeasureFamilyComplianceN,
+  type XpbdSimplexMeasureFamilyRestN
+} from './xpbd-simplex-family.js';
+export {
   DistanceIntervalJoint4,
   type DistanceIntervalConstraint4,
   type DistanceIntervalEvaluation4,

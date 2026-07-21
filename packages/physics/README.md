@@ -151,6 +151,17 @@ lineage and particle state before synchronizing positions in one pass, allowing
 the same evolved complex to feed representation and analysis consumers without
 making a rendered projection authoritative.
 
+`compileXpbdSimplexMeasureFamilyN()` compiles one explicitly selected simplex
+cell group onto an existing source-indexed `XpbdParticleN` array. It retains a
+structural source id and vertex tuple per cell, derives default rest measure
+from source geometry rather than possibly deformed live particles, and keeps
+rest/compliance policies separate from topology. The family owns no particles
+and performs no write-back. `addToWorld()` requires the exact particle objects
+to be registered already, then preflights every lineage and constraint id
+before attaching the family atomically. This lets distance and local measure
+coordinates share one RN state without implying a complete deformable-body
+model.
+
 `relativeOrientationCoordinates4()` provides the analogous local coordinate
 for rotation. It chooses one lift of the paired-quaternion double cover,
 returns a reusable branch token for coherent timesteps, and reports the full
