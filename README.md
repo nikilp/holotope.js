@@ -2,7 +2,7 @@
 
 N-dimensional geometry for TypeScript.
 
-**[Live showcase →](https://nikilp.github.io/holotope.js/)** — dimension-traceable projections and cross-sections, exact constructions, inspectable fields, GPU realization, and torque-free R4 mechanics running in the browser.
+**[Live showcase →](https://nikilp.github.io/holotope.js/)** — dimension-traceable projections and cross-sections, source-space XPBD materials, exact constructions, inspectable fields, GPU realization, and R4 mechanics running in the browser.
 
 Holotope.js is an experimental open-source library for building, transforming, projecting, and rendering higher-dimensional geometry on the web. It provides a modular foundation for 4D and N-dimensional visual systems, including vectors, transforms, projections, polytopes, cell complexes, and rendering adapters.
 

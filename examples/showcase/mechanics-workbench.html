@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Dimensional Mechanics Workbench</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #050710; }
+      #app { width: 100%; height: 100%; }
+      #heading {
+        position: fixed;
+        top: 14px;
+        left: 16px;
+        right: 338px;
+        z-index: 5;
+        color: #9dadca;
+        font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+        pointer-events: none;
+      }
+      #heading strong { color: #f0f5ff; font-size: 14px; }
+      #heading .flow { color: #78e6c1; }
+      #heading a { color: #75dcff; text-decoration: none; pointer-events: auto; }
+      .view-label {
+        position: fixed;
+        top: 116px;
+        z-index: 4;
+        transform: translateX(-50%);
+        padding: 7px 10px;
+        border: 1px solid #303b5b;
+        border-radius: 999px;
+        background: rgba(7,10,21,.86);
+        color: #b9c7e2;
+        font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        pointer-events: none;
+      }
+      #perspectiveLabel { left: 20%; border-color: #315c8d; }
+      #coordinateLabel { left: 50%; border-color: #347a68; }
+      #sectionLabel { left: 64%; border-color: #855a44; }
+      .divider {
+        position: fixed;
+        top: 112px;
+        bottom: 150px;
+        width: 1px;
+        background: linear-gradient(transparent, rgba(105,129,178,.28), transparent);
+        pointer-events: none;
+      }
+      #dividerA { left: 35%; }
+      #dividerB { left: 65%; }
+      #controls {
+        position: fixed;
+        top: 14px;
+        right: 16px;
+        z-index: 6;
+        width: 306px;
+        padding: 12px 13px;
+        border: 1px solid #2c3757;
+        border-radius: 10px;
+        background: rgba(9,12,25,.95);
+        color: #96a8c9;
+        font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        box-shadow: 0 18px 50px rgba(0,0,0,.25);
+      }
+      #controls label {
+        display: grid;
+        grid-template-columns: 92px 1fr 50px;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 8px;
+      }
+      #controls label.select { grid-template-columns: 92px 1fr; }
+      #controls input[type='range'] { width: 100%; accent-color: #72e6c0; }
+      #controls input[type='checkbox'] { justify-self: start; accent-color: #72e6c0; }
+      #controls select, #controls button {
+        border: 1px solid #354263;
+        border-radius: 6px;
+        background: #11172b;
+        color: #dce6fb;
+        font: inherit;
+      }
+      #controls select { width: 100%; padding: 5px; }
+      #controls output { color: #edf3ff; text-align: right; font-variant-numeric: tabular-nums; }
+      #controls .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
+      #controls button { padding: 7px; cursor: pointer; }
+      #controls button:hover { border-color: #72e6c0; color: white; }
+      #modeNote { display: block; padding-top: 8px; border-top: 1px solid #26304a; color: #78e6c1; }
+      #evidence {
+        position: fixed;
+        left: 16px;
+        bottom: 16px;
+        z-index: 5;
+        width: min(920px, calc(100vw - 370px));
+        min-height: 142px;
+        padding: 12px 14px;
+        border: 1px solid #30405f;
+        border-radius: 10px;
+        background: rgba(9,12,25,.94);
+        color: #98aaca;
+        font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+        pointer-events: none;
+        font-variant-numeric: tabular-nums;
+      }
+      #evidence strong { display: block; color: #eff4ff; margin-bottom: 3px; font-size: 13px; }
+      #evidence span { display: block; min-height: 1.55em; white-space: nowrap; }
+      #edgeIdentity { color: #7ee2ff; }
+      #edgeDynamics { color: #ffd27e; }
+      #materialEvidence { color: #d7b0ff; }
+      #sectionEvidence { color: #f1a886; }
+      #stateEvidence { color: #79e7bd; }
+      #legend {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 5;
+        width: 326px;
+        min-height: 142px;
+        padding: 12px 14px;
+        border: 1px solid #2d4650;
+        border-radius: 10px;
+        background: rgba(8,15,23,.94);
+        color: #8fa8b6;
+        font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+        pointer-events: none;
+      }
+      #legend strong { display: block; color: #dcfff4; margin-bottom: 4px; }
+      #legend span { display: block; }
+      #legend .lime { color: #dcff74; }
+      #legend .amber { color: #ffbd75; }
+      @media (max-width: 980px) {
+        #heading { right: 16px; }
+        #heading .detail, .view-label, .divider { display: none; }
+        #controls { top: 104px; width: 272px; }
+        #evidence { width: calc(100vw - 32px); bottom: 122px; min-height: 108px; overflow: hidden; }
+        #legend { left: 16px; right: auto; width: calc(100vw - 32px); min-height: 94px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="dividerA" class="divider"></div>
+    <div id="dividerB" class="divider"></div>
+    <div id="heading">
+      <strong>Dimensional mechanics workbench</strong> — one ambient source, three simultaneous observations.<br />
+      <span class="flow">CellComplex → copied RN particles → XPBD → explicit source write-back → perspective + coordinate view + exact section</span><br />
+      <span class="detail">The highlighted physical edge keeps one structural identity through every view; compare a familiar R3 control with signed material coordinates available only to the full R4 source.</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <div id="perspectiveLabel" class="view-label">R4 perspective · ambiguous shadow</div>
+    <div id="coordinateLabel" class="view-label">XYW · exact axes · z fibre</div>
+    <div id="sectionLabel" class="view-label">(z+w)/√2 section · exact crossing</div>
+    <div id="controls">
+      <label class="select">
+        source mode
+        <select id="mode">
+          <option value="r4">full R4 tesseract</option>
+          <option value="r3">embedded R3 control</option>
+        </select>
+      </label>
+      <label>
+        compliance
+        <input id="compliance" type="range" min="-7" max="-3" step="0.25" value="-5" />
+        <output id="complianceValue">1.0e-5</output>
+      </label>
+      <label class="select">
+        material mode
+        <select id="materialMode">
+          <option value="interior">signed R4 interior</option>
+          <option value="boundary">unsigned 3D boundary</option>
+          <option value="edge">edges only</option>
+        </select>
+      </label>
+      <label>
+        material α
+        <input id="measureCompliance" type="range" min="-8" max="-3" step="0.25" value="-5.5" />
+        <output id="measureComplianceValue">3.2e-6</output>
+      </label>
+      <label>
+        hidden drive
+        <input id="drive" type="range" min="0" max="30" step="0.5" value="12" />
+        <output id="driveValue">12.0</output>
+      </label>
+      <label>
+        slice offset
+        <input id="sliceOffset" type="range" min="-1.4" max="1.4" step="0.01" value="0.08" />
+        <output id="sliceOffsetValue">0.08</output>
+      </label>
+      <label>
+        source edge
+        <input id="edge" type="range" min="0" max="31" step="1" value="24" />
+        <output id="edgeValue">24</output>
+      </label>
+      <div class="buttons">
+        <button id="pause" type="button">pause</button>
+        <button id="reset" type="button">reset state</button>
+      </div>
+      <span id="modeNote">120 Hz · 16 XPBD iterations · demo velocity retain 0.9985/step</span>
+    </div>
+    <div id="evidence">
+      <strong id="evidenceTitle">initializing one traceable source edge…</strong>
+      <span id="edgeIdentity">structural identity pending</span>
+      <span id="edgeDynamics">constraint evidence pending</span>
+      <span id="materialEvidence">material-family evidence pending</span>
+      <span id="sectionEvidence">section incidence pending</span>
+      <span id="stateEvidence">source/simulation state boundary pending</span>
+    </div>
+    <div id="legend">
+      <strong>What is authoritative?</strong>
+      <span>blue / cyan = two maps of the same current source</span>
+      <span class="amber">amber = exact affine section of its tetrahedral cells</span>
+      <span class="lime">lime = one source-backed physical edge in both maps</span>
+      <span>yellow points = fixed source vertices</span>
+      <span>boundary = unsigned 3-measure; interior = signed 4-measure</span>
+      <span>signed equality reports inversion; it is not a no-tunnelling barrier</span>
+      <span>the section is recomputed; it is never simulated</span>
+    </div>
+    <template id="explainer">
+      <h2>One deforming source, three derived observations</h2>
+      <h3>Source and simulation</h3>
+      <p>The particles and constraints live in ambient R4. After every fixed step their positions are explicitly written to one topology-bearing <strong>CellComplex</strong>; the visible products read that source and never become physical state.</p>
+      <h3>Observe</h3>
+      <p>Blue is a many-to-one perspective projection, cyan retains the x, y, and w axes, and amber is an exact affine section through tetrahedral cells. The lime edge has one persistent source identity in both projections; its exact section crossing appears only when incidence exists.</p>
+      <h3>Compare dimensions</h3>
+      <p>The embedded R3 control travels through the same R4 pipeline while its hidden coordinate remains exactly zero. The full R4 source can respond to the hidden-axis drive and can carry an oriented 4-measure.</p>
+      <h3>Material coordinates</h3>
+      <p>Edges constrain length, boundary tetrahedra constrain unsigned 3-measure, and the authored R4 interior decomposes into traced signed 4-simplices. The evidence panel reports identity, strain, inversion, residuals, and explicit source write-back separately.</p>
+      <h3>Current boundary</h3>
+      <p>This is an auditable constraint-material reference, not yet a complete constitutive solid. Signed equality detects inversion but does not provide a no-tunnelling barrier, bending, deformable collision, or adaptive remeshing.</p>
+    </template>
+    <script type="module" src="/src/mechanics-workbench.ts"></script>
+  </body>
+</html>

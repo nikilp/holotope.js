@@ -26,6 +26,7 @@ export default defineConfig({
       input: {
         index: local('./index.html'),
         dimensionBridge: local('./dimension-bridge.html'),
+        mechanicsWorkbench: local('./mechanics-workbench.html'),
         tesseract: local('./tesseract.html'),
         polychora: local('./polychora.html'),
         duoprisms: local('./duoprisms.html'),
