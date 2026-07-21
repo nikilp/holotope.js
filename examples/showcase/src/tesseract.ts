@@ -1,10 +1,13 @@
 import {
   AmbientLight,
+  BufferAttribute,
   BufferGeometry,
   Color,
   DirectionalLight,
   DoubleSide,
+  Line,
   LineBasicMaterial,
+  LineDashedMaterial,
   LineSegments,
   Mesh,
   MeshBasicMaterial,
@@ -12,6 +15,7 @@ import {
   PerspectiveCamera,
   Raycaster,
   Scene,
+  Vector3,
   Vector2,
   WebGLRenderer
 } from 'three';
@@ -93,6 +97,97 @@ const overlay = new SlicedComplex3D(tesseract, slice, {
   })
 });
 scene.add(overlay.object);
+
+// A picked source tetrahedron is lit in both render products. This makes the
+// relationship explicit: the left patch is the cut seen through perspective;
+// the right patch is the very same cut in the slice's exact affine chart.
+const createCutHighlight = (): Mesh => {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(18), 3));
+  geometry.setDrawRange(0, 0);
+  const object = new Mesh(
+    geometry,
+    new MeshBasicMaterial({
+      color: 0xeaff91,
+      transparent: true,
+      opacity: 0.94,
+      side: DoubleSide,
+      depthTest: false
+    })
+  );
+  object.renderOrder = 20;
+  return object;
+};
+const projectedCutHighlight = createCutHighlight();
+const exactCutHighlight = createCutHighlight();
+overlay.object.add(projectedCutHighlight);
+section.object.add(exactCutHighlight);
+
+const correspondencePositions = new Float32Array(6);
+const correspondenceGeometry = new BufferGeometry();
+correspondenceGeometry.setAttribute(
+  'position',
+  new BufferAttribute(correspondencePositions, 3)
+);
+const correspondenceLine = new Line(
+  correspondenceGeometry,
+  new LineDashedMaterial({
+    color: 0xeaff91,
+    dashSize: 0.12,
+    gapSize: 0.08,
+    transparent: true,
+    opacity: 0.7,
+    depthTest: false
+  })
+);
+correspondenceLine.visible = false;
+correspondenceLine.renderOrder = 19;
+scene.add(correspondenceLine);
+
+const updateCutHighlight = (
+  product: SlicedComplex3D,
+  target: Mesh,
+  sourceTet: number | null
+): Vector3 | null => {
+  const targetPosition = target.geometry.getAttribute('position') as BufferAttribute;
+  const output = targetPosition.array as Float32Array;
+  const source = product.geometry.getAttribute('position') as BufferAttribute;
+  let vertexCount = 0;
+  const centre = new Vector3();
+  if (sourceTet !== null) {
+    for (let face = 0; face < product.triangleCount; face++) {
+      if (product.sourceTetOfFace(face) !== sourceTet) continue;
+      for (let corner = 0; corner < 3; corner++) {
+        const sourceVertex = face * 3 + corner;
+        output[vertexCount * 3] = source.getX(sourceVertex);
+        output[vertexCount * 3 + 1] = source.getY(sourceVertex);
+        output[vertexCount * 3 + 2] = source.getZ(sourceVertex);
+        centre.x += output[vertexCount * 3]!;
+        centre.y += output[vertexCount * 3 + 1]!;
+        centre.z += output[vertexCount * 3 + 2]!;
+        vertexCount++;
+      }
+    }
+  }
+  target.geometry.setDrawRange(0, vertexCount);
+  targetPosition.needsUpdate = true;
+  target.visible = vertexCount > 0;
+  if (vertexCount === 0) return null;
+  centre.multiplyScalar(1 / vertexCount);
+  return product.object.localToWorld(centre);
+};
+
+let selectedTet: number | null = null;
+const updateCutCorrespondence = (): void => {
+  const projectedCentre = updateCutHighlight(overlay, projectedCutHighlight, selectedTet);
+  const exactCentre = updateCutHighlight(section, exactCutHighlight, selectedTet);
+  correspondenceLine.visible = projectedCentre !== null && exactCentre !== null;
+  if (!projectedCentre || !exactCentre) return;
+  correspondencePositions.set([...projectedCentre.toArray(), ...exactCentre.toArray()]);
+  const position = correspondenceGeometry.getAttribute('position') as BufferAttribute;
+  position.needsUpdate = true;
+  correspondenceLine.computeLineDistances();
+};
 
 // Picking: click the cross-section (either view) to highlight the cubic
 // cell of the tesseract it came from. The highlight shares the wireframe's
@@ -195,6 +290,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     .intersectObjects([section.object, overlay.object], false)
     .find((h) => h.faceIndex !== undefined && h.object.visible);
   if (!hit) {
+    selectedTet = null;
     highlightCube(null);
     traceTitle.textContent = 'Source trace';
     tracePoint.textContent = 'Click either orange section to inspect what its visible point preserves.';
@@ -208,6 +304,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   });
   if (representationHit.source.kind !== 'cell') return;
   const tet = representationHit.source.cellIndex;
+  selectedTet = tet;
   // tetrahedralizeCuboidCells emits 6 Kuhn tets per cube, cube-major.
   const cube = Math.floor(tet / 6);
   highlightCube(cube);
@@ -321,6 +418,7 @@ renderer.setAnimationLoop((timeMs) => {
   if (faces.object.visible) faces.update(transform);
   section.update(transform);
   overlay.update(transform);
+  updateCutCorrespondence();
   controls.update();
   renderer.render(scene, camera);
 });

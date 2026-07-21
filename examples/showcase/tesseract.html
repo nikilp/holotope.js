@@ -106,7 +106,22 @@
       #traceLineage {
         color: #7fd4ff;
       }
+      #viewRelation {
+        position: fixed;
+        top: 142px;
+        left: 50%;
+        z-index: 7;
+        transform: translateX(-50%);
+        padding: 5px 9px;
+        border: 1px solid #5e683e;
+        border-radius: 999px;
+        background: rgba(10, 10, 18, 0.82);
+        color: #eaff91;
+        font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        pointer-events: none;
+      }
       @media (max-width: 760px) {
+        #viewRelation { display: none; }
         #trace {
           left: 12px;
           right: 12px;
@@ -127,6 +142,7 @@
       <strong>Click the cross-section</strong> to highlight the tesseract cell it was cut from.<br />
       <a href="./index.html">← all examples</a>
     </div>
+    <div id="viewRelation">projected cut ← same source tetrahedron → exact affine section</div>
     <div id="controls">
       <label>slice w <input id="sliceOffset" type="range" min="-1.6" max="1.6" step="0.01" value="0" /> <span class="value" id="sliceOffsetValue">0.00</span></label>
       <label>tilt xw <input id="tiltXw" type="range" min="-0.7854" max="0.7854" step="0.01" value="0" /> <span class="value" id="tiltXwValue">0.00</span></label>
