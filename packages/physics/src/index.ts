@@ -193,6 +193,11 @@ export {
   type XpbdOrientedCuboidFamilyRestN
 } from './xpbd-oriented-cuboid-family.js';
 export {
+  evaluateSimplexMetricDeformationN,
+  type SimplexMetricDeformationN,
+  type SimplexOrientationChangeN
+} from './simplex-deformation.js';
+export {
   DistanceIntervalJoint4,
   type DistanceIntervalConstraint4,
   type DistanceIntervalEvaluation4,

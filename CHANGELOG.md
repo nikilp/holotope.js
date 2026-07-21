@@ -37,6 +37,10 @@
 - Added a full-dimensional cuboid-to-oriented-simplex compiler that retains
   parent structural identity and Kuhn-permutation provenance while sharing an
   existing RN particle binding and attaching constraints atomically.
+- Added dimension-independent simplex metric deformation with rest/current
+  Gram metrics, right Cauchy–Green and Green–Lagrange tensors, principal
+  stretches, measure ratio, conditioning evidence, and explicit embedded vs
+  full-dimensional orientation semantics.
 
 ### Showcase
 

@@ -186,6 +186,18 @@ shares an existing source-indexed particle array. World attachment preflights
 all parent lineage, particle ownership, and constraint ids before adding any
 constraint.
 
+`evaluateSimplexMetricDeformationN()` compares matching rest and current
+k-simplices in RN through their intrinsic edge Gram metrics. Cholesky
+normalization expresses the current metric in an orthonormal rest-material
+basis, yielding the right Cauchy–Green tensor, Green–Lagrange strain, ordered
+principal stretches, measure ratio, rest-conditioning evidence, and spectral
+residual. It applies equally to embedded curves/membranes and full-dimensional
+solids without an ambient cross product. Only the full-dimensional case reports
+a signed measure ratio and preserved/inverted/collapsed state; embedded
+simplices require an authored normal frame before scalar orientation is
+meaningful. The coordinate selects no constitutive energy and produces no
+forces by itself.
+
 `relativeOrientationCoordinates4()` provides the analogous local coordinate
 for rotation. It chooses one lift of the paired-quaternion double cover,
 returns a reusable branch token for coherent timesteps, and reports the full
