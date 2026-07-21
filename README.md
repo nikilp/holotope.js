@@ -135,7 +135,7 @@ The decisions that shape the library — and why — are in [`docs/architecture.
 - ✅ Immutable named constraint composition with stable evidence replacement, removal, snapshots, and keyed diagnostics
 - GPU surface/section rendering and the materials/transparency phase
 - `.hyper.json` container format and OFF import/export
-- ◐ `@holotope/physics`: ballistic bodies, support/GJK, dimension-independent swept broadphase and linear CCD, bounded R4 EPA penetration, persistent clipped polytope manifolds, analytic mixed contact, coupled three-ball friction, deterministic mixed-shape response, point/distance policies, branch-aware SO(4) coordinates, exact small equality/one-bounded blocks, an SO(3)-stabilizer direction joint, and planar SO(2) coordinates with torque-limited motors and continuous-angle guardians; rotational CCD and full-frame policies next
+- ◐ `@holotope/physics`: ballistic bodies, support/GJK, dimension-independent swept broadphase and linear CCD, explicit R4 rigid trajectories and conservative rotational casts, bounded R4 EPA penetration, persistent clipped polytope manifolds, analytic mixed contact, coupled three-ball friction, deterministic mixed-shape response, point/distance policies, branch-aware SO(4) coordinates, exact small equality/one-bounded blocks, an SO(3)-stabilizer direction joint, and planar SO(2) coordinates with torque-limited motors and continuous-angle guardians; rigid-cast event integration and full-frame policies next
 
 ## License
 

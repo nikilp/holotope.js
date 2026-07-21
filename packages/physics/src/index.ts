@@ -244,6 +244,19 @@ export {
   type LinearCastTraceEntryN
 } from './linear-cast.js';
 export {
+  RigidTrajectory4,
+  type RigidTrajectory4Options
+} from './rigid-trajectory4.js';
+export {
+  convexRigidCast4,
+  supportShapeBoundingRadius4,
+  supportShapeHyperplaneRigidCast4,
+  type ConvexRigidCastResult4,
+  type HyperplaneRigidCastResult4,
+  type RigidCastMotion4,
+  type RigidCastTraceEntry4
+} from './rigid-cast4.js';
+export {
   epaPenetration4,
   type EpaFacetCertificate4,
   type EpaOptions4,

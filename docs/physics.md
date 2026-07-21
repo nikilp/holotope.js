@@ -3,7 +3,8 @@
 `@holotope/physics` is a headless simulation package. It does not render and it
 does not treat a visible slice as a simulation boundary. Its implemented
 foundation covers mass properties, 4D rigid-body motion, convex
-distance/intersection and linear time-of-impact queries, exact point contact for N-balls and infinite
+distance/intersection, linear time-of-impact queries, and explicit conservative
+R4 rigid casts, exact point contact for N-balls and infinite
 hyperplanes, exact contact patches for oriented R4 hyperboxes, warm-started
 normal plus coupled tangent contact response, and a capability-aware
 narrowphase plus deterministic mixed-shape and specialized hyperbox world-step
@@ -14,7 +15,8 @@ feature identities. Opt-in event stepping resolves certified linear impacts;
 the branch-aware SO(4) logarithm and its analytic Jacobians now form the local
 coordinate kernel for rotational constraints. Direction preservation and
 one-parameter planar rotation are explicit stabilizer-classified policies;
-rotational CCD, their motor/limit layer, and sleeping remain later contracts.
+the planar policy's torque-limited motor and continuous-angle guardians are implemented.
+Connecting rigid casts to the event stepper and sleeping remain later contracts.
 
 ## Convex mass properties
 
@@ -177,15 +179,42 @@ An infinite plane remains outside compact GJK.
 once and solves the signed-distance motion analytically, including a plane whose
 normal lies along a hidden coordinate.
 
-`ContactPipeline4.stepWorldContinuous()` is the opt-in R4 event loop. It
+### Explicit R4 rigid trajectories and casts
+
+`RigidTrajectory4` declares one normalized world-left screw path:
+
+```text
+p(t) = p0 + t delta_p
+R(t) = exp(t Delta_Omega) R0.
+```
+
+`convexRigidCast4()` and `supportShapeHyperplaneRigidCast4()` advance along
+that declared path. For a support shape enclosed by pivot radius `r`, the
+angular contribution to any material point's speed is bounded by
+`angularVelocityOperatorNorm4(Delta_Omega) * r`. In R4 that operator norm is
+computed exactly from the paired-bivector split, so the conservative step uses
+a mathematical bound rather than sampled support velocities.
+
+`supportShapeBoundingRadius4()` infers auditable radii for glomes, rounded and
+transformed built-ins, and vertex-enumerable shapes. An opaque support function
+must supply its bound explicitly; a supplied value smaller than an inferable
+radius is refused. Zero-angular casts delegate to the existing linear cast and
+preserve its status, time, witnesses, iteration counts, and trace semantics.
+Pure rotation is therefore a supported query even when both endpoint samples
+are separated.
+
+`ContactPipeline4.stepWorldContinuous()` is currently the opt-in linear R4
+event loop. It
 integrates forces into velocity once per substep, advances poses to the earliest
 certified linear impact, invokes the existing complete manifold/impulse path at
 that pose, and continues through a bounded number of events. Ordinary
 `stepWorld()` retains its discrete behavior. The continuous result is
 `partial` whenever a spinning non-spherical or offset collider, externally
 prescribed motion, or an indeterminate cast falls back to the discrete path;
-an exhausted event budget reports the unadvanced remainder. No linear cast is
-presented as a rotational CCD guarantee.
+an exhausted event budget reports the unadvanced remainder. The standalone
+rigid cast is not yet used here: until body advancement and casting share the
+same frozen midpoint trajectory, spinning cases continue to report a typed
+fallback rather than a certificate for a different path.
 
 Compact candidates are pruned with swept axis-aligned bounds. For a starting
 box `[min,max]` and complete translation `d`, `sweptBoundsN()` takes the hull of

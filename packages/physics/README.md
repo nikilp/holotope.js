@@ -27,16 +27,18 @@ analytic N-ball/N-ball and N-ball/hyperplane deep contact, exact R4
 glome/hyperbox, hyperbox/hyperplane, and general vertex-polytope/hyperplane
 contact, and unsupported requests. Dimension-independent conservative
 advancement adds compact/compact linear casts, while compact/infinite-plane
-casts are analytic.
+casts are analytic. R4 also has explicit constant-generator rigid trajectories
+and conservative compact/compact and compact/plane casts whose angular
+closing bound uses the exact SO(4) operator norm.
 
 World-frame angular momentum is authoritative. Free flight therefore does not
 numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
-Spatial-tree broadphases, rotational CCD, planar-rotation motors and limits,
-full-frame joint policies, distance servos, rolling resistance, and sleeping are not yet part
-of this package. R4 Coulomb
+Spatial-tree broadphases, integration of rigid casts into the continuous world
+stepper, full-frame joint policies, distance servos, rolling resistance, and
+sleeping are not yet part of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
 
@@ -164,6 +166,18 @@ event scan retains broadphase diagnostics; the exhaustive provider remains the
 differential reference. Its result explicitly reports rotational,
 prescribed-motion, and cast-uncertainty fallbacks; the discrete default is
 unchanged.
+
+`RigidTrajectory4` makes an R4 screw path an explicit reusable value rather
+than an assumption hidden inside a solver. `convexRigidCast4()` and
+`supportShapeHyperplaneRigidCast4()` conservatively advance along that exact
+path. Their closing-speed certificate adds each body's tight
+`angularVelocityOperatorNorm4(generator) * boundingRadius` contribution to the
+linear normal closure. Built-in glomes, rounded shapes, transformed shapes,
+and vertex-enumerable polytopes have auditable inferred radii; opaque support
+functions must provide a validated explicit bound. These are query APIs. The
+current continuous world step still reports spinning bodies as a typed
+fallback until it advances bodies along the same planned trajectory in the
+next integration stage.
 
 `NarrowphaseDispatcherN` is the common query boundary. Its `best` mode selects
 the strongest honest capability for the configured pair and margins; explicit
