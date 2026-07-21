@@ -30,7 +30,7 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
 ```
 @holotope/core            zero-dependency N-D kernel
   ├─ math                 VecN, MatN, exterior products, so(n) exp, Rotor4 (+slerp), TransformN
-  ├─ geometry             CellComplex (N-D counterpart of a mesh), tetrahedralization
+  ├─ geometry             CellComplex, opt-in N-cube cells, provenance-mapped Kuhn simplexization
   ├─ polytope             n-cube/simplex/orthoplex families; all six regular polychora; duoprisms
   ├─ lattice              exact E8/icosians; cut-and-project model sets and windows
   ├─ field                inspectable R4 Julia fields; exact tricomplex Mandelbrot parameter slices

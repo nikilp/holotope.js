@@ -79,7 +79,7 @@ temporal render pipelines.
 
 ## 4. Geometry is topology-first
 
-`CellComplex` stores vertices in ambient Rⁿ plus cell groups by intrinsic dimension (edges, faces, 3-cells…), with `ambientDim` explicit on every object and never inferred from buffer sizes. Simplex-based algorithms (slicing, future volume/physics work) operate on tetrahedralized cells; `tetrahedralizeCuboidCells` provides the Kuhn 6-tetrahedra decomposition.
+`CellComplex` stores vertices in ambient Rⁿ plus cell groups by intrinsic dimension, with `ambientDim` explicit on every object and never inferred from buffer sizes. `createHypercube` keeps edge/face/cube topology as its compatible default and can opt into higher cuboid cells through `maxCellDimension`. `simplexizeCuboidGroupN` applies the Kuhn decomposition in any practical intrinsic dimension and retains parent-cell plus local-permutation provenance; `tetrahedralizeCuboidCells` is its compatible six-tetrahedra cube wrapper. This lets simplex-based consumers distinguish a tetrahedralized boundary from an authored full-dimensional interior.
 
 In-memory source-cell references anchor identity to a particular complex and
 group object plus a group-local ordinal and vertex tuple. They survive geometry

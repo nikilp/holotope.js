@@ -35,6 +35,14 @@ The spectral layer provides a deterministic symmetric eigensolver plus sparse
 unweighted graph Laplacians, connected components, complete modal bases, and
 basis-independent repeated-mode projectors for any `CellComplex` 1-skeleton.
 
+`createHypercube()` preserves its established edge/face/cube output by default.
+Set `maxCellDimension` to author higher cuboid cells explicitly; for example, a
+full tesseract then contains one 16-vertex 4-cell. `simplexizeCuboidGroupN()`
+applies the dimension-generic Kuhn decomposition to any binary-ordered cuboid
+group, returning k! simplices per k-cell plus exact parent-cell and local-
+permutation provenance. `tetrahedralizeCuboidCells()` remains the compatible
+three-dimensional convenience wrapper over that kernel.
+
 Renderable coordinates run in Float64 on the CPU, while supported lattice,
 window, and group decisions stay in exact quadratic rings. The kernel is renderer-agnostic; pair it with
 [`@holotope/three`](https://www.npmjs.com/package/@holotope/three) to render

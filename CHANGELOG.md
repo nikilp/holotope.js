@@ -4,6 +4,9 @@
 
 ### `@holotope/core`
 
+- Added opt-in higher-dimensional cuboid cells to `createHypercube()` while
+  retaining byte-stable legacy groups by default, plus dimension-generic Kuhn
+  simplexization with parent-cell and permutation provenance.
 - Added author-keyed structural source-cell ids with typed resolution across
   compatible complex regeneration and explicit topology-retirement evidence.
 - Added independent map/lineage capability queries and an auditable Float64

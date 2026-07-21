@@ -1,5 +1,10 @@
 export { CellComplex, type CellGroup, type CellKind } from './cell-complex.js';
-export { tetrahedralizeCuboidCells } from './tetrahedralize.js';
+export {
+  simplexizeCuboidGroupN,
+  tetrahedralizeCuboidCells,
+  type CuboidSimplexizationN,
+  type CuboidSimplexizationOptionsN
+} from './tetrahedralize.js';
 export {
   buildRagged,
   eulerCharacteristic,
