@@ -1037,6 +1037,76 @@ an authored rotational joint preserves, how limits cross a branch, or how a
 motor should spend force. Those remain explicit policies over this common
 coordinate and the existing rigid-Jacobian solver.
 
+### Coupled equality blocks
+
+`ConstraintBlockSolver4` couples one to six unbounded bilateral
+`ConstraintRow4` values through the exact small dense response
+
+\[
+K_{ij}=J_i M^{-1}J_j^T.
+\]
+
+The auditable Float64 path uses the shared deterministic symmetric eigensolver.
+Its relative threshold is measured against `trace(K) / k`; the default
+`rankPolicy: 'reject'` refuses a lost coordinate, while the explicitly authored
+`minimum-norm` policy uses the spectral pseudoinverse and reports the effective
+rank. Bias slop and speed bounds apply to the norm of the complete coordinate
+vector, not to its components. Warm starts project the preceding generalized
+impulse into the current row basis through the cross-response, so an orthogonal
+basis change does not change the world impulse.
+
+The four-coordinate `PointJointSolver4` now delegates to this kernel without
+changing its public result. This migration is differential evidence that the
+block abstraction is shared behavior rather than a speculative solver layer.
+
+### Direction preservation and its SO(3) stabilizer
+
+`DirectionJoint4` preserves one oriented material direction. In R4 the
+rotations fixing a vector form SO(3), so this policy constrains exactly three
+rotational coordinates and leaves three free. It is not named a hinge: its
+free subgroup is non-abelian and does not admit one global joint angle.
+
+For current unit world directions `a` and `b`, the regular reference direction
+is their normalized bisector `m = (a+b)/|a+b|`. The difference `a-b` lies in
+the three-dimensional tangent space `m^perp`. A transported orthonormal basis
+`t_i` gives the residual and angular rows
+
+\[
+C_i=t_i\cdot(a-b),\qquad
+J_{A,i}=a\wedge t_i,\qquad
+J_{B,i}=-(b\wedge t_i).
+\]
+
+At `a=-b`, the bisector and correction direction are not unique.
+`constraint()` therefore returns `status: 'antipodal'` and no solver block.
+This is a quotient-space singularity distinct from the full SO(4) logarithm
+cut locus: a free SO(3) twist may reach the latter while both material
+directions still agree perfectly. The joint consequently uses its defining
+direction geometry rather than falsely constraining the free twist through a
+full-frame logarithm.
+
+```ts
+import {
+  ConstraintBlockSolver4,
+  DirectionJoint4
+} from '@holotope/physics';
+
+const direction = new DirectionJoint4({
+  id: 'body/up',
+  bodyA,
+  localDirectionA: [0, 1, 0, 0],
+  worldDirectionB: [0, 1, 0, 0]
+});
+const blocks = new ConstraintBlockSolver4({ iterations: 8 });
+
+world.step(fixedDt, 1, (dt) => {
+  const evaluation = direction.constraint();
+  if (evaluation.status === 'regular') {
+    blocks.solve([evaluation.block], dt);
+  }
+});
+```
+
 ### Broadphase candidate providers
 
 Candidate generation is a separate dimension-independent contract.
@@ -1483,7 +1553,7 @@ surfaces unless an explicit collider is constructed from them. The finite
 broadphase is conservative AABB sweep-and-prune; infinite planes use an
 exhaustive lane. Linear CCD uses conservative swept AABBs before its certified
 casts, with the exhaustive candidate provider retained as a reference lane.
-Rotational CCD, spatial trees, concrete orientation-coordinate joints and limits,
+Rotational CCD, spatial trees, planar/full-frame joints and rotational limits,
 distance servos, rolling resistance, and sleeping are not implied by this
 stage. Point and distance joints plus scalar Jacobian rows are a constraint
 foundation, not a claim that hinge-like orientation families are already

@@ -12,7 +12,9 @@ two-guardian distance intervals, force-limited distance motors, and
 deterministic mixed-shape collider/body orchestration. Its rotational
 foundation also exposes paired-bivector coordinates, branch-aware relative
 SO(4) logarithms, analytic exponential/logarithm Jacobians, and the exact
-angular-velocity operator norm.
+angular-velocity operator norm. A common one-to-six-row equality-block solver
+now serves both point joints and the first genuinely R4 rotational policy:
+preservation of one oriented material direction with its SO(3) stabilizer free.
 Candidate generation is dimension-independent and includes exhaustive and
 temporally coherent sweep-and-prune providers; static and linearly swept AABBs
 share the same candidate contract, while infinite planes remain in an explicit
@@ -30,7 +32,7 @@ numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
-Spatial-tree broadphases, rotational CCD, orientation-coordinate joint
+Spatial-tree broadphases, rotational CCD, planar-rotation and full-frame joint
 policies, distance servos, rolling resistance, and sleeping are not yet part
 of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
@@ -106,6 +108,20 @@ Jacobians in either world-left or body-right trivialization. The right factor
 uses the opposite Jacobian sign because `Rotor4` composes that quaternion in
 reverse order. These are proof-kernel primitives; no hinge, cone, limit, or
 motor policy is implied yet.
+
+`ConstraintBlockSolver4` couples one to six unbounded equality rows through
+their complete `J M^-1 J^T` response. Its default rank policy refuses lost
+coordinates; an explicit `minimum-norm` policy exposes a deterministic
+spectral pseudoinverse for diagnostics. Bias limiting and warm-start transport
+operate on the complete coordinate vector, preserving orthogonal row-basis
+invariance. `PointJointSolver4` is now a compatibility wrapper over this shared
+kernel.
+
+`DirectionJoint4` binds one body-local unit direction to another local or
+fixed-world direction. `constraint()` returns either a regular three-row block
+or a typed `antipodal` refusal. The three rows constrain the tangent space of
+the direction sphere and leave the non-abelian SO(3) stabilizer free, so the
+joint deliberately exposes no fictitious scalar “hinge angle.”
 
 For automatic mixed contact, register `GlomeCollider4`, `PolytopeCollider4`,
 `HyperplaneContactCollider4`, and/or `HyperboxCollider4` instances with

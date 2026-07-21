@@ -74,6 +74,15 @@ export {
   type PhysicsWorld4VelocityConstraintCallback
 } from './world4.js';
 export {
+  ConstraintBlockSolver4,
+  constraintBlockResponseMatrix4,
+  type ConstraintBlock4,
+  type ConstraintBlockRankPolicy4,
+  type ConstraintBlockResult4,
+  type ConstraintBlockSolveResult4,
+  type ConstraintBlockSolver4Options
+} from './constraint-block4.js';
+export {
   ConstraintRowSolver4,
   applyConstraintRowImpulse4,
   applyPointPairImpulse4,
@@ -93,6 +102,13 @@ export {
   type PointConstraintPair4,
   type RigidJacobian4
 } from './constraint-row4.js';
+export {
+  DirectionJoint4,
+  directionConstraintBlock4,
+  type DirectionConstraintBlock4Options,
+  type DirectionConstraintEvaluation4,
+  type DirectionJoint4Options
+} from './direction-joint4.js';
 export {
   DistanceJoint4,
   DistanceCoordinate4,
