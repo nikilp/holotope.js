@@ -66,7 +66,7 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ contact pipeline     mixed glomes, planes, hyperboxes, vertex polytopes
   ├─ rigid constraints    scalar rows + 1..6-row blocks; point and stabilizer-classified rotation joints
   ├─ distance policies    N-D geometry + R4 equality, guardians, and motor bindings
-  ├─ compliant points     dimension-generic Float64 XPBD scalar constraints
+  ├─ compliant points     dimension-generic Float64 XPBD constraints + point world
   └─ hyperbox pipeline    specialized homogeneous box orchestration
 ```
 

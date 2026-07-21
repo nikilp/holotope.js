@@ -15,6 +15,9 @@
 - Added an atomic dimension-generic Float64 XPBD scalar-constraint kernel with
   physical compliance, total-multiplier force and residual diagnostics, typed
   zero-response evidence, and an exact RN distance consumer.
+- Added a renderer-neutral RN point-mass world with semi-implicit prediction,
+  XPBD projection, velocity reconstruction, substep force semantics, registered
+  ownership, and atomic position/velocity/force rollback.
 
 ### Showcase
 

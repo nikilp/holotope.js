@@ -856,12 +856,54 @@ malformed batch cannot leave a partial Gauss--Seidel correction. The exact RN
 distance consumer retains the prior coherent direction and requires an
 explicit branch at coincidence.
 
+`XpbdWorldN` supplies the corresponding renderer-neutral point-mass time-step
+boundary. It owns registered `XpbdParticleN` values and uses, for every substep
+of duration `h`,
+
+\[
+v^*=v+h\left(g_s g+w f\right),
+\qquad
+\widetilde x=x+h v^*,
+\qquad
+x'=\operatorname{project}_{XPBD}(\widetilde x,h),
+\qquad
+v'=\frac{x'-x}{h}.
+\]
+
+Here `w` is inverse mass and `g_s` is the particle's gravity scale. External
+force is held across all requested substeps and cleared after a successful
+outer step. A zero-inverse-mass particle is fixed: prediction and velocity
+reconstruction do not move it. The world neither infers a kinematic path nor a
+collision velocity when a caller explicitly edits such a point between steps.
+
+Every constraint point must be one of the registered particle objects. Particle
+and constraint ids are unique, and removing a point still referenced by a
+constraint refuses. A world step snapshots position, velocity, and force; any
+late evaluator failure restores the complete state and original accumulators.
+The result retains one `XpbdSolveResultN` per substep and separately aggregates
+raw constraint value and compliant residual.
+
+```ts
+import { XpbdParticleN, XpbdWorldN } from '@holotope/physics';
+
+const world = new XpbdWorldN({
+  dimension: 4,
+  gravity: [0, -9.81, 0, 0],
+  solverIterations: 8
+})
+  .addParticle(fixed)
+  .addParticle(point)
+  .addConstraint(spring);
+
+const step = world.step(1 / 60, 2);
+console.log(step.maxAbsCompliantResidual);
+```
+
 This kernel implements equations 17–18 of Macklin, Müller, and Chentanez,
 [“XPBD: Position-Based Simulation of Compliant Constrained Dynamics”
 (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf). A
-particle integrator, damping, inequality constraints, coupled compliance,
-deformable constitutive models, collision, and accelerated backends remain
-separate later consumers.
+damping, inequality constraints, coupled compliance, deformable constitutive
+models, collision, and accelerated backends remain separate later consumers.
 
 ### Bilateral R4 point joints
 
@@ -1802,6 +1844,11 @@ The test suite pins:
   mass-weighted corrections, fixed-point evidence, R2/R3/R4/R7 specialization,
   Euclidean invariance, coupled-chain convergence, degeneracy refusal, and
   atomic rollback after custom-evaluator failure;
+- RN point-mass semi-implicit prediction through R7, force holding across
+  substeps, fixed-point semantics, repeated hard-distance support, compliant
+  static extension and force at two timesteps, oscillator recurrence parity,
+  center-of-mass preservation, registration ownership, and complete world-step
+  rollback;
 - analytic glome–glome and axis-aligned box–box convex distances;
 - deterministic randomized box-pair differentials in R4;
 - transformed support points, rank-deficient simplices, and R3 specialization;

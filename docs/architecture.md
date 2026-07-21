@@ -171,6 +171,10 @@ physical compliance and explicit compliant residuals. It neither reuses an R4
 rigid Jacobian incorrectly nor replaces the velocity/contact pipeline. Later
 point-mass and deformable systems may consume this golden path; accelerated
 backends must be tested against it.
+`XpbdWorldN` is the first such consumer: it owns RN point prediction, constraint
+projection, velocity reconstruction, force accumulation, and transactional
+step semantics. It remains distinct from `PhysicsWorld4`, whose generalized
+coordinates include Spin(4) orientation and bivector momentum.
 
 Rotational policies are classified by the stabilizer of the geometric datum
 they preserve. Fixing one oriented direction leaves SO(3) free and produces a

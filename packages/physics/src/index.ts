@@ -145,6 +145,14 @@ export {
   type XpbdSolveResultN
 } from './xpbd-constraint.js';
 export {
+  XpbdParticleN,
+  XpbdWorldN,
+  type XpbdParticleNOptions,
+  type XpbdWorldNOptions,
+  type XpbdWorldStepResultN,
+  type XpbdWorldSubstepResultN
+} from './xpbd-world.js';
+export {
   DistanceIntervalJoint4,
   type DistanceIntervalConstraint4,
   type DistanceIntervalEvaluation4,

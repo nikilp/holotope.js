@@ -29,5 +29,5 @@
   "dependencies": {
     "@holotope/core": "workspace:*"
   },
-  "keywords": ["physics", "rigid-body", "collision", "ccd", "gjk", "4d", "nd", "bivector", "momentum"]
+  "keywords": ["physics", "rigid-body", "collision", "ccd", "gjk", "xpbd", "4d", "nd", "bivector", "momentum"]
 }

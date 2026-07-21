@@ -37,6 +37,9 @@ Float64 position-level kernel for compliant scalar equalities. It exposes the
 total XPBD multiplier, signed force estimate, and compliant residual, while
 `XpbdDistanceConstraintN` provides the first exact RN consumer. This does not
 replace or silently couple to the velocity-level R4 rigid constraint solver.
+`XpbdWorldN` wraps that kernel in explicit RN point-mass prediction, velocity
+reconstruction, force accumulation, substeps, ownership checks, and atomic
+world-step rollback.
 
 World-frame angular momentum is authoritative. Free flight therefore does not
 numerically integrate a gyroscopic force or silently lose momentum; angular
@@ -118,6 +121,14 @@ dimension-checked functions with one gradient per unique point. Invalid batches
 restore every participating position. `XpbdDistanceConstraintN` reuses the
 same exact distance coordinate and coincidence-branch rule as the rigid
 adapter.
+
+`XpbdParticleN` adds velocity, force, gravity scale, and a stable world-local id
+to that point coordinate. `XpbdWorldN.step()` performs semi-implicit prediction,
+XPBD projection, then velocity reconstruction for every substep. Forces are
+held across the outer step and clear only on success. Constraints may reference
+only registered particles; late evaluator errors restore all positions,
+velocities, and force accumulators. Fixed particles remain outside prediction
+and do not acquire an inferred kinematic trajectory.
 
 `relativeOrientationCoordinates4()` provides the analogous local coordinate
 for rotation. It chooses one lift of the paired-quaternion double cover,
