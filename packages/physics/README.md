@@ -44,7 +44,10 @@ This does not replace or silently couple to the velocity-level R4 rigid
 constraint solver.
 `XpbdWorldN` wraps that kernel in explicit RN point-mass prediction, velocity
 reconstruction, ordered post-projection velocity responses, force accumulation,
-substeps, ownership checks, and atomic world-step rollback. Its first responses
+substeps, read-only accepted-state guards, bounded adaptive retry, ownership
+checks, and atomic world-step rollback. Adaptive stepping retries only typed
+guard rejection and reports every attempted subdivision; it does not mask
+ordinary errors or provide a continuous no-inversion proof. Its first responses
 provide exact particle–plane Coulomb friction over the complete RN tangent ball
 and named timestep-invariant exponential damping.
 
@@ -159,7 +162,9 @@ XPBD projection, velocity reconstruction, then ordered
 `XpbdVelocityResponseN` policies for every substep. Responses may change only
 declared registered velocities and retain their evidence beside the matching
 solve result. Forces are held across the outer step and clear only on success.
-Late evaluator or response errors restore position, velocity, force, and
+Read-only `XpbdStateGuardN` policies then accept or reject the completed
+substep. Late evaluator, response, or guard errors restore position, velocity,
+force, and
 gravity scale transactionally. Fixed particles remain outside prediction and
 do not acquire an inferred kinematic trajectory.
 
@@ -244,6 +249,14 @@ state, structural cell ids, live lineage, exact particle identities, and
 deterministic shared-vertex forces. Immutable StVK and Neo-Hookean descriptors
 are built in. Their named family compilers are typed convenience wrappers over
 the same implementation and preserve the existing StVK API/provider identity.
+
+`compileSimplexConstitutiveFamilyStateGuardN()` is an optional post-substep
+policy over that generic family. It rejects typed law-domain refusal,
+full-dimensional orientation change, or a configured positive minimum measure
+ratio. `XpbdWorldN.stepAdaptive()` rolls those typed rejections back and retries
+the same outer duration with bounded deterministic subdivision. It does not
+retry arbitrary failures, repair an invalid material, or prove continuous
+orientation preservation between accepted endpoints.
 
 `relativeOrientationCoordinates4()` provides the analogous local coordinate
 for rotation. It chooses one lift of the paired-quaternion double cover,

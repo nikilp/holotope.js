@@ -200,6 +200,38 @@ back to the source. Named `compileSimplexStVenantKirchhoffFamilyN()` and
 `compileSimplexCompressibleNeoHookeanFamilyN()` wrappers are available when a
 fixed law is clearer.
 
+## Reject and retry an inadmissible material step
+
+Keep material energy and accepted-state policy explicit. The family supplies
+forces; a separate guard checks the completed substep; the world owns rollback
+and bounded subdivision.
+
+```ts
+import {
+  compileSimplexConstitutiveFamilyStateGuardN
+} from '@holotope/physics';
+
+const guard = compileSimplexConstitutiveFamilyStateGuardN({
+  id: 'material-domain',
+  family: material,
+  minimumMeasureRatio: 0.1
+});
+guard.addToWorld(world);
+
+const accepted = world.stepAdaptive(1 / 60, {
+  initialSubsteps: 1,
+  maximumSubsteps: 16,
+  growthFactor: 2
+});
+
+console.log(accepted.attempts); // rejected attempts, then the accepted count
+```
+
+Only a typed guard rejection is retryable. Invalid APIs, NaNs, and arbitrary
+solver failures escape immediately. The guard samples every completed
+substep; it is not continuous orientation CCD and cannot certify what happened
+between two accepted endpoints.
+
 ## Add a frictional RN floor to a particle system
 
 Normal contact is a position inequality; Coulomb friction is an ordered

@@ -1,5 +1,6 @@
 import { MatN, VecN } from '@holotope/core';
 import {
+  SimplexConstitutiveDomainErrorN,
   completeSimplexConstitutiveEvaluationN,
   type SimplexConstitutiveEvaluationN
 } from './simplex-constitutive.js';
@@ -18,6 +19,9 @@ export interface SimplexCompressibleNeoHookeanEvaluationN
   /** `log(J)`, where `J` is the positive current/rest intrinsic measure ratio. */
   readonly volumetricLogStrain: number;
 }
+
+export const SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID =
+  'compressible-neo-hookean';
 
 /**
  * Evaluates a compressible Neo-Hookean law on a k-simplex embedded in RN.
@@ -43,14 +47,18 @@ export function evaluateSimplexCompressibleNeoHookeanN(
   let measureRatio = deformation.measureRatio;
   if (deformation.orientationChange.kind === 'full-dimensional') {
     if (deformation.orientationChange.state !== 'preserved') {
-      throw new Error(
+      throw new SimplexConstitutiveDomainErrorN(
+        SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
+        deformation.orientationChange.state,
         `${caller}: full-dimensional current simplex must preserve orientation`
       );
     }
     measureRatio = deformation.orientationChange.signedMeasureRatio;
   }
   if (!(measureRatio > 0) || !Number.isFinite(measureRatio)) {
-    throw new Error(
+    throw new SimplexConstitutiveDomainErrorN(
+      SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
+      'non-positive-measure',
       `${caller}: current simplex must have positive finite measure ratio`
     );
   }

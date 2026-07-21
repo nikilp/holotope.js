@@ -956,6 +956,44 @@ the same generic lineage, ownership, rest-state, accumulation, and world
 composition behavior; neither creates another particle set or private
 simplexization.
 
+An accepted-state policy remains separate from force evaluation. The optional
+`compileSimplexConstitutiveFamilyStateGuardN()` adapter reevaluates one generic
+family after each completed point-world substep. It rejects a typed
+constitutive-domain refusal, any full-dimensional orientation change, or a
+current/rest measure ratio below an explicit positive threshold. Its result
+retains the law id, threshold, margin, orientation counts, potential energy,
+and complete family evaluation when the law remains in domain.
+
+```ts
+import {
+  compileSimplexConstitutiveFamilyStateGuardN
+} from '@holotope/physics';
+
+const guard = compileSimplexConstitutiveFamilyStateGuardN({
+  id: 'solid-domain',
+  family: solid,
+  minimumMeasureRatio: 0.1
+});
+guard.addToWorld(world);
+
+const accepted = world.stepAdaptive(1 / 60, {
+  initialSubsteps: 1,
+  maximumSubsteps: 16,
+  growthFactor: 2
+});
+console.log(accepted.attempts);
+```
+
+`stepAdaptive()` retries only typed state-guard rejection. Every failed attempt
+is rolled back to the same outer-step snapshot, and a successful attempt still
+advances exactly the requested duration. Malformed callbacks, non-finite
+values, ownership violations, and ordinary numerical/programming errors are
+not retried. Exhaustion throws `XpbdAdaptiveStepFailureErrorN` with the complete
+attempt sequence while leaving the world unchanged. Subdivision checks each
+completed substep; it does not prove that the continuous path stayed
+orientation-preserving between endpoints and is not an inversion barrier or
+implicit material solve.
+
 ### Source particles and intrinsic mass
 
 Simulation state is bound to source topology independently of any constraint or
@@ -1104,16 +1142,18 @@ prediction and velocity reconstruction do not move it. The world neither
 infers a kinematic path nor a collision velocity when a caller explicitly
 edits such a point between steps.
 
-Every constraint, force-provider, or velocity-response point must be one of the
+Every constraint, force-provider, velocity-response, or state-guard point must be one of the
 registered particle objects. Particle, constraint, provider, and response ids
-are unique, and removing a point still referenced by any policy refuses. After
+are unique within their policy classes, and removing a point still referenced by any policy refuses. After
 velocity reconstruction, ordered `XpbdVelocityResponseN` policies receive the
 matching position solve and may mutate only the velocities of their declared
 particles. The world rejects position, force, gravity-scale, foreign-velocity,
 or non-finite mutations. A world step snapshots the complete particle state;
-any late constraint, provider, or response failure restores it and the original
-accumulators. Each substep result retains its solve, ordered provider evidence,
-and ordered response evidence, while the outer result separately aggregates raw
+any late constraint, provider, response, or state-guard failure restores it and
+the original accumulators. Read-only `XpbdStateGuardN` policies run after all
+velocity responses and cannot mutate any particle state. Each substep result
+retains its solve, ordered provider, response, and state-guard evidence, while
+the outer result separately aggregates raw
 constraint value, compliant residual, and projected KKT residual.
 
 ```ts
@@ -1288,9 +1328,9 @@ consumers observe the evolved source without losing its cell identity.
 The XPBD projection kernel implements equations 17–18 of Macklin, Müller, and Chentanez,
 [“XPBD: Position-Based Simulation of Compliant Constrained Dynamics”
 (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf).
-Coupled position constraints, surface-feature contact, restitution, generic
-constitutive-family assembly, implicit material integration, continuous
-collision, and accelerated backends remain separate later consumers. Named
+Coupled position constraints, surface-feature contact, restitution, implicit
+material integration, continuous deformable collision, and accelerated
+material backends remain separate later consumers. Named
 exponential damping and discrete particle--hyperplane Coulomb friction are the
 first post-reconstruction velocity consumers described above.
 

@@ -2,6 +2,28 @@ import { MatN, VecN } from '@holotope/core';
 import type { SimplexMetricDeformationN } from './simplex-deformation.js';
 import { evaluateSimplexSquaredMeasureN } from './xpbd-simplex-measure.js';
 
+export type SimplexConstitutiveDomainReasonN =
+  | 'collapsed'
+  | 'inverted'
+  | 'non-positive-measure';
+
+/** Typed material-chart refusal, distinct from malformed input or arithmetic failure. */
+export class SimplexConstitutiveDomainErrorN extends Error {
+  readonly lawId: string;
+  readonly reason: SimplexConstitutiveDomainReasonN;
+
+  constructor(
+    lawId: string,
+    reason: SimplexConstitutiveDomainReasonN,
+    message: string
+  ) {
+    super(message);
+    this.name = 'SimplexConstitutiveDomainErrorN';
+    this.lawId = lawId;
+    this.reason = reason;
+  }
+}
+
 /** Common energy, stress, and current-gradient evidence for one simplex law. */
 export interface SimplexConstitutiveEvaluationN<TMaterial> {
   readonly deformation: SimplexMetricDeformationN;

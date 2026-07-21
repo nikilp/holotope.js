@@ -146,16 +146,25 @@ export {
   type XpbdSolveResultN
 } from './xpbd-constraint.js';
 export {
+  XpbdAdaptiveStepFailureErrorN,
   XpbdParticleN,
+  XpbdStateGuardRejectionErrorN,
   XpbdWorldN,
+  type XpbdAdaptiveStepAttemptN,
+  type XpbdAdaptiveStepOptionsN,
   type XpbdForceProviderEvaluationN,
   type XpbdForceProviderN,
   type XpbdParticleNOptions,
+  type XpbdStateGuardContextN,
+  type XpbdStateGuardEvaluationN,
+  type XpbdStateGuardN,
   type XpbdVelocityResponseContextN,
   type XpbdVelocityResponseEvaluationN,
   type XpbdVelocityResponseN,
   type XpbdWorldForceProviderResultN,
+  type XpbdWorldAdaptiveStepResultN,
   type XpbdWorldNOptions,
+  type XpbdWorldStateGuardResultN,
   type XpbdWorldStepResultN,
   type XpbdWorldSubstepResultN,
   type XpbdWorldVelocityResponseResultN
@@ -243,8 +252,10 @@ export {
   type SimplexMetricDeformationN,
   type SimplexOrientationChangeN
 } from './simplex-deformation.js';
-export type {
-  SimplexConstitutiveEvaluationN
+export {
+  SimplexConstitutiveDomainErrorN,
+  type SimplexConstitutiveDomainReasonN,
+  type SimplexConstitutiveEvaluationN
 } from './simplex-constitutive.js';
 export {
   SimplexConstitutiveFamilyN,
@@ -258,6 +269,13 @@ export {
   type SimplexConstitutiveLawN
 } from './simplex-constitutive-family.js';
 export {
+  SimplexConstitutiveFamilyStateGuardN,
+  compileSimplexConstitutiveFamilyStateGuardN,
+  type CompileSimplexConstitutiveFamilyStateGuardNOptions,
+  type SimplexConstitutiveFamilyStateGuardEvaluationN,
+  type SimplexConstitutiveFamilyStateGuardStatusN
+} from './simplex-constitutive-state-guard.js';
+export {
   simplexCompressibleNeoHookeanLawN,
   simplexStVenantKirchhoffLawN
 } from './simplex-constitutive-laws.js';
@@ -267,6 +285,7 @@ export {
   type SimplexStVenantKirchhoffMaterialN
 } from './simplex-stvk-material.js';
 export {
+  SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
   evaluateSimplexCompressibleNeoHookeanN,
   type SimplexCompressibleNeoHookeanEvaluationN,
   type SimplexCompressibleNeoHookeanMaterialN

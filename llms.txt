@@ -92,6 +92,9 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 - Constitutive assembly: `SimplexConstitutiveLawN`, built-in immutable law
   descriptors, `compileSimplexConstitutiveFamilyN`, plus named StVK and
   Neo-Hookean family compilers.
+- Accepted RN state: `XpbdStateGuardN`,
+  `compileSimplexConstitutiveFamilyStateGuardN`, and bounded transactional
+  `XpbdWorldN.stepAdaptive()`; subdivision is not continuous inversion CCD.
 - RN velocity policies: `XpbdVelocityResponseN`,
   `compileXpbdParticleHyperplaneFrictionFamilyN` (complete Coulomb tangent
   ball), and `XpbdExponentialVelocityDampingN` (inverse-seconds decay).

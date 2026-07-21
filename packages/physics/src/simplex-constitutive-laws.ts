@@ -1,5 +1,6 @@
 import type { SimplexConstitutiveLawN } from './simplex-constitutive-family.js';
 import {
+  SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
   evaluateSimplexCompressibleNeoHookeanN,
   type SimplexCompressibleNeoHookeanEvaluationN,
   type SimplexCompressibleNeoHookeanMaterialN
@@ -24,6 +25,6 @@ export const simplexCompressibleNeoHookeanLawN: SimplexConstitutiveLawN<
   SimplexCompressibleNeoHookeanMaterialN,
   SimplexCompressibleNeoHookeanEvaluationN
 > = Object.freeze({
-  id: 'compressible-neo-hookean',
+  id: SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
   evaluate: evaluateSimplexCompressibleNeoHookeanN
 });

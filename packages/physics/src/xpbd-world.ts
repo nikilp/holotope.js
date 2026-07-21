@@ -126,6 +126,102 @@ export interface XpbdWorldVelocityResponseResultN {
   readonly evaluation: XpbdVelocityResponseEvaluationN;
 }
 
+/** Read-only evidence deciding whether one completed RN substep is admissible. */
+export interface XpbdStateGuardEvaluationN {
+  readonly accepted: boolean;
+  /** Optional signed distance from the guard boundary; positive is admissible. */
+  readonly margin?: number;
+  readonly reason?: string;
+}
+
+export interface XpbdStateGuardContextN {
+  readonly deltaTime: number;
+  readonly substepIndex: number;
+  readonly forceProviders: readonly XpbdWorldForceProviderResultN[];
+  readonly solve: XpbdSolveResultN;
+  readonly velocityResponses: readonly XpbdWorldVelocityResponseResultN[];
+}
+
+/** Pure accepted-state policy evaluated after a complete RN substep. */
+export interface XpbdStateGuardN {
+  readonly id: string;
+  readonly dimension: number;
+  /** Exact registered particles observed by this guard. */
+  readonly particles: readonly XpbdParticleN[];
+  evaluate(context: XpbdStateGuardContextN): XpbdStateGuardEvaluationN;
+}
+
+export interface XpbdWorldStateGuardResultN {
+  readonly guard: XpbdStateGuardN;
+  readonly evaluation: XpbdStateGuardEvaluationN;
+}
+
+/** Typed signal that a well-formed completed substep was not admissible. */
+export class XpbdStateGuardRejectionErrorN extends Error {
+  readonly guard: XpbdStateGuardN;
+  readonly evaluation: XpbdStateGuardEvaluationN;
+  readonly substepIndex: number;
+
+  constructor(
+    guard: XpbdStateGuardN,
+    evaluation: XpbdStateGuardEvaluationN,
+    substepIndex: number
+  ) {
+    super(
+      `XpbdWorldN.step: state guard "${guard.id}" rejected substep ${substepIndex}` +
+      (evaluation.reason === undefined ? '' : ` (${evaluation.reason})`)
+    );
+    this.name = 'XpbdStateGuardRejectionErrorN';
+    this.guard = guard;
+    this.evaluation = evaluation;
+    this.substepIndex = substepIndex;
+  }
+}
+
+export interface XpbdAdaptiveStepOptionsN {
+  /** First deterministic subdivision count. Default one. */
+  readonly initialSubsteps?: number;
+  /** Hard retry ceiling. Default 64. */
+  readonly maximumSubsteps?: number;
+  /** Integer multiplier applied after rejection. Default two. */
+  readonly growthFactor?: number;
+}
+
+export interface XpbdAdaptiveStepAttemptN {
+  readonly substeps: number;
+  readonly status: 'accepted' | 'rejected';
+  readonly rejectedGuardId?: string;
+  readonly rejectedSubstepIndex?: number;
+  readonly rejection?: XpbdStateGuardEvaluationN;
+}
+
+export interface XpbdWorldAdaptiveStepResultN {
+  readonly result: XpbdWorldStepResultN;
+  readonly attempts: readonly XpbdAdaptiveStepAttemptN[];
+}
+
+/** Typed exhaustion result; the world has already restored its initial state. */
+export class XpbdAdaptiveStepFailureErrorN extends Error {
+  readonly deltaTime: number;
+  readonly attempts: readonly XpbdAdaptiveStepAttemptN[];
+  readonly lastRejection: XpbdStateGuardRejectionErrorN;
+
+  constructor(
+    deltaTime: number,
+    attempts: readonly XpbdAdaptiveStepAttemptN[],
+    lastRejection: XpbdStateGuardRejectionErrorN
+  ) {
+    super(
+      `XpbdWorldN.stepAdaptive: exhausted ${attempts.length} attempts at ` +
+      `${attempts[attempts.length - 1]!.substeps} substeps`
+    );
+    this.name = 'XpbdAdaptiveStepFailureErrorN';
+    this.deltaTime = deltaTime;
+    this.attempts = attempts;
+    this.lastRejection = lastRejection;
+  }
+}
+
 export interface XpbdWorldSubstepResultN {
   readonly index: number;
   readonly deltaTime: number;
@@ -134,6 +230,8 @@ export interface XpbdWorldSubstepResultN {
   readonly solve: XpbdSolveResultN;
   /** Ordered policies applied after velocity reconstruction. */
   readonly velocityResponses: readonly XpbdWorldVelocityResponseResultN[];
+  /** Ordered read-only acceptance checks for the completed substep. */
+  readonly stateGuards: readonly XpbdWorldStateGuardResultN[];
 }
 
 export interface XpbdWorldStepResultN {
@@ -163,6 +261,8 @@ const EMPTY_FORCE_PROVIDER_RESULTS: readonly XpbdWorldForceProviderResultN[] =
   Object.freeze([]);
 const EMPTY_VELOCITY_RESPONSE_RESULTS: readonly XpbdWorldVelocityResponseResultN[] =
   Object.freeze([]);
+const EMPTY_STATE_GUARD_RESULTS: readonly XpbdWorldStateGuardResultN[] =
+  Object.freeze([]);
 
 /**
  * Renderer-neutral RN point-mass integration around the XPBD golden kernel.
@@ -178,6 +278,7 @@ export class XpbdWorldN {
   private readonly registeredConstraints: XpbdScalarConstraintN[] = [];
   private readonly registeredForceProviders: XpbdForceProviderN[] = [];
   private readonly registeredVelocityResponses: XpbdVelocityResponseN[] = [];
+  private readonly registeredStateGuards: XpbdStateGuardN[] = [];
 
   constructor(options: XpbdWorldNOptions) {
     if (!Number.isSafeInteger(options.dimension) || options.dimension < 1) {
@@ -215,6 +316,10 @@ export class XpbdWorldN {
     return this.registeredVelocityResponses;
   }
 
+  get stateGuards(): readonly XpbdStateGuardN[] {
+    return this.registeredStateGuards;
+  }
+
   addParticle(particle: XpbdParticleN): this {
     if (!(particle instanceof XpbdParticleN)) {
       throw new Error('XpbdWorldN.addParticle: expected an XpbdParticleN');
@@ -240,10 +345,13 @@ export class XpbdWorldN {
       this.registeredForceProviders.some((provider) => provider.particles.includes(particle)) ||
       this.registeredVelocityResponses.some((response) =>
         response.particles.includes(particle)
+      ) ||
+      this.registeredStateGuards.some((guard) =>
+        guard.particles.includes(particle)
       )
     ) {
       throw new Error(
-        `XpbdWorldN.removeParticle: particle "${particle.id}" is still referenced by a constraint, force provider, or velocity response`
+        `XpbdWorldN.removeParticle: particle "${particle.id}" is still referenced by a constraint, force provider, velocity response, or state guard`
       );
     }
     this.registeredParticles.splice(index, 1);
@@ -307,6 +415,24 @@ export class XpbdWorldN {
     return this;
   }
 
+  addStateGuard(guard: XpbdStateGuardN): this {
+    this.validateStateGuardOwnership(guard, 'XpbdWorldN.addStateGuard');
+    if (this.registeredStateGuards.includes(guard)) return this;
+    if (this.registeredStateGuards.some((existing) => existing.id === guard.id)) {
+      throw new Error(
+        `XpbdWorldN.addStateGuard: duplicate state guard id "${guard.id}"`
+      );
+    }
+    this.registeredStateGuards.push(guard);
+    return this;
+  }
+
+  removeStateGuard(guard: XpbdStateGuardN): this {
+    const index = this.registeredStateGuards.indexOf(guard);
+    if (index >= 0) this.registeredStateGuards.splice(index, 1);
+    return this;
+  }
+
   /**
    * Predicts, projects, reconstructs velocity, and applies ordered responses
    * for one complete step.
@@ -338,12 +464,20 @@ export class XpbdWorldN {
           substepIndex: index,
           solve
         });
+        const stateGuards = this.evaluateStateGuards({
+          deltaTime: substepDuration,
+          substepIndex: index,
+          forceProviders: evaluatedForces.results,
+          solve,
+          velocityResponses
+        });
         constraintSolves.push(Object.freeze({
           index,
           deltaTime: substepDuration,
           forceProviders: evaluatedForces.results,
           solve,
-          velocityResponses
+          velocityResponses,
+          stateGuards
         }));
       }
       for (const particle of this.registeredParticles) particle.clearForce();
@@ -365,6 +499,70 @@ export class XpbdWorldN {
     } catch (error) {
       for (const snapshot of snapshots) restoreParticle(snapshot);
       throw error;
+    }
+  }
+
+  /**
+   * Retries typed accepted-state rejections with deterministic subdivision.
+   * Every attempt advances the same `deltaTime`; unrelated errors are not retried.
+   */
+  stepAdaptive(
+    deltaTime: number,
+    options: XpbdAdaptiveStepOptionsN = {}
+  ): XpbdWorldAdaptiveStepResultN {
+    if (!Number.isFinite(deltaTime) || deltaTime <= 0) {
+      throw new Error(
+        'XpbdWorldN.stepAdaptive: deltaTime must be finite and positive'
+      );
+    }
+    const initialSubsteps = options.initialSubsteps ?? 1;
+    const maximumSubsteps = options.maximumSubsteps ?? 64;
+    const growthFactor = options.growthFactor ?? 2;
+    if (!Number.isSafeInteger(initialSubsteps) || initialSubsteps < 1) {
+      throw new Error(
+        'XpbdWorldN.stepAdaptive: initialSubsteps must be a positive integer'
+      );
+    }
+    if (!Number.isSafeInteger(maximumSubsteps) ||
+      maximumSubsteps < initialSubsteps) {
+      throw new Error(
+        'XpbdWorldN.stepAdaptive: maximumSubsteps must be an integer at least initialSubsteps'
+      );
+    }
+    if (!Number.isSafeInteger(growthFactor) || growthFactor < 2) {
+      throw new Error(
+        'XpbdWorldN.stepAdaptive: growthFactor must be an integer at least two'
+      );
+    }
+
+    const attempts: XpbdAdaptiveStepAttemptN[] = [];
+    let substeps = initialSubsteps;
+    while (true) {
+      try {
+        const result = this.step(deltaTime, substeps);
+        attempts.push(Object.freeze({ substeps, status: 'accepted' }));
+        return Object.freeze({
+          result,
+          attempts: Object.freeze(attempts)
+        });
+      } catch (error) {
+        if (!(error instanceof XpbdStateGuardRejectionErrorN)) throw error;
+        attempts.push(Object.freeze({
+          substeps,
+          status: 'rejected',
+          rejectedGuardId: error.guard.id,
+          rejectedSubstepIndex: error.substepIndex,
+          rejection: error.evaluation
+        }));
+        if (substeps === maximumSubsteps) {
+          throw new XpbdAdaptiveStepFailureErrorN(
+            deltaTime,
+            Object.freeze(attempts),
+            error
+          );
+        }
+        substeps = Math.min(maximumSubsteps, substeps * growthFactor);
+      }
     }
   }
 
@@ -416,6 +614,16 @@ export class XpbdWorldN {
         );
       }
       velocityResponseIds.add(response.id);
+    }
+    const stateGuardIds = new Set<string>();
+    for (const guard of this.registeredStateGuards) {
+      this.validateStateGuardOwnership(guard, 'XpbdWorldN.step');
+      if (stateGuardIds.has(guard.id)) {
+        throw new Error(
+          `XpbdWorldN.step: duplicate state guard id "${guard.id}"`
+        );
+      }
+      stateGuardIds.add(guard.id);
     }
   }
 
@@ -529,6 +737,95 @@ export class XpbdWorldN {
         throw new Error(`${caller}: every velocity-response particle must be registered`);
       }
     }
+  }
+
+  private validateStateGuardOwnership(
+    guard: XpbdStateGuardN,
+    caller: string
+  ): void {
+    if (typeof guard !== 'object' || guard === null) {
+      throw new Error(`${caller}: expected an RN state guard`);
+    }
+    if (typeof guard.id !== 'string' || guard.id.trim().length === 0) {
+      throw new Error(`${caller}: state guard id must be a non-empty string`);
+    }
+    if (guard.dimension !== this.dimension) {
+      throw new Error(
+        `${caller}: state guard is R${guard.dimension}, world is R${this.dimension}`
+      );
+    }
+    if (!Array.isArray(guard.particles) || guard.particles.length === 0) {
+      throw new Error(`${caller}: state guard must contain registered particles`);
+    }
+    if (typeof guard.evaluate !== 'function') {
+      throw new Error(`${caller}: state guard must define evaluate()`);
+    }
+    const uniqueParticles = new Set<XpbdParticleN>();
+    for (const particle of guard.particles) {
+      if (!(particle instanceof XpbdParticleN)) {
+        throw new Error(`${caller}: state guard particles must be XpbdParticleN values`);
+      }
+      if (uniqueParticles.has(particle)) {
+        throw new Error(`${caller}: state guard repeats a particle identity`);
+      }
+      uniqueParticles.add(particle);
+      if (!this.registeredParticles.includes(particle)) {
+        throw new Error(`${caller}: every state-guard particle must be registered`);
+      }
+    }
+  }
+
+  private evaluateStateGuards(
+    context: XpbdStateGuardContextN
+  ): readonly XpbdWorldStateGuardResultN[] {
+    if (this.registeredStateGuards.length === 0) {
+      return EMPTY_STATE_GUARD_RESULTS;
+    }
+    const results: XpbdWorldStateGuardResultN[] = [];
+    const frozenContext = Object.freeze({ ...context });
+    for (const guard of this.registeredStateGuards) {
+      const before = this.registeredParticles.map(snapshotParticle);
+      const evaluation = guard.evaluate(frozenContext);
+      if (typeof evaluation !== 'object' || evaluation === null) {
+        throw new Error(
+          `XpbdWorldN.step: state guard "${guard.id}" returned no evaluation`
+        );
+      }
+      for (let index = 0; index < this.registeredParticles.length; index++) {
+        assertParticleUnchanged(
+          this.registeredParticles[index]!,
+          before[index]!,
+          `XpbdWorldN.step: state guard "${guard.id}"`
+        );
+      }
+      if (typeof evaluation.accepted !== 'boolean') {
+        throw new Error(
+          `XpbdWorldN.step: state guard "${guard.id}" accepted must be boolean`
+        );
+      }
+      if (evaluation.margin !== undefined && !Number.isFinite(evaluation.margin)) {
+        throw new Error(
+          `XpbdWorldN.step: state guard "${guard.id}" margin must be finite`
+        );
+      }
+      if (evaluation.reason !== undefined &&
+        (typeof evaluation.reason !== 'string' || evaluation.reason.length === 0)) {
+        throw new Error(
+          `XpbdWorldN.step: state guard "${guard.id}" reason must be a non-empty string`
+        );
+      }
+      const immutableEvaluation = Object.freeze({ ...evaluation });
+      const result = Object.freeze({ guard, evaluation: immutableEvaluation });
+      results.push(result);
+      if (!immutableEvaluation.accepted) {
+        throw new XpbdStateGuardRejectionErrorN(
+          guard,
+          immutableEvaluation,
+          context.substepIndex
+        );
+      }
+    }
+    return Object.freeze(results);
   }
 
   private applyVelocityResponses(
@@ -714,6 +1011,25 @@ function restoreParticle(snapshot: ParticleSnapshotN): void {
   snapshot.particle.velocity.data.set(snapshot.velocity);
   snapshot.particle.force.data.set(snapshot.force);
   snapshot.particle.gravityScale = snapshot.gravityScale;
+}
+
+function assertParticleUnchanged(
+  particle: XpbdParticleN,
+  snapshot: ParticleSnapshotN,
+  caller: string
+): void {
+  if (!arraysEqual(particle.position.data, snapshot.position)) {
+    throw new Error(`${caller} mutated particle positions`);
+  }
+  if (!arraysEqual(particle.velocity.data, snapshot.velocity)) {
+    throw new Error(`${caller} mutated particle velocities`);
+  }
+  if (!arraysEqual(particle.force.data, snapshot.force)) {
+    throw new Error(`${caller} mutated particle forces`);
+  }
+  if (particle.gravityScale !== snapshot.gravityScale) {
+    throw new Error(`${caller} mutated gravity scale`);
+  }
 }
 
 function arraysEqual(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
