@@ -795,6 +795,66 @@ artificially damped.
 `normalContactConstraintsFromHyperboxPatch4()` remain available as explicit
 frictionless compatibility interfaces.
 
+### Dimension-independent simplex materials
+
+Matching rest and current k-simplices in R^N define an intrinsic material
+coordinate without choosing an ambient normal. `evaluateSimplexMetricDeformationN()`
+forms the rest and current Gram metrics, normalizes by a deterministic Cholesky
+basis, and reports the right Cauchy--Green tensor `C`, Green--Lagrange strain
+`E = (C - I) / 2`, principal stretches, measure ratio, and conditioning. The
+same contract therefore covers a line, an embedded membrane, or a
+full-dimensional solid for every `1 <= k <= N`.
+
+`evaluateSimplexStVenantKirchhoffN()` is the first constitutive consumer of
+that coordinate. For Lamé parameters `lambda` and `mu`, it evaluates the
+energy density per unit rest k-measure
+
+\[
+\psi(E)=\mu\lVert E\rVert_F^2+\frac{\lambda}{2}\operatorname{tr}(E)^2,
+\]
+
+its second Piola stress
+
+\[
+S=\lambda\operatorname{tr}(E)I+2\mu E,
+\]
+
+and the analytic gradient of total energy with respect to every current
+vertex. `currentGradients[i]` is `dU/dx_i`; an internal force is its negative.
+The parameters must satisfy `mu > 0` and `lambda + 2 mu / k > 0`. The API takes
+Lamé parameters directly because converting Young's modulus and Poisson ratio
+requires a caller-owned physical convention such as a solid, plane-strain, or
+plane-stress model.
+
+```ts
+import { VecN } from '@holotope/core';
+import { evaluateSimplexStVenantKirchhoffN } from '@holotope/physics';
+
+const rest = [
+  new VecN([0, 0, 0, 0]),
+  new VecN([1, 0, 0, 0]),
+  new VecN([0, 1, 0, 0]),
+  new VecN([0, 0, 1, 0]),
+  new VecN([0, 0, 0, 1])
+];
+const current = rest.map((point) => point.clone());
+current[1]!.data[0] = 1.2;
+
+const sample = evaluateSimplexStVenantKirchhoffN(rest, current, {
+  firstLameParameter: 2,
+  shearModulus: 3
+});
+
+console.log(sample.energy, sample.currentGradients);
+```
+
+The energy is metric-based, so a reflected full-dimensional simplex can have
+the same value as a proper one. The accompanying deformation record retains
+its signed orientation classification instead of hiding an inversion penalty
+inside the material law. StVK is a small-strain reference model; time
+integration, damping, material assembly, bending, collision, and no-inversion
+barriers are intentionally separate consumers.
+
 ### Dimension-generic compliant point constraints
 
 `XpbdConstraintSolverN` is the Float64 reference path for scalar extended

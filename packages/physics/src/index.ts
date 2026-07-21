@@ -198,6 +198,11 @@ export {
   type SimplexOrientationChangeN
 } from './simplex-deformation.js';
 export {
+  evaluateSimplexStVenantKirchhoffN,
+  type SimplexStVenantKirchhoffEvaluationN,
+  type SimplexStVenantKirchhoffMaterialN
+} from './simplex-stvk-material.js';
+export {
   DistanceIntervalJoint4,
   type DistanceIntervalConstraint4,
   type DistanceIntervalEvaluation4,

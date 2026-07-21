@@ -189,10 +189,14 @@ Material deformation is another layer above those local measures. Matching
 rest/current k-simplices define intrinsic Gram metrics even when `k < N`.
 Cholesky normalization of the rest metric yields an orthonormal material basis
 in which right Cauchy–Green strain, Green–Lagrange strain, principal stretches,
-and measure ratio can be compared without an ambient normal. This is a
-kinematic coordinate only: constitutive energy, gradient, solver, and damping
-remain separate policies. Full-dimensional determinant orientation augments
-the metric; embedded orientation does not become scalar by implication.
+and measure ratio can be compared without an ambient normal. The first
+constitutive consumer is an isotropic St. Venant–Kirchhoff simplex evaluator:
+it maps that intrinsic strain to rest-measure-weighted energy, second Piola
+stress, and analytic current-vertex gradients in any ambient dimension. It is
+a Float64 reference law, not a solver. Time integration, damping, inversion
+barriers, and accelerated implementations remain separate policies.
+Full-dimensional determinant orientation augments the metric; embedded
+orientation does not become scalar by implication.
 
 `compileXpbdDistanceNetworkN()` is the first topology-to-simulation compiler.
 The caller explicitly selects one two-vertex 1-cell group from a `CellComplex`;
@@ -239,5 +243,5 @@ only where subgroup geometry supplies an honest abelian coordinate.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation, and XPBD scalar compliance including unsigned intrinsic and signed full-dimensional simplex coordinates, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; constitutive energies, bending, inversion barriers and complete volumetric deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with StVK energy and analytic gradients, and XPBD scalar compliance including unsigned intrinsic and signed full-dimensional simplex coordinates, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; additional constitutive laws, material solvers, bending, inversion barriers and complete volumetric deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback
