@@ -1038,10 +1038,10 @@ an authored rotational joint preserves, how limits cross a branch, or how a
 motor should spend force. Those remain explicit policies over this common
 coordinate and the existing rigid-Jacobian solver.
 
-### Coupled equality blocks
+### Coupled equality and one-bounded blocks
 
-`ConstraintBlockSolver4` couples one to six unbounded bilateral
-`ConstraintRow4` values through the exact small dense response
+`ConstraintBlockSolver4` couples one to six `ConstraintRow4` values through
+the exact small dense response
 
 \[
 K_{ij}=J_i M^{-1}J_j^T.
@@ -1055,6 +1055,29 @@ rank. Bias slop and speed bounds apply to the norm of the complete coordinate
 vector, not to its components. Warm starts project the preceding generalized
 impulse into the current row basis through the cross-response, so an orthogonal
 basis change does not change the world impulse.
+
+The default `projection` is `equality` and continues to refuse finite force
+bounds. The additive `one-bounded` projection requires exactly one bounded row
+and a full-rank response. If `E` denotes the equality rows and `b` the bounded
+row, the solver forms the scalar Schur response
+
+\[
+S=K_{bb}-K_{bE}K_{EE}^{-1}K_{Eb}.
+\]
+
+It solves and clamps the accumulated `b` impulse, then re-solves
+
+\[
+\Delta\lambda_E=K_{EE}^{-1}
+  (r_E-K_{Eb}\Delta\lambda_b).
+\]
+
+This is the complete active-set solution for one bounded coordinate, not a
+componentwise approximation. Equality residuals therefore remain zero even
+at torque saturation. The block result reports both the raw speed residual
+and the reduced projected KKT residual; only the latter is expected to vanish
+when a bound is active. Warm transport applies the same projection and
+equality re-solve after timestep scaling.
 
 The four-coordinate `PointJointSolver4` now delegates to this kernel without
 changing its public result. This migration is differential evidence that the
@@ -1192,11 +1215,58 @@ if (sample.status === 'regular') {
 }
 ```
 
-Motors and limits remain the following policy layer. On anisotropic bodies the
-five equality rows and the free-angle row couple through `J M^-1 J^T`; solving
-a bounded scalar row afterward can reintroduce forbidden frame speed. The
-motor/limit solver must therefore project the bounded coordinate while
-satisfying the five equalities coherently.
+`PlanarRotationMotor4` and `PlanarRotationIntervalJoint4` are the first policy
+consumers of that bounded block. A motor combines the five frame equalities
+with the phase row and symmetric torque bounds. An interval retains two stable
+guardian blocks over the continuous angle: its minimum row admits only
+non-negative torque and its maximum row only non-positive torque. Inside the
+interval their targets encode the first-order safe-speed corridor
+
+\[
+\frac{\theta_{min}-\theta}{\Delta t}
+\leq \dot\theta \leq
+\frac{\theta_{max}-\theta}{\Delta t}.
+\]
+
+Outside it, signed position error supplies bounded Baumgarte repair. When a
+motor and interval are composed, solve the motor block before both guardians;
+the guardians then observe speed introduced during the same projected pass.
+
+```ts
+import {
+  ConstraintBlockSolver4,
+  PlanarRotationCoordinate4,
+  PlanarRotationIntervalJoint4,
+  PlanarRotationMotor4
+} from '@holotope/physics';
+
+const phase = new PlanarRotationCoordinate4({
+  joint: rotation,
+  localPhaseDirectionA: [0, 0, 1, 0],
+  worldPhaseDirectionB: [0, 0, 1, 0]
+});
+const motor = new PlanarRotationMotor4({
+  coordinate: phase,
+  targetSpeed: 1.2,
+  maxTorque: 8
+});
+const interval = new PlanarRotationIntervalJoint4({
+  coordinate: phase,
+  minAngle: -Math.PI / 3,
+  maxAngle: Math.PI / 3
+});
+
+world.step(fixedDt, 1, (dt) => {
+  const drive = motor.constraint();
+  const limits = interval.constraints(dt);
+  if (drive.status === 'regular' && limits.status === 'regular') {
+    blocks.solve([
+      drive.block,
+      ...limits.constraints.map((entry) => entry.block)
+    ], dt);
+  }
+});
+```
 
 ### Broadphase candidate providers
 

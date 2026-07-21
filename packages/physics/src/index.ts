@@ -77,6 +77,8 @@ export {
   ConstraintBlockSolver4,
   constraintBlockResponseMatrix4,
   type ConstraintBlock4,
+  type ConstraintBlockBoundedCoordinateResult4,
+  type ConstraintBlockProjection4,
   type ConstraintBlockRankPolicy4,
   type ConstraintBlockResult4,
   type ConstraintBlockSolveResult4,
@@ -163,6 +165,22 @@ export {
   type PlanarRotationPhaseBranch4,
   type PlanarRotationPhaseEvaluation4
 } from './planar-rotation-coordinate4.js';
+export {
+  PlanarRotationMotor4,
+  type PlanarRotationMotor4Options,
+  type PlanarRotationMotorConstraint4,
+  type PlanarRotationMotorEvaluation4
+} from './planar-rotation-motor4.js';
+export {
+  PlanarRotationIntervalJoint4,
+  type PlanarRotationInterval4Options,
+  type PlanarRotationIntervalConstraint4,
+  type PlanarRotationIntervalConstraintEvaluation4,
+  type PlanarRotationIntervalConstraints4,
+  type PlanarRotationIntervalEvaluation4,
+  type PlanarRotationIntervalObservation4,
+  type PlanarRotationIntervalState4
+} from './planar-rotation-interval4.js';
 export {
   ConvexHullSupportShapeN,
   GlomeSupportShapeN,

@@ -12,6 +12,11 @@
   by their SO(3) and SO(2) stabilizers rather than an ambiguous “4D hinge.”
 - Added an oriented planar-rotation phase with explicit branch tokens,
   multi-turn unwrapping, half-turn ambiguity, and angular-rate diagnostics.
+- Extended the small-block solver with an exact one-bounded active set,
+  Schur-complement elimination, equality-preserving warm transport, and
+  projected KKT diagnostics.
+- Added torque-limited planar SO(2) motors and two-sided continuous-angle
+  guardians that remain coupled to all five frame constraints.
 
 ## v0.0.5
 

@@ -111,13 +111,17 @@ uses the opposite Jacobian sign because `Rotor4` composes that quaternion in
 reverse order. These are proof-kernel primitives; no hinge, cone, limit, or
 motor policy is implied yet.
 
-`ConstraintBlockSolver4` couples one to six unbounded equality rows through
-their complete `J M^-1 J^T` response. Its default rank policy refuses lost
-coordinates; an explicit `minimum-norm` policy exposes a deterministic
-spectral pseudoinverse for diagnostics. Bias limiting and warm-start transport
-operate on the complete coordinate vector, preserving orthogonal row-basis
-invariance. `PointJointSolver4` is now a compatibility wrapper over this shared
-kernel.
+`ConstraintBlockSolver4` couples one to six rows through their complete
+`J M^-1 J^T` response. Equality blocks retain the original default. An
+explicit `one-bounded` projection may add exactly one force-limited coordinate:
+the solver eliminates the remaining equalities through a scalar Schur
+complement, clamps that coordinate, and re-solves the equality subspace
+exactly. Diagnostics distinguish raw speed error from the projected KKT
+residual. The default rank policy refuses lost coordinates; an explicit
+`minimum-norm` policy remains available only for unbounded equality
+diagnostics. Bias limiting and warm-start transport preserve orthogonal
+equality-basis invariance. `PointJointSolver4` is a compatibility wrapper over
+this shared kernel.
 
 `DirectionJoint4` binds one body-local unit direction to another local or
 fixed-world direction. `constraint()` returns either a regular three-row block
@@ -137,6 +141,14 @@ angle, the positively oriented complementary-plane bivector, and its angular
 speed. A sample exactly half a turn from the preceding branch is a typed
 `unwrap-ambiguous` result until the caller chooses its sign; samples must be
 frequent enough that an unobserved advance never reaches `pi`.
+
+`PlanarRotationMotor4` adds the oriented phase row to the five frame rows and
+tracks signed angular speed under a symmetric `maxTorque` bound.
+`PlanarRotationIntervalJoint4` returns two persistent guardian blocks over the
+continuous unwrapped angle. Their first-order speed corridor catches unsafe
+motion introduced by earlier motor or constraint blocks in the same projected
+iteration. Singular frame charts and ambiguous half-turn lifts remain typed
+results rather than implicit branch choices.
 
 For automatic mixed contact, register `GlomeCollider4`, `PolytopeCollider4`,
 `HyperplaneContactCollider4`, and/or `HyperboxCollider4` instances with
