@@ -58,6 +58,12 @@ import type {
   PolytopeHyperplaneContactPatch4
 } from './polytope-plane-contact4.js';
 import {
+  KinematicBody4,
+  applyKinematicBodyPosePlan4,
+  planKinematicBodyPose4,
+  type KinematicBodyPosePlan4
+} from './kinematic-body4.js';
+import {
   CompiledPolytopeSupportShapeN,
   compileConvexPolytopeTopologyN,
   type ConvexPolytopeTopologyN,
@@ -101,11 +107,11 @@ const defaultPolytopeTopologyCache = new WeakMap<
 export interface GlomeCollider4Options {
   readonly id: string;
   readonly radius: number;
-  /** Dynamic body, prescribed rigid motion, or null for a fixed glome. */
+  /** Dynamic body, pose-owning kinematic body, velocity-only motion, or null. */
   readonly participant?: ContactParticipant4;
-  /** Explicit world center for fixed or prescribed-motion participants. */
+  /** Explicit world center for fixed or velocity-only participants. */
   readonly center?: VecN | ArrayLike<number>;
-  /** Body-local center for a dynamic participant. Default the body origin. */
+  /** Body-local center for a dynamic or pose-owning kinematic participant. */
   readonly localCenter?: VecN | ArrayLike<number>;
   readonly material?: ContactMaterial4;
   readonly collisionGroup?: number;
@@ -130,11 +136,13 @@ export class GlomeCollider4 implements ContactColliderPolicy4 {
     assertColliderId(options.id, 'GlomeCollider4');
     this.id = options.id;
     this._participant = options.participant ?? null;
-    if (this._participant instanceof RigidBody4 && options.center !== undefined) {
-      throw new Error('GlomeCollider4: a dynamic body owns its world center');
+    if (ownsColliderPose(this._participant) && options.center !== undefined) {
+      throw new Error('GlomeCollider4: a body owns its world center');
     }
-    if (!(this._participant instanceof RigidBody4) && options.localCenter !== undefined) {
-      throw new Error('GlomeCollider4: localCenter requires a dynamic body');
+    if (!ownsColliderPose(this._participant) && options.localCenter !== undefined) {
+      throw new Error(
+        'GlomeCollider4: localCenter requires a dynamic body or pose-owning kinematic body'
+      );
     }
     this.localCenter = vector4(options.localCenter, 'GlomeCollider4 localCenter');
     this.manualCenter = vector4(options.center, 'GlomeCollider4 center');
@@ -156,7 +164,7 @@ export class GlomeCollider4 implements ContactColliderPolicy4 {
   }
 
   setParticipant(participant: ContactParticipant4): this {
-    if (this._participant instanceof RigidBody4 && !(participant instanceof RigidBody4)) {
+    if (ownsColliderPose(this._participant) && !ownsColliderPose(participant)) {
       this.manualCenter = this.shape.center.clone();
     }
     this._participant = participant;
@@ -164,8 +172,8 @@ export class GlomeCollider4 implements ContactColliderPolicy4 {
   }
 
   setCenter(center: VecN | ArrayLike<number>): this {
-    if (this._participant instanceof RigidBody4) {
-      throw new Error('GlomeCollider4.setCenter: dynamic body center is authoritative');
+    if (ownsColliderPose(this._participant)) {
+      throw new Error('GlomeCollider4.setCenter: body center is authoritative');
     }
     this.manualCenter = vector4(center, 'GlomeCollider4 center');
     return this.sync();
@@ -180,7 +188,7 @@ export class GlomeCollider4 implements ContactColliderPolicy4 {
   }
 
   sync(): this {
-    const center = this._participant instanceof RigidBody4
+    const center = ownsColliderPose(this._participant)
       ? this._participant.rotation
           .applyToPoint(this.localCenter)
           .add(this._participant.position)
@@ -194,11 +202,11 @@ export interface PolytopeCollider4Options {
   readonly id: string;
   /** Full-dimensional local R4 support shape with stable vertex enumeration. */
   readonly source: SupportShapeN;
-  /** Dynamic body, prescribed rigid motion, or null for a fixed collider. */
+  /** Dynamic body, pose-owning kinematic body, velocity-only motion, or null. */
   readonly participant?: ContactParticipant4;
-  /** Manual world pose for fixed/kinematic colliders. Dynamic bodies own pose. */
+  /** Manual world pose for fixed/velocity-only colliders. Pose owners reject it. */
   readonly transform?: TransformN;
-  /** Collider pose relative to a dynamic body's center/principal frame. */
+  /** Collider pose relative to a dynamic or kinematic body's root frame. */
   readonly localTransform?: TransformN;
   /** Reusable source incidence. Compiled once from `source` when omitted. */
   readonly topology?: ConvexPolytopeTopologyN;
@@ -257,8 +265,8 @@ export class PolytopeCollider4 implements ContactColliderPolicy4 {
       this.topology
     );
     this._participant = options.participant ?? null;
-    if (this._participant instanceof RigidBody4 && options.transform !== undefined) {
-      throw new Error('PolytopeCollider4: a dynamic body owns its world transform');
+    if (ownsColliderPose(this._participant) && options.transform !== undefined) {
+      throw new Error('PolytopeCollider4: a body owns its world transform');
     }
     this.localTransform = options.localTransform?.clone() ?? TransformN.identity(4);
     assertTransform4(this.localTransform, 'PolytopeCollider4 localTransform');
@@ -283,15 +291,15 @@ export class PolytopeCollider4 implements ContactColliderPolicy4 {
 
   setParticipant(participant: ContactParticipant4): this {
     this._participant = participant;
-    if (!(participant instanceof RigidBody4)) {
+    if (!ownsColliderPose(participant)) {
       this.manualTransform = this.shape.transform.compose(this.localTransform.inverse());
     }
     return this.sync();
   }
 
   setTransform(transform: TransformN): this {
-    if (this._participant instanceof RigidBody4) {
-      throw new Error('PolytopeCollider4.setTransform: dynamic body pose is authoritative');
+    if (ownsColliderPose(this._participant)) {
+      throw new Error('PolytopeCollider4.setTransform: body pose is authoritative');
     }
     assertTransform4(transform, 'PolytopeCollider4 transform');
     this.manualTransform = transform.clone();
@@ -299,7 +307,7 @@ export class PolytopeCollider4 implements ContactColliderPolicy4 {
   }
 
   sync(): this {
-    const root = this._participant instanceof RigidBody4
+    const root = ownsColliderPose(this._participant)
       ? new TransformN(
         4,
         this._participant.rotation.clone(),
@@ -336,9 +344,12 @@ export class HyperplaneContactCollider4 implements ContactColliderPolicy4 {
 
   constructor(options: HyperplaneContactCollider4Options) {
     assertColliderId(options.id, 'HyperplaneContactCollider4');
-    if (options.participant instanceof RigidBody4) {
+    if (
+      options.participant instanceof RigidBody4 ||
+      options.participant instanceof KinematicBody4
+    ) {
       throw new Error(
-        'HyperplaneContactCollider4: an infinite plane cannot have a dynamic body'
+        'HyperplaneContactCollider4: an infinite plane cannot have a pose-owning body'
       );
     }
     this.id = options.id;
@@ -364,9 +375,9 @@ export class HyperplaneContactCollider4 implements ContactColliderPolicy4 {
   }
 
   setParticipant(participant: RigidMotion4 | null): this {
-    if (participant instanceof RigidBody4) {
+    if (participant instanceof RigidBody4 || participant instanceof KinematicBody4) {
       throw new Error(
-        'HyperplaneContactCollider4: an infinite plane cannot have a dynamic body'
+        'HyperplaneContactCollider4: an infinite plane cannot have a pose-owning body'
       );
     }
     this._participant = participant;
@@ -756,9 +767,17 @@ export class ContactPipeline4 {
     dt: number,
     substeps = 1
   ): ContactPipelineWorldStep4 {
+    const kinematicBodies = collectKinematicBodies4(this.colliders.values());
+    for (const body of kinematicBodies) planKinematicBodyPose4(body, dt);
     const results: ContactPipelineResult4[] = [];
     world.step(dt, substeps, (substepDt) => {
       results.push(this.solve(substepDt));
+      for (const body of kinematicBodies) {
+        applyKinematicBodyPosePlan4(
+          planKinematicBodyPose4(body, substepDt),
+          1
+        );
+      }
     });
     this.sync();
     return { substeps: results, final: results[results.length - 1]! };
@@ -767,10 +786,9 @@ export class ContactPipeline4 {
   /**
    * Opt-in event-driven rigid CCD followed by the existing discrete solver.
    *
-   * Every scan and pose advance shares one frozen Lie-midpoint trajectory per
-   * dynamic body. Centered glomes retain the exact linear fast path;
-   * externally prescribed motion remains a `partial` fallback until it owns a
-   * complete pose trajectory rather than velocity alone.
+   * Every scan and pose advance shares one frozen trajectory per dynamic or
+   * pose-owning kinematic body. Centered glomes retain the exact linear fast
+   * path; velocity-only prescribed motion remains a `partial` fallback.
    */
   stepWorldContinuous(
     world: PhysicsWorld4,
@@ -789,6 +807,8 @@ export class ContactPipeline4 {
       );
     }
     const resolved = resolveContinuousOptions(options);
+    const kinematicBodies = collectKinematicBodies4(this.colliders.values());
+    for (const body of kinematicBodies) planKinematicBodyPose4(body, dt);
     for (const collider of this.colliders.values()) {
       if (
         collider.participant instanceof RigidBody4 &&
@@ -817,7 +837,11 @@ export class ContactPipeline4 {
       let eventLimit = false;
 
       while (remainingDt > resolved.timeTolerance) {
-        const posePlans = planWorldBodyPoses4(world, remainingDt);
+        const posePlans = planContinuousPoses4(
+          world,
+          this.colliders.values(),
+          remainingDt
+        );
         const scan = this.scanContinuousImpacts(
           remainingDt,
           resolved,
@@ -829,7 +853,7 @@ export class ContactPipeline4 {
         for (const id of scan.kinematicFallbackPairIds) kinematicFallbackPairIds.add(id);
         for (const id of scan.indeterminatePairIds) indeterminatePairIds.add(id);
         if (!scan.impact) {
-          applyWorldBodyPosePlans4(posePlans, 1);
+          applyContinuousPosePlans4(posePlans, 1);
           advancedDt += remainingDt;
           remainingDt = 0;
           this.sync();
@@ -842,7 +866,7 @@ export class ContactPipeline4 {
         const fraction = scan.impact.cast.time!;
         const eventDt = Math.max(0, Math.min(remainingDt, remainingDt * fraction));
         if (eventDt > 0) {
-          applyWorldBodyPosePlans4(posePlans, fraction);
+          applyContinuousPosePlans4(posePlans, fraction);
           advancedDt += eventDt;
           remainingDt -= eventDt;
           this.sync();
@@ -865,8 +889,8 @@ export class ContactPipeline4 {
       }
 
       if (!eventLimit && remainingDt > 0) {
-        applyWorldBodyPosePlans4(
-          planWorldBodyPoses4(world, remainingDt),
+        applyContinuousPosePlans4(
+          planContinuousPoses4(world, this.colliders.values(), remainingDt),
           1
         );
         advancedDt += remainingDt;
@@ -918,7 +942,7 @@ export class ContactPipeline4 {
   private scanContinuousImpacts(
     remainingDt: number,
     options: ResolvedContinuousOptions4,
-    posePlans: ReadonlyMap<RigidBody4, RigidBodyPosePlan4>
+    posePlans: ReadonlyMap<ContinuousPoseOwner4, ContinuousPosePlan4>
   ): ContinuousImpactScan4 {
     const active = Array.from(this.colliders.values())
       .filter((collider) => collider.enabled)
@@ -987,12 +1011,14 @@ export class ContactPipeline4 {
         const dynamicB = colliderB.participant instanceof RigidBody4;
         if (!dynamicA && !dynamicB) continue;
 
-        const displacementA = dynamicA
-          ? colliderA.participant.linearVelocity.clone().multiplyScalar(remainingDt)
-          : new VecN(4);
-        const displacementB = dynamicB
-          ? colliderB.participant.linearVelocity.clone().multiplyScalar(remainingDt)
-          : new VecN(4);
+        const displacementA = colliderPlannedDisplacement4(
+          colliderA,
+          posePlans
+        );
+        const displacementB = colliderPlannedDisplacement4(
+          colliderB,
+          posePlans
+        );
         const requiresRigidCast =
           hasPlannedGeometricAngularMotion(
             colliderA,
@@ -1162,28 +1188,42 @@ function colliderLinearDisplacement4(
   return velocity.clone().multiplyScalar(dt);
 }
 
-function planWorldBodyPoses4(
+type ContinuousPoseOwner4 = RigidBody4 | KinematicBody4;
+type ContinuousPosePlan4 = RigidBodyPosePlan4 | KinematicBodyPosePlan4;
+
+function planContinuousPoses4(
   world: PhysicsWorld4,
+  colliders: Iterable<ContactCollider4>,
   duration: number
-): ReadonlyMap<RigidBody4, RigidBodyPosePlan4> {
-  return new Map(
+): ReadonlyMap<ContinuousPoseOwner4, ContinuousPosePlan4> {
+  const plans = new Map<ContinuousPoseOwner4, ContinuousPosePlan4>(
     world.bodies.map((body) => [body, planRigidBodyPose4(body, duration)])
   );
+  for (const body of collectKinematicBodies4(colliders)) {
+    plans.set(body, planKinematicBodyPose4(body, duration));
+  }
+  return plans;
 }
 
-function applyWorldBodyPosePlans4(
-  plans: ReadonlyMap<RigidBody4, RigidBodyPosePlan4>,
+function applyContinuousPosePlans4(
+  plans: ReadonlyMap<ContinuousPoseOwner4, ContinuousPosePlan4>,
   time: number
 ): void {
-  for (const plan of plans.values()) applyRigidBodyPosePlan4(plan, time);
+  for (const plan of plans.values()) {
+    if (plan.body instanceof KinematicBody4) {
+      applyKinematicBodyPosePlan4(plan as KinematicBodyPosePlan4, time);
+    } else {
+      applyRigidBodyPosePlan4(plan as RigidBodyPosePlan4, time);
+    }
+  }
 }
 
 function colliderRigidCastMotion4(
   collider: CompactContactCollider4,
-  plans: ReadonlyMap<RigidBody4, RigidBodyPosePlan4>
+  plans: ReadonlyMap<ContinuousPoseOwner4, ContinuousPosePlan4>
 ): RigidCastMotion4 {
   const participant = collider.participant;
-  if (participant instanceof RigidBody4) {
+  if (ownsColliderPose(participant)) {
     const plan = plans.get(participant);
     if (!plan) {
       throw new Error(
@@ -1219,7 +1259,7 @@ function colliderRigidCastMotion4(
 
 function hasPlannedGeometricAngularMotion(
   collider: ContactCollider4,
-  plans: ReadonlyMap<RigidBody4, RigidBodyPosePlan4>
+  plans: ReadonlyMap<ContinuousPoseOwner4, ContinuousPosePlan4>
 ): boolean {
   if (!isCompactCollider(collider)) return false;
   if (
@@ -1227,7 +1267,7 @@ function hasPlannedGeometricAngularMotion(
     collider.localCenter.lengthSq() === 0
   ) return false;
   const participant = collider.participant;
-  if (!(participant instanceof RigidBody4)) return false;
+  if (!ownsColliderPose(participant)) return false;
   const plan = plans.get(participant);
   if (!plan) {
     throw new Error(
@@ -1237,6 +1277,21 @@ function hasPlannedGeometricAngularMotion(
   return squaredCoefficients(
     plan.trajectory.angularDisplacementWorld.coeffs
   ) > 0;
+}
+
+function colliderPlannedDisplacement4(
+  collider: ContactCollider4,
+  plans: ReadonlyMap<ContinuousPoseOwner4, ContinuousPosePlan4>
+): VecN {
+  const participant = collider.participant;
+  if (!ownsColliderPose(participant)) return new VecN(4);
+  const plan = plans.get(participant);
+  if (!plan) {
+    throw new Error(
+      `ContactPipeline4: collider ${collider.id} has no pose plan`
+    );
+  }
+  return plan.trajectory.linearDisplacement.clone();
 }
 
 function hasGeometricAngularMotion(
@@ -1332,7 +1387,11 @@ function hasUnmanagedKinematicMotion(
   tolerance: number
 ): boolean {
   const participant = collider.participant;
-  if (!participant || participant instanceof RigidBody4) return false;
+  if (
+    !participant ||
+    participant instanceof RigidBody4 ||
+    participant instanceof KinematicBody4
+  ) return false;
   return participant.linearVelocity.lengthSq() > tolerance ** 2 ||
     squaredCoefficients(participant.angularVelocityWorld.coeffs) > tolerance ** 2;
 }
@@ -1468,6 +1527,24 @@ function isCompactCollider(
     collider instanceof GlomeCollider4 ||
     collider instanceof PolytopeCollider4
   );
+}
+
+function ownsColliderPose(
+  participant: ContactParticipant4
+): participant is RigidBody4 | KinematicBody4 {
+  return participant instanceof RigidBody4 || participant instanceof KinematicBody4;
+}
+
+function collectKinematicBodies4(
+  colliders: Iterable<ContactCollider4>
+): readonly KinematicBody4[] {
+  const bodies = new Set<KinematicBody4>();
+  for (const collider of colliders) {
+    if (collider.participant instanceof KinematicBody4) {
+      bodies.add(collider.participant);
+    }
+  }
+  return Array.from(bodies);
 }
 
 function assertTransform4(transform: TransformN, owner: string): void {

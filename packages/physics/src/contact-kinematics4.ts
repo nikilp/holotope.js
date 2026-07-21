@@ -4,6 +4,7 @@ import type {
   HyperboxContactVertex4
 } from './hyperbox-contact4.js';
 import type { RigidBody4 } from './rigid-body4.js';
+import { rigidTrajectoryFromTransforms4 } from './rigid-trajectory4.js';
 
 export type ContactTangentBasis4 = readonly [VecN, VecN, VecN];
 
@@ -71,17 +72,11 @@ export function rigidMotionFromTransforms4(
   }
   assertRigidTransform4(previous, 'previous');
   assertRigidTransform4(current, 'current');
-  const previousRotation = previous.rotation instanceof Rotor4
-    ? previous.rotation
-    : Rotor4.fromMatrix(previous.rotation);
-  const currentRotation = current.rotation instanceof Rotor4
-    ? current.rotation
-    : Rotor4.fromMatrix(current.rotation);
-  const delta = currentRotation.multiply(previousRotation.conjugate());
+  const trajectory = rigidTrajectoryFromTransforms4(previous, current);
   return {
     center: current.position.clone(),
-    linearVelocity: current.position.clone().sub(previous.position).multiplyScalar(1 / dt),
-    angularVelocityWorld: delta.log().scale(1 / dt)
+    linearVelocity: trajectory.linearDisplacement.clone().multiplyScalar(1 / dt),
+    angularVelocityWorld: trajectory.angularDisplacementWorld.clone().scale(1 / dt)
   };
 }
 

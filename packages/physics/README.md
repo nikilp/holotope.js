@@ -37,8 +37,7 @@ numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
-Spatial-tree broadphases, complete pose trajectories for externally prescribed
-kinematic motion, distance servos, rolling
+Spatial-tree broadphases, moving infinite-plane pose policies, distance servos, rolling
 resistance, and sleeping are not yet part of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
@@ -190,9 +189,18 @@ freezes the same momentum-derived Lie-midpoint generator used by ordinary free
 flight. `stepWorldContinuous()` gives each event scan those plans and applies
 the exact same plans to the selected impact; response then changes momentum
 and causes the remainder to be replanned. No-impact rotational advancement is
-therefore endpoint-identical to `PhysicsWorld4.integratePoses()`. Centered
-glomes preserve the analytic linear fast path, while externally prescribed
-velocity remains a typed fallback until it owns a complete pose trajectory.
+therefore endpoint-identical to `PhysicsWorld4.integratePoses()`.
+
+`rigidTrajectoryFromTransforms4()` constructs the principal screw segment
+between two coherent R4 poses. `KinematicBody4` attaches a physical duration to
+that segment, owns its current position and rotation, and exposes the exact
+linear and world-left angular rates used by contact response. It accepts no
+impulses. Discrete world seams and `stepWorldContinuous()` advance registered
+kinematic compact colliders through the same absolute subplans used by swept
+broadphase and casting. Centered glomes preserve the analytic linear fast path;
+rotating hyperboxes, polytopes, and offset glomes use rigid casts. A legacy
+velocity-only `RigidMotion4` still produces a typed partial fallback because no
+geometry path can be inferred honestly from velocity alone.
 
 `NarrowphaseDispatcherN` is the common query boundary. Its `best` mode selects
 the strongest honest capability for the configured pair and margins; explicit

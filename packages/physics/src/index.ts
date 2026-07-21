@@ -252,8 +252,16 @@ export {
 } from './linear-cast.js';
 export {
   RigidTrajectory4,
+  rigidTrajectoryFromTransforms4,
   type RigidTrajectory4Options
 } from './rigid-trajectory4.js';
+export {
+  KinematicBody4,
+  applyKinematicBodyPosePlan4,
+  planKinematicBodyPose4,
+  type KinematicBody4Options,
+  type KinematicBodyPosePlan4
+} from './kinematic-body4.js';
 export {
   applyRigidBodyPosePlan4,
   planRigidBodyPose4,

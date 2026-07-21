@@ -27,14 +27,19 @@ import {
   type NarrowphaseHyperboxDeepManifoldResultN
 } from './narrowphase-dispatcher.js';
 import { RigidBody4 } from './rigid-body4.js';
+import {
+  KinematicBody4,
+  applyKinematicBodyPosePlan4,
+  planKinematicBodyPose4
+} from './kinematic-body4.js';
 import type { PhysicsWorld4 } from './world4.js';
 
 export interface HyperboxCollider4Options {
   readonly id: string;
   readonly halfExtents: ArrayLike<number>;
-  /** Dynamic body, prescribed rigid motion, or null for a fixed collider. */
+  /** Dynamic body, pose-owning kinematic body, velocity-only motion, or null. */
   readonly participant?: ContactParticipant4;
-  /** Manual world pose for fixed/kinematic colliders. Dynamic bodies own pose. */
+  /** Manual world pose for fixed/velocity-only colliders. Pose owners reject it. */
   readonly transform?: TransformN;
   /** Pose of the box relative to a dynamic body's center/principal frame. */
   readonly localTransform?: TransformN;
@@ -49,10 +54,8 @@ export interface HyperboxCollider4Options {
 /**
  * A full-dimensional R4 hyperbox plus response and filtering policy.
  *
- * Dynamic collider pose is synchronized from `RigidBody4` before every query.
- * Fixed and kinematic collider pose is explicit and changed through
- * `setTransform`; a `RigidMotion4` supplies velocity but intentionally does not
- * pretend to contain a complete orientation pose.
+ * Dynamic and pose-owning kinematic collider poses are synchronized before
+ * every query. A velocity-only `RigidMotion4` retains an explicit manual pose.
  */
 export class HyperboxCollider4 {
   readonly id: string;
@@ -72,8 +75,8 @@ export class HyperboxCollider4 {
     }
     this.id = options.id;
     this._participant = options.participant ?? null;
-    if (this._participant instanceof RigidBody4 && options.transform !== undefined) {
-      throw new Error('HyperboxCollider4: a dynamic body owns its world transform');
+    if (ownsPose(this._participant) && options.transform !== undefined) {
+      throw new Error('HyperboxCollider4: a body owns its world transform');
     }
     this.localTransform = options.localTransform?.clone() ?? TransformN.identity(4);
     assertTransform4(this.localTransform, 'localTransform');
@@ -100,16 +103,16 @@ export class HyperboxCollider4 {
   /** Replace response motion while retaining the current collider identity. */
   setParticipant(participant: ContactParticipant4): this {
     this._participant = participant;
-    if (!(participant instanceof RigidBody4)) {
+    if (!ownsPose(participant)) {
       this.manualTransform = this.shape.transform.compose(this.localTransform.inverse());
     }
     return this.sync();
   }
 
-  /** Set the world pose of a fixed or kinematic participant. */
+  /** Set the world pose of a fixed or velocity-only participant. */
   setTransform(transform: TransformN): this {
-    if (this._participant instanceof RigidBody4) {
-      throw new Error('HyperboxCollider4.setTransform: dynamic body pose is authoritative');
+    if (ownsPose(this._participant)) {
+      throw new Error('HyperboxCollider4.setTransform: body pose is authoritative');
     }
     assertTransform4(transform, 'transform');
     this.manualTransform = transform.clone();
@@ -118,7 +121,7 @@ export class HyperboxCollider4 {
 
   /** Synchronize the support shape from its authoritative pose. */
   sync(): this {
-    const root = this._participant instanceof RigidBody4
+    const root = ownsPose(this._participant)
       ? new TransformN(
           4,
           this._participant.rotation.clone(),
@@ -385,9 +388,17 @@ export class HyperboxContactPipeline4 {
     dt: number,
     substeps = 1
   ): HyperboxContactWorldStep4 {
+    const kinematicBodies = collectKinematicBodies4(this.colliders.values());
+    for (const body of kinematicBodies) planKinematicBodyPose4(body, dt);
     const results: HyperboxContactPipelineResult4[] = [];
     world.step(dt, substeps, (substepDt) => {
       results.push(this.solve(substepDt));
+      for (const body of kinematicBodies) {
+        applyKinematicBodyPosePlan4(
+          planKinematicBodyPose4(body, substepDt),
+          1
+        );
+      }
     });
     this.sync();
     return { substeps: results, final: results[results.length - 1]! };
@@ -398,6 +409,24 @@ export class HyperboxContactPipeline4 {
     this.candidateProvider.reset?.();
     this.narrowphaseDispatcher.reset();
   }
+}
+
+function ownsPose(
+  participant: ContactParticipant4
+): participant is RigidBody4 | KinematicBody4 {
+  return participant instanceof RigidBody4 || participant instanceof KinematicBody4;
+}
+
+function collectKinematicBodies4(
+  colliders: Iterable<HyperboxCollider4>
+): readonly KinematicBody4[] {
+  const bodies = new Set<KinematicBody4>();
+  for (const collider of colliders) {
+    if (collider.participant instanceof KinematicBody4) {
+      bodies.add(collider.participant);
+    }
+  }
+  return Array.from(bodies);
 }
 
 /** Stable, delimiter-safe ID for a canonically ordered collider pair. */

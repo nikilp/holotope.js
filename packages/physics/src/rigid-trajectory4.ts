@@ -33,8 +33,8 @@ export class RigidTrajectory4 {
       throw new Error('RigidTrajectory4: start position must be finite');
     }
     this.startRotor = options.start.rotation instanceof Rotor4
-      ? options.start.rotation.clone().normalize()
-      : rotorFromMatrix(options.start.rotation);
+      ? normalizedRotor4(options.start.rotation, 'start')
+      : rotorFromMatrix(options.start.rotation, 'start');
     this.start = new TransformN(
       4,
       this.startRotor.clone(),
@@ -76,14 +76,57 @@ export class RigidTrajectory4 {
   }
 }
 
-function rotorFromMatrix(matrix: MatN): Rotor4 {
+/**
+ * Builds the principal constant-generator screw segment between two R4 poses.
+ * A relative central inversion is refused because the endpoints do not select
+ * a unique SO(4) logarithm; callers must subdivide or author the generator.
+ */
+export function rigidTrajectoryFromTransforms4(
+  start: TransformN,
+  end: TransformN
+): RigidTrajectory4 {
+  if (
+    end.dim !== 4 ||
+    Array.from(end.position.data).some((coordinate) => !Number.isFinite(coordinate))
+  ) {
+    throw new Error('rigidTrajectoryFromTransforms4: end must be a finite R4 transform');
+  }
+  const seed = new RigidTrajectory4({
+    start,
+    linearDisplacement: new Float64Array(4),
+    angularDisplacementWorld: new Float64Array(6)
+  });
+  const endRotor = end.rotation instanceof Rotor4
+    ? normalizedRotor4(end.rotation, 'end')
+    : rotorFromMatrix(end.rotation, 'end');
+  const startRotor = seed.start.rotation as Rotor4;
+  return new RigidTrajectory4({
+    start: seed.start,
+    linearDisplacement: end.position.clone().sub(seed.start.position),
+    angularDisplacementWorld: endRotor.multiply(startRotor.conjugate()).log()
+  });
+}
+
+function rotorFromMatrix(matrix: MatN, name: string): Rotor4 {
   try {
     return Rotor4.fromMatrix(matrix);
   } catch (error) {
     throw new Error(
-      `RigidTrajectory4: start rotation must be proper orthonormal (${error instanceof Error ? error.message : String(error)})`
+      `RigidTrajectory4: ${name} rotation must be proper orthonormal (${error instanceof Error ? error.message : String(error)})`
     );
   }
+}
+
+function normalizedRotor4(value: Rotor4, name: string): Rotor4 {
+  for (const factor of [value.left, value.right]) {
+    const length = Math.hypot(factor[0]!, factor[1]!, factor[2]!, factor[3]!);
+    if (!Number.isFinite(length) || !(length > 1e-15)) {
+      throw new Error(
+        `RigidTrajectory4: ${name} rotation must have finite nonzero factors`
+      );
+    }
+  }
+  return value.clone().normalize();
 }
 
 function vector4(value: VecN | ArrayLike<number>, name: string): VecN {

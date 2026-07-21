@@ -16,8 +16,9 @@ the branch-aware SO(4) logarithm and its analytic Jacobians now form the local
 coordinate kernel for rotational constraints. Direction preservation and
 one-parameter planar rotation are explicit stabilizer-classified policies;
 the planar policy's torque-limited motor and continuous-angle guardians are
-implemented. Externally prescribed kinematic pose trajectories and sleeping
-remain later contracts.
+implemented. Prescribed compact-body pose trajectories share the same contact
+and CCD path as dynamic bodies; moving infinite planes and sleeping remain
+later contracts.
 
 ## Convex mass properties
 
@@ -209,19 +210,54 @@ generator used by `PhysicsWorld4.integratePoses()`. Applying any normalized
 sample of that plan is absolute, so collision queries and body advancement can
 share one trajectory without accumulating interpolation drift.
 
+`rigidTrajectoryFromTransforms4(start, end)` constructs the matching principal
+screw segment from two coherent poses. A relative central inversion is refused
+because two endpoints do not select a unique SO(4) logarithm; an animation
+driver must subdivide there or author the generator explicitly.
+
+`KinematicBody4` attaches physical time to one such segment. It owns position
+and orientation for collider synchronization and exposes
+
+```text
+v = delta_p / duration
+omega = Delta_Omega / duration
+```
+
+for contact response, but it has no mass and never receives an impulse.
+Successive `planKinematicBodyPose4()` calls return exact suffixes of the
+authored segment, and absolute application advances both its pose and elapsed
+time. A replacement segment must begin at the current pose, while an overrun
+is refused before the physics world is mutated.
+
+```ts
+const driver = KinematicBody4.fromTransforms(
+  previousPlatformPose,
+  nextPlatformPose,
+  fixedDt
+);
+const platform = new HyperboxCollider4({
+  id: 'platform',
+  halfExtents: [2, 0.25, 1, 1],
+  participant: driver
+});
+pipeline.addCollider(platform);
+```
+
 `ContactPipeline4.stepWorldContinuous()` is the opt-in rigid R4 event loop. It
 integrates forces into velocity once per substep, advances poses to the earliest
 certified linear or rotational impact, invokes the existing complete
 manifold/impulse path at that pose, and continues through a bounded number of
-events. Each remaining interval gets one frozen pose plan per dynamic body;
+events. Each remaining interval gets one frozen pose plan per dynamic or
+pose-owning kinematic body;
 the selected cast and actual pose advance consume those same plans. After
-response changes momentum, only the remainder is replanned. Ordinary
-`stepWorld()` retains its discrete behavior. The continuous result is
-`partial` whenever externally prescribed motion or an indeterminate cast falls
-back to the discrete path; an exhausted event budget reports the unadvanced
-remainder. Centered glomes use the exact analytic linear lane. Supported
-dynamic hyperboxes, polytopes, and offset glomes use rigid casts, and the legacy
-angular-fallback list remains empty for those trajectories.
+response changes dynamic momentum, only the remainder is replanned; prescribed
+motion continues on its authored path. Ordinary `stepWorld()` advances the same
+kinematic bodies once per discrete substep. The continuous result is `partial`
+whenever velocity-only prescribed motion or an indeterminate cast falls back;
+an exhausted event budget reports the unadvanced remainder. Centered glomes
+use the exact analytic linear lane. Supported dynamic and kinematic hyperboxes,
+polytopes, and offset glomes use rigid casts, and the legacy angular-fallback
+list remains empty for those trajectories.
 
 Compact candidates are pruned with swept axis-aligned bounds. For a starting
 box `[min,max]` and complete translation `d`, `sweptBoundsN()` takes the hull of
@@ -1466,10 +1502,10 @@ do not pretend to consume a GJK cache.
 ### Mixed R4 contact orchestration
 
 `ContactPipeline4` joins the dispatcher and solver without erasing
-shape-specific guarantees. `GlomeCollider4` can follow a dynamic body's center
-or a body-local offset, `PolytopeCollider4` gives a vertex hull an explicit
-rigid pose, and `HyperplaneContactCollider4` represents an infinite fixed or
-prescribed-motion boundary:
+shape-specific guarantees. `GlomeCollider4` can follow a dynamic or kinematic
+body's center or body-local offset, `PolytopeCollider4` gives a vertex hull an
+explicit rigid pose, and `HyperplaneContactCollider4` represents an infinite
+fixed or velocity-prescribed boundary:
 
 ```ts
 import {
@@ -1524,8 +1560,9 @@ assigning a fictitious finite mass and inertia.
 hyperbox contact geometry, and response at `PhysicsWorld4`'s
 velocity-constraint seam. A `HyperboxCollider4` owns stable identity, half
 extents, a body-local pose, material values, and group/mask filtering. For a
-dynamic participant its world pose is synchronized from `RigidBody4`; fixed
-and prescribed-motion participants retain an explicit world transform.
+dynamic or pose-owning kinematic participant its world pose is synchronized
+from the body; fixed and velocity-only participants retain an explicit world
+transform.
 
 ```ts
 import { TransformN } from '@holotope/core';
@@ -1762,8 +1799,13 @@ The test suite pins:
   negatives against randomized analytic moving N-ball contacts;
 - equal event identity, impact time, and final body state between swept
   sweep-and-prune and the exhaustive continuous provider in a distractor scene;
-- explicit angular and prescribed-motion fallback plus bounded event-limit
-  remainder without a fabricated continuous guarantee.
+- explicit legacy velocity-only fallback plus bounded event-limit remainder
+  without a fabricated continuous guarantee;
+- pose-pair trajectory/rate differentials, absolute kinematic suffix plans,
+  continuous segment chaining and overrun refusal, local compact-collider pose
+  synchronization, discrete substep advancement, translating and pure-spin
+  kinematic CCD, dynamic-only impulse response, and swept/exhaustive event
+  agreement.
 - analytic and randomized full-SO(4) point-joint block solves, hidden-axis
   lever coupling, embedded-R3 invariance, coincident-anchor momentum
   conservation, persistent warm starts, and fixed-world gravity support.
@@ -1807,7 +1849,7 @@ surfaces unless an explicit collider is constructed from them. The finite
 broadphase is conservative AABB sweep-and-prune; infinite planes use an
 exhaustive lane. Linear CCD uses conservative swept AABBs before its certified
 casts, with the exhaustive candidate provider retained as a reference lane.
-Spatial trees, externally prescribed kinematic trajectories, distance servos,
+Spatial trees, moving infinite-plane pose trajectories, distance servos,
 rolling resistance, and sleeping are not implied by this stage. The landed
 direction, planar-rotation, and fixed-frame policies are distinct
 stabilizer families, not a claim that every mechanism called a “hinge” in R4

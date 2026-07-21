@@ -26,6 +26,9 @@
 - Added frozen Lie-midpoint body pose plans and connected those same plans to
   rotational continuous-event casting and advancement, retaining exact
   no-impact parity with ordinary free flight.
+- Added pose-owning `KinematicBody4` segments and coherent pose-pair trajectory
+  construction, connecting authored motion to collider synchronization,
+  contact velocity, discrete stepping, swept broadphase, and rigid CCD.
 
 ## v0.0.5
 
