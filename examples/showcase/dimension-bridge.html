@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Source to Simulation</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #050710; }
+      #app { width: 100%; height: 100%; }
+      #hud {
+        position: fixed;
+        top: 14px;
+        left: 16px;
+        z-index: 6;
+        max-width: 710px;
+        color: #9aacca;
+        font: 12px/1.52 ui-monospace, SFMono-Regular, Menlo, monospace;
+        pointer-events: none;
+      }
+      #hud strong { color: #edf3ff; font-size: 14px; }
+      #hud .accent { color: #dfff74; }
+      #hud a { color: #72dcff; pointer-events: auto; text-decoration: none; }
+      #journey {
+        position: fixed;
+        top: 82px;
+        left: 50%;
+        z-index: 6;
+        display: flex;
+        gap: 6px;
+        transform: translateX(-50%);
+        pointer-events: none;
+      }
+      #journey span {
+        padding: 6px 9px;
+        border: 1px solid #293552;
+        border-radius: 999px;
+        background: rgba(7, 10, 20, .82);
+        color: #657696;
+        font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: nowrap;
+      }
+      #journey span.complete { border-color: #315d63; color: #73e3c0; }
+      #journey span.active {
+        border-color: #c4db63;
+        color: #efffa8;
+        box-shadow: 0 0 18px rgba(209, 244, 102, .12);
+      }
+      .viewLabel {
+        position: fixed;
+        top: 123px;
+        z-index: 5;
+        transform: translateX(-50%);
+        padding: 7px 10px;
+        border: 1px solid #2d3959;
+        border-radius: 999px;
+        background: rgba(8, 10, 20, .86);
+        color: #b8c6e2;
+        font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        pointer-events: none;
+      }
+      #perspectiveLabel { left: 20%; border-color: #315d8d; }
+      #coordinateLabel { left: 47%; border-color: #347864; }
+      #sectionLabel { left: 68%; border-color: #79553d; }
+      #controls {
+        position: fixed;
+        top: 14px;
+        right: 16px;
+        z-index: 8;
+        width: 300px;
+        padding: 12px 13px;
+        border: 1px solid #2b3655;
+        border-radius: 10px;
+        background: rgba(9, 12, 25, .95);
+        color: #93a6c8;
+        font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, .25);
+      }
+      #controls label {
+        display: grid;
+        grid-template-columns: 82px 1fr 42px;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 8px;
+      }
+      #controls label.toggle { grid-template-columns: 18px 1fr; }
+      #controls input[type='range'] { width: 100%; accent-color: #72e6c0; }
+      #controls input[type='checkbox'] { accent-color: #72e6c0; }
+      #controls output { color: #edf3ff; text-align: right; }
+      #controls button {
+        border: 1px solid #354263;
+        border-radius: 6px;
+        background: #11172b;
+        color: #dce6fb;
+        padding: 7px;
+        font: inherit;
+        cursor: pointer;
+      }
+      #controls button:hover { border-color: #72e6c0; color: white; }
+      #controls button:disabled { cursor: default; opacity: .42; }
+      #controls .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+      #edgeEditor {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #252f49;
+      }
+      #edgeEditor strong { display: block; margin-bottom: 6px; color: #dfff74; }
+      #bindEdge { width: 100%; margin-bottom: 7px; }
+      #edgeState { display: block; min-height: 3em; color: #8195ba; }
+      #modeState {
+        display: block;
+        margin-top: 9px;
+        padding-top: 8px;
+        border-top: 1px solid #252f49;
+        color: #73e3c0;
+      }
+      #trace {
+        position: fixed;
+        left: 218px;
+        right: 332px;
+        bottom: 14px;
+        z-index: 6;
+        min-height: 126px;
+        padding: 11px 14px;
+        border: 1px solid #30405f;
+        border-radius: 10px;
+        background: rgba(9, 12, 25, .94);
+        color: #94a6c7;
+        font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        pointer-events: none;
+      }
+      #trace strong { display: block; margin-bottom: 2px; color: #eff4ff; font-size: 13px; }
+      #trace span { display: block; }
+      #traceSummary { color: #72e6c0; }
+      #traceSource { color: #dfff74; }
+      #traceLineage { color: #80d9ff; margin: 3px 0; }
+      #tracePolicy { color: #e6d27a; }
+      #traceResidual { color: #8195ba; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      @media (max-width: 1020px) {
+        #hud .wide, .viewLabel { display: none; }
+        #journey { top: 66px; }
+        #trace { left: 16px; right: 332px; }
+      }
+      @media (max-width: 760px) {
+        #hud { max-width: calc(100vw - 122px); }
+        #hud .accent, #hud .accent + br { display: none; }
+        #journey {
+          top: 86px;
+          left: 12px;
+          right: 12px;
+          transform: none;
+          justify-content: center;
+          gap: 3px;
+        }
+        #journey span { padding: 5px 6px; font-size: 8px; }
+        #trace {
+          left: 12px;
+          right: 12px;
+          bottom: 62px;
+          min-height: 106px;
+          padding: 9px 11px;
+          font-size: 9px;
+        }
+        #traceSource, #traceResidual { display: none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <strong>Holotope.js — source to simulation</strong><br />
+      <span class="wide">One R4 body feeds three representations. Select any solid, constrain its retained point in R4, and watch every view agree.</span><br class="wide" />
+      <span class="accent">Nothing visible becomes the hidden-dimensional authority.</span><br />
+      <a href="./index.html">← all examples</a>
+    </div>
+    <nav id="journey" aria-label="dimensional bridge stages">
+      <span id="stageSource" class="complete">1 · source</span>
+      <span id="stageObserve" class="complete">2 · observe</span>
+      <span id="stageTrace" class="active">3 · trace</span>
+      <span id="stageConstrain">4 · constrain</span>
+      <span id="stageSimulate">5 · simulate</span>
+    </nav>
+    <div id="perspectiveLabel" class="viewLabel">perspective · overlap ambiguity</div>
+    <div id="coordinateLabel" class="viewLabel">XYW axes · z remains a fibre</div>
+    <div id="sectionLabel" class="viewLabel">affine section · exact on plane</div>
+    <div id="controls">
+      <label>
+        sim speed
+        <input id="speed" type="range" min="0.05" max="1.5" step="0.05" value="0.65" />
+        <output id="speedValue">0.65</output>
+      </label>
+      <label>
+        slice offset
+        <input id="sliceOffset" type="range" min="-2.5" max="2.5" step="0.005" value="0.12" />
+        <output id="sliceOffsetValue">0.120</output>
+      </label>
+      <label class="toggle">
+        <input id="followSelection" type="checkbox" checked />
+        <span>keep section incident to selected R4 point</span>
+      </label>
+      <div class="buttons">
+        <button id="pause" type="button">pause simulation</button>
+        <button id="reset" type="button">reset</button>
+      </div>
+      <div id="edgeEditor">
+        <strong>Source-space interaction</strong>
+        <button id="bindEdge" type="button" disabled>constrain probe to nearest source edge</button>
+        <label>
+          source t
+          <input id="edgeParameter" type="range" min="0" max="1" step="0.001" value="0.5" disabled />
+          <output id="edgeParameterValue">—</output>
+        </label>
+        <span id="edgeState">select a source-backed point first</span>
+      </div>
+      <span id="modeState">torque-free R4 body · 120 Hz fixed step</span>
+    </div>
+    <div id="trace">
+      <strong id="traceTitle">Select any representation</strong>
+      <span id="traceSummary">A selection will pause the body and retain one material point in body-local R4.</span>
+      <span id="traceSource">The visible triangle remains linked to explicit source topology.</span>
+      <span id="traceLineage">waiting for representation lineage</span>
+      <span id="tracePolicy">policy: the exact section follows the selected material point</span>
+      <span id="traceResidual">live map and conservation evidence will appear here</span>
+    </div>
+    <template id="explainer">
+      <h2>One source, several honest views</h2>
+      <h3>Source</h3>
+      <p>The object is stored and simulated in four dimensions. None of the visible three-dimensional scenes replaces it.</p>
+      <h3>Observe</h3>
+      <p>The blue view is perspective, the green view keeps the x, y, and w coordinates, and the warm view is an exact affine cross-section. Each map preserves and loses different information.</p>
+      <h3>Trace</h3>
+      <p>Click any solid. The selected point is lifted to R4 when the map permits it, stored in the body's material frame, and shown in every other view. Source identity, point precision, and global overlap are reported separately.</p>
+      <h3>Constrain</h3>
+      <p>Bind the point to its nearest explicit source edge. The <strong>source t</strong> control then edits one R4 coordinate. Every marker is regenerated from that coordinate; moving a marker on screen is never mistaken for a unique inverse.</p>
+      <h3>Simulate</h3>
+      <p>Resume the torque-free body. The retained material point and source identity follow the physical R4 state while each representation continues to apply its own map.</p>
+    </template>
+    <script type="module" src="/src/dimension-bridge.ts"></script>
+  </body>
+</html>

@@ -25,6 +25,7 @@ export default defineConfig({
       // Multi-page app: the gallery landing page plus one page per example.
       input: {
         index: local('./index.html'),
+        dimensionBridge: local('./dimension-bridge.html'),
         tesseract: local('./tesseract.html'),
         polychora: local('./polychora.html'),
         duoprisms: local('./duoprisms.html'),
