@@ -236,8 +236,14 @@ small-strain reference and `evaluateSimplexCompressibleNeoHookeanN()` for a
 large-strain logarithmic-volume reference. Neo-Hookean embedded elements use
 positive intrinsic measure; full-dimensional elements must preserve signed
 orientation. Collapse and inversion refuse explicitly. This evaluator is not
-an inversion barrier or an implicit solver, and the current source-identified
-family compiler remains explicitly StVK.
+an inversion barrier or an implicit solver.
+
+`SimplexConstitutiveLawN` and `compileSimplexConstitutiveFamilyN()` assemble a
+typed law over one explicit source simplex group while retaining copied rest
+state, structural cell ids, live lineage, exact particle identities, and
+deterministic shared-vertex forces. Immutable StVK and Neo-Hookean descriptors
+are built in. Their named family compilers are typed convenience wrappers over
+the same implementation and preserve the existing StVK API/provider identity.
 
 `relativeOrientationCoordinates4()` provides the analogous local coordinate
 for rotation. It chooses one lift of the paired-quaternion double cover,

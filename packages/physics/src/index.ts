@@ -247,6 +247,21 @@ export type {
   SimplexConstitutiveEvaluationN
 } from './simplex-constitutive.js';
 export {
+  SimplexConstitutiveFamilyN,
+  compileSimplexConstitutiveFamilyN,
+  type CompileSimplexConstitutiveFamilyNOptions,
+  type SimplexConstitutiveFamilyElementContextN,
+  type SimplexConstitutiveFamilyElementEvaluationN,
+  type SimplexConstitutiveFamilyElementN,
+  type SimplexConstitutiveFamilyEvaluationN,
+  type SimplexConstitutiveFamilyMaterialN,
+  type SimplexConstitutiveLawN
+} from './simplex-constitutive-family.js';
+export {
+  simplexCompressibleNeoHookeanLawN,
+  simplexStVenantKirchhoffLawN
+} from './simplex-constitutive-laws.js';
+export {
   evaluateSimplexStVenantKirchhoffN,
   type SimplexStVenantKirchhoffEvaluationN,
   type SimplexStVenantKirchhoffMaterialN
@@ -256,6 +271,16 @@ export {
   type SimplexCompressibleNeoHookeanEvaluationN,
   type SimplexCompressibleNeoHookeanMaterialN
 } from './simplex-neo-hookean-material.js';
+export {
+  SimplexCompressibleNeoHookeanFamilyN,
+  compileSimplexCompressibleNeoHookeanFamilyN,
+  type CompileSimplexCompressibleNeoHookeanFamilyNOptions,
+  type SimplexCompressibleNeoHookeanFamilyElementContextN,
+  type SimplexCompressibleNeoHookeanFamilyElementEvaluationN,
+  type SimplexCompressibleNeoHookeanFamilyElementN,
+  type SimplexCompressibleNeoHookeanFamilyEvaluationN,
+  type SimplexCompressibleNeoHookeanFamilyMaterialN
+} from './simplex-neo-hookean-family.js';
 export {
   lumpSimplexMassesN,
   type LumpSimplexMassesNOptions,

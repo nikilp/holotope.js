@@ -89,6 +89,9 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 - Simplex constitutive references: `SimplexConstitutiveEvaluationN`,
   `evaluateSimplexStVenantKirchhoffN`, and
   `evaluateSimplexCompressibleNeoHookeanN`.
+- Constitutive assembly: `SimplexConstitutiveLawN`, built-in immutable law
+  descriptors, `compileSimplexConstitutiveFamilyN`, plus named StVK and
+  Neo-Hookean family compilers.
 - RN velocity policies: `XpbdVelocityResponseN`,
   `compileXpbdParticleHyperplaneFrictionFamilyN` (complete Coulomb tangent
   ball), and `XpbdExponentialVelocityDampingN` (inverse-seconds decay).

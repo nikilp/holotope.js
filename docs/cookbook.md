@@ -169,6 +169,37 @@ APIs; it is not automatically enabled by merely adding multiple bodies to
 integration references while that public convenience layer remains under
 development.
 
+## Choose and assemble a simplex material law
+
+Use StVK as the polynomial small-strain reference. Use compressible
+Neo-Hookean when you need logarithmic resistance to large compression and can
+honor its positive-measure domain.
+
+```ts
+import {
+  compileSimplexConstitutiveFamilyN,
+  simplexCompressibleNeoHookeanLawN
+} from '@holotope/physics';
+
+const material = compileSimplexConstitutiveFamilyN({
+  id: 'solid-material',
+  source,
+  simplexGroup,
+  particles: binding.particles,
+  law: simplexCompressibleNeoHookeanLawN,
+  material: { firstLameParameter: 8, shearModulus: 5 }
+});
+
+material.addToWorld(world);
+```
+
+The selected group must already contain simplices; a cuboid source can use
+`simplexizeCuboidGroupN()` first. The family copies rest positions and retains
+source-cell lineage. It owns no particles and does not write simulation state
+back to the source. Named `compileSimplexStVenantKirchhoffFamilyN()` and
+`compileSimplexCompressibleNeoHookeanFamilyN()` wrappers are available when a
+fixed law is clearer.
+
 ## Add a frictional RN floor to a particle system
 
 Normal contact is a position inequality; Coulomb friction is an ordered

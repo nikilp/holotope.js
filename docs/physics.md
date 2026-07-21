@@ -902,19 +902,21 @@ console.log(
 Its compression energy grows as `J` approaches zero, unlike StVK's polynomial
 response. The refusal boundary is still not a no-tunnelling guarantee: an
 explicit step can propose an invalid state, and a solver must roll back, line
-search, or apply a separately specified orientation barrier. The current
-source-family compiler remains explicitly StVK; a generic constitutive family
-is a separate composition layer rather than an implicit switch in this
-evaluator.
+search, or apply a separately specified orientation barrier.
 
-`compileSimplexStVenantKirchhoffFamilyN()` assembles that evaluator over one
+`SimplexConstitutiveLawN` is the typed pure-evaluator seam over that common
+result. The immutable `simplexStVenantKirchhoffLawN` and
+`simplexCompressibleNeoHookeanLawN` descriptors are its first consumers.
+`compileSimplexConstitutiveFamilyN()` assembles one chosen law over one
 explicitly selected simplex group in a `CellComplex`. It copies rest positions
-at compile time, binds current positions to one existing `XpbdParticleN` per
-source vertex, and retains a `SourceCellReferenceN` plus structural
-`SourceCellIdN` for every element. Shared-vertex force is the deterministic sum
-of incident element forces. A family evaluation reports total potential
-energy, one P12 record per element, assembled particle forces, maximum strain,
-orientation counts, and the residual of total internal force.
+at compile time, validates and canonicalizes element material records at rest,
+binds current positions to one existing `XpbdParticleN` per source vertex, and
+retains a `SourceCellReferenceN` plus structural `SourceCellIdN` for every
+element. Shared-vertex force is the deterministic sum of incident negative
+energy gradients. A family evaluation reports the law id, total potential
+energy, one constitutive record per element, assembled particle forces,
+maximum strain, minimum measure ratio, orientation counts, and the residual of
+total internal force.
 
 The family is also an `XpbdForceProviderN`. Calling `addToWorld()` registers
 the material without turning source edges into springs or copying another
@@ -926,7 +928,8 @@ decomposition is required.
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';
 import {
-  compileSimplexStVenantKirchhoffFamilyN
+  compileSimplexConstitutiveFamilyN,
+  simplexCompressibleNeoHookeanLawN
 } from '@holotope/physics';
 
 const decomposition = simplexizeCuboidGroupN(cuboidGroup, {
@@ -934,16 +937,24 @@ const decomposition = simplexizeCuboidGroupN(cuboidGroup, {
 });
 source.addGroup(decomposition.simplexGroup);
 
-const solid = compileSimplexStVenantKirchhoffFamilyN({
+const solid = compileSimplexConstitutiveFamilyN({
   id: 'solid',
   source,
   simplexGroup: decomposition.simplexGroup,
   particles,
+  law: simplexCompressibleNeoHookeanLawN,
   material: { firstLameParameter: 2, shearModulus: 3 }
 });
 
 solid.addToWorld(world);
 ```
+
+`compileSimplexStVenantKirchhoffFamilyN()` remains the compatible named StVK
+surface. `compileSimplexCompressibleNeoHookeanFamilyN()` is the equivalent
+discoverable Neo-Hookean convenience surface. Both are thin typed wrappers over
+the same generic lineage, ownership, rest-state, accumulation, and world
+composition behavior; neither creates another particle set or private
+simplexization.
 
 ### Source particles and intrinsic mass
 
