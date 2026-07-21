@@ -1,9 +1,9 @@
 import { MatN, VecN } from '@holotope/core';
+import { evaluateSimplexMetricDeformationN } from './simplex-deformation.js';
 import {
-  evaluateSimplexMetricDeformationN,
-  type SimplexMetricDeformationN
-} from './simplex-deformation.js';
-import { evaluateSimplexSquaredMeasureN } from './xpbd-simplex-measure.js';
+  completeSimplexConstitutiveEvaluationN,
+  type SimplexConstitutiveEvaluationN
+} from './simplex-constitutive.js';
 
 /** Isotropic St. Venant–Kirchhoff parameters in intrinsic material coordinates. */
 export interface SimplexStVenantKirchhoffMaterialN {
@@ -12,21 +12,10 @@ export interface SimplexStVenantKirchhoffMaterialN {
 }
 
 /** Energy, stress, and current-position gradient for one simplex element. */
-export interface SimplexStVenantKirchhoffEvaluationN {
-  readonly deformation: SimplexMetricDeformationN;
-  readonly material: SimplexStVenantKirchhoffMaterialN;
-  /** Intrinsic k-measure of the rest simplex. */
-  readonly restMeasure: number;
-  /** Energy per unit rest k-measure. */
-  readonly energyDensity: number;
-  /** `restMeasure * energyDensity`. */
-  readonly energy: number;
+export interface SimplexStVenantKirchhoffEvaluationN
+  extends SimplexConstitutiveEvaluationN<SimplexStVenantKirchhoffMaterialN> {
   /** `lambda tr(E) I + 2 mu E` in P11's rest-material basis. */
   readonly secondPiolaStress: MatN;
-  /** `d energy / d currentPositions[i]`; internal force is its negative. */
-  readonly currentGradients: readonly VecN[];
-  /** Norm of the summed gradients; translation invariance should make it zero. */
-  readonly netGradientResidual: number;
 }
 
 /**
@@ -96,66 +85,14 @@ export function evaluateSimplexStVenantKirchhoffN(
     }
   }
 
-  const restMeasure = evaluateSimplexSquaredMeasureN(restPositions).measure;
-  const energy = restMeasure * energyDensity;
-  if (!Number.isFinite(energy)) {
-    throw new Error(
-      'evaluateSimplexStVenantKirchhoffN: energy is outside the Float64 range'
-    );
-  }
-
-  const inverseRestFactor = inverseLowerTriangular(
-    choleskyPositive(deformation.restMetric)
-  );
-  const materialGradient = inverseRestFactor
-    .transpose()
-    .multiply(secondPiolaStress)
-    .multiply(inverseRestFactor);
-  const gradients = Array.from(
-    { length: simplexDimension + 1 },
-    () => new VecN(deformation.ambientDimension)
-  );
-  const originGradient = gradients[0]!;
-  const origin = currentPositions[0]!;
-  for (let vertex = 0; vertex < simplexDimension; vertex++) {
-    const gradient = gradients[vertex + 1]!;
-    for (let axis = 0; axis < deformation.ambientDimension; axis++) {
-      let value = 0;
-      for (let edge = 0; edge < simplexDimension; edge++) {
-        value += (
-          currentPositions[edge + 1]!.data[axis]! - origin.data[axis]!
-        ) * materialGradient.get(edge, vertex);
-      }
-      gradient.data[axis] = restMeasure * value;
-      originGradient.data[axis] = originGradient.data[axis]! - gradient.data[axis]!;
-    }
-  }
-
-  let netGradientResidual = 0;
-  for (let axis = 0; axis < deformation.ambientDimension; axis++) {
-    let sum = 0;
-    for (const gradient of gradients) sum += gradient.data[axis]!;
-    netGradientResidual = Math.hypot(netGradientResidual, sum);
-  }
-  for (const gradient of gradients) {
-    for (const value of gradient.data) {
-      if (!Number.isFinite(value)) {
-        throw new Error(
-          'evaluateSimplexStVenantKirchhoffN: gradient is outside the Float64 range'
-        );
-      }
-    }
-  }
-
-  return Object.freeze({
+  return completeSimplexConstitutiveEvaluationN({
+    caller: 'evaluateSimplexStVenantKirchhoffN',
+    restPositions,
+    currentPositions,
     deformation,
     material: Object.freeze({ firstLameParameter, shearModulus }),
-    restMeasure,
     energyDensity,
-    energy,
-    secondPiolaStress,
-    currentGradients: Object.freeze(gradients),
-    netGradientResidual
+    secondPiolaStress
   });
 }
 
@@ -187,47 +124,4 @@ function validateMaterial(
     );
   }
   return { firstLameParameter, shearModulus };
-}
-
-function choleskyPositive(matrix: MatN): MatN {
-  const lower = new MatN(matrix.n);
-  for (let row = 0; row < matrix.n; row++) {
-    for (let column = 0; column <= row; column++) {
-      let value = matrix.get(row, column);
-      for (let k = 0; k < column; k++) {
-        value -= lower.get(row, k) * lower.get(column, k);
-      }
-      if (row === column) {
-        if (!(value > 0) || !Number.isFinite(value)) {
-          throw new Error(
-            'evaluateSimplexStVenantKirchhoffN: rest metric must be positive definite'
-          );
-        }
-        lower.set(row, column, Math.sqrt(value));
-      } else {
-        lower.set(row, column, value / lower.get(column, column));
-      }
-    }
-  }
-  return lower;
-}
-
-function inverseLowerTriangular(lower: MatN): MatN {
-  const inverse = new MatN(lower.n);
-  for (let column = 0; column < lower.n; column++) {
-    for (let row = 0; row < lower.n; row++) {
-      let value = row === column ? 1 : 0;
-      for (let k = 0; k < row; k++) {
-        value -= lower.get(row, k) * inverse.get(k, column);
-      }
-      value /= lower.get(row, row);
-      if (!Number.isFinite(value)) {
-        throw new Error(
-          'evaluateSimplexStVenantKirchhoffN: inverse rest factor is outside the Float64 range'
-        );
-      }
-      inverse.set(row, column, value);
-    }
-  }
-  return inverse;
 }

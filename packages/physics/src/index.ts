@@ -243,11 +243,19 @@ export {
   type SimplexMetricDeformationN,
   type SimplexOrientationChangeN
 } from './simplex-deformation.js';
+export type {
+  SimplexConstitutiveEvaluationN
+} from './simplex-constitutive.js';
 export {
   evaluateSimplexStVenantKirchhoffN,
   type SimplexStVenantKirchhoffEvaluationN,
   type SimplexStVenantKirchhoffMaterialN
 } from './simplex-stvk-material.js';
+export {
+  evaluateSimplexCompressibleNeoHookeanN,
+  type SimplexCompressibleNeoHookeanEvaluationN,
+  type SimplexCompressibleNeoHookeanMaterialN
+} from './simplex-neo-hookean-material.js';
 export {
   lumpSimplexMassesN,
   type LumpSimplexMassesNOptions,

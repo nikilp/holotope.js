@@ -229,6 +229,16 @@ simplices require an authored normal frame before scalar orientation is
 meaningful. The coordinate selects no constitutive energy and produces no
 forces by itself.
 
+`SimplexConstitutiveEvaluationN` is the shared rest-measure, energy, second
+Piola stress, and analytic current-gradient contract. The package supplies two
+Float64 laws over it: `evaluateSimplexStVenantKirchhoffN()` for the polynomial
+small-strain reference and `evaluateSimplexCompressibleNeoHookeanN()` for a
+large-strain logarithmic-volume reference. Neo-Hookean embedded elements use
+positive intrinsic measure; full-dimensional elements must preserve signed
+orientation. Collapse and inversion refuse explicitly. This evaluator is not
+an inversion barrier or an implicit solver, and the current source-identified
+family compiler remains explicitly StVK.
+
 `relativeOrientationCoordinates4()` provides the analogous local coordinate
 for rotation. It chooses one lift of the paired-quaternion double cover,
 returns a reusable branch token for coherent timesteps, and reports the full

@@ -84,8 +84,11 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 - Rigid constraints: point, distance, direction, orientation, planar rotation,
   motors, and bounded blocks.
 - RN point/XPBD: `XpbdConstraintSolverN`, `XpbdParticleN`, `XpbdWorldN`,
-  particle binding, distance-network, simplex-measure, StVK, and
+  particle binding, distance-network, simplex-measure, StVK family, and
   particle--hyperplane contact families.
+- Simplex constitutive references: `SimplexConstitutiveEvaluationN`,
+  `evaluateSimplexStVenantKirchhoffN`, and
+  `evaluateSimplexCompressibleNeoHookeanN`.
 - RN velocity policies: `XpbdVelocityResponseN`,
   `compileXpbdParticleHyperplaneFrictionFamilyN` (complete Coulomb tangent
   ball), and `XpbdExponentialVelocityDampingN` (inverse-seconds decay).

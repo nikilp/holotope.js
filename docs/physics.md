@@ -806,6 +806,14 @@ basis, and reports the right Cauchy--Green tensor `C`, Green--Lagrange strain
 same contract therefore covers a line, an embedded membrane, or a
 full-dimensional solid for every `1 <= k <= N`.
 
+Constitutive evaluators share `SimplexConstitutiveEvaluationN`: the intrinsic
+deformation record, material parameters, rest measure, energy density and
+total energy, symmetric second Piola stress, one analytic current-vertex
+gradient per simplex vertex, and the net translation residual. The common
+Float64 completion step maps a law's stress through the same deterministic
+rest-material basis, so separate laws do not acquire separate geometry or
+gradient conventions.
+
 `evaluateSimplexStVenantKirchhoffN()` is the first constitutive consumer of
 that coordinate. For Lamé parameters `lambda` and `mu`, it evaluates the
 energy density per unit rest k-measure
@@ -855,6 +863,49 @@ its signed orientation classification instead of hiding an inversion penalty
 inside the material law. StVK is a small-strain reference model; time
 integration, damping, bending, collision, and no-inversion barriers are
 intentionally separate consumers.
+
+`evaluateSimplexCompressibleNeoHookeanN()` supplies a large-strain reference
+over the same coordinate. For positive intrinsic measure ratio `J`,
+
+\[
+\psi(C)=\frac{\mu}{2}(\operatorname{tr}C-k)-\mu\log J+
+\frac{\lambda}{2}(\log J)^2,
+\]
+
+\[
+S=\mu(I-C^{-1})+\lambda\log J\,C^{-1}.
+\]
+
+The reference requires `mu > 0` and `lambda >= 0`. Embedded simplices use the
+positive intrinsic measure ratio and need no ambient normal. A
+full-dimensional simplex instead uses its signed current/rest measure ratio
+and must preserve orientation. Rank collapse or full-dimensional inversion is
+outside this constitutive chart and refuses before logarithm or matrix
+inversion; it is never hidden by `abs(det F)`.
+
+```ts
+import { evaluateSimplexCompressibleNeoHookeanN } from '@holotope/physics';
+
+const robustSample = evaluateSimplexCompressibleNeoHookeanN(
+  rest,
+  current,
+  { firstLameParameter: 2, shearModulus: 3 }
+);
+
+console.log(
+  robustSample.energy,
+  robustSample.volumetricLogStrain,
+  robustSample.currentGradients
+);
+```
+
+Its compression energy grows as `J` approaches zero, unlike StVK's polynomial
+response. The refusal boundary is still not a no-tunnelling guarantee: an
+explicit step can propose an invalid state, and a solver must roll back, line
+search, or apply a separately specified orientation barrier. The current
+source-family compiler remains explicitly StVK; a generic constitutive family
+is a separate composition layer rather than an implicit switch in this
+evaluator.
 
 `compileSimplexStVenantKirchhoffFamilyN()` assembles that evaluator over one
 explicitly selected simplex group in a `CellComplex`. It copies rest positions
@@ -1226,11 +1277,11 @@ consumers observe the evolved source without losing its cell identity.
 The XPBD projection kernel implements equations 17–18 of Macklin, Müller, and Chentanez,
 [“XPBD: Position-Based Simulation of Compliant Constrained Dynamics”
 (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf).
-Coupled position constraints, surface-feature contact, restitution, robust
-large-strain materials, continuous collision, and accelerated backends remain
-separate later consumers. Named exponential damping and discrete
-particle--hyperplane Coulomb friction are the first post-reconstruction
-velocity consumers described above.
+Coupled position constraints, surface-feature contact, restitution, generic
+constitutive-family assembly, implicit material integration, continuous
+collision, and accelerated backends remain separate later consumers. Named
+exponential damping and discrete particle--hyperplane Coulomb friction are the
+first post-reconstruction velocity consumers described above.
 
 ### Bilateral R4 point joints
 

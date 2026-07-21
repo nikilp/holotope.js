@@ -197,16 +197,18 @@ Material deformation is another layer above those local measures. Matching
 rest/current k-simplices define intrinsic Gram metrics even when `k < N`.
 Cholesky normalization of the rest metric yields an orthonormal material basis
 in which right Cauchy–Green strain, Green–Lagrange strain, principal stretches,
-and measure ratio can be compared without an ambient normal. The first
-constitutive consumer is an isotropic St. Venant–Kirchhoff simplex evaluator:
-it maps that intrinsic strain to rest-measure-weighted energy, second Piola
-stress, and analytic current-vertex gradients in any ambient dimension. It is
-a Float64 reference law. A source-identified family compiler copies authored
-rest positions, evaluates one element per selected simplex cell, assembles
-shared-particle forces, and implements the RN force-provider contract without
-making the visible source or an edge network authoritative. Damping, inversion
-barriers, implicit stiffness handling, and accelerated implementations remain
-separate policies.
+and measure ratio can be compared without an ambient normal. Constitutive laws
+share one rest-measure, second-Piola-stress, and analytic vertex-gradient result
+contract. The Float64 references are isotropic St. Venant–Kirchhoff and
+compressible Neo-Hookean. The latter admits embedded elements through positive
+intrinsic measure but refuses collapsed or inverted full-dimensional elements
+rather than hiding orientation with an absolute determinant. A
+source-identified StVK family compiler copies authored rest positions,
+evaluates one element per selected simplex cell, assembles shared-particle
+forces, and implements the RN force-provider contract without making the
+visible source or an edge network authoritative. Generic constitutive-family
+assembly, inversion barriers, implicit stiffness handling, and accelerated
+implementations remain separate policies.
 Full-dimensional determinant orientation augments the metric; embedded
 orientation does not become scalar by implication.
 
@@ -280,5 +282,5 @@ only where subgroup geometry supplies an honest abelian coordinate.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with assembled StVK energy/forces, intrinsic simplex mass lumping, topology-neutral source-particle bindings, per-substep RN force providers, and projected XPBD scalar relations including exact RN particle–hyperplane contact plus unsigned intrinsic and signed full-dimensional simplex coordinates, ordered post-projection RN velocity policies with isotropic particle–plane Coulomb friction and timestep-invariant damping, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; robust large-strain laws, implicit material solvers, bending, inversion barriers and complete collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with StVK and compressible Neo-Hookean references plus assembled StVK energy/forces, intrinsic simplex mass lumping, topology-neutral source-particle bindings, per-substep RN force providers, and projected XPBD scalar relations including exact RN particle–hyperplane contact plus unsigned intrinsic and signed full-dimensional simplex coordinates, ordered post-projection RN velocity policies with isotropic particle–plane Coulomb friction and timestep-invariant damping, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; generic constitutive family assembly, implicit material solvers, bending, inversion barriers and complete collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback
