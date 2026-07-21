@@ -114,6 +114,7 @@ export interface XpbdWorldStepResultN {
   readonly constraintSolves: readonly XpbdWorldSubstepResultN[];
   readonly maxAbsConstraintValue: number;
   readonly maxAbsCompliantResidual: number;
+  readonly maxAbsProjectedKktResidual: number;
 }
 
 interface ParticleSnapshotN {
@@ -286,6 +287,9 @@ export class XpbdWorldN {
         ),
         maxAbsCompliantResidual: maximum(
           constraintSolves.map((substep) => substep.solve.maxAbsCompliantResidual)
+        ),
+        maxAbsProjectedKktResidual: maximum(
+          constraintSolves.map((substep) => substep.solve.maxAbsProjectedKktResidual)
         )
       });
     } catch (error) {
@@ -355,6 +359,13 @@ export class XpbdWorldN {
     }
     if (!Number.isFinite(constraint.compliance) || constraint.compliance < 0) {
       throw new Error(`${caller}: constraint compliance must be finite and non-negative`);
+    }
+    if (
+      constraint.relation !== undefined &&
+      constraint.relation !== 'equality' &&
+      constraint.relation !== 'greater-than-or-equal'
+    ) {
+      throw new Error(`${caller}: constraint relation is invalid`);
     }
     const uniquePoints = new Set<XpbdPointN>();
     for (const point of constraint.points) {

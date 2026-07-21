@@ -73,6 +73,28 @@ describe('XpbdWorldN', () => {
     expect(fixed.kineticEnergy()).toBe(0);
   });
 
+  it('aggregates inequality slack separately from projected KKT error', () => {
+    const particle = new XpbdParticleN({ id: 'slack', position: [2, 0, 0, 0] });
+    const floor: XpbdScalarConstraintN = {
+      id: 'floor',
+      dimension: 4,
+      points: [particle],
+      relation: 'greater-than-or-equal',
+      compliance: 0,
+      evaluate: () => ({
+        value: particle.position.data[0]!,
+        gradients: [VecN.basis(4, 0)]
+      })
+    };
+    const result = new XpbdWorldN({ dimension: 4 })
+      .addParticle(particle)
+      .addConstraint(floor)
+      .step(0.1);
+    expect(result.maxAbsConstraintValue).toBe(2);
+    expect(result.maxAbsCompliantResidual).toBe(2);
+    expect(result.maxAbsProjectedKktResidual).toBe(0);
+  });
+
   it('holds a hard RN distance under gravity with the expected support force', () => {
     const fixed = new XpbdParticleN({
       id: 'fixed', position: [0, 0, 0, 0], inverseMass: 0

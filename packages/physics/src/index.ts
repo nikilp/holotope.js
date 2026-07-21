@@ -135,6 +135,7 @@ export {
   XpbdConstraintSolverN,
   XpbdDistanceConstraintN,
   type XpbdConstraintResultN,
+  type XpbdConstraintRelationN,
   type XpbdConstraintSolverNOptions,
   type XpbdConstraintStatusN,
   type XpbdDistanceConstraintEvaluationN,
@@ -174,6 +175,17 @@ export {
   type XpbdParticleBindingVertexN,
   type XpbdParticleBindingVertexScalarN
 } from './xpbd-particle-binding.js';
+export {
+  XpbdParticleHyperplaneConstraintN,
+  XpbdParticleHyperplaneFamilyN,
+  compileXpbdParticleHyperplaneFamilyN,
+  type CompileXpbdParticleHyperplaneFamilyNOptions,
+  type XpbdParticleHyperplaneConstraintEvaluationN,
+  type XpbdParticleHyperplaneConstraintNOptions,
+  type XpbdParticleHyperplaneFamilyContactN,
+  type XpbdParticleHyperplaneFamilyVertexContextN,
+  type XpbdParticleHyperplaneFamilyVertexScalarN
+} from './xpbd-hyperplane-contact.js';
 export {
   XpbdOrientedSimplexMeasureConstraintN,
   XpbdSimplexSquaredMeasureConstraintN,

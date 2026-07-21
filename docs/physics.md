@@ -17,8 +17,9 @@ coordinate kernel for rotational constraints. Direction preservation and
 one-parameter planar rotation are explicit stabilizer-classified policies;
 the planar policy's torque-limited motor and continuous-angle guardians are
 implemented. A separate dimension-generic XPBD reference kernel now projects
-compliant scalar equalities over point coordinates without imposing R4 rigid
-body semantics. Prescribed compact-body pose trajectories share the same
+compliant scalar relations over point coordinates, including exact RN
+point--hyperplane inequalities, without imposing R4 rigid-body semantics.
+Prescribed compact-body pose trajectories share the same
 contact and CCD path as dynamic bodies; moving infinite planes and sleeping
 remain later contracts.
 
@@ -966,6 +967,23 @@ every point and gradient must agree with it. A constraint whose weighted
 gradient has no movable response returns `no-dynamic-response` instead of
 dividing by zero.
 
+A scalar inequality declares `relation: 'greater-than-or-equal'` and means
+`C(x) >= 0`. Its trial update uses the same denominator, then projects the
+total multiplier onto the non-negative ray:
+
+\[
+\lambda' = \max(0,\lambda+\Delta\lambda^*),
+\qquad
+\Delta\lambda=\lambda'-\lambda.
+\]
+
+An inactive inequality may have positive compliant slack. Results therefore
+retain `compliantResidual` as raw evidence and expose a separate
+`projectedKktResidual`: it is the raw residual for an active constraint and
+the negative part of that residual when the multiplier is zero. Equality
+results report the same value through both fields. Solve and world results
+aggregate `maxAbsProjectedKktResidual` independently.
+
 ```ts
 import { VecN } from '@holotope/core';
 import {
@@ -1028,7 +1046,8 @@ point still referenced by either policy refuses. A world step snapshots
 position, velocity, and force; any late constraint or provider failure restores
 the complete state and original accumulators. The result retains one
 `XpbdSolveResultN` and the ordered provider evaluations per substep, while
-separately aggregating raw constraint value and compliant residual.
+separately aggregating raw constraint value, compliant residual, and projected
+KKT residual.
 
 ```ts
 import { XpbdParticleN, XpbdWorldN } from '@holotope/physics';
@@ -1044,7 +1063,47 @@ const world = new XpbdWorldN({
 
 const step = world.step(1 / 60, 2);
 console.log(step.maxAbsCompliantResidual);
+console.log(step.maxAbsProjectedKktResidual);
 ```
+
+### RN point–hyperplane contact
+
+`XpbdParticleHyperplaneConstraintN` is the first projected consumer. For a
+normalized oriented plane `normal dot x = offset`, with the positive side
+allowed and non-negative clearance `r`, it declares
+
+\[
+C(x)=normal\cdot x-offset-r\ge 0,
+\qquad \nabla C=normal.
+\]
+
+`compileXpbdParticleHyperplaneFamilyN()` composes one contact per source
+vertex over an existing particle binding. Each record retains its source
+ordinal, copied source position and compile-time signed gap, exact particle
+identity, clearance, compliance, and stable constraint id.
+
+```ts
+import {
+  HyperplaneColliderN,
+  compileXpbdParticleHyperplaneFamilyN
+} from '@holotope/physics';
+
+const floorContacts = compileXpbdParticleHyperplaneFamilyN({
+  id: 'floor',
+  source,
+  particles: binding.particles,
+  plane: new HyperplaneColliderN([0, 1, 0, 0], -2),
+  clearance: 0,
+  compliance: 0
+});
+
+floorContacts.addToWorld(world4);
+```
+
+This is discrete point contact. It does not claim deformable face contact,
+friction, restitution, adhesion, self-collision, or a swept no-tunnelling
+guarantee. The plane is source-space mechanics; no rendered projection is used
+to determine its normal.
 
 An explicitly selected two-vertex 1-cell group can be compiled from shared
 topology rather than reconstructed as private simulation data:
@@ -1105,10 +1164,10 @@ consumers observe the evolved source without losing its cell identity.
 
 The XPBD projection kernel implements equations 17–18 of Macklin, Müller, and Chentanez,
 [“XPBD: Position-Based Simulation of Compliant Constrained Dynamics”
-(2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf). A
-damping, inequality constraints, coupled compliance, robust large-strain
-materials, collision, and accelerated backends remain separate later
-consumers.
+(2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf).
+Damping, coupled compliance, frictional and surface contact, robust
+large-strain materials, continuous collision, and accelerated backends remain
+separate later consumers.
 
 ### Bilateral R4 point joints
 

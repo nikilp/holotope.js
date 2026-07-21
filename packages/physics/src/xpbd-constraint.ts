@@ -12,29 +12,39 @@ export interface XpbdPointN {
   readonly inverseMass: number;
 }
 
-/** One scalar equality C(x) and its gradients in `points` order. */
+/** One scalar relation C(x) and its gradients in `points` order. */
 export interface XpbdScalarConstraintEvaluationN {
   readonly value: number;
   readonly gradients: readonly VecN[];
 }
 
-/** Dimension-explicit scalar equality with physical compliance. */
+export type XpbdConstraintRelationN = 'equality' | 'greater-than-or-equal';
+
+/** Dimension-explicit scalar relation with physical compliance. */
 export interface XpbdScalarConstraintN {
   readonly id: string;
   readonly dimension: number;
   readonly points: readonly XpbdPointN[];
-  /** Inverse stiffness alpha. Zero is a hard positional equality. */
+  /** Default `equality`; inequalities declare `C(x) >= 0`. */
+  readonly relation?: XpbdConstraintRelationN;
+  /** Inverse stiffness alpha. Zero is a hard positional relation. */
   readonly compliance: number;
   /** Must observe current point positions without mutating them. */
   evaluate(): XpbdScalarConstraintEvaluationN;
 }
 
-export type XpbdConstraintStatusN = 'solved' | 'no-dynamic-response';
+export type XpbdConstraintStatusN =
+  | 'solved'
+  | 'inactive'
+  | 'no-dynamic-response';
 
 /** Final evidence for one constraint after one XPBD time-step solve. */
 export interface XpbdConstraintResultN {
   readonly id: string;
   readonly status: XpbdConstraintStatusN;
+  readonly relation: XpbdConstraintRelationN;
+  /** True exactly when a projected inequality has positive multiplier. */
+  readonly active: boolean;
   readonly initialValue: number;
   readonly finalValue: number;
   /** Total position-level multiplier accumulated during this solve. */
@@ -43,6 +53,8 @@ export interface XpbdConstraintResultN {
   readonly signedForce: number;
   /** `C(x) + (compliance / deltaTime^2) * totalMultiplier`. */
   readonly compliantResidual: number;
+  /** Equality residual or projected coordinate-unit KKT violation. */
+  readonly projectedKktResidual: number;
   /** Final `sum_i inverseMass_i * |gradient_i|^2`. */
   readonly weightedInverseMass: number;
 }
@@ -54,7 +66,9 @@ export interface XpbdSolveResultN {
   readonly constraints: readonly XpbdConstraintResultN[];
   readonly maxAbsConstraintValue: number;
   readonly maxAbsCompliantResidual: number;
+  readonly maxAbsProjectedKktResidual: number;
   readonly noDynamicResponseIds: readonly string[];
+  readonly inactiveInequalityIds: readonly string[];
 }
 
 export interface XpbdConstraintSolverNOptions {
@@ -67,6 +81,7 @@ export interface XpbdConstraintSolverNOptions {
 
 interface ConstraintWorkN {
   readonly constraint: XpbdScalarConstraintN;
+  readonly relation: XpbdConstraintRelationN;
   readonly initialValue: number;
   totalMultiplier: number;
   hadDynamicResponse: boolean;
@@ -135,15 +150,19 @@ export class XpbdConstraintSolverN {
               `XpbdConstraintSolverN.solve: constraint "${item.constraint.id}" has invalid response`
             );
           }
-          const deltaMultiplier = (
+          const trialDeltaMultiplier = (
             -evaluated.value - scaledCompliance * item.totalMultiplier
           ) / denominator;
-          if (!Number.isFinite(deltaMultiplier)) {
+          if (!Number.isFinite(trialDeltaMultiplier)) {
             throw new Error(
               `XpbdConstraintSolverN.solve: constraint "${item.constraint.id}" produced a non-finite multiplier`
             );
           }
-          item.totalMultiplier += deltaMultiplier;
+          const nextMultiplier = item.relation === 'equality'
+            ? item.totalMultiplier + trialDeltaMultiplier
+            : Math.max(0, item.totalMultiplier + trialDeltaMultiplier);
+          const deltaMultiplier = nextMultiplier - item.totalMultiplier;
+          item.totalMultiplier = nextMultiplier;
           applyPositionCorrections(
             item.constraint.points,
             evaluated.gradients,
@@ -163,14 +182,31 @@ export class XpbdConstraintSolverN {
           evaluated.gradients
         );
         const scaledCompliance = item.constraint.compliance * inverseDeltaTimeSq;
+        const compliantResidual = evaluated.value +
+          scaledCompliance * item.totalMultiplier;
+        const active = item.relation === 'greater-than-or-equal' &&
+          item.totalMultiplier > 0;
+        const projectedKktResidual = item.relation === 'equality' || active
+          ? compliantResidual
+          : Math.min(compliantResidual, 0);
+        const status: XpbdConstraintStatusN =
+          item.relation === 'greater-than-or-equal' &&
+          !active && compliantResidual >= 0
+            ? 'inactive'
+            : item.hadDynamicResponse
+              ? 'solved'
+              : 'no-dynamic-response';
         return Object.freeze({
           id: item.constraint.id,
-          status: item.hadDynamicResponse ? 'solved' : 'no-dynamic-response',
+          status,
+          relation: item.relation,
+          active,
           initialValue: item.initialValue,
           finalValue: evaluated.value,
           totalMultiplier: item.totalMultiplier,
           signedForce: item.totalMultiplier * inverseDeltaTimeSq,
-          compliantResidual: evaluated.value + scaledCompliance * item.totalMultiplier,
+          compliantResidual,
+          projectedKktResidual,
           weightedInverseMass
         });
       });
@@ -183,9 +219,17 @@ export class XpbdConstraintSolverN {
         maxAbsCompliantResidual: maximumAbsolute(
           results.map((result) => result.compliantResidual)
         ),
+        maxAbsProjectedKktResidual: maximumAbsolute(
+          results.map((result) => result.projectedKktResidual)
+        ),
         noDynamicResponseIds: Object.freeze(
           results
             .filter((result) => result.status === 'no-dynamic-response')
+            .map((result) => result.id)
+        ),
+        inactiveInequalityIds: Object.freeze(
+          results
+            .filter((result) => result.status === 'inactive')
             .map((result) => result.id)
         )
       });
@@ -213,6 +257,7 @@ export class XpbdConstraintSolverN {
       );
       work.push({
         constraint,
+        relation: constraintRelation(constraint),
         initialValue: evaluated.value,
         totalMultiplier: 0,
         hadDynamicResponse: false
@@ -312,6 +357,7 @@ function validateConstraintDefinition(
     throw new Error(`XpbdConstraintSolverN.solve: duplicate constraint id "${constraint.id}"`);
   }
   ids.add(constraint.id);
+  constraintRelation(constraint);
   if (constraint.dimension !== dimension) {
     throw new Error(
       `XpbdConstraintSolverN.solve: constraint "${constraint.id}" is R${constraint.dimension}, solver is R${dimension}`
@@ -337,6 +383,18 @@ function validateConstraintDefinition(
     seen.add(point);
     assertPoint(point, dimension, `XpbdConstraintSolverN.solve: constraint "${constraint.id}"`);
   }
+}
+
+function constraintRelation(
+  constraint: XpbdScalarConstraintN
+): XpbdConstraintRelationN {
+  const relation = constraint.relation ?? 'equality';
+  if (relation !== 'equality' && relation !== 'greater-than-or-equal') {
+    throw new Error(
+      `XpbdConstraintSolverN.solve: constraint "${constraint.id}" has invalid relation`
+    );
+  }
+  return relation;
 }
 
 function evaluateConstraint(

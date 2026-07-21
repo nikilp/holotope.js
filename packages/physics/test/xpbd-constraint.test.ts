@@ -11,6 +11,25 @@ function point(position: ArrayLike<number>, inverseMass = 1): XpbdPointN {
   return { position: new VecN(position), inverseMass };
 }
 
+function lowerBound(
+  constrainedPoint: XpbdPointN,
+  minimum: number,
+  compliance = 0,
+  id = 'lower-bound'
+): XpbdScalarConstraintN {
+  return {
+    id,
+    dimension: constrainedPoint.position.dim,
+    points: [constrainedPoint],
+    relation: 'greater-than-or-equal',
+    compliance,
+    evaluate: () => ({
+      value: constrainedPoint.position.data[0]! - minimum,
+      gradients: [VecN.basis(constrainedPoint.position.dim, 0)]
+    })
+  };
+}
+
 function expectArrayClose(
   actual: ArrayLike<number>,
   expected: ArrayLike<number>,
@@ -234,6 +253,102 @@ describe('dimension-generic XPBD scalar constraints', () => {
       })
     ], 1 / 60);
     expect(coincidentA.position.distanceTo(coincidentB.position)).toBeCloseTo(1, 14);
+  });
+
+  it('leaves separated inequalities inactive with zero projected KKT error', () => {
+    const separated = point([2, 0, 0, 0]);
+    const result = new XpbdConstraintSolverN({ dimension: 4, iterations: 3 })
+      .solve([lowerBound(separated, 0)], 0.1);
+    expect(separated.position.data[0]).toBe(2);
+    expect(result.constraints[0]).toMatchObject({
+      relation: 'greater-than-or-equal',
+      status: 'inactive',
+      active: false,
+      initialValue: 2,
+      finalValue: 2,
+      totalMultiplier: 0,
+      compliantResidual: 2,
+      projectedKktResidual: 0
+    });
+    expect(result.maxAbsCompliantResidual).toBe(2);
+    expect(result.maxAbsProjectedKktResidual).toBe(0);
+    expect(result.inactiveInequalityIds).toEqual(['lower-bound']);
+  });
+
+  it('projects hard and compliant penetrations onto the non-negative multiplier cone', () => {
+    const hard = point([-0.4, 0, 0], 2);
+    const hardResult = new XpbdConstraintSolverN({ dimension: 3, iterations: 1 })
+      .solve([lowerBound(hard, 0, 0, 'hard-contact')], 0.1)
+      .constraints[0]!;
+    expect(hard.position.data[0]).toBeCloseTo(0, 14);
+    expect(hardResult.totalMultiplier).toBeCloseTo(0.2, 14);
+    expect(hardResult.signedForce).toBeCloseTo(20, 13);
+    expect(hardResult.projectedKktResidual).toBeCloseTo(0, 14);
+    expect(hardResult).toMatchObject({ status: 'solved', active: true });
+
+    const compliant = point([-0.4, 0, 0], 2);
+    const compliance = 1e-3;
+    const deltaTime = 0.1;
+    const compliantResult = new XpbdConstraintSolverN({
+      dimension: 3,
+      iterations: 1
+    }).solve([
+      lowerBound(compliant, 0, compliance, 'soft-contact')
+    ], deltaTime).constraints[0]!;
+    const scaledCompliance = compliance / (deltaTime * deltaTime);
+    const expectedMultiplier = 0.4 / (2 + scaledCompliance);
+    expect(compliantResult.totalMultiplier).toBeCloseTo(expectedMultiplier, 14);
+    expect(compliant.position.data[0]).toBeCloseTo(
+      -0.4 + 2 * expectedMultiplier,
+      14
+    );
+    expect(compliantResult.projectedKktResidual).toBeCloseTo(0, 14);
+  });
+
+  it('releases a coupled inequality multiplier when another row creates slack', () => {
+    const constrained = point([-0.5, 0]);
+    const target: XpbdScalarConstraintN = {
+      id: 'target',
+      dimension: 2,
+      points: [constrained],
+      compliance: 0,
+      evaluate: () => ({
+        value: constrained.position.data[0]! - 1,
+        gradients: [VecN.basis(2, 0)]
+      })
+    };
+    const result = new XpbdConstraintSolverN({ dimension: 2, iterations: 4 })
+      .solve([lowerBound(constrained, 0, 0, 'contact'), target], 0.1);
+    expect(constrained.position.data[0]).toBeCloseTo(1, 14);
+    expect(result.constraints[0]).toMatchObject({
+      status: 'inactive',
+      active: false,
+      totalMultiplier: 0,
+      projectedKktResidual: 0
+    });
+    expect(result.maxAbsProjectedKktResidual).toBeCloseTo(0, 14);
+  });
+
+  it('reports immovable inequality violations and rejects unknown relations', () => {
+    const fixed = point([-0.25, 0, 0, 0], 0);
+    const fixedResult = new XpbdConstraintSolverN({ dimension: 4 }).solve([
+      lowerBound(fixed, 0, 0, 'fixed-contact')
+    ], 0.1).constraints[0]!;
+    expect(fixedResult).toMatchObject({
+      status: 'no-dynamic-response',
+      active: false,
+      totalMultiplier: 0,
+      projectedKktResidual: -0.25
+    });
+
+    const malformed = {
+      ...lowerBound(point([0, 0]), 0),
+      relation: 'less-than-or-equal'
+    } as unknown as XpbdScalarConstraintN;
+    expect(() => new XpbdConstraintSolverN({ dimension: 2 }).solve(
+      [malformed],
+      0.1
+    )).toThrow(/invalid relation/);
   });
 
   it('refuses malformed batches and restores positions after runtime failure', () => {

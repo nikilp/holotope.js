@@ -166,11 +166,14 @@ the coordinate or weakening the Float64 CPU reference path.
 
 Position-level compliance is a separate dimension-generic layer.
 `XpbdConstraintSolverN` consumes RN point coordinates, inverse masses, scalar
-equalities, and gradients. It implements the total-multiplier XPBD update with
-physical compliance and explicit compliant residuals. It neither reuses an R4
-rigid Jacobian incorrectly nor replaces the velocity/contact pipeline. Later
-point-mass and deformable systems may consume this golden path; accelerated
-backends must be tested against it.
+relations, and gradients. It implements the total-multiplier XPBD update with
+physical compliance. Equalities remain unbounded; an explicitly declared
+`C(x) >= 0` relation projects its total multiplier onto the non-negative ray.
+Raw compliant residual and projected KKT violation remain separate, so valid
+inactive slack is never reported as convergence error. It neither reuses an R4
+rigid Jacobian incorrectly nor replaces the velocity-level rigid contact
+pipeline. Later point-mass and deformable systems may consume this golden path;
+accelerated backends must be tested against it.
 `XpbdWorldN` is the first such consumer: it owns RN point prediction, constraint
 projection, velocity reconstruction, force accumulation, and transactional
 step semantics. Pure state-dependent force providers are reevaluated before
@@ -212,6 +215,14 @@ mass and fixed mobility are separate policies. `lumpSimplexMassesN` supplies
 the diagonal reference model by integrating density against intrinsic rest
 k-measure and equally distributing each element mass to its incident vertices;
 element and vertex totals remain auditable separately.
+
+The first projected consumer is exact RN point–hyperplane contact.
+`XpbdParticleHyperplaneConstraintN` uses the normalized signed gap to an
+oriented half-space, while `XpbdParticleHyperplaneFamilyN` binds one such
+constraint to every source vertex over an existing particle binding. Source
+ordinal, particle identity, clearance, compliance, and compile-time gap remain
+explicit. This is a discrete point-contact coordinate, not deformable surface
+collision, friction, or a swept no-tunnelling certificate.
 
 `compileXpbdDistanceNetworkN()` is the first topology-to-simulation compiler.
 The caller explicitly selects one two-vertex 1-cell group from a `CellComplex`;
@@ -261,5 +272,5 @@ only where subgroup geometry supplies an honest abelian coordinate.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with assembled StVK energy/forces, intrinsic simplex mass lumping, topology-neutral source-particle bindings, per-substep RN force providers, and XPBD scalar compliance including unsigned intrinsic and signed full-dimensional simplex coordinates, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; robust large-strain laws, implicit material solvers, bending, inversion barriers and complete collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with assembled StVK energy/forces, intrinsic simplex mass lumping, topology-neutral source-particle bindings, per-substep RN force providers, and projected XPBD scalar relations including exact RN particle–hyperplane contact plus unsigned intrinsic and signed full-dimensional simplex coordinates, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; robust large-strain laws, implicit material solvers, bending, inversion barriers and complete collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

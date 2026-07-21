@@ -33,10 +33,13 @@ and conservative compact/compact and compact/plane casts whose angular
 closing bound uses the exact SO(4) operator norm.
 
 A separate `XpbdConstraintSolverN` supplies an auditable dimension-generic
-Float64 position-level kernel for compliant scalar equalities. It exposes the
-total XPBD multiplier, signed force estimate, and compliant residual, while
-exact RN distance, unsigned intrinsic simplex measure, and signed full-
-dimensional simplex measure constraints provide its first geometric consumers.
+Float64 position-level kernel for compliant scalar relations. Equalities are
+unbounded and declared `C(x) >= 0` inequalities project total multipliers onto
+the non-negative ray. Results expose the total XPBD multiplier, signed force
+estimate, raw compliant residual, and projected KKT residual, while exact RN
+distance, unsigned intrinsic simplex measure, and signed full-dimensional
+simplex measure constraints provide equality consumers and exact RN
+particle–hyperplane contact provides the first inequality consumer.
 This does not replace or silently couple to the velocity-level R4 rigid
 constraint solver.
 `XpbdWorldN` wraps that kernel in explicit RN point-mass prediction, velocity
@@ -114,11 +117,13 @@ direction branch and refuse transverse or negative-branch relative motion;
 diagnostics may still observe one-sided distance growth without manufacturing
 a solve gradient.
 
-`XpbdConstraintSolverN` instead projects scalar equalities over mutable RN point
+`XpbdConstraintSolverN` instead projects scalar relations over mutable RN point
 coordinates. One solve batch has an explicit dimension and initializes one
 total multiplier per constraint. Compliance is physical inverse stiffness and
 is scaled by `1 / dt^2` inside the update; results report the corresponding
-signed force and `C + alpha/dt^2 * lambda` residual. Custom evaluators are pure,
+signed force and `C + alpha/dt^2 * lambda` residual. A greater-than-or-equal
+relation projects the total multiplier to `lambda >= 0`; its projected KKT
+residual treats valid positive slack as zero error. Custom evaluators are pure,
 dimension-checked functions with one gradient per unique point. Invalid batches
 restore every participating position. `XpbdDistanceConstraintN` reuses the
 same exact distance coordinate and coincidence-branch rule as the rigid
@@ -161,6 +166,14 @@ vertex does not erase its mass evidence. `lumpSimplexMassesN()` supplies an
 auditable diagonal reference mass by integrating density against intrinsic
 simplex rest measure and equally accumulating each element mass onto its
 incident vertices. It reports element and vertex totals independently.
+
+`XpbdParticleHyperplaneConstraintN` declares the normalized point gap to an
+oriented RN hyperplane as a non-negative scalar relation.
+`compileXpbdParticleHyperplaneFamilyN()` composes one such constraint per
+source vertex over an existing particle binding, retaining source ordinal,
+compile-time gap, clearance, compliance, and exact particle identity. It is a
+discrete point-contact reference, not deformable surface contact, friction, or
+continuous collision.
 
 `compileXpbdDistanceNetworkN()` turns one explicitly selected two-vertex
 `CellComplex` 1-cell group into distance constraints. It can retain its
