@@ -184,6 +184,15 @@ export {
   type XpbdSimplexMeasureFamilyRestN
 } from './xpbd-simplex-family.js';
 export {
+  XpbdOrientedCuboidFamilyN,
+  compileXpbdOrientedCuboidFamilyN,
+  type CompileXpbdOrientedCuboidFamilyNOptions,
+  type XpbdOrientedCuboidFamilyCellContextN,
+  type XpbdOrientedCuboidFamilyCellN,
+  type XpbdOrientedCuboidFamilyComplianceN,
+  type XpbdOrientedCuboidFamilyRestN
+} from './xpbd-oriented-cuboid-family.js';
+export {
   DistanceIntervalJoint4,
   type DistanceIntervalConstraint4,
   type DistanceIntervalEvaluation4,

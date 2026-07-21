@@ -174,6 +174,18 @@ before attaching the family atomically. This lets distance and local measure
 coordinates share one RN state without implying a complete deformable-body
 model.
 
+`compileXpbdOrientedCuboidFamilyN()` accepts an explicitly selected
+full-dimensional cuboid group and applies the core's deterministic Kuhn
+simplexization internally. Each generated signed-measure constraint retains
+the structural id of its authored parent cuboid, the parent-cell ordinal, the
+axis-permutation ordinal and tuple, and both source vertex tuples. The raw
+simplex signs alternate with permutation parity; the compiler preserves that
+auditable ordering rather than silently rewinding cells. Rest coordinates come
+from source geometry, material callbacks remain separate, and the family
+shares an existing source-indexed particle array. World attachment preflights
+all parent lineage, particle ownership, and constraint ids before adding any
+constraint.
+
 `relativeOrientationCoordinates4()` provides the analogous local coordinate
 for rotation. It chooses one lift of the paired-quaternion double cover,
 returns a reusable branch token for coherent timesteps, and reports the full

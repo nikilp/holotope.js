@@ -34,6 +34,9 @@
 - Added a provenance-preserving `CellComplex` simplex-family compiler that
   shares existing RN particles, separates source-derived rest geometry from
   live state, and atomically attaches structurally identified constraints.
+- Added a full-dimensional cuboid-to-oriented-simplex compiler that retains
+  parent structural identity and Kuhn-permutation provenance while sharing an
+  existing RN particle binding and attaching constraints atomically.
 
 ### Showcase
 
