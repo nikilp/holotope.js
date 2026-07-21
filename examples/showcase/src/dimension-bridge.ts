@@ -16,6 +16,7 @@ import {
   Raycaster,
   Scene,
   SphereGeometry,
+  Triangle,
   Vector2,
   Vector3,
   WebGLRenderer
@@ -234,6 +235,7 @@ interface BridgeSelection {
   readonly hit: RepresentationHitN;
   readonly origin: ViewKind;
   readonly faceIndex: number;
+  activeFaceIndex: number;
   edgeCoordinate?: SourceEdgeCoordinateN;
   edgeBindDistance?: number;
 }
@@ -277,6 +279,7 @@ function createTriangleHighlight(color: number): Mesh {
     })
   );
   highlight.renderOrder = 19;
+  highlight.frustumCulled = false;
   highlight.visible = false;
   return highlight;
 }
@@ -364,7 +367,8 @@ function selectHit(hit: RepresentationHitN, origin: ViewKind, faceIndex: number)
     sourceId: hit.source.id ?? createSourceCellIdN(hit.source.reference),
     hit,
     origin,
-    faceIndex
+    faceIndex,
+    activeFaceIndex: faceIndex
   };
   setPaused(true);
   perspectiveHighlight.visible = false;
@@ -491,7 +495,7 @@ function followSelection(transform: TransformN): boolean {
   return changed;
 }
 
-function updateSelection(transform: TransformN, sectionRemarched: boolean): void {
+function updateSelection(transform: TransformN): void {
   if (selection === null) return;
   const ambient = transform.applyToPoint(selection.sourcePointLocal);
   const perspectiveEvaluation = updateMarkerFromLineage(
@@ -508,7 +512,7 @@ function updateSelection(transform: TransformN, sectionRemarched: boolean): void
     ambient.data[2]!,
     ambient.data[3]!
   ));
-  if (sectionRemarched) sectionHighlight.visible = false;
+  refreshSelectionHighlight();
   updateConnector();
 
   const homogeneous = perspective.projectHomogeneousPoint(ambient.data);
@@ -530,6 +534,49 @@ function updateSelection(transform: TransformN, sectionRemarched: boolean): void
   const energyDrift = (body.rotationalKineticEnergy() - initialEnergy) / initialEnergy;
   document.getElementById('traceResidual')!.textContent =
     `forward ${forwardResidual.toExponential(2)} · fibre ${fibreResidual.toExponential(2)} · section ${planeResidual.toExponential(2)} · energy drift ${energyDrift.toExponential(2)} · q ${q >= 0 ? '+' : ''}${q.toFixed(3)}`;
+}
+
+const highlightTriangle = new Triangle();
+const highlightClosestPoint = new Vector3();
+const highlightA = new Vector3();
+const highlightB = new Vector3();
+const highlightC = new Vector3();
+
+function refreshSelectionHighlight(): void {
+  if (selection === null) return;
+  if (selection.origin === 'perspective') {
+    showTriangle(perspectiveHighlight, perspectiveSurface.geometry, selection.activeFaceIndex);
+    return;
+  }
+  if (selection.origin === 'coordinate') {
+    showTriangle(coordinateHighlight, coordinateSurface.geometry, selection.activeFaceIndex);
+    return;
+  }
+  const target = selection.sourceReference;
+  const positions = section.geometry.getAttribute('position');
+  let closestFace = -1;
+  let closestDistanceSquared = Number.POSITIVE_INFINITY;
+  for (let face = 0; face < section.triangleCount; face++) {
+    const reference = section.sourceReferenceOfFace(face);
+    if (reference.group !== target.group || reference.cellIndex !== target.cellIndex) continue;
+    const base = face * 3;
+    highlightA.fromBufferAttribute(positions, base);
+    highlightB.fromBufferAttribute(positions, base + 1);
+    highlightC.fromBufferAttribute(positions, base + 2);
+    highlightTriangle.set(highlightA, highlightB, highlightC);
+    highlightTriangle.closestPointToPoint(sectionMarker.position, highlightClosestPoint);
+    const distanceSquared = highlightClosestPoint.distanceToSquared(sectionMarker.position);
+    if (distanceSquared < closestDistanceSquared) {
+      closestDistanceSquared = distanceSquared;
+      closestFace = face;
+    }
+  }
+  if (closestFace < 0) {
+    sectionHighlight.visible = false;
+    return;
+  }
+  selection.activeFaceIndex = closestFace;
+  showTriangle(sectionHighlight, section.geometry, closestFace);
 }
 
 function currentSectionPointLineage(): RepresentationLineageN {
@@ -796,13 +843,13 @@ renderer.setAnimationLoop(() => {
   if (steps === 10 && accumulator >= fixedDt) accumulator = fixedDt;
 
   const transform = bodyTransform();
-  const sectionRemarched = followSelection(transform);
+  followSelection(transform);
   perspectiveSurface.update(transform);
   perspectiveEdges.update(transform);
   coordinateSurface.update(transform);
   coordinateEdges.update(transform);
   section.update(transform);
-  updateSelection(transform, sectionRemarched);
+  updateSelection(transform);
   updatePhysicsDiagnostics();
   controls.update();
   renderer.render(scene, camera);
