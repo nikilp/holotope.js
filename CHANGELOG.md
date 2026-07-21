@@ -21,6 +21,10 @@
 - Added an explicit `CellComplex` 1-cell-to-XPBD compiler that preserves source
   vertex and edge identity, keeps material policy separate from topology, and
   validates lineage before atomically writing simulated RN positions back.
+- Added a dimension-generic unsigned simplex squared-measure evaluator and XPBD
+  constraint based on Float64 Gram determinants and cofactor gradients, with
+  explicit compliance units, embedded-dimensional parity, and typed zero-
+  response behavior for collapsed simplices.
 
 ### Showcase
 

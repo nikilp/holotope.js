@@ -35,8 +35,9 @@ closing bound uses the exact SO(4) operator norm.
 A separate `XpbdConstraintSolverN` supplies an auditable dimension-generic
 Float64 position-level kernel for compliant scalar equalities. It exposes the
 total XPBD multiplier, signed force estimate, and compliant residual, while
-`XpbdDistanceConstraintN` provides the first exact RN consumer. This does not
-replace or silently couple to the velocity-level R4 rigid constraint solver.
+exact RN distance and unsigned simplex squared-measure constraints provide its
+first geometric consumers. This does not replace or silently couple to the
+velocity-level R4 rigid constraint solver.
 `XpbdWorldN` wraps that kernel in explicit RN point-mass prediction, velocity
 reconstruction, force accumulation, substeps, ownership checks, and atomic
 world-step rollback.
@@ -121,6 +122,17 @@ dimension-checked functions with one gradient per unique point. Invalid batches
 restore every participating position. `XpbdDistanceConstraintN` reuses the
 same exact distance coordinate and coincidence-branch rule as the rigid
 adapter.
+
+`evaluateSimplexSquaredMeasureN()` evaluates the intrinsic k-measure of any
+k-simplex embedded in RN from `det(E^T E) / (k!)^2`, together with Float64
+ambient gradients. `XpbdSimplexSquaredMeasureConstraintN` constrains that
+squared coordinate directly, so its compliance units depend on k. The
+coordinate is translation- and rotation-invariant and needs no dimension-
+specific cross product. It is deliberately unsigned: it preserves measure
+magnitude but is not an inversion barrier. Cofactor gradients remain finite at
+singular Gram matrices; a collapsed simplex whose first derivative vanishes
+reports `no-dynamic-response` rather than receiving an invented recovery
+normal.
 
 `XpbdParticleN` adds velocity, force, gravity scale, and a stable world-local id
 to that point coordinate. `XpbdWorldN.step()` performs semi-implicit prediction,
