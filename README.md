@@ -66,7 +66,7 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ contact pipeline     mixed glomes, planes, hyperboxes, vertex polytopes
   ├─ rigid constraints    scalar rows + 1..6-row blocks; point and stabilizer-classified rotation joints
   ├─ distance policies    N-D geometry + R4 equality, guardians, and motor bindings
-  ├─ material geometry    simplex metric strain + StVK energy/gradients + Float64 XPBD
+  ├─ material geometry    traced StVK assembly + per-substep RN forces + Float64 XPBD
   └─ hyperbox pipeline    specialized homogeneous box orchestration
 ```
 
@@ -136,7 +136,7 @@ The decisions that shape the library — and why — are in [`docs/architecture.
 - ✅ Immutable named constraint composition with stable evidence replacement, removal, snapshots, and keyed diagnostics
 - GPU surface/section rendering and the materials/transparency phase
 - `.hyper.json` container format and OFF import/export
-- ◐ `@holotope/physics`: ballistic and prescribed-kinematic bodies, fixed-clock animation-to-trajectory driving, support/GJK, dimension-independent swept broadphase, simplex metric strain with StVK energy and analytic gradients, Float64 XPBD distance plus unsigned and full-dimensional signed simplex compliance, a renderer-neutral RN point world, provenance-preserving `CellComplex` distance networks, simplex families, and cuboid-to-oriented-simplex families, and linear CCD, explicit R4 rigid trajectories, conservative rotational casts, and a shared pose-plan event loop, bounded R4 EPA penetration, persistent clipped polytope manifolds, analytic mixed contact, coupled three-ball friction, deterministic mixed-shape response, point/distance policies, branch-aware SO(4) coordinates, exact small equality/one-bounded blocks, SO(3)-stabilizer direction, SO(2)-stabilizer planar rotation with motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; additional constitutive laws, material solvers, bending, no-tunnelling inversion barriers, complete deformable systems, spatial trees, distance servos, rolling resistance, and sleeping remain
+- ◐ `@holotope/physics`: ballistic and prescribed-kinematic bodies, fixed-clock animation-to-trajectory driving, support/GJK, dimension-independent swept broadphase, provenance-preserving StVK simplex assembly with per-substep RN force providers, Float64 XPBD distance plus unsigned and full-dimensional signed simplex compliance, a renderer-neutral RN point world, provenance-preserving `CellComplex` distance networks, simplex families, and cuboid-to-oriented-simplex families, and linear CCD, explicit R4 rigid trajectories, conservative rotational casts, and a shared pose-plan event loop, bounded R4 EPA penetration, persistent clipped polytope manifolds, analytic mixed contact, coupled three-ball friction, deterministic mixed-shape response, point/distance policies, branch-aware SO(4) coordinates, exact small equality/one-bounded blocks, SO(3)-stabilizer direction, SO(2)-stabilizer planar rotation with motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; robust large-strain materials, implicit material solvers, bending, no-tunnelling inversion barriers, collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping remain
 
 ## License
 

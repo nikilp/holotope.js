@@ -173,8 +173,11 @@ point-mass and deformable systems may consume this golden path; accelerated
 backends must be tested against it.
 `XpbdWorldN` is the first such consumer: it owns RN point prediction, constraint
 projection, velocity reconstruction, force accumulation, and transactional
-step semantics. It remains distinct from `PhysicsWorld4`, whose generalized
-coordinates include Spin(4) orientation and bivector momentum.
+step semantics. Pure state-dependent force providers are reevaluated before
+every substep and accumulated separately from persistent external force;
+provider or constraint failure rolls the complete particle state back. It
+remains distinct from `PhysicsWorld4`, whose generalized coordinates include
+Spin(4) orientation and bivector momentum.
 
 Simplex measure has two deliberately separate contracts. A Gram determinant
 provides unsigned intrinsic k-measure for any `k <= N`, including embedded
@@ -193,8 +196,12 @@ and measure ratio can be compared without an ambient normal. The first
 constitutive consumer is an isotropic St. Venant–Kirchhoff simplex evaluator:
 it maps that intrinsic strain to rest-measure-weighted energy, second Piola
 stress, and analytic current-vertex gradients in any ambient dimension. It is
-a Float64 reference law, not a solver. Time integration, damping, inversion
-barriers, and accelerated implementations remain separate policies.
+a Float64 reference law. A source-identified family compiler copies authored
+rest positions, evaluates one element per selected simplex cell, assembles
+shared-particle forces, and implements the RN force-provider contract without
+making the visible source or an edge network authoritative. Damping, inversion
+barriers, implicit stiffness handling, and accelerated implementations remain
+separate policies.
 Full-dimensional determinant orientation augments the metric; embedded
 orientation does not become scalar by implication.
 
@@ -243,5 +250,5 @@ only where subgroup geometry supplies an honest abelian coordinate.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with StVK energy and analytic gradients, and XPBD scalar compliance including unsigned intrinsic and signed full-dimensional simplex coordinates, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; additional constitutive laws, material solvers, bending, inversion barriers and complete volumetric deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with assembled StVK energy/forces, per-substep RN force providers, and XPBD scalar compliance including unsigned intrinsic and signed full-dimensional simplex coordinates, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; robust large-strain laws, implicit material solvers, bending, inversion barriers and complete collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

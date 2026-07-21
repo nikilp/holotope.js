@@ -147,7 +147,10 @@ export {
 export {
   XpbdParticleN,
   XpbdWorldN,
+  type XpbdForceProviderEvaluationN,
+  type XpbdForceProviderN,
   type XpbdParticleNOptions,
+  type XpbdWorldForceProviderResultN,
   type XpbdWorldNOptions,
   type XpbdWorldStepResultN,
   type XpbdWorldSubstepResultN
@@ -202,6 +205,16 @@ export {
   type SimplexStVenantKirchhoffEvaluationN,
   type SimplexStVenantKirchhoffMaterialN
 } from './simplex-stvk-material.js';
+export {
+  SimplexStVenantKirchhoffFamilyN,
+  compileSimplexStVenantKirchhoffFamilyN,
+  type CompileSimplexStVenantKirchhoffFamilyNOptions,
+  type SimplexStVenantKirchhoffFamilyElementContextN,
+  type SimplexStVenantKirchhoffFamilyElementEvaluationN,
+  type SimplexStVenantKirchhoffFamilyElementN,
+  type SimplexStVenantKirchhoffFamilyEvaluationN,
+  type SimplexStVenantKirchhoffFamilyMaterialN
+} from './simplex-stvk-family.js';
 export {
   DistanceIntervalJoint4,
   type DistanceIntervalConstraint4,

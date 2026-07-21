@@ -78,9 +78,32 @@ export interface XpbdWorldNOptions {
   readonly responseEpsilon?: number;
 }
 
+/** Pure state-dependent forces evaluated at the current particle positions. */
+export interface XpbdForceProviderEvaluationN {
+  /** One force per provider particle, in the same order. */
+  readonly forces: readonly VecN[];
+  /** Optional conservative potential-energy evidence. */
+  readonly potentialEnergy?: number;
+}
+
+/** A renderer-neutral RN force source reevaluated before every substep. */
+export interface XpbdForceProviderN {
+  readonly id: string;
+  readonly dimension: number;
+  readonly particles: readonly XpbdParticleN[];
+  evaluate(): XpbdForceProviderEvaluationN;
+}
+
+export interface XpbdWorldForceProviderResultN {
+  readonly provider: XpbdForceProviderN;
+  readonly evaluation: XpbdForceProviderEvaluationN;
+}
+
 export interface XpbdWorldSubstepResultN {
   readonly index: number;
   readonly deltaTime: number;
+  /** Provider evaluations at the configuration preceding this substep. */
+  readonly forceProviders: readonly XpbdWorldForceProviderResultN[];
   readonly solve: XpbdSolveResultN;
 }
 
@@ -100,6 +123,14 @@ interface ParticleSnapshotN {
   readonly force: Float64Array;
 }
 
+interface EvaluatedForcesN {
+  readonly forces: readonly Float64Array[] | null;
+  readonly results: readonly XpbdWorldForceProviderResultN[];
+}
+
+const EMPTY_FORCE_PROVIDER_RESULTS: readonly XpbdWorldForceProviderResultN[] =
+  Object.freeze([]);
+
 /**
  * Renderer-neutral RN point-mass integration around the XPBD golden kernel.
  *
@@ -112,6 +143,7 @@ export class XpbdWorldN {
   private readonly solver: XpbdConstraintSolverN;
   private readonly registeredParticles: XpbdParticleN[] = [];
   private readonly registeredConstraints: XpbdScalarConstraintN[] = [];
+  private readonly registeredForceProviders: XpbdForceProviderN[] = [];
 
   constructor(options: XpbdWorldNOptions) {
     if (!Number.isSafeInteger(options.dimension) || options.dimension < 1) {
@@ -141,6 +173,10 @@ export class XpbdWorldN {
     return this.registeredConstraints;
   }
 
+  get forceProviders(): readonly XpbdForceProviderN[] {
+    return this.registeredForceProviders;
+  }
+
   addParticle(particle: XpbdParticleN): this {
     if (!(particle instanceof XpbdParticleN)) {
       throw new Error('XpbdWorldN.addParticle: expected an XpbdParticleN');
@@ -161,9 +197,12 @@ export class XpbdWorldN {
   removeParticle(particle: XpbdParticleN): this {
     const index = this.registeredParticles.indexOf(particle);
     if (index < 0) return this;
-    if (this.registeredConstraints.some((constraint) => constraint.points.includes(particle))) {
+    if (
+      this.registeredConstraints.some((constraint) => constraint.points.includes(particle)) ||
+      this.registeredForceProviders.some((provider) => provider.particles.includes(particle))
+    ) {
       throw new Error(
-        `XpbdWorldN.removeParticle: particle "${particle.id}" is still referenced by a constraint`
+        `XpbdWorldN.removeParticle: particle "${particle.id}" is still referenced by a constraint or force provider`
       );
     }
     this.registeredParticles.splice(index, 1);
@@ -186,9 +225,28 @@ export class XpbdWorldN {
     return this;
   }
 
+  addForceProvider(provider: XpbdForceProviderN): this {
+    this.validateForceProviderOwnership(provider, 'XpbdWorldN.addForceProvider');
+    if (this.registeredForceProviders.includes(provider)) return this;
+    if (this.registeredForceProviders.some((existing) => existing.id === provider.id)) {
+      throw new Error(
+        `XpbdWorldN.addForceProvider: duplicate force provider id "${provider.id}"`
+      );
+    }
+    this.registeredForceProviders.push(provider);
+    return this;
+  }
+
+  removeForceProvider(provider: XpbdForceProviderN): this {
+    const index = this.registeredForceProviders.indexOf(provider);
+    if (index >= 0) this.registeredForceProviders.splice(index, 1);
+    return this;
+  }
+
   /**
    * Predicts, projects, and reconstructs velocity for one complete step.
-   * Forces remain constant across substeps and clear after successful return.
+   * External forces remain constant across substeps and clear after successful
+   * return. State-dependent providers are reevaluated before every substep.
    */
   step(deltaTime: number, substeps = 1): XpbdWorldStepResultN {
     if (!Number.isFinite(deltaTime) || deltaTime <= 0) {
@@ -206,12 +264,14 @@ export class XpbdWorldN {
         const priorPositions = this.registeredParticles.map(
           (particle) => particle.position.data.slice()
         );
-        this.predict(substepDuration);
+        const evaluatedForces = this.evaluateForceProviders();
+        this.predict(substepDuration, evaluatedForces.forces);
         const solve = this.solver.solve(this.registeredConstraints, substepDuration);
         this.reconstructVelocities(priorPositions, substepDuration);
         constraintSolves.push(Object.freeze({
           index,
           deltaTime: substepDuration,
+          forceProviders: evaluatedForces.results,
           solve
         }));
       }
@@ -263,6 +323,16 @@ export class XpbdWorldN {
       }
       constraintIds.add(constraint.id);
     }
+    const forceProviderIds = new Set<string>();
+    for (const provider of this.registeredForceProviders) {
+      this.validateForceProviderOwnership(provider, 'XpbdWorldN.step');
+      if (forceProviderIds.has(provider.id)) {
+        throw new Error(
+          `XpbdWorldN.step: duplicate force provider id "${provider.id}"`
+        );
+      }
+      forceProviderIds.add(provider.id);
+    }
   }
 
   private validateConstraintOwnership(
@@ -298,13 +368,129 @@ export class XpbdWorldN {
     }
   }
 
-  private predict(deltaTime: number): void {
-    for (const particle of this.registeredParticles) {
+  private validateForceProviderOwnership(
+    provider: XpbdForceProviderN,
+    caller: string
+  ): void {
+    if (typeof provider !== 'object' || provider === null) {
+      throw new Error(`${caller}: expected an RN force provider`);
+    }
+    if (typeof provider.id !== 'string' || provider.id.trim().length === 0) {
+      throw new Error(`${caller}: force provider id must be a non-empty string`);
+    }
+    if (provider.dimension !== this.dimension) {
+      throw new Error(
+        `${caller}: force provider is R${provider.dimension}, world is R${this.dimension}`
+      );
+    }
+    if (!Array.isArray(provider.particles) || provider.particles.length === 0) {
+      throw new Error(`${caller}: force provider must contain registered particles`);
+    }
+    if (typeof provider.evaluate !== 'function') {
+      throw new Error(`${caller}: force provider must define evaluate()`);
+    }
+    const uniqueParticles = new Set<XpbdParticleN>();
+    for (const particle of provider.particles) {
+      if (!(particle instanceof XpbdParticleN)) {
+        throw new Error(`${caller}: force provider particles must be XpbdParticleN values`);
+      }
+      if (uniqueParticles.has(particle)) {
+        throw new Error(`${caller}: force provider repeats a particle identity`);
+      }
+      uniqueParticles.add(particle);
+      if (!this.registeredParticles.includes(particle)) {
+        throw new Error(`${caller}: every force-provider particle must be registered`);
+      }
+    }
+  }
+
+  private evaluateForceProviders(): EvaluatedForcesN {
+    if (this.registeredForceProviders.length === 0) {
+      return { forces: null, results: EMPTY_FORCE_PROVIDER_RESULTS };
+    }
+    const forces = this.registeredParticles.map(
+      () => new Float64Array(this.dimension)
+    );
+    const particleIndices = new Map(
+      this.registeredParticles.map((particle, index) => [particle, index] as const)
+    );
+    const results: XpbdWorldForceProviderResultN[] = [];
+    for (const provider of this.registeredForceProviders) {
+      const evaluation = provider.evaluate();
+      if (typeof evaluation !== 'object' || evaluation === null) {
+        throw new Error(
+          `XpbdWorldN.step: force provider "${provider.id}" returned no evaluation`
+        );
+      }
+      if (!Array.isArray(evaluation.forces)) {
+        throw new Error(
+          `XpbdWorldN.step: force provider "${provider.id}" forces must be an array`
+        );
+      }
+      if (evaluation.forces.length !== provider.particles.length) {
+        throw new Error(
+          `XpbdWorldN.step: force provider "${provider.id}" force count mismatch`
+        );
+      }
+      if (
+        evaluation.potentialEnergy !== undefined &&
+        !Number.isFinite(evaluation.potentialEnergy)
+      ) {
+        throw new Error(
+          `XpbdWorldN.step: force provider "${provider.id}" potentialEnergy must be finite`
+        );
+      }
+      for (let local = 0; local < provider.particles.length; local++) {
+        const force = evaluation.forces[local];
+        if (!(force instanceof VecN) || force.dim !== this.dimension) {
+          throw new Error(
+            `XpbdWorldN.step: force provider "${provider.id}" force ${local} must be R${this.dimension}`
+          );
+        }
+        const worldIndex = particleIndices.get(provider.particles[local]!);
+        if (worldIndex === undefined) {
+          throw new Error(
+            `XpbdWorldN.step: force provider "${provider.id}" particle ownership changed`
+          );
+        }
+        const accumulated = forces[worldIndex]!;
+        for (let axis = 0; axis < this.dimension; axis++) {
+          const value = force.data[axis]!;
+          if (!Number.isFinite(value)) {
+            throw new Error(
+              `XpbdWorldN.step: force provider "${provider.id}" force ${local} must be finite`
+            );
+          }
+          accumulated[axis]! += value;
+          if (!Number.isFinite(accumulated[axis])) {
+            throw new Error(
+              `XpbdWorldN.step: accumulated provider force is outside the Float64 range`
+            );
+          }
+        }
+      }
+      results.push(Object.freeze({ provider, evaluation }));
+    }
+    return {
+      forces,
+      results: Object.freeze(results)
+    };
+  }
+
+  private predict(
+    deltaTime: number,
+    stateDependentForces: readonly Float64Array[] | null
+  ): void {
+    for (let index = 0; index < this.registeredParticles.length; index++) {
+      const particle = this.registeredParticles[index]!;
       if (particle.inverseMass === 0) continue;
+      const stateDependentForce = stateDependentForces?.[index];
       for (let axis = 0; axis < this.dimension; axis++) {
         const acceleration =
           particle.gravityScale * this.gravity.data[axis]! +
-          particle.inverseMass * particle.force.data[axis]!;
+          particle.inverseMass * (
+            particle.force.data[axis]! + (stateDependentForce?.[axis] ?? 0)
+          );
         particle.velocity.data[axis]! += deltaTime * acceleration;
         particle.position.data[axis]! += deltaTime * particle.velocity.data[axis]!;
       }

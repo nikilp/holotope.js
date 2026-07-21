@@ -852,8 +852,46 @@ The energy is metric-based, so a reflected full-dimensional simplex can have
 the same value as a proper one. The accompanying deformation record retains
 its signed orientation classification instead of hiding an inversion penalty
 inside the material law. StVK is a small-strain reference model; time
-integration, damping, material assembly, bending, collision, and no-inversion
-barriers are intentionally separate consumers.
+integration, damping, bending, collision, and no-inversion barriers are
+intentionally separate consumers.
+
+`compileSimplexStVenantKirchhoffFamilyN()` assembles that evaluator over one
+explicitly selected simplex group in a `CellComplex`. It copies rest positions
+at compile time, binds current positions to one existing `XpbdParticleN` per
+source vertex, and retains a `SourceCellReferenceN` plus structural
+`SourceCellIdN` for every element. Shared-vertex force is the deterministic sum
+of incident element forces. A family evaluation reports total potential
+energy, one P12 record per element, assembled particle forces, maximum strain,
+orientation counts, and the residual of total internal force.
+
+The family is also an `XpbdForceProviderN`. Calling `addToWorld()` registers
+the material without turning source edges into springs or copying another
+particle set. Particles must already belong to the RN world. Full-dimensional
+cuboids compose through `simplexizeCuboidGroupN()` by adding its generated,
+named simplex group to the source before compilation; no private material-only
+decomposition is required.
+
+```ts
+import { simplexizeCuboidGroupN } from '@holotope/core';
+import {
+  compileSimplexStVenantKirchhoffFamilyN
+} from '@holotope/physics';
+
+const decomposition = simplexizeCuboidGroupN(cuboidGroup, {
+  outputKey: 'solid-simplices'
+});
+source.addGroup(decomposition.simplexGroup);
+
+const solid = compileSimplexStVenantKirchhoffFamilyN({
+  id: 'solid',
+  source,
+  simplexGroup: decomposition.simplexGroup,
+  particles,
+  material: { firstLameParameter: 2, shearModulus: 3 }
+});
+
+solid.addToWorld(world);
+```
 
 ### Dimension-generic compliant point constraints
 
@@ -930,18 +968,25 @@ x'=\operatorname{project}_{XPBD}(\widetilde x,h),
 v'=\frac{x'-x}{h}.
 \]
 
-Here `w` is inverse mass and `g_s` is the particle's gravity scale. External
-force is held across all requested substeps and cleared after a successful
-outer step. A zero-inverse-mass particle is fixed: prediction and velocity
-reconstruction do not move it. The world neither infers a kinematic path nor a
-collision velocity when a caller explicitly edits such a point between steps.
+Here `w` is inverse mass, `g_s` is the particle's gravity scale, and `f` is the
+sum of the persistent external accumulator and registered state-dependent
+providers. External force is held across all requested substeps and cleared
+after a successful outer step. Each pure `XpbdForceProviderN` is instead
+reevaluated at the current configuration before every substep and accumulated
+in a private scratch buffer, so elastic forces neither become frame-constant
+nor leak into the external accumulator. Provider evaluations remain attached
+to the corresponding substep result. A zero-inverse-mass particle is fixed:
+prediction and velocity reconstruction do not move it. The world neither
+infers a kinematic path nor a collision velocity when a caller explicitly
+edits such a point between steps.
 
-Every constraint point must be one of the registered particle objects. Particle
-and constraint ids are unique, and removing a point still referenced by a
-constraint refuses. A world step snapshots position, velocity, and force; any
-late evaluator failure restores the complete state and original accumulators.
-The result retains one `XpbdSolveResultN` per substep and separately aggregates
-raw constraint value and compliant residual.
+Every constraint or force-provider point must be one of the registered particle
+objects. Particle, constraint, and provider ids are unique, and removing a
+point still referenced by either policy refuses. A world step snapshots
+position, velocity, and force; any late constraint or provider failure restores
+the complete state and original accumulators. The result retains one
+`XpbdSolveResultN` and the ordered provider evaluations per substep, while
+separately aggregating raw constraint value and compliant residual.
 
 ```ts
 import { XpbdParticleN, XpbdWorldN } from '@holotope/physics';
@@ -1004,11 +1049,12 @@ buffer. Retired or changed topology therefore refuses before a partial update.
 Once synchronized, projections, sections, graph-Laplacian analysis, and other
 consumers observe the evolved source without losing its cell identity.
 
-This kernel implements equations 17–18 of Macklin, Müller, and Chentanez,
+The XPBD projection kernel implements equations 17–18 of Macklin, Müller, and Chentanez,
 [“XPBD: Position-Based Simulation of Compliant Constrained Dynamics”
 (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf). A
-damping, inequality constraints, coupled compliance, deformable constitutive
-models, collision, and accelerated backends remain separate later consumers.
+damping, inequality constraints, coupled compliance, robust large-strain
+materials, collision, and accelerated backends remain separate later
+consumers.
 
 ### Bilateral R4 point joints
 
