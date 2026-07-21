@@ -166,6 +166,15 @@ export {
   type XpbdDistanceNetworkVertexScalarN
 } from './xpbd-network.js';
 export {
+  XpbdParticleBindingN,
+  compileXpbdParticleBindingN,
+  type CompileXpbdParticleBindingNOptions,
+  type XpbdParticleBindingVertexContextN,
+  type XpbdParticleBindingVertexFixedN,
+  type XpbdParticleBindingVertexN,
+  type XpbdParticleBindingVertexScalarN
+} from './xpbd-particle-binding.js';
+export {
   XpbdOrientedSimplexMeasureConstraintN,
   XpbdSimplexSquaredMeasureConstraintN,
   evaluateOrientedSimplexMeasureN,
@@ -205,6 +214,14 @@ export {
   type SimplexStVenantKirchhoffEvaluationN,
   type SimplexStVenantKirchhoffMaterialN
 } from './simplex-stvk-material.js';
+export {
+  lumpSimplexMassesN,
+  type LumpSimplexMassesNOptions,
+  type SimplexLumpedMassElementN,
+  type SimplexLumpedMassesN,
+  type SimplexMassDensityN,
+  type SimplexMassElementContextN
+} from './simplex-mass.js';
 export {
   SimplexStVenantKirchhoffFamilyN,
   compileSimplexStVenantKirchhoffFamilyN,

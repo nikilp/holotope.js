@@ -893,6 +893,48 @@ const solid = compileSimplexStVenantKirchhoffFamilyN({
 solid.addToWorld(world);
 ```
 
+### Source particles and intrinsic mass
+
+Simulation state is bound to source topology independently of any constraint or
+material family. `compileXpbdParticleBindingN()` creates exactly one live
+`XpbdParticleN` per source vertex, preserves source ordinal correspondence, and
+owns the explicit transactional write back to `CellComplex.positions`. Its
+`mass` policy is strictly positive physical evidence. A separate `fixed`
+policy maps mobility to zero inverse mass, so pinning does not erase an
+object's authored mass.
+
+For a selected k-simplex family, `lumpSimplexMassesN()` integrates
+`density * rest k-measure` and assigns an equal share of each element mass to
+its `k + 1` incident vertices. Measure is intrinsic: the same operation covers
+lines, embedded membranes, volumes, and full-dimensional cells without an
+ambient normal. The returned record retains source identity per element and
+reports both element and vertex totals plus their Float64 residual.
+
+```ts
+import {
+  compileXpbdParticleBindingN,
+  lumpSimplexMassesN
+} from '@holotope/physics';
+
+const masses = lumpSimplexMassesN({
+  source,
+  simplexGroup: decomposition.simplexGroup,
+  density: 1.25
+});
+
+const binding = compileXpbdParticleBindingN({
+  id: 'solid-points',
+  source,
+  mass: ({ sourceVertexIndex }) => masses.vertexMasses[sourceVertexIndex]!,
+  fixed: ({ sourceVertexIndex }) => sourceVertexIndex === 0
+});
+```
+
+Equal lumping is the diagonal reference mass model, not a consistent mass
+matrix. Vertices unused by the selected family receive zero in the mass
+record; a particle binding must assign those vertices another positive mass or
+exclude them at a higher modeling boundary.
+
 ### Dimension-generic compliant point constraints
 
 `XpbdConstraintSolverN` is the Float64 reference path for scalar extended
@@ -1011,41 +1053,53 @@ topology rather than reconstructed as private simulation data:
 import { createHypercube } from '@holotope/core';
 import {
   XpbdWorldN,
-  compileXpbdDistanceNetworkN
+  compileXpbdDistanceNetworkN,
+  compileXpbdParticleBindingN
 } from '@holotope/physics';
 
 const source = createHypercube({ dim: 4, size: 1 });
 const edges = source.cellsOfDim(1)[0]!;
 edges.key = 'tesseract-edges';
 
+const binding = compileXpbdParticleBindingN({
+  id: 'tesseract-points',
+  source,
+  mass: 1,
+  fixed: ({ sourceVertexIndex }) => sourceVertexIndex === 0
+});
+
 const network = compileXpbdDistanceNetworkN({
   id: 'elastic-tesseract',
   source,
   edgeGroup: edges,
-  inverseMass: ({ sourceVertexIndex }) => sourceVertexIndex === 0 ? 0 : 1,
+  particles: binding.particles,
   compliance: 1e-5
 });
 
-const world4 = network.addToWorld(new XpbdWorldN({
+const world4 = binding.addToWorld(new XpbdWorldN({
   dimension: 4,
   gravity: [0, -9.81, 0, 0],
   solverIterations: 12
 }));
+network.addToWorld(world4);
 world4.step(1 / 60, 2);
-network.writeSourcePositions();
+binding.writeSourcePositions();
 ```
 
 This operation is intentionally a compiler, not a material assumption. It
-creates one particle per source vertex so source ordinals remain total, but it
-creates constraints only for the selected edge family. Inverse mass, gravity
-scale, initial velocity, and edge compliance are independent scalar policies.
-Duplicate source edges remain distinct constraints.
+creates constraints only for the selected edge family. With an existing
+binding, every constraint points to the caller's exact particle objects while
+rest lengths still come from source geometry; vertex authoring policies are
+therefore refused in that mode. The compatible standalone form can still
+create one particle per source vertex and accept inverse-mass, gravity-scale,
+and initial-velocity policies. Duplicate source edges remain distinct
+constraints.
 
 Each compiled edge retains a live `SourceCellReferenceN` and a structural
 `SourceCellIdN`. Particle state does not alias `CellComplex.positions` while the
-world is stepping. The explicit `writeSourcePositions()` call first validates
-every particle coordinate and source edge, then writes the entire packed source
-buffer. Retired or changed topology therefore refuses before a partial update.
+world is stepping. A network-owned write validates particle coordinates and
+edge lineage; the topology-neutral binding write validates the complete point
+layout. Both update the entire packed source buffer only after validation.
 Once synchronized, projections, sections, graph-Laplacian analysis, and other
 consumers observe the evolved source without losing its cell identity.
 

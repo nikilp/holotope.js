@@ -205,11 +205,21 @@ separate policies.
 Full-dimensional determinant orientation augments the metric; embedded
 orientation does not become scalar by implication.
 
+Particle ownership is topology-neutral. `XpbdParticleBindingN` establishes one
+live particle per source vertex and the transactional synchronization boundary
+without requiring an edge, constraint, or material family. Positive physical
+mass and fixed mobility are separate policies. `lumpSimplexMassesN` supplies
+the diagonal reference model by integrating density against intrinsic rest
+k-measure and equally distributing each element mass to its incident vertices;
+element and vertex totals remain auditable separately.
+
 `compileXpbdDistanceNetworkN()` is the first topology-to-simulation compiler.
 The caller explicitly selects one two-vertex 1-cell group from a `CellComplex`;
-the compiler creates one live particle per source vertex and one distance
-constraint per selected source edge. Each edge product retains both an
-in-memory source reference and a structural `SourceCellIdN`, while inverse
+the compiler creates one distance constraint per selected source edge and may
+either create compatible particles or compose over an existing particle
+binding. Existing particles preserve their authored mass, mobility, and live
+state, while rest lengths remain source-derived. Each edge product retains both
+an in-memory source reference and a structural `SourceCellIdN`, while inverse
 mass, gravity scale, velocity, and compliance remain separate material
 policies. Simulation therefore does not reinterpret every geometric edge as a
 physical spring.
@@ -223,11 +233,12 @@ constraint. Generated simulation elements therefore remain traceable to source
 topology instead of becoming anonymous solver records.
 
 Particles deliberately copy positions rather than aliasing the source buffer.
-`writeSourcePositions()` is the explicit synchronization boundary: it validates
-the complete particle layout and all edge lineage first, then updates the
-source positions in one pass. Projection, slicing, spectral operators, and
-rendering can consequently consume the same evolved topology without making
-any lower-dimensional representation authoritative.
+`writeSourcePositions()` is the explicit synchronization boundary: a binding
+validates the complete point layout, while a standalone distance network also
+validates all edge lineage, then updates source positions in one pass.
+Projection, slicing, spectral operators, and rendering can consequently
+consume the same evolved topology without making any lower-dimensional
+representation authoritative.
 
 Rotational policies are classified by the stabilizer of the geometric datum
 they preserve. Fixing one oriented direction leaves SO(3) free and produces a
@@ -250,5 +261,5 @@ only where subgroup geometry supplies an honest abelian coordinate.
 7. ✅ Couplings; generic provenance decoration, canonical Elser–Sloane `c=pi_perpendicular`, exact H4 equivariance, skew-product rotor flow, and null/nontrivial periodic holonomy certificates
 8. Materials/lighting policies for projected and sliced surfaces, transparency strategies
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
-10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with assembled StVK energy/forces, per-substep RN force providers, and XPBD scalar compliance including unsigned intrinsic and signed full-dimensional simplex coordinates, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; robust large-strain laws, implicit material solvers, bending, inversion barriers and complete collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
+10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with assembled StVK energy/forces, intrinsic simplex mass lumping, topology-neutral source-particle bindings, per-substep RN force providers, and XPBD scalar compliance including unsigned intrinsic and signed full-dimensional simplex coordinates, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; robust large-strain laws, implicit material solvers, bending, inversion barriers and complete collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

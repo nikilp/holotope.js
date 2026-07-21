@@ -37,6 +37,11 @@ export interface CompileXpbdDistanceNetworkNOptions {
   readonly id: string;
   readonly source: CellComplex;
   readonly edgeGroup: CellGroup;
+  /**
+   * Existing one-particle-per-source-vertex state. When supplied, vertex
+   * authoring policies are forbidden and source geometry still defines rest.
+   */
+  readonly particles?: readonly XpbdParticleN[];
   readonly inverseMass?: XpbdDistanceNetworkVertexScalarN;
   readonly gravityScale?: XpbdDistanceNetworkVertexScalarN;
   readonly velocity?: (
@@ -181,6 +186,16 @@ function validateCompilerSource(options: CompileXpbdDistanceNetworkNOptions): vo
   if (options.source.vertexCount < 1) {
     throw new Error('compileXpbdDistanceNetworkN: source must contain at least one vertex');
   }
+  if (
+    options.particles !== undefined &&
+    (options.inverseMass !== undefined ||
+      options.gravityScale !== undefined ||
+      options.velocity !== undefined)
+  ) {
+    throw new Error(
+      'compileXpbdDistanceNetworkN: existing particles cannot be combined with vertex authoring policies'
+    );
+  }
   if (!options.source.groups.includes(options.edgeGroup)) {
     throw new Error('compileXpbdDistanceNetworkN: edgeGroup must belong to source');
   }
@@ -210,6 +225,10 @@ function validateCompilerSource(options: CompileXpbdDistanceNetworkNOptions): vo
 function compileParticles(
   options: CompileXpbdDistanceNetworkNOptions
 ): XpbdParticleN[] {
+  if (options.particles !== undefined) {
+    validateExistingParticles(options.source, options.particles);
+    return [...options.particles];
+  }
   const particles: XpbdParticleN[] = [];
   for (let vertex = 0; vertex < options.source.vertexCount; vertex++) {
     const sourcePosition = new VecN(
@@ -254,7 +273,9 @@ function compileEdges(
       edgeIndex
     );
     const sourceId = frozenSourceId(createSourceCellIdN(sourceReference));
-    const restLength = particles[left]!.position.distanceTo(particles[right]!.position);
+    const restLength = sourcePosition(options.source, left).distanceTo(
+      sourcePosition(options.source, right)
+    );
     if (!(restLength > 1e-15) || !Number.isFinite(restLength)) {
       throw new Error(
         `compileXpbdDistanceNetworkN: source edge ${edgeIndex} has zero or non-finite length`
@@ -282,6 +303,76 @@ function compileEdges(
     }));
   }
   return edges;
+}
+
+function validateExistingParticles(
+  source: CellComplex,
+  particles: readonly XpbdParticleN[]
+): void {
+  if (particles.length !== source.vertexCount) {
+    throw new Error(
+      'compileXpbdDistanceNetworkN: existing particles must contain one particle per source vertex'
+    );
+  }
+  const identities = new Set<XpbdParticleN>();
+  const ids = new Set<string>();
+  for (let vertex = 0; vertex < particles.length; vertex++) {
+    const particle = particles[vertex];
+    if (!(particle instanceof XpbdParticleN)) {
+      throw new Error(
+        `compileXpbdDistanceNetworkN: existing particle ${vertex} must be an XpbdParticleN`
+      );
+    }
+    if (particle.dimension !== source.ambientDim) {
+      throw new Error(
+        `compileXpbdDistanceNetworkN: existing particle ${vertex} is R${particle.dimension}, source is R${source.ambientDim}`
+      );
+    }
+    if (identities.has(particle)) {
+      throw new Error(
+        `compileXpbdDistanceNetworkN: existing particle ${vertex} repeats an object identity`
+      );
+    }
+    if (ids.has(particle.id)) {
+      throw new Error(
+        `compileXpbdDistanceNetworkN: existing particle id "${particle.id}" is duplicated`
+      );
+    }
+    assertFiniteVector(
+      particle.position,
+      source.ambientDim,
+      `compileXpbdDistanceNetworkN: existing particle ${vertex} position`
+    );
+    assertFiniteVector(
+      particle.velocity,
+      source.ambientDim,
+      `compileXpbdDistanceNetworkN: existing particle ${vertex} velocity`
+    );
+    assertFiniteVector(
+      particle.force,
+      source.ambientDim,
+      `compileXpbdDistanceNetworkN: existing particle ${vertex} force`
+    );
+    if (!Number.isFinite(particle.inverseMass) || particle.inverseMass < 0) {
+      throw new Error(
+        `compileXpbdDistanceNetworkN: existing particle ${vertex} inverseMass must be finite and non-negative`
+      );
+    }
+    if (!Number.isFinite(particle.gravityScale)) {
+      throw new Error(
+        `compileXpbdDistanceNetworkN: existing particle ${vertex} gravityScale must be finite`
+      );
+    }
+    identities.add(particle);
+    ids.add(particle.id);
+  }
+}
+
+function sourcePosition(source: CellComplex, vertex: number): VecN {
+  return new VecN(source.positions.subarray(
+    vertex * source.ambientDim,
+    (vertex + 1) * source.ambientDim
+  ));
 }
 
 function vertexScalar(

@@ -11,7 +11,8 @@ import {
   XpbdDistanceConstraintN,
   XpbdParticleN,
   XpbdWorldN,
-  compileXpbdDistanceNetworkN
+  compileXpbdDistanceNetworkN,
+  compileXpbdParticleBindingN
 } from '../src/index.js';
 
 function expectArrayClose(
@@ -243,6 +244,68 @@ describe('CellComplex XPBD distance networks', () => {
     );
     expect(constraintCollisionWorld.particles).toHaveLength(3);
     expect(constraintCollisionWorld.constraints).toHaveLength(1);
+  });
+
+  it('composes constraints over an existing authoritative particle binding', () => {
+    const source = chainComplex(4);
+    const binding = compileXpbdParticleBindingN({
+      id: 'shared-state',
+      source,
+      mass: (vertex) => vertex.sourceVertexIndex + 1,
+      fixed: (vertex) => vertex.sourceVertexIndex === 0
+    });
+    binding.particles[1]!.position.data[1] = -4;
+    const network = compileXpbdDistanceNetworkN({
+      id: 'edge-observations',
+      source,
+      edgeGroup: source.groups[0]!,
+      particles: binding.particles,
+      compliance: 1e-5
+    });
+
+    expect(network.particles).toEqual(binding.particles);
+    for (let vertex = 0; vertex < binding.particles.length; vertex++) {
+      expect(network.particles[vertex]).toBe(binding.particles[vertex]);
+    }
+    expect(network.edges.map((edge) => edge.restLength)).toEqual([1, 1]);
+    const world = binding.addToWorld(new XpbdWorldN({ dimension: 4 }));
+    network.addToWorld(world);
+    expect(world.particles).toEqual(binding.particles);
+    expect(world.constraints).toEqual(network.constraints);
+
+    expect(() => compileXpbdDistanceNetworkN({
+      id: 'mixed-policy',
+      source,
+      edgeGroup: source.groups[0]!,
+      particles: binding.particles,
+      inverseMass: 1
+    })).toThrow(/vertex authoring policies/);
+    expect(() => compileXpbdDistanceNetworkN({
+      id: 'short',
+      source,
+      edgeGroup: source.groups[0]!,
+      particles: binding.particles.slice(1)
+    })).toThrow(/one particle per source vertex/);
+    expect(() => compileXpbdDistanceNetworkN({
+      id: 'repeated',
+      source,
+      edgeGroup: source.groups[0]!,
+      particles: [
+        binding.particles[0]!,
+        binding.particles[0]!,
+        binding.particles[2]!
+      ]
+    })).toThrow(/repeats an object identity/);
+    expect(() => compileXpbdDistanceNetworkN({
+      id: 'wrong-dimension',
+      source,
+      edgeGroup: source.groups[0]!,
+      particles: [
+        new XpbdParticleN({ id: 'r3/0', position: [0, 0, 0] }),
+        new XpbdParticleN({ id: 'r3/1', position: [0, 0, 0] }),
+        new XpbdParticleN({ id: 'r3/2', position: [0, 0, 0] })
+      ]
+    })).toThrow(/source is R4/);
   });
 
   it('rejects malformed source and material policies without mutating geometry', () => {

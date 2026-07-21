@@ -154,14 +154,23 @@ only registered particles; late evaluator errors restore all positions,
 velocities, and force accumulators. Fixed particles remain outside prediction
 and do not acquire an inferred kinematic trajectory.
 
+`compileXpbdParticleBindingN()` owns the topology-neutral one-particle-per-
+source-vertex correspondence and transactional source write-back. It keeps
+positive physical mass separate from the fixed mobility policy, so pinning a
+vertex does not erase its mass evidence. `lumpSimplexMassesN()` supplies an
+auditable diagonal reference mass by integrating density against intrinsic
+simplex rest measure and equally accumulating each element mass onto its
+incident vertices. It reports element and vertex totals independently.
+
 `compileXpbdDistanceNetworkN()` turns one explicitly selected two-vertex
-`CellComplex` 1-cell group into that live point state. It creates one particle
-per source vertex, retains structural source identity on every compiled edge,
-and accepts material policies independently from topology. Source positions do
-not alias the simulation. `writeSourcePositions()` validates the complete
-lineage and particle state before synchronizing positions in one pass, allowing
-the same evolved complex to feed representation and analysis consumers without
-making a rendered projection authoritative.
+`CellComplex` 1-cell group into distance constraints. It can retain its
+compatible self-contained particle-authoring path or compose over an existing
+source-indexed particle binding. In the composed path it preserves exact
+particle identities and takes rest lengths from source geometry, so compiling
+constraints after deformation does not silently redefine rest. Every edge
+retains structural source identity. Source positions do not alias the
+simulation; an explicit binding or standalone-network write synchronizes them
+only after complete validation.
 
 `compileXpbdSimplexMeasureFamilyN()` compiles one explicitly selected simplex
 cell group onto an existing source-indexed `XpbdParticleN` array. It retains a
