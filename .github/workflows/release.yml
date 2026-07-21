@@ -46,8 +46,9 @@ jobs:
       - name: Publish
         # An explicit dependency order keeps first publication auditable. The
         # registry check makes manual dispatches and tag reruns idempotent.
-        # pnpm rewrites workspace:* to real versions; --no-git-checks is
-        # required because tag builds check out a detached HEAD.
+        # pnpm packs workspace:* dependencies as real release versions. npm
+        # then publishes that immutable tarball through trusted publishing;
+        # packing first avoids repository-state checks on detached tag builds.
         shell: bash
         run: |
           packages=(core three)
@@ -62,5 +63,7 @@ jobs:
               echo "$name@$version is already published; skipping"
               continue
             fi
-            pnpm --dir "$directory" publish --no-git-checks --access public
+            tarball="$RUNNER_TEMP/$package-$version.tgz"
+            pnpm --dir "$directory" pack --out "$tarball"
+            npm publish "$tarball" --access public --provenance
           done
