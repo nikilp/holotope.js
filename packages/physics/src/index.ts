@@ -248,6 +248,11 @@ export {
   type RigidTrajectory4Options
 } from './rigid-trajectory4.js';
 export {
+  applyRigidBodyPosePlan4,
+  planRigidBodyPose4,
+  type RigidBodyPosePlan4
+} from './rigid-body-pose-plan4.js';
+export {
   convexRigidCast4,
   supportShapeBoundingRadius4,
   supportShapeHyperplaneRigidCast4,
@@ -388,6 +393,7 @@ export {
   type ContactPipeline4Options,
   type ContactPipelineContinuousEvent4,
   type ContactPipelineContinuousOptions4,
+  type ContactPipelineContinuousCast4,
   type ContactPipelineContinuousStatus4,
   type ContactPipelineContinuousSubstep4,
   type ContactPipelineContinuousWorldStep4,

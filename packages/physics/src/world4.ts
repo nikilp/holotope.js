@@ -1,5 +1,9 @@
-import { BivectorN, Rotor4, VecN } from '@holotope/core';
+import { VecN } from '@holotope/core';
 import { RigidBody4 } from './rigid-body4.js';
+import {
+  applyRigidBodyPosePlan4,
+  planRigidBodyPose4
+} from './rigid-body-pose-plan4.js';
 
 export interface PhysicsWorld4Options {
   /** Default is y-down: [0, -9.81, 0, 0]. */
@@ -108,32 +112,5 @@ function integrateBodyVelocity(body: RigidBody4, dt: number, gravity: VecN): voi
 }
 
 function integrateBodyPose(body: RigidBody4, dt: number): void {
-  for (let axis = 0; axis < 4; axis++) {
-    body.position.data[axis]! += body.linearVelocity.data[axis]! * dt;
-  }
-
-  const angularVelocityWorld = body.angularVelocityWorld();
-  let active = false;
-  for (const coefficient of angularVelocityWorld.coeffs) {
-    if (coefficient !== 0) {
-      active = true;
-      break;
-    }
-  }
-  if (active) {
-    // Lie midpoint: sample the momentum-derived angular velocity at a
-    // half-step orientation, then take one full exponential step. The
-    // one-sided variant keeps L exact but exhibits secular energy growth for
-    // anisotropic bodies; midpoint retains bounded O(dt²) energy error.
-    const startRotation = body.rotation;
-    const halfIncrement = new BivectorN(4, angularVelocityWorld.coeffs).scale(dt / 2);
-    const midpointRotation = Rotor4.fromBivector(halfIncrement)
-      .multiply(startRotation)
-      .normalize();
-    const midpointVelocity = body.angularVelocityWorld(midpointRotation);
-    const fullIncrement = new BivectorN(4, midpointVelocity.coeffs).scale(dt);
-    body.rotation = Rotor4.fromBivector(fullIncrement)
-      .multiply(startRotation)
-      .normalize();
-  }
+  applyRigidBodyPosePlan4(planRigidBodyPose4(body, dt), 1);
 }

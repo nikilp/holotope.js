@@ -64,6 +64,14 @@ function expectArrayClose(
   }
 }
 
+function expectRotationClose(
+  actual: Rotor4,
+  expected: Rotor4,
+  digits = 13
+): void {
+  expectArrayClose(actual.toMatrix().data, expected.toMatrix().data, digits);
+}
+
 describe('smooth point contact response adapter', () => {
   it('retains actual ordered anchors and feeds normal plus tangent response', () => {
     const value = body([0, 0.75, 0, 0], [2, -3, 4, 1]);
@@ -229,43 +237,54 @@ describe('mixed ContactPipeline4', () => {
       }));
 
     const result = pipeline.stepWorldContinuous(world, 0.1);
-    // The impact itself is resolved continuously. Sequential manifold
-    // response leaves a tiny spin, so the remaining trajectory is correctly
-    // reported as a rotational discrete fallback.
-    expect(result.status).toBe('partial');
+    // Sequential manifold response leaves a tiny spin; the remainder is now
+    // replanned and cast along the same midpoint trajectory rather than
+    // falling back to a discrete angular step.
+    expect(result.status).toBe('complete');
     expect(result.substeps[0]!.events).toHaveLength(1);
     expect(result.substeps[0]!.events[0]!.solve.constraintCount).toBe(8);
-    expect(result.substeps[0]!.angularFallbackPairIds).toEqual([
-      contactPairId4('body', 'floor')
-    ]);
+    expect(result.substeps[0]!.angularFallbackPairIds).toEqual([]);
     expect(value.position.data[1]).toBeCloseTo(1, 6);
     expect(Math.abs(value.linearVelocity.data[1]!)).toBeLessThan(1e-5);
     expect(result.final.pairs[0]!.narrowphase.kind).toBe('deep-manifold');
   });
 
-  it('reports honest angular fallback and a bounded impact-event limit', () => {
-    const source = ConvexHullSupportShapeN.fromCellComplex(
-      createHypercube({ dim: 4, size: 2 })
+  it('catches rotational tunneling and retains a bounded impact-event limit', () => {
+    const spinning = body([0, 0, 0, 1]);
+    spinning.setAngularVelocityWorld(
+      new BivectorN(4, [0, 0, Math.PI, 0, 0, 0])
     );
-    const spinning = body([0, 5, 0, 0], [0, -1, 0, 0]);
-    spinning.setAngularVelocityWorld(new BivectorN(4, [1, 0, 0, 0, 0, 0]));
     const spinningWorld = new PhysicsWorld4({ gravity: [0, 0, 0, 0] })
       .addBody(spinning);
-    const spinningPipeline = new ContactPipeline4()
-      .addCollider(new PolytopeCollider4({
-        id: 'body',
-        source,
-        participant: spinning
-      }))
-      .addCollider(new HyperplaneContactCollider4({
-        id: 'floor',
-        normal: [0, 1, 0, 0]
-      }));
-    const partial = spinningPipeline.stepWorldContinuous(spinningWorld, 0.1);
-    expect(partial.status).toBe('partial');
-    expect(partial.substeps[0]!.angularFallbackPairIds).toEqual([
-      contactPairId4('body', 'floor')
-    ]);
+    const spinningCollider = new HyperboxCollider4({
+      id: 'body',
+      halfExtents: [1.5, 0.2, 0.2, 0.2],
+      participant: spinning,
+      material: { friction: 0 }
+    });
+    const spinningFloor = new HyperplaneContactCollider4({
+      id: 'floor',
+      normal: [0, 0, 0, 1],
+      material: { friction: 0 }
+    });
+    const spinningPipeline = new ContactPipeline4({
+      solverOptions: { iterations: 16, baumgarte: 0 }
+    })
+      .addCollider(spinningCollider)
+      .addCollider(spinningFloor);
+    const rotational = spinningPipeline.stepWorldContinuous(
+      spinningWorld,
+      1,
+      1,
+      { castOptions: { maxIterations: 96, distanceTolerance: 1e-10 } }
+    );
+    expect(rotational.substeps[0]!.events.length).toBeGreaterThan(0);
+    expect(rotational.substeps[0]!.events[0]!.cast.kind).toBe('rigid-hyperplane');
+    expect(rotational.substeps[0]!.events[0]!.time).toBeGreaterThan(0);
+    expect(rotational.substeps[0]!.events[0]!.time).toBeLessThan(0.5);
+    expect(rotational.substeps[0]!.angularFallbackPairIds).toEqual([]);
+    expect(rotational.status).toBe('complete');
+    expect(spinning.position.data[3]).toBeGreaterThan(0);
 
     const projectile = body([0, 0, 0, 0], [100, 0, 0, 0]);
     const corridorWorld = new PhysicsWorld4({ gravity: [0, 0, 0, 0] })
@@ -293,6 +312,84 @@ describe('mixed ContactPipeline4', () => {
     expect(limited.substeps[0]!.events).toHaveLength(1);
     expect(limited.substeps[0]!.remainingDt).toBeGreaterThan(0);
     expect(limited.substeps[0]!.advancedDt).toBeCloseTo(0.015, 10);
+  });
+
+  it('catches a pure-spin compact pair between separated endpoint poses', () => {
+    const spinning = body([1, 0, 0, 0]);
+    spinning.setAngularVelocityWorld(
+      new BivectorN(4, [Math.PI, 0, 0, 0, 0, 0])
+    );
+    const world = new PhysicsWorld4({ gravity: [0, 0, 0, 0] })
+      .addBody(spinning);
+    const moving = new HyperboxCollider4({
+      id: 'moving',
+      halfExtents: [0.2, 1.5, 0.2, 0.2],
+      participant: spinning,
+      material: { friction: 0 }
+    });
+    const obstacle = new HyperboxCollider4({
+      id: 'obstacle',
+      halfExtents: [0.1, 0.1, 0.1, 0.1],
+      material: { friction: 0 }
+    });
+    const pipeline = new ContactPipeline4({
+      solverOptions: { iterations: 16, baumgarte: 0 }
+    }).addCollider(moving).addCollider(obstacle);
+
+    const result = pipeline.stepWorldContinuous(world, 1, 1, {
+      castOptions: { maxIterations: 96, distanceTolerance: 1e-10 }
+    });
+    expect(result.substeps[0]!.events.length).toBeGreaterThan(0);
+    expect(result.substeps[0]!.events[0]!.cast.kind).toBe('rigid-convex');
+    expect(result.substeps[0]!.events[0]!.time).toBeGreaterThan(0);
+    expect(result.substeps[0]!.events[0]!.time).toBeLessThan(0.5);
+    expect(result.substeps[0]!.angularFallbackPairIds).toEqual([]);
+    expect(spinning.position.data[0]).toBeGreaterThan(0);
+  });
+
+  it('keeps no-impact rotational advancement identical to the ordinary midpoint step', () => {
+    const makeBody = () => {
+      const value = new RigidBody4({
+        mass: 1.7,
+        inertiaDiagonal: [0.8, 1.2, 1.9, 2.4, 3.3, 4.5],
+        position: [0.4, 2.7, -0.5, 0.9],
+        rotation: Rotor4.fromBivector(
+          new BivectorN(4, [0.2, -0.3, 0.1, 0.4, -0.15, 0.25])
+        ),
+        linearVelocity: [1.1, -0.7, 0.3, 0.5],
+        angularMomentumWorld: [0.8, -0.2, 0.6, -0.4, 0.9, 0.3]
+      });
+      value.applyForce([0.3, -0.2, 0.5, -0.1]);
+      value.applyTorque([0.2, 0.1, -0.3, 0.4, -0.2, 0.15]);
+      return value;
+    };
+    const ordinary = makeBody();
+    const continuous = makeBody();
+    const gravity = [0, -9.81, 0, 0];
+    new PhysicsWorld4({ gravity }).addBody(ordinary).step(0.07);
+    const continuousWorld = new PhysicsWorld4({ gravity }).addBody(continuous);
+    const result = new ContactPipeline4()
+      .addCollider(new HyperboxCollider4({
+        id: 'only-body',
+        halfExtents: [0.3, 0.5, 0.7, 0.9],
+        participant: continuous
+      }))
+      .stepWorldContinuous(continuousWorld, 0.07);
+
+    expect(result.status).toBe('complete');
+    expect(result.substeps[0]!.events).toEqual([]);
+    expectArrayClose(continuous.position.data, ordinary.position.data, 14);
+    expectArrayClose(
+      continuous.linearVelocity.data,
+      ordinary.linearVelocity.data,
+      14
+    );
+    expectArrayClose(
+      continuous.angularMomentumWorld.coeffs,
+      ordinary.angularMomentumWorld.coeffs,
+      14
+    );
+    expectRotationClose(continuous.rotation, ordinary.rotation, 14);
   });
 
   it('dispatches stable general-polytope manifolds into shared response', () => {

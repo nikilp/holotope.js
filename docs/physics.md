@@ -11,12 +11,13 @@ narrowphase plus deterministic mixed-shape and specialized hyperbox world-step
 pipelines. A Float64 EPA fallback adds bounded minimum-translation witnesses for
 general full-dimensional convex R4 pairs; vertex-enumerable R4 polytopes
 graduate that witness into a complete clipped manifold with persistent source
-feature identities. Opt-in event stepping resolves certified linear impacts;
+feature identities. Opt-in event stepping resolves certified rigid impacts;
 the branch-aware SO(4) logarithm and its analytic Jacobians now form the local
 coordinate kernel for rotational constraints. Direction preservation and
 one-parameter planar rotation are explicit stabilizer-classified policies;
-the planar policy's torque-limited motor and continuous-angle guardians are implemented.
-Connecting rigid casts to the event stepper and sleeping remain later contracts.
+the planar policy's torque-limited motor and continuous-angle guardians are
+implemented. Externally prescribed kinematic pose trajectories and sleeping
+remain later contracts.
 
 ## Convex mass properties
 
@@ -203,18 +204,24 @@ preserve its status, time, witnesses, iteration counts, and trace semantics.
 Pure rotation is therefore a supported query even when both endpoint samples
 are separated.
 
-`ContactPipeline4.stepWorldContinuous()` is currently the opt-in linear R4
-event loop. It
+`planRigidBodyPose4()` freezes the exact momentum-derived Lie-midpoint
+generator used by `PhysicsWorld4.integratePoses()`. Applying any normalized
+sample of that plan is absolute, so collision queries and body advancement can
+share one trajectory without accumulating interpolation drift.
+
+`ContactPipeline4.stepWorldContinuous()` is the opt-in rigid R4 event loop. It
 integrates forces into velocity once per substep, advances poses to the earliest
-certified linear impact, invokes the existing complete manifold/impulse path at
-that pose, and continues through a bounded number of events. Ordinary
+certified linear or rotational impact, invokes the existing complete
+manifold/impulse path at that pose, and continues through a bounded number of
+events. Each remaining interval gets one frozen pose plan per dynamic body;
+the selected cast and actual pose advance consume those same plans. After
+response changes momentum, only the remainder is replanned. Ordinary
 `stepWorld()` retains its discrete behavior. The continuous result is
-`partial` whenever a spinning non-spherical or offset collider, externally
-prescribed motion, or an indeterminate cast falls back to the discrete path;
-an exhausted event budget reports the unadvanced remainder. The standalone
-rigid cast is not yet used here: until body advancement and casting share the
-same frozen midpoint trajectory, spinning cases continue to report a typed
-fallback rather than a certificate for a different path.
+`partial` whenever externally prescribed motion or an indeterminate cast falls
+back to the discrete path; an exhausted event budget reports the unadvanced
+remainder. Centered glomes use the exact analytic linear lane. Supported
+dynamic hyperboxes, polytopes, and offset glomes use rigid casts, and the legacy
+angular-fallback list remains empty for those trajectories.
 
 Compact candidates are pruned with swept axis-aligned bounds. For a starting
 box `[min,max]` and complete translation `d`, `sweptBoundsN()` takes the hull of
@@ -222,8 +229,8 @@ the start and end intervals independently on every axis. That box contains
 every intermediate translated shape, so overlap is only a necessary condition:
 the broadphase may admit extra casts but cannot declare an impact or reject a
 true linearly swept contact. Infinite planes remain on the analytic exhaustive
-lane. Unsupported angular motion is enclosed by a conservative ball about its
-rigid pivot before the pair is reported as a typed fallback. Each continuous
+lane. Angular motion is enclosed by a conservative ball about its rigid pivot
+before narrowphase casting. Each continuous
 substep retains one `sweptBroadphase` diagnostic record per event scan, and the
 `AllPairsCandidateProviderN` remains selectable as the differential oracle.
 

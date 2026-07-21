@@ -36,9 +36,9 @@ numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
-Spatial-tree broadphases, integration of rigid casts into the continuous world
-stepper, full-frame joint policies, distance servos, rolling resistance, and
-sleeping are not yet part of this package. R4 Coulomb
+Spatial-tree broadphases, complete pose trajectories for externally prescribed
+kinematic motion, full-frame joint policies, distance servos, rolling
+resistance, and sleeping are not yet part of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
 
@@ -159,13 +159,12 @@ colliders share conservative AABBs and temporally coherent sweep-and-prune;
 infinite planes are paired explicitly with every admitted compact collider.
 `HyperboxContactPipeline4` remains the narrower homogeneous box path. The
 exhaustive O(n²) finite provider remains available as the CPU golden reference.
-For fast linearly moving bodies, `pipeline.stepWorldContinuous()` is an opt-in
+For fast rigidly moving bodies, `pipeline.stepWorldContinuous()` is an opt-in
 event loop which advances to certified first impact before using the same
 manifold solver. Compact pairs are pruned by conservative swept AABBs, and each
 event scan retains broadphase diagnostics; the exhaustive provider remains the
-differential reference. Its result explicitly reports rotational,
-prescribed-motion, and cast-uncertainty fallbacks; the discrete default is
-unchanged.
+differential reference. Its result explicitly reports prescribed-motion and
+cast-uncertainty fallbacks; the discrete default is unchanged.
 
 `RigidTrajectory4` makes an R4 screw path an explicit reusable value rather
 than an assumption hidden inside a solver. `convexRigidCast4()` and
@@ -174,10 +173,14 @@ path. Their closing-speed certificate adds each body's tight
 `angularVelocityOperatorNorm4(generator) * boundingRadius` contribution to the
 linear normal closure. Built-in glomes, rounded shapes, transformed shapes,
 and vertex-enumerable polytopes have auditable inferred radii; opaque support
-functions must provide a validated explicit bound. These are query APIs. The
-current continuous world step still reports spinning bodies as a typed
-fallback until it advances bodies along the same planned trajectory in the
-next integration stage.
+functions must provide a validated explicit bound. `RigidBodyPosePlan4`
+freezes the same momentum-derived Lie-midpoint generator used by ordinary free
+flight. `stepWorldContinuous()` gives each event scan those plans and applies
+the exact same plans to the selected impact; response then changes momentum
+and causes the remainder to be replanned. No-impact rotational advancement is
+therefore endpoint-identical to `PhysicsWorld4.integratePoses()`. Centered
+glomes preserve the analytic linear fast path, while externally prescribed
+velocity remains a typed fallback until it owns a complete pose trajectory.
 
 `NarrowphaseDispatcherN` is the common query boundary. Its `best` mode selects
 the strongest honest capability for the configured pair and margins; explicit

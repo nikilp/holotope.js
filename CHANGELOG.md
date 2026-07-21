@@ -20,6 +20,9 @@
 - Added explicit world-left R4 screw trajectories, auditable support-shape
   radius inference, and conservative rigid compact/compact and compact/plane
   casts using the exact SO(4) angular operator norm.
+- Added frozen Lie-midpoint body pose plans and connected those same plans to
+  rotational continuous-event casting and advancement, retaining exact
+  no-impact parity with ordinary free flight.
 
 ## v0.0.5
 

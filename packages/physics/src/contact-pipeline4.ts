@@ -23,6 +23,13 @@ import {
   type HyperplaneLinearCastOptionsN,
   type HyperplaneLinearCastResultN
 } from './linear-cast.js';
+import {
+  convexRigidCast4,
+  supportShapeHyperplaneRigidCast4,
+  type ConvexRigidCastResult4,
+  type HyperplaneRigidCastResult4,
+  type RigidCastMotion4
+} from './rigid-cast4.js';
 import type {
   HyperboxHyperplaneContactPatch4,
   MixedAnalyticContactOptions4
@@ -57,6 +64,12 @@ import {
   type ConvexPolytopeTopologyOptionsN
 } from './polytope-topology.js';
 import { RigidBody4 } from './rigid-body4.js';
+import {
+  applyRigidBodyPosePlan4,
+  planRigidBodyPose4,
+  type RigidBodyPosePlan4
+} from './rigid-body-pose-plan4.js';
+import { RigidTrajectory4 } from './rigid-trajectory4.js';
 import {
   GlomeSupportShapeN,
   TransformedSupportShapeN,
@@ -429,7 +442,7 @@ export interface ContactPipelineContinuousOptions4 {
   readonly maxEventsPerSubstep?: number;
   /** Smallest remaining/advanced time represented explicitly. Default 1e-12 s. */
   readonly timeTolerance?: number;
-  /** Zero band for non-spherical dynamic angular velocity. Default 1e-12. */
+  /** Zero band for externally prescribed kinematic velocity. Default 1e-12. */
   readonly angularVelocityTolerance?: number;
   /** Conservative-advancement policy for compact/compact casts. */
   readonly castOptions?: ConvexLinearCastOptionsN;
@@ -446,9 +459,15 @@ export interface ContactPipelineContinuousEvent4 {
   readonly time: number;
   /** Cast fraction of the remaining interval immediately before this event. */
   readonly remainingFraction: number;
-  readonly cast: ConvexLinearCastResultN | HyperplaneLinearCastResultN;
+  readonly cast: ContactPipelineContinuousCast4;
   readonly solve: ContactPipelineResult4;
 }
+
+export type ContactPipelineContinuousCast4 =
+  | ConvexLinearCastResultN
+  | HyperplaneLinearCastResultN
+  | ConvexRigidCastResult4
+  | HyperplaneRigidCastResult4;
 
 export interface ContactPipelineContinuousSubstep4 {
   readonly status: ContactPipelineContinuousStatus4;
@@ -461,7 +480,7 @@ export interface ContactPipelineContinuousSubstep4 {
   readonly castPairs: number;
   /** One compact-collider swept-broadphase record per impact scan. */
   readonly sweptBroadphase: readonly BroadphaseDiagnosticsN[];
-  /** Linear CCD is intentionally incomplete for these pair trajectories. */
+  /** Reserved for dynamic angular trajectories unsupported by a collider type. */
   readonly angularFallbackPairIds: readonly string[];
   readonly kinematicFallbackPairIds: readonly string[];
   readonly indeterminatePairIds: readonly string[];
@@ -746,12 +765,12 @@ export class ContactPipeline4 {
   }
 
   /**
-   * Opt-in event-driven linear CCD followed by the existing discrete solver.
+   * Opt-in event-driven rigid CCD followed by the existing discrete solver.
    *
-   * Dynamic translation is split at each certified first impact. Centered
-   * glomes are rotation-invariant; spinning non-spherical or offset shapes
-   * and externally prescribed motion remain visible as `partial` fallbacks
-   * rather than being approximated as linear trajectories.
+   * Every scan and pose advance shares one frozen Lie-midpoint trajectory per
+   * dynamic body. Centered glomes retain the exact linear fast path;
+   * externally prescribed motion remains a `partial` fallback until it owns a
+   * complete pose trajectory rather than velocity alone.
    */
   stepWorldContinuous(
     world: PhysicsWorld4,
@@ -798,14 +817,19 @@ export class ContactPipeline4 {
       let eventLimit = false;
 
       while (remainingDt > resolved.timeTolerance) {
-        const scan = this.scanContinuousImpacts(remainingDt, resolved);
+        const posePlans = planWorldBodyPoses4(world, remainingDt);
+        const scan = this.scanContinuousImpacts(
+          remainingDt,
+          resolved,
+          posePlans
+        );
         sweptBroadphase.push(scan.broadphase);
         castPairs += scan.castPairs;
         for (const id of scan.angularFallbackPairIds) angularFallbackPairIds.add(id);
         for (const id of scan.kinematicFallbackPairIds) kinematicFallbackPairIds.add(id);
         for (const id of scan.indeterminatePairIds) indeterminatePairIds.add(id);
         if (!scan.impact) {
-          world.integratePoses(remainingDt);
+          applyWorldBodyPosePlans4(posePlans, 1);
           advancedDt += remainingDt;
           remainingDt = 0;
           this.sync();
@@ -818,7 +842,7 @@ export class ContactPipeline4 {
         const fraction = scan.impact.cast.time!;
         const eventDt = Math.max(0, Math.min(remainingDt, remainingDt * fraction));
         if (eventDt > 0) {
-          world.integratePoses(eventDt);
+          applyWorldBodyPosePlans4(posePlans, fraction);
           advancedDt += eventDt;
           remainingDt -= eventDt;
           this.sync();
@@ -841,7 +865,10 @@ export class ContactPipeline4 {
       }
 
       if (!eventLimit && remainingDt > 0) {
-        world.integratePoses(remainingDt);
+        applyWorldBodyPosePlans4(
+          planWorldBodyPoses4(world, remainingDt),
+          1
+        );
         advancedDt += remainingDt;
         remainingDt = 0;
         this.sync();
@@ -890,7 +917,8 @@ export class ContactPipeline4 {
 
   private scanContinuousImpacts(
     remainingDt: number,
-    options: ResolvedContinuousOptions4
+    options: ResolvedContinuousOptions4,
+    posePlans: ReadonlyMap<RigidBody4, RigidBodyPosePlan4>
   ): ContinuousImpactScan4 {
     const active = Array.from(this.colliders.values())
       .filter((collider) => collider.enabled)
@@ -908,8 +936,7 @@ export class ContactPipeline4 {
         bounds: sweptColliderBounds4(
           collider,
           remainingDt,
-          padding,
-          options.angularVelocityTolerance
+          padding
         ),
         value: collider
       })
@@ -956,11 +983,6 @@ export class ContactPipeline4 {
           kinematicFallbackPairIds.add(pairId);
           continue;
         }
-        if (hasUnsupportedAngularMotion(colliderA, options.angularVelocityTolerance) ||
-            hasUnsupportedAngularMotion(colliderB, options.angularVelocityTolerance)) {
-          angularFallbackPairIds.add(pairId);
-          continue;
-        }
         const dynamicA = colliderA.participant instanceof RigidBody4;
         const dynamicB = colliderB.participant instanceof RigidBody4;
         if (!dynamicA && !dynamicB) continue;
@@ -971,35 +993,66 @@ export class ContactPipeline4 {
         const displacementB = dynamicB
           ? colliderB.participant.linearVelocity.clone().multiplyScalar(remainingDt)
           : new VecN(4);
-        let cast: ConvexLinearCastResultN | HyperplaneLinearCastResultN;
+        const requiresRigidCast =
+          hasPlannedGeometricAngularMotion(
+            colliderA,
+            posePlans
+          ) ||
+          hasPlannedGeometricAngularMotion(
+            colliderB,
+            posePlans
+          );
+        let cast: ContactPipelineContinuousCast4;
         if (isHyperplaneContactCollider(colliderA)) {
           if (!isCompactCollider(colliderB)) {
             throw new Error('ContactPipeline4: plane/plane CCD pair escaped filtering');
           }
-          cast = supportShapeHyperplaneLinearCastN(
-            colliderB.shape,
-            displacementB,
-            colliderA.shape,
-            hyperplaneCastOptions(options.castOptions)
-          );
+          cast = requiresRigidCast
+            ? supportShapeHyperplaneRigidCast4(
+                colliderB.shape,
+                colliderRigidCastMotion4(colliderB, posePlans),
+                colliderA.shape,
+                options.castOptions
+              )
+            : supportShapeHyperplaneLinearCastN(
+                colliderB.shape,
+                displacementB,
+                colliderA.shape,
+                hyperplaneCastOptions(options.castOptions)
+              );
         } else if (isHyperplaneContactCollider(colliderB)) {
           if (!isCompactCollider(colliderA)) {
             throw new Error('ContactPipeline4: plane/plane CCD pair escaped filtering');
           }
-          cast = supportShapeHyperplaneLinearCastN(
-            colliderA.shape,
-            displacementA,
-            colliderB.shape,
-            hyperplaneCastOptions(options.castOptions)
-          );
+          cast = requiresRigidCast
+            ? supportShapeHyperplaneRigidCast4(
+                colliderA.shape,
+                colliderRigidCastMotion4(colliderA, posePlans),
+                colliderB.shape,
+                options.castOptions
+              )
+            : supportShapeHyperplaneLinearCastN(
+                colliderA.shape,
+                displacementA,
+                colliderB.shape,
+                hyperplaneCastOptions(options.castOptions)
+              );
         } else {
-          cast = convexLinearCastN(
-            colliderA.shape,
-            displacementA,
-            colliderB.shape,
-            displacementB,
-            options.castOptions
-          );
+          cast = requiresRigidCast
+            ? convexRigidCast4(
+                colliderA.shape,
+                colliderRigidCastMotion4(colliderA, posePlans),
+                colliderB.shape,
+                colliderRigidCastMotion4(colliderB, posePlans),
+                options.castOptions
+              )
+            : convexLinearCastN(
+                colliderA.shape,
+                displacementA,
+                colliderB.shape,
+                displacementB,
+                options.castOptions
+              );
         }
         castPairs++;
         if (cast.status === 'indeterminate') {
@@ -1046,7 +1099,7 @@ interface ResolvedContinuousOptions4 {
 
 interface ContinuousImpact4 {
   readonly pairId: string;
-  readonly cast: ConvexLinearCastResultN | HyperplaneLinearCastResultN;
+  readonly cast: ContactPipelineContinuousCast4;
 }
 
 interface ContinuousImpactScan4 {
@@ -1061,15 +1114,14 @@ interface ContinuousImpactScan4 {
 function sweptColliderBounds4(
   collider: CompactContactCollider4,
   remainingDt: number,
-  padding: number,
-  angularVelocityTolerance: number
+  padding: number
 ): AxisAlignedBoundsN {
   const start = collider instanceof HyperboxCollider4
     ? hyperboxBounds4(collider.shape, padding)
     : supportShapeBoundsN(collider.shape, padding);
   const displacement = colliderLinearDisplacement4(collider, remainingDt);
   const participant = collider.participant;
-  if (!participant || !hasGeometricAngularMotion(collider, angularVelocityTolerance)) {
+  if (!participant || !hasGeometricAngularMotion(collider)) {
     return sweptBoundsN(start, displacement);
   }
 
@@ -1110,20 +1162,96 @@ function colliderLinearDisplacement4(
   return velocity.clone().multiplyScalar(dt);
 }
 
-function hasGeometricAngularMotion(
+function planWorldBodyPoses4(
+  world: PhysicsWorld4,
+  duration: number
+): ReadonlyMap<RigidBody4, RigidBodyPosePlan4> {
+  return new Map(
+    world.bodies.map((body) => [body, planRigidBodyPose4(body, duration)])
+  );
+}
+
+function applyWorldBodyPosePlans4(
+  plans: ReadonlyMap<RigidBody4, RigidBodyPosePlan4>,
+  time: number
+): void {
+  for (const plan of plans.values()) applyRigidBodyPosePlan4(plan, time);
+}
+
+function colliderRigidCastMotion4(
   collider: CompactContactCollider4,
-  tolerance: number
+  plans: ReadonlyMap<RigidBody4, RigidBodyPosePlan4>
+): RigidCastMotion4 {
+  const participant = collider.participant;
+  if (participant instanceof RigidBody4) {
+    const plan = plans.get(participant);
+    if (!plan) {
+      throw new Error(
+        `ContactPipeline4: dynamic collider ${collider.id} has no pose plan`
+      );
+    }
+    if (
+      collider instanceof GlomeCollider4 &&
+      collider.localCenter.lengthSq() === 0
+    ) {
+      return {
+        trajectory: new RigidTrajectory4({
+          start: plan.trajectory.start,
+          linearDisplacement: plan.trajectory.linearDisplacement,
+          angularDisplacementWorld: new Float64Array(6)
+        })
+      };
+    }
+    return { trajectory: plan.trajectory };
+  }
+  return {
+    trajectory: new RigidTrajectory4({
+      start: new TransformN(
+        4,
+        Rotor4.identity(),
+        collider.shape.center.clone()
+      ),
+      linearDisplacement: new Float64Array(4),
+      angularDisplacementWorld: new Float64Array(6)
+    })
+  };
+}
+
+function hasPlannedGeometricAngularMotion(
+  collider: ContactCollider4,
+  plans: ReadonlyMap<RigidBody4, RigidBodyPosePlan4>
+): boolean {
+  if (!isCompactCollider(collider)) return false;
+  if (
+    collider instanceof GlomeCollider4 &&
+    collider.localCenter.lengthSq() === 0
+  ) return false;
+  const participant = collider.participant;
+  if (!(participant instanceof RigidBody4)) return false;
+  const plan = plans.get(participant);
+  if (!plan) {
+    throw new Error(
+      `ContactPipeline4: dynamic collider ${collider.id} has no pose plan`
+    );
+  }
+  return squaredCoefficients(
+    plan.trajectory.angularDisplacementWorld.coeffs
+  ) > 0;
+}
+
+function hasGeometricAngularMotion(
+  collider: CompactContactCollider4
 ): boolean {
   if (
     collider instanceof GlomeCollider4 &&
-    collider.localCenter.lengthSq() <= tolerance ** 2
+    collider.localCenter.lengthSq() === 0
   ) return false;
   const participant = collider.participant;
   if (!participant) return false;
   const coefficients = participant instanceof RigidBody4
     ? participant.angularVelocityWorld().coeffs
     : participant.angularVelocityWorld.coeffs;
-  return squaredCoefficients(coefficients) > tolerance ** 2;
+  return squaredCoefficients(coefficients) > 0;
 }
 
 function resolveContinuousOptions(
@@ -1207,21 +1335,6 @@ function hasUnmanagedKinematicMotion(
   if (!participant || participant instanceof RigidBody4) return false;
   return participant.linearVelocity.lengthSq() > tolerance ** 2 ||
     squaredCoefficients(participant.angularVelocityWorld.coeffs) > tolerance ** 2;
-}
-
-function hasUnsupportedAngularMotion(
-  collider: ContactCollider4,
-  tolerance: number
-): boolean {
-  const participant = collider.participant;
-  if (!(participant instanceof RigidBody4)) return false;
-  if (
-    collider instanceof GlomeCollider4 &&
-    collider.localCenter.lengthSq() <= tolerance ** 2
-  ) return false;
-  return squaredCoefficients(
-    participant.angularVelocityWorld().coeffs
-  ) > tolerance ** 2;
 }
 
 function squaredCoefficients(coefficients: ArrayLike<number>): number {
