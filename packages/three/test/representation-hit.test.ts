@@ -8,6 +8,7 @@ import {
   evaluateProjectionFibre,
   inspectSourceCellReferenceN,
   isPointInProjectionFibreDomain,
+  resolveSourceCellIdN,
   createHypercube,
   tetrahedralizeCuboidCells,
   type FieldEvaluation4,
@@ -120,6 +121,8 @@ describe('unified representation provenance', () => {
       expect(hit.source.cellIndex).toBe(1);
       expect(hit.source.vertexIndices).toEqual(product.edgeVertices(1));
       expect(inspectSourceCellReferenceN(hit.source.reference).kind).toBe('current');
+      expect(hit.source.id?.groupKeyKind).toBe('derived');
+      expect(resolveSourceCellIdN(complex, hit.source.id!).kind).toBe('resolved');
     }
     product.dispose();
   });

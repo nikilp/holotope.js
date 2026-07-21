@@ -17,6 +17,14 @@ export type CellKind = 'simplex' | 'cuboid' | 'polygon';
 
 /** A homogeneous group of k-cells sharing arity and interpretation. */
 export interface CellGroup {
+  /**
+   * Optional author-supplied structural identity for this group.
+   *
+   * Keys must be unique inside one complex. They are not required for
+   * rendering, but make source-cell ids stable across order-independent
+   * regeneration and serialization boundaries.
+   */
+  key?: string;
   /** Intrinsic dimension of each cell (1 = edge, 2 = face, 3 = solid cell…). */
   dim: number;
   /** Number of vertex indices per cell (2 for an edge, 4 for a quad or tet…). */
@@ -42,6 +50,7 @@ export class CellComplex {
     this.positions = positions;
     this.groups = groups;
     for (const g of groups) this.validateGroup(g);
+    this.validateUniqueExplicitKeys();
   }
 
   get vertexCount(): number {
@@ -60,6 +69,12 @@ export class CellComplex {
 
   addGroup(group: CellGroup): this {
     this.validateGroup(group);
+    if (
+      group.key !== undefined &&
+      this.groups.some((existing) => existing.key === group.key)
+    ) {
+      throw new Error(`CellComplex: duplicate group key "${group.key}"`);
+    }
     this.groups.push(group);
     return this;
   }
@@ -73,6 +88,9 @@ export class CellComplex {
   }
 
   private validateGroup(g: CellGroup): void {
+    if (g.key !== undefined && (typeof g.key !== 'string' || g.key.trim().length === 0)) {
+      throw new Error('CellComplex: group key must be a non-empty string');
+    }
     if (g.indices.length % g.verticesPerCell !== 0) {
       throw new Error(
         `CellComplex: group indices length ${g.indices.length} is not a multiple of verticesPerCell ${g.verticesPerCell}`
@@ -83,6 +101,17 @@ export class CellComplex {
       if (idx >= vertexCount) {
         throw new Error(`CellComplex: cell index ${idx} out of range (${vertexCount} vertices)`);
       }
+    }
+  }
+
+  private validateUniqueExplicitKeys(): void {
+    const keys = new Set<string>();
+    for (const group of this.groups) {
+      if (group.key === undefined) continue;
+      if (keys.has(group.key)) {
+        throw new Error(`CellComplex: duplicate group key "${group.key}"`);
+      }
+      keys.add(group.key);
     }
   }
 }

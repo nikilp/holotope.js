@@ -32,8 +32,15 @@ export {
   type NamedLinearCoordinateConstraintBlockN
 } from './coordinate-constraint-system.js';
 export {
+  createSourceCellIdN,
   createSourceCellReferenceN,
   inspectSourceCellReferenceN,
+  resolveSourceCellIdN,
+  sourceCellGroupKeyN,
+  type SourceCellGroupKeyKind,
+  type SourceCellIdN,
+  type SourceCellIdResolutionFailureReason,
+  type SourceCellIdResolutionN,
   type SourceCellReferenceN,
   type SourceCellReferenceRetirementReason,
   type SourceCellReferenceStatusN
@@ -98,3 +105,20 @@ export {
   type RepresentationMapRecipeN,
   type SampledIsosurfaceMapRecipe3
 } from './map.js';
+export {
+  representationLineageCapabilitiesN,
+  representationMapCapabilitiesN,
+  type RepresentationCapabilityLevel,
+  type RepresentationMapCapabilitiesN,
+  type RepresentationSourceIdentityCapability
+} from './map-capabilities.js';
+export {
+  evaluateRepresentationLineagePointN,
+  type ExactRepresentationLineagePointN,
+  type RepresentationLineageEvidenceValue,
+  type RepresentationLineagePointEvaluationN,
+  type RepresentationLineagePointEvaluationOptions,
+  type RepresentationLineagePointFailureReason,
+  type RepresentationLineagePointStepN,
+  type UnavailableRepresentationLineagePointN
+} from './lineage-evaluation.js';

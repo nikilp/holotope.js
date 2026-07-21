@@ -3,6 +3,7 @@ import {
   affineSectionMapRecipe4,
   affineSliceChartMapRecipe4,
   createRepresentationLineageN,
+  createSourceCellIdN,
   fieldRestrictionMapRecipe4,
   projectionMapRecipeN
 } from '@holotope/core';
@@ -40,6 +41,7 @@ export function representationHitFromProjectedEdge(
   const pointLocal = representationPointLocal(product.object, intersection.point);
   const lift = product.liftSegmentPoint(segmentIndex, pointLocal.toArray());
   const ambientPoint = lift.kind === 'exact' ? lift.point : undefined;
+  const sourceReference = product.sourceReferenceOfSegment(segmentIndex);
   return {
     representation: 'projected-edge',
     point3: vector3Tuple(intersection.point),
@@ -56,7 +58,8 @@ export function representationHitFromProjectedEdge(
       intrinsicDim: 1,
       cellIndex: segmentIndex,
       vertexIndices: product.edgeVertices(segmentIndex),
-      reference: product.sourceReferenceOfSegment(segmentIndex)
+      reference: sourceReference,
+      id: createSourceCellIdN(sourceReference)
     },
     details: liftDetails(lift)
   };
@@ -74,6 +77,7 @@ export function representationHitFromProjectedSurface(
   const pointLocal = representationPointLocal(product.object, intersection.point);
   const lift = product.liftTrianglePoint(faceIndex, pointLocal.toArray());
   const ambientPoint = lift.kind === 'exact' ? lift.point : undefined;
+  const sourceReference = product.sourceReferenceOfTriangle(faceIndex);
   return {
     representation: 'projected-surface',
     point3: vector3Tuple(intersection.point),
@@ -90,7 +94,8 @@ export function representationHitFromProjectedSurface(
       intrinsicDim: 2,
       cellIndex: product.sourceFaceOfTriangle(faceIndex),
       vertexIndices: product.faceVertices(faceIndex),
-      reference: product.sourceReferenceOfTriangle(faceIndex)
+      reference: sourceReference,
+      id: createSourceCellIdN(sourceReference)
     },
     details: liftDetails(lift)
   };
@@ -111,6 +116,7 @@ export function representationHitFromSlicedComplex(
   );
   const tetIndex = product.sourceTetOfFace(faceIndex);
   const crossings = product.sourceCrossingsOfFace(faceIndex);
+  const sourceReference = product.sourceReferenceOfTet(tetIndex);
   const ambientPoint = product.projection === undefined
     ? embedLocalSlicePoint(product.object, product.slice, intersection.point)
     : undefined;
@@ -133,7 +139,8 @@ export function representationHitFromSlicedComplex(
       intrinsicDim: 3,
       cellIndex: tetIndex,
       vertexIndices: product.sourceTetVertices(tetIndex),
-      reference: product.sourceReferenceOfTet(tetIndex)
+      reference: sourceReference,
+      id: createSourceCellIdN(sourceReference)
     },
     details: {
       sliceConstruction: 'edge-interpolation',

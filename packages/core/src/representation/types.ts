@@ -1,7 +1,7 @@
 import type { CellComplex } from '../geometry/cell-complex.js';
 import type { FieldEvaluation4, ImplicitField4 } from '../field/types.js';
 import type { VecN } from '../math/vecn.js';
-import type { SourceCellReferenceN } from './source-reference.js';
+import type { SourceCellIdN, SourceCellReferenceN } from './source-reference.js';
 import type { RepresentationLineageN } from './map.js';
 
 export type RepresentationKind3D =
@@ -30,6 +30,8 @@ export interface RepresentationCellSourceN {
   readonly vertexIndices: readonly number[];
   /** Lifecycle-aware reference to the source cell group and local ordinal. */
   readonly reference: SourceCellReferenceN;
+  /** Structural identity suitable for compatible regeneration boundaries. */
+  readonly id?: SourceCellIdN;
 }
 
 export interface RepresentationSampleCellSource4<

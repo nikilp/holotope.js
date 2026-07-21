@@ -29,15 +29,24 @@ import {
   Rotor4,
   TransformN,
   VecN,
+  affineSectionMapRecipe4,
+  affineSliceChartMapRecipe4,
+  createRepresentationLineageN,
+  createSourceCellIdN,
   createSourceCellReferenceN,
   createSourceEdgeCoordinateN,
   createHypercube,
+  evaluateRepresentationLineagePointN,
   evaluateProjectionFibre,
   evaluateSourceEdgeCoordinateN,
   inspectSourceCellReferenceN,
   projectPointToSourceEdgeN,
+  projectionMapRecipeN,
+  resolveSourceCellIdN,
   tetrahedralizeCuboidCells,
   type RepresentationHitN,
+  type RepresentationLineageN,
+  type SourceCellIdN,
   type SourceCellReferenceN,
   type SourceEdgeCoordinateN
 } from '@holotope/core';
@@ -85,6 +94,13 @@ scene.add(rimLight);
 // The source remains a topology-first R4 complex. Anisotropy makes hidden-axis
 // motion visually distinguishable and gives the rigid body non-isotropic inertia.
 const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+const groupOrdinals = new Map<string, number>();
+for (const group of complex.groups) {
+  const family = `${group.dim}:${group.kind}:${group.verticesPerCell}`;
+  const ordinal = groupOrdinals.get(family) ?? 0;
+  groupOrdinals.set(family, ordinal + 1);
+  group.key = `bridge-source:${family}:${ordinal}`;
+}
 const sideScales = [1.35, 0.92, 0.66, 0.43];
 for (let vertex = 0; vertex < complex.vertexCount; vertex++) {
   for (let axis = 0; axis < 4; axis++) {
@@ -139,6 +155,12 @@ coordinateGroup.rotation.set(-0.08, -0.18, 0.025);
 scene.add(coordinateGroup);
 
 const slice = HyperplaneSlice4.axisAligned(3, 0.12);
+const perspectivePointLineage = createRepresentationLineageN(4, [
+  projectionMapRecipeN(perspective)
+]);
+const coordinatePointLineage = createRepresentationLineageN(4, [
+  projectionMapRecipeN(coordinateProjection)
+]);
 const section = new SlicedComplex3D(complex, slice, {
   material: new MeshStandardMaterial({
     color: 0xffffff,
@@ -208,6 +230,7 @@ type ViewKind = 'perspective' | 'coordinate' | 'section';
 interface BridgeSelection {
   sourcePointLocal: VecN;
   readonly sourceReference: SourceCellReferenceN;
+  readonly sourceId: SourceCellIdN;
   readonly hit: RepresentationHitN;
   readonly origin: ViewKind;
   readonly faceIndex: number;
@@ -337,6 +360,7 @@ function selectHit(hit: RepresentationHitN, origin: ViewKind, faceIndex: number)
   selection = {
     sourcePointLocal: bodyTransform().inverse().applyToPoint(hit.ambientPoint),
     sourceReference: hit.source.reference,
+    sourceId: hit.source.id ?? createSourceCellIdN(hit.source.reference),
     hit,
     origin,
     faceIndex
@@ -368,13 +392,17 @@ function describeSelection(): void {
   };
   const referenceStatus = inspectSourceCellReferenceN(selection.sourceReference);
   const coordinate = selection.edgeCoordinate;
+  const structuralId = coordinate === undefined
+    ? selection.sourceId
+    : createSourceCellIdN(coordinate.reference);
+  const structuralStatus = resolveSourceCellIdN(complex, structuralId);
 
   document.getElementById('traceTitle')!.textContent = originLabel[selection.origin];
   document.getElementById('traceSummary')!.textContent =
     `${hit.ambientPointStatus} material point ${formatR4(selection.sourcePointLocal.data)} · global ambiguity ${hit.ambiguity}`;
   document.getElementById('traceSource')!.textContent = coordinate === undefined
-    ? `${selection.sourceReference.cellKind} ${source.intrinsicDim}-cell · vertices [${source.vertexIndices.join(', ')}] · reference ${referenceStatus.kind}`
-    : `source edge [${coordinate.reference.vertexIndices.join(' → ')}] · t ${coordinate.parameter.toFixed(4)} · body-local R4 authority`;
+    ? `${structuralId.groupKey}#${structuralId.cellIndex} · ${selection.sourceReference.cellKind} ${source.intrinsicDim}-cell · reference ${referenceStatus.kind}/${structuralStatus.kind}`
+    : `${structuralId.groupKey}#${structuralId.cellIndex} · source edge [${coordinate.reference.vertexIndices.join(' → ')}] · t ${coordinate.parameter.toFixed(4)} · body-local R4 authority`;
   document.getElementById('traceLineage')!.textContent =
     `map lineage · ${hit.lineage.steps.map((step) => step.kind).join('  →  ')}`;
   document.getElementById('tracePolicy')!.textContent = coordinate === undefined
@@ -465,12 +493,13 @@ function followSelection(transform: TransformN): boolean {
 function updateSelection(transform: TransformN, sectionRemarched: boolean): void {
   if (selection === null) return;
   const ambient = transform.applyToPoint(selection.sourcePointLocal);
-  const projected = perspective.projectPoint(ambient.data);
-  perspectiveMarker.position.set(...projected);
-  perspectiveMarker.visible = true;
-  const coordinate = coordinateProjection.projectPoint(ambient.data);
-  coordinateMarker.position.set(...coordinate);
-  coordinateMarker.visible = true;
+  const perspectiveEvaluation = updateMarkerFromLineage(
+    perspectiveMarker,
+    perspectivePointLineage,
+    ambient
+  );
+  updateMarkerFromLineage(coordinateMarker, coordinatePointLineage, ambient);
+  updateMarkerFromLineage(sectionMarker, currentSectionPointLineage(), ambient);
 
   const planeResidual = Math.abs(slice.signedDistance(
     ambient.data[0]!,
@@ -478,24 +507,14 @@ function updateSelection(transform: TransformN, sectionRemarched: boolean): void
     ambient.data[2]!,
     ambient.data[3]!
   ));
-  if (planeResidual <= 1e-8) {
-    const point: [number, number, number] = [0, 0, 0];
-    for (let axis = 0; axis < 3; axis++) {
-      for (let sourceAxis = 0; sourceAxis < 4; sourceAxis++) {
-        point[axis]! += slice.basis[axis]![sourceAxis]! * ambient.data[sourceAxis]!;
-      }
-    }
-    sectionMarker.position.set(...point);
-    sectionMarker.visible = true;
-  } else {
-    sectionMarker.visible = false;
-  }
-
   if (sectionRemarched) sectionHighlight.visible = false;
   updateConnector();
 
   const homogeneous = perspective.projectHomogeneousPoint(ambient.data);
   const q = homogeneous.coordinates[3]!;
+  const projected = perspectiveEvaluation.kind === 'exact'
+    ? perspectiveEvaluation.point.data
+    : perspective.projectPoint(ambient.data);
   const homogeneousPoint = homogeneous.coordinates.slice(0, 3).map((value) => value / q);
   const forwardResidual = Math.hypot(
     projected[0] - homogeneousPoint[0]!,
@@ -510,6 +529,32 @@ function updateSelection(transform: TransformN, sectionRemarched: boolean): void
   const energyDrift = (body.rotationalKineticEnergy() - initialEnergy) / initialEnergy;
   document.getElementById('traceResidual')!.textContent =
     `forward ${forwardResidual.toExponential(2)} · fibre ${fibreResidual.toExponential(2)} · section ${planeResidual.toExponential(2)} · energy drift ${energyDrift.toExponential(2)} · q ${q >= 0 ? '+' : ''}${q.toFixed(3)}`;
+}
+
+function currentSectionPointLineage(): RepresentationLineageN {
+  return createRepresentationLineageN(4, [
+    affineSectionMapRecipe4(slice),
+    affineSliceChartMapRecipe4(slice)
+  ]);
+}
+
+function updateMarkerFromLineage(
+  marker: Mesh,
+  lineage: RepresentationLineageN,
+  ambientPoint: VecN
+): ReturnType<typeof evaluateRepresentationLineagePointN> {
+  const evaluation = evaluateRepresentationLineagePointN(lineage, ambientPoint);
+  if (evaluation.kind === 'exact' && evaluation.point.dim === 3) {
+    marker.position.set(
+      evaluation.point.data[0]!,
+      evaluation.point.data[1]!,
+      evaluation.point.data[2]!
+    );
+    marker.visible = true;
+  } else {
+    marker.visible = false;
+  }
+  return evaluation;
 }
 
 function updateConnector(): void {

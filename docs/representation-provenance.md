@@ -57,6 +57,24 @@ Recipes are snapshots of the map at inspection time. They identify the
 mathematical path and its parameters, not renderer objects, executable scene
 graphs, or a universal inverse operation.
 
+The discriminated recipes also expose capability queries without collapsing
+their different inverse semantics. `representationMapCapabilitiesN()` reports
+point-forward, point-lift, inverse-fibre, attribute-transport, and
+source-identity capability independently.
+`representationLineageCapabilitiesN()` composes those quality records
+monotonically across an ordered lineage. For example, an orthographic map has
+an exact inverse fibre but no unique point lift, while an affine section chart
+has an exact point lift on its domain but no non-trivial inverse fibre.
+
+`evaluateRepresentationLineagePointN()` is the renderer-independent Float64
+forward path for recipes that contain complete point mathematics. It supports
+affine sections and their charts, coordinate/orthographic projections, and the
+certified unclamped branch of iterated perspective. An off-plane section point
+or a point crossing a perspective guard returns typed `unavailable` evidence;
+it is never passed through the renderer's legacy clamp. Custom projections,
+field sampling, and ray realization likewise refuse when their recipe alone
+lacks the evaluator or retained record needed to answer honestly.
+
 ## Explicit geometry products
 
 The Three.js adapter normalizes product-specific picking through
@@ -135,10 +153,24 @@ The lifecycle is explicit:
 - regenerating equivalent topology into a different `CellComplex` creates a
   different identity.
 
-This is intentionally an in-memory reference, not a persistent or
-content-addressed identifier. An interchange format must define producer,
-regeneration, subdivision, and retirement semantics before it can serialize
-stable source identity.
+This remains the fastest in-memory identity. A separate `SourceCellIdN`
+provides a serializable structural identity when observations must survive
+compatible regeneration. `CellGroup.key` is an optional author-supplied key
+that must be unique inside a complex. `createSourceCellIdN()` snapshots that
+key, ambient dimension, the group-local cell ordinal, and a topology
+fingerprint containing cell metadata and its vertex tuple.
+
+`resolveSourceCellIdN()` returns a fresh in-memory reference only when the key,
+ordinal, metadata, and tuple still agree. Vertex-position changes are allowed;
+missing or ambiguous keys, removed cells, and changed topology produce typed
+refusals instead of silently retargeting the observation. Unkeyed groups use a
+deterministic order-derived fallback and label it `derived`: it is reproducible
+under order-preserving construction, not promised to survive group reordering.
+This distinction lets persistent consumers request real author identity while
+ordinary transient geometry remains free of mandatory UUIDs or content hashes.
+Cell-backed `@holotope/three` hit adapters populate this structural id beside
+the in-memory reference; the field remains optional on the core result type so
+custom producers can migrate without fabricating persistence they do not own.
 
 ## Linear source-coordinate constraints
 

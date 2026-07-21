@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### `@holotope/core`
+
+- Added author-keyed structural source-cell ids with typed resolution across
+  compatible complex regeneration and explicit topology-retirement evidence.
+- Added independent map/lineage capability queries and an auditable Float64
+  forward evaluator for affine sections, slice charts, coordinate projections,
+  orthographic projection, and certified perspective branches.
+
+### Showcase
+
+- Routed the canonical source-to-simulation markers through the headless
+  lineage evaluator and exposed resolvable structural source ids.
+
 ## v0.0.6
 
 ### `@holotope/core@0.0.6`
