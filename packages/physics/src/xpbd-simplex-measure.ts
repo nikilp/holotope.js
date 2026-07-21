@@ -35,6 +35,39 @@ export interface XpbdSimplexSquaredMeasureConstraintEvaluationN
   readonly error: number;
 }
 
+/** Float64 value and point gradients of one signed full-dimensional simplex. */
+export interface OrientedSimplexMeasureEvaluationN {
+  readonly ambientDimension: number;
+  /** Always equal to `ambientDimension`. */
+  readonly simplexDimension: number;
+  /** `det([x1 - x0, ..., xN - x0])` before division by `N!`. */
+  readonly determinant: number;
+  /** Signed N-measure in the ambient basis. */
+  readonly orientedMeasure: number;
+  /** Absolute N-measure. */
+  readonly measure: number;
+  /** Literal sign of the computed Float64 determinant. */
+  readonly orientation: -1 | 0 | 1;
+  /** Gradients of `orientedMeasure` in point order. */
+  readonly gradients: readonly VecN[];
+}
+
+export interface XpbdOrientedSimplexMeasureConstraintNOptions {
+  readonly id: string;
+  readonly points: readonly XpbdPointN[];
+  readonly restOrientedMeasure: number;
+  /** Inverse stiffness for the oriented-measure coordinate. Default zero. */
+  readonly compliance?: number;
+}
+
+export interface XpbdOrientedSimplexMeasureConstraintEvaluationN
+  extends XpbdScalarConstraintEvaluationN,
+    OrientedSimplexMeasureEvaluationN {
+  readonly restOrientedMeasure: number;
+  readonly restMeasure: number;
+  readonly error: number;
+}
+
 /**
  * Evaluates `det(E^T E) / (k!)^2` and its ambient point gradients.
  *
@@ -178,6 +211,115 @@ export function evaluateSimplexSquaredMeasureN(
   });
 }
 
+/**
+ * Evaluates `det([x1 - x0, ..., xN - x0]) / N!` and its point gradients.
+ *
+ * The simplex must be full-dimensional in its ambient space. An embedded
+ * lower-dimensional simplex has no ambient-rotation-invariant scalar
+ * orientation without an additional authored normal-frame convention.
+ */
+export function evaluateOrientedSimplexMeasureN(
+  positions: readonly VecN[]
+): OrientedSimplexMeasureEvaluationN {
+  if (positions.length === 0) {
+    throw new Error('evaluateOrientedSimplexMeasureN: expected at least two points');
+  }
+  const ambientDimension = assertPosition(
+    positions[0],
+    undefined,
+    'evaluateOrientedSimplexMeasureN: point 0'
+  );
+  if (ambientDimension < 1 || positions.length !== ambientDimension + 1) {
+    throw new Error(
+      'evaluateOrientedSimplexMeasureN: expected exactly ambient dimension + 1 points'
+    );
+  }
+  for (let point = 1; point < positions.length; point++) {
+    assertPosition(
+      positions[point],
+      ambientDimension,
+      `evaluateOrientedSimplexMeasureN: point ${point}`
+    );
+  }
+
+  const origin = positions[0]!;
+  const edges = squareMatrix(ambientDimension);
+  for (let column = 0; column < ambientDimension; column++) {
+    const endpoint = positions[column + 1]!;
+    for (let coordinate = 0; coordinate < ambientDimension; coordinate++) {
+      edges[coordinate]![column] = endpoint.data[coordinate]! -
+        origin.data[coordinate]!;
+    }
+  }
+
+  const cofactors = squareMatrix(ambientDimension);
+  for (let row = 0; row < ambientDimension; row++) {
+    for (let column = 0; column < ambientDimension; column++) {
+      const sign = (row + column) % 2 === 0 ? 1 : -1;
+      const cofactor = sign * determinant(minor(edges, row, column));
+      if (!Number.isFinite(cofactor)) {
+        throw new Error(
+          'evaluateOrientedSimplexMeasureN: cofactor is non-finite'
+        );
+      }
+      cofactors[row]![column] = cofactor;
+    }
+  }
+
+  const determinantValue = determinant(edges);
+  if (!Number.isFinite(determinantValue)) {
+    throw new Error('evaluateOrientedSimplexMeasureN: determinant is non-finite');
+  }
+  const simplexFactorial = factorial(ambientDimension);
+  if (!Number.isFinite(simplexFactorial)) {
+    throw new Error(
+      'evaluateOrientedSimplexMeasureN: ambient dimension exceeds the Float64 factorial range'
+    );
+  }
+  const normalization = 1 / simplexFactorial;
+  if (!(normalization > 0) || !Number.isFinite(normalization)) {
+    throw new Error(
+      'evaluateOrientedSimplexMeasureN: normalization is outside the Float64 range'
+    );
+  }
+
+  const gradients = new Array<VecN>(positions.length);
+  const originGradient = new VecN(ambientDimension);
+  for (let point = 1; point < positions.length; point++) {
+    const column = point - 1;
+    const gradient = new VecN(ambientDimension);
+    for (let coordinate = 0; coordinate < ambientDimension; coordinate++) {
+      const derivative = cofactors[coordinate]![column]! * normalization;
+      if (!Number.isFinite(derivative)) {
+        throw new Error(
+          'evaluateOrientedSimplexMeasureN: gradient contains a non-finite value'
+        );
+      }
+      gradient.data[coordinate] = derivative;
+      originGradient.data[coordinate] = originGradient.data[coordinate]! - derivative;
+    }
+    gradients[point] = gradient;
+  }
+  gradients[0] = originGradient;
+
+  const orientedMeasure = determinantValue * normalization;
+  if (!Number.isFinite(orientedMeasure)) {
+    throw new Error(
+      'evaluateOrientedSimplexMeasureN: oriented measure is non-finite'
+    );
+  }
+  const orientation = determinantValue > 0 ? 1 : determinantValue < 0 ? -1 : 0;
+  return Object.freeze({
+    ambientDimension,
+    simplexDimension: ambientDimension,
+    determinant: determinantValue,
+    orientedMeasure,
+    measure: Math.abs(orientedMeasure),
+    orientation,
+    gradients: Object.freeze(gradients)
+  });
+}
+
 /** Unsigned simplex squared-measure equality consumed by the XPBD kernel. */
 export class XpbdSimplexSquaredMeasureConstraintN
 implements XpbdScalarConstraintN {
@@ -248,13 +390,83 @@ implements XpbdScalarConstraintN {
   }
 }
 
-function assertXpbdPoint(point: XpbdPointN | undefined, label: string): void {
+/** Signed full-dimensional simplex-measure equality consumed by XPBD. */
+export class XpbdOrientedSimplexMeasureConstraintN
+implements XpbdScalarConstraintN {
+  readonly id: string;
+  readonly dimension: number;
+  readonly simplexDimension: number;
+  readonly points: readonly XpbdPointN[];
+  readonly restOrientedMeasure: number;
+  readonly compliance: number;
+
+  constructor(options: XpbdOrientedSimplexMeasureConstraintNOptions) {
+    if (typeof options.id !== 'string' || options.id.trim().length === 0) {
+      throw new Error(
+        'XpbdOrientedSimplexMeasureConstraintN: id must be a non-empty string'
+      );
+    }
+    if (new Set(options.points).size !== options.points.length) {
+      throw new Error(
+        'XpbdOrientedSimplexMeasureConstraintN: point identities must be distinct'
+      );
+    }
+    for (let index = 0; index < options.points.length; index++) {
+      assertXpbdPoint(
+        options.points[index],
+        `point ${index}`,
+        'XpbdOrientedSimplexMeasureConstraintN'
+      );
+    }
+    const evaluated = evaluateOrientedSimplexMeasureN(
+      options.points.map((point) => point.position)
+    );
+    if (!Number.isFinite(options.restOrientedMeasure)) {
+      throw new Error(
+        'XpbdOrientedSimplexMeasureConstraintN: restOrientedMeasure must be finite'
+      );
+    }
+    const compliance = options.compliance ?? 0;
+    if (!Number.isFinite(compliance) || compliance < 0) {
+      throw new Error(
+        'XpbdOrientedSimplexMeasureConstraintN: compliance must be finite and non-negative'
+      );
+    }
+
+    this.id = options.id;
+    this.dimension = evaluated.ambientDimension;
+    this.simplexDimension = evaluated.simplexDimension;
+    this.points = Object.freeze([...options.points]);
+    this.restOrientedMeasure = options.restOrientedMeasure;
+    this.compliance = compliance;
+  }
+
+  evaluate(): XpbdOrientedSimplexMeasureConstraintEvaluationN {
+    const evaluated = evaluateOrientedSimplexMeasureN(
+      this.points.map((point) => point.position)
+    );
+    const error = evaluated.orientedMeasure - this.restOrientedMeasure;
+    return Object.freeze({
+      ...evaluated,
+      restOrientedMeasure: this.restOrientedMeasure,
+      restMeasure: Math.abs(this.restOrientedMeasure),
+      error,
+      value: error
+    });
+  }
+}
+
+function assertXpbdPoint(
+  point: XpbdPointN | undefined,
+  label: string,
+  owner = 'XpbdSimplexSquaredMeasureConstraintN'
+): void {
   if (point === undefined || !(point.position instanceof VecN)) {
-    throw new Error(`XpbdSimplexSquaredMeasureConstraintN: ${label} is invalid`);
+    throw new Error(`${owner}: ${label} is invalid`);
   }
   if (!Number.isFinite(point.inverseMass) || point.inverseMass < 0) {
     throw new Error(
-      `XpbdSimplexSquaredMeasureConstraintN: ${label} inverseMass must be finite and non-negative`
+      `${owner}: ${label} inverseMass must be finite and non-negative`
     );
   }
 }

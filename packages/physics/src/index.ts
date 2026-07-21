@@ -163,9 +163,14 @@ export {
   type XpbdDistanceNetworkVertexScalarN
 } from './xpbd-network.js';
 export {
+  XpbdOrientedSimplexMeasureConstraintN,
   XpbdSimplexSquaredMeasureConstraintN,
+  evaluateOrientedSimplexMeasureN,
   evaluateSimplexSquaredMeasureN,
+  type OrientedSimplexMeasureEvaluationN,
   type SimplexSquaredMeasureEvaluationN,
+  type XpbdOrientedSimplexMeasureConstraintEvaluationN,
+  type XpbdOrientedSimplexMeasureConstraintNOptions,
   type XpbdSimplexSquaredMeasureConstraintEvaluationN,
   type XpbdSimplexSquaredMeasureConstraintNOptions
 } from './xpbd-simplex-measure.js';

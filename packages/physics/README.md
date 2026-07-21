@@ -35,9 +35,10 @@ closing bound uses the exact SO(4) operator norm.
 A separate `XpbdConstraintSolverN` supplies an auditable dimension-generic
 Float64 position-level kernel for compliant scalar equalities. It exposes the
 total XPBD multiplier, signed force estimate, and compliant residual, while
-exact RN distance and unsigned simplex squared-measure constraints provide its
-first geometric consumers. This does not replace or silently couple to the
-velocity-level R4 rigid constraint solver.
+exact RN distance, unsigned intrinsic simplex measure, and signed full-
+dimensional simplex measure constraints provide its first geometric consumers.
+This does not replace or silently couple to the velocity-level R4 rigid
+constraint solver.
 `XpbdWorldN` wraps that kernel in explicit RN point-mass prediction, velocity
 reconstruction, force accumulation, substeps, ownership checks, and atomic
 world-step rollback.
@@ -133,6 +134,17 @@ magnitude but is not an inversion barrier. Cofactor gradients remain finite at
 singular Gram matrices; a collapsed simplex whose first derivative vanishes
 reports `no-dynamic-response` rather than receiving an invented recovery
 normal.
+
+`evaluateOrientedSimplexMeasureN()` instead evaluates
+`det([x1 - x0, ..., xN - x0]) / N!` for exactly `N + 1` points in `R^N`.
+Its cofactor gradients transform covariantly under SO(N), while reflection or
+an odd vertex permutation reverses the scalar sign.
+`XpbdOrientedSimplexMeasureConstraintN` can therefore preserve and report
+material-cell orientation as well as magnitude. The full-dimensional
+restriction is intentional: an embedded `k < N` simplex needs an additional
+normal-frame convention before it has a scalar orientation. This equality is
+also not a no-tunnelling barrier; a sufficiently large discrete update may
+cross or land on the zero-measure set.
 
 `XpbdParticleN` adds velocity, force, gravity scale, and a stable world-local id
 to that point coordinate. `XpbdWorldN.step()` performs semi-implicit prediction,
