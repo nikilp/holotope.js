@@ -218,6 +218,19 @@ export class SimplexConstitutiveFamilyN<
     });
   }
 
+  /** Defensive copy of the compiled material rest simplex in source-cell order. */
+  restPositionsOfElement(elementIndex: number): readonly VecN[] {
+    if (!Number.isSafeInteger(elementIndex) ||
+      elementIndex < 0 || elementIndex >= this.restPositions.length) {
+      throw new Error(
+        `SimplexConstitutiveFamilyN.restPositionsOfElement: elementIndex ${elementIndex} is out of range`
+      );
+    }
+    return Object.freeze(
+      this.restPositions[elementIndex]!.map((position) => position.clone())
+    );
+  }
+
   /** Refuses if any retained source cell has been retired or replaced. */
   assertCurrentLineage(operation: 'evaluate' | 'addToWorld'): void {
     validateCurrentLineage(this.elements, operation);

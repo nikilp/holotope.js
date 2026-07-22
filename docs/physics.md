@@ -994,6 +994,54 @@ completed substep; it does not prove that the continuous path stayed
 orientation-preserving between endpoints and is not an inversion barrier or
 implicit material solve.
 
+For full-dimensional simplices, `analyzeLinearSimplexOrientationN()` closes
+that specific endpoint gap along a straight substep chord. If every particle
+position is linearly interpolated from its substep start to end, the normalized
+oriented determinant is a polynomial of degree at most N. The Float64 reference
+path constructs its coefficients by determinant multilinearity, converts them
+to the Bernstein basis, and subdivides left-to-right with de Casteljau. A
+strictly positive Bernstein convex-hull lower bound certifies an interval;
+otherwise the result conservatively encloses the earliest possible contact
+with the requested signed-measure threshold, including a tangency that does
+not change endpoint signs.
+
+```ts
+import {
+  analyzeLinearSimplexOrientationN,
+  compileSimplexConstitutiveFamilyTrajectoryGuardN
+} from '@holotope/physics';
+
+const analysis = analyzeLinearSimplexOrientationN({
+  restPositions,
+  startPositions,
+  endPositions,
+  minimumSignedMeasureRatio: 0.1
+});
+
+if (analysis.status === 'possible-violation') {
+  console.log(analysis.timeBracket, analysis.bernsteinBounds);
+}
+
+const trajectoryGuard = compileSimplexConstitutiveFamilyTrajectoryGuardN({
+  id: 'solid-linear-orientation',
+  family: solid,
+  minimumSignedMeasureRatio: 0.1
+});
+trajectoryGuard.addToWorld(world);
+```
+
+The family policy uses the world's exact pre-substep position snapshot and the
+completed positions, retains the candidate source element and its polynomial
+evidence, and rejects through the same transactional adaptive-step seam. It is
+independent of the endpoint material-domain guard; attach both when both
+policies matter. The query accepts only an N-simplex in R^N. Embedded simplex
+collapse is an unsigned Gram-determinant problem and requires a separate
+query. Its auditable coefficient construction costs `O(2^N N^3)`, so this is a
+small-N CPU golden path rather than the eventual high-dimensional backend.
+Within its explicit Float64 coefficient and subdivision tolerances it certifies
+the linear chord, not the nonlinear solver trajectory, curved prescribed
+motion, or a formal outward-rounded interval.
+
 ### Source particles and intrinsic mass
 
 Simulation state is bound to source topology independently of any constraint or

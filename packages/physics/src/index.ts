@@ -253,6 +253,15 @@ export {
   type SimplexOrientationChangeN
 } from './simplex-deformation.js';
 export {
+  analyzeLinearSimplexOrientationN,
+  type AnalyzeLinearSimplexOrientationNOptions,
+  type LinearSimplexOrientationAnalysisBaseN,
+  type LinearSimplexOrientationAnalysisN,
+  type LinearSimplexOrientationInitialViolationN,
+  type LinearSimplexOrientationPossibleViolationN,
+  type LinearSimplexOrientationSafeN
+} from './simplex-orientation-cast.js';
+export {
   SimplexConstitutiveDomainErrorN,
   type SimplexConstitutiveDomainReasonN,
   type SimplexConstitutiveEvaluationN
@@ -275,6 +284,14 @@ export {
   type SimplexConstitutiveFamilyStateGuardEvaluationN,
   type SimplexConstitutiveFamilyStateGuardStatusN
 } from './simplex-constitutive-state-guard.js';
+export {
+  SimplexConstitutiveFamilyTrajectoryGuardN,
+  compileSimplexConstitutiveFamilyTrajectoryGuardN,
+  type CompileSimplexConstitutiveFamilyTrajectoryGuardNOptions,
+  type SimplexConstitutiveFamilyTrajectoryGuardCandidateN,
+  type SimplexConstitutiveFamilyTrajectoryGuardEvaluationN,
+  type SimplexConstitutiveFamilyTrajectoryGuardStatusN
+} from './simplex-constitutive-trajectory-guard.js';
 export {
   simplexCompressibleNeoHookeanLawN,
   simplexStVenantKirchhoffLawN

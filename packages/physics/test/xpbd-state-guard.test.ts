@@ -74,6 +74,42 @@ describe('XpbdWorldN accepted-state guards', () => {
     )).toBe(true);
   });
 
+  it('exposes exact defensive pre-substep positions and refuses foreign queries', () => {
+    const particle = new XpbdParticleN({
+      id: 'history', position: [1, 2], velocity: [3, -1]
+    });
+    const foreign = new XpbdParticleN({ id: 'history/foreign', position: [0, 0] });
+    const observations: number[][] = [];
+    const first: XpbdStateGuardN = {
+      id: 'history/first',
+      dimension: 2,
+      particles: [particle],
+      evaluate: (context) => {
+        const previous = context.positionBeforeSubstep(particle);
+        observations.push(previous.toArray());
+        previous.data[0] = 999;
+        expect(() => context.positionBeforeSubstep(foreign)).toThrow(/not registered/);
+        return { accepted: true };
+      }
+    };
+    const second: XpbdStateGuardN = {
+      id: 'history/second',
+      dimension: 2,
+      particles: [particle],
+      evaluate: (context) => {
+        observations.push(context.positionBeforeSubstep(particle).toArray());
+        return { accepted: true };
+      }
+    };
+    const world = new XpbdWorldN({ dimension: 2 })
+      .addParticle(particle)
+      .addStateGuard(first)
+      .addStateGuard(second);
+    world.step(0.5);
+    expect(observations).toEqual([[1, 2], [1, 2]]);
+    expect(particle.position.toArray()).toEqual([2.5, 1.5]);
+  });
+
   it('checks guard identity, dimension, ownership, and particle lifetime', () => {
     const a = new XpbdParticleN({ id: 'a', position: [0, 0] });
     const b = new XpbdParticleN({ id: 'b', position: [1, 0] });

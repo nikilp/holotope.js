@@ -137,6 +137,8 @@ export interface XpbdStateGuardEvaluationN {
 export interface XpbdStateGuardContextN {
   readonly deltaTime: number;
   readonly substepIndex: number;
+  /** Exact position at the beginning of this substep, returned as a defensive copy. */
+  readonly positionBeforeSubstep: (particle: XpbdParticleN) => VecN;
   readonly forceProviders: readonly XpbdWorldForceProviderResultN[];
   readonly solve: XpbdSolveResultN;
   readonly velocityResponses: readonly XpbdWorldVelocityResponseResultN[];
@@ -464,13 +466,19 @@ export class XpbdWorldN {
           substepIndex: index,
           solve
         });
-        const stateGuards = this.evaluateStateGuards({
-          deltaTime: substepDuration,
-          substepIndex: index,
-          forceProviders: evaluatedForces.results,
-          solve,
-          velocityResponses
-        });
+        const stateGuards = this.registeredStateGuards.length === 0
+          ? EMPTY_STATE_GUARD_RESULTS
+          : this.evaluateStateGuards({
+              deltaTime: substepDuration,
+              substepIndex: index,
+              positionBeforeSubstep: priorPositionQuery(
+                this.registeredParticles,
+                priorPositions
+              ),
+              forceProviders: evaluatedForces.results,
+              solve,
+              velocityResponses
+            });
         constraintSolves.push(Object.freeze({
           index,
           deltaTime: substepDuration,
@@ -778,9 +786,6 @@ export class XpbdWorldN {
   private evaluateStateGuards(
     context: XpbdStateGuardContextN
   ): readonly XpbdWorldStateGuardResultN[] {
-    if (this.registeredStateGuards.length === 0) {
-      return EMPTY_STATE_GUARD_RESULTS;
-    }
     const results: XpbdWorldStateGuardResultN[] = [];
     const frozenContext = Object.freeze({ ...context });
     for (const guard of this.registeredStateGuards) {
@@ -1003,6 +1008,25 @@ function snapshotParticle(particle: XpbdParticleN): ParticleSnapshotN {
     velocity: particle.velocity.data.slice(),
     force: particle.force.data.slice(),
     gravityScale: particle.gravityScale
+  };
+}
+
+function priorPositionQuery(
+  particles: readonly XpbdParticleN[],
+  positions: readonly Float64Array[]
+): (particle: XpbdParticleN) => VecN {
+  const byParticle = new Map<XpbdParticleN, Float64Array>();
+  for (let index = 0; index < particles.length; index++) {
+    byParticle.set(particles[index]!, positions[index]!);
+  }
+  return (particle: XpbdParticleN): VecN => {
+    const position = byParticle.get(particle);
+    if (position === undefined) {
+      throw new Error(
+        'XpbdStateGuardContextN.positionBeforeSubstep: particle is not registered in this world'
+      );
+    }
+    return new VecN(position);
   };
 }
 

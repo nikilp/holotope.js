@@ -208,7 +208,8 @@ and bounded subdivision.
 
 ```ts
 import {
-  compileSimplexConstitutiveFamilyStateGuardN
+  compileSimplexConstitutiveFamilyStateGuardN,
+  compileSimplexConstitutiveFamilyTrajectoryGuardN
 } from '@holotope/physics';
 
 const guard = compileSimplexConstitutiveFamilyStateGuardN({
@@ -217,6 +218,14 @@ const guard = compileSimplexConstitutiveFamilyStateGuardN({
   minimumMeasureRatio: 0.1
 });
 guard.addToWorld(world);
+
+// Full-dimensional simplices only: certify J along each straight substep chord.
+const trajectoryGuard = compileSimplexConstitutiveFamilyTrajectoryGuardN({
+  id: 'material-linear-orientation',
+  family: material,
+  minimumSignedMeasureRatio: 0.1
+});
+trajectoryGuard.addToWorld(world);
 
 const accepted = world.stepAdaptive(1 / 60, {
   initialSubsteps: 1,
@@ -228,9 +237,11 @@ console.log(accepted.attempts); // rejected attempts, then the accepted count
 ```
 
 Only a typed guard rejection is retryable. Invalid APIs, NaNs, and arbitrary
-solver failures escape immediately. The guard samples every completed
-substep; it is not continuous orientation CCD and cannot certify what happened
-between two accepted endpoints.
+solver failures escape immediately. The first guard checks the completed
+material state. The second independently certifies the straight line between
+the substep's exact endpoint snapshots using a conservative Bernstein
+polynomial query. It requires an N-simplex in R^N and is neither a certificate
+for a nonlinear solver trajectory nor an implicit inversion barrier.
 
 ## Add a frictional RN floor to a particle system
 

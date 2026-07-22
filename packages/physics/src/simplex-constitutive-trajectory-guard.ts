@@ -1,0 +1,238 @@
+import type { VecN } from '@holotope/core';
+import type { SimplexConstitutiveEvaluationN } from './simplex-constitutive.js';
+import {
+  SimplexConstitutiveFamilyN,
+  type SimplexConstitutiveFamilyElementN
+} from './simplex-constitutive-family.js';
+import {
+  analyzeLinearSimplexOrientationN,
+  type AnalyzeLinearSimplexOrientationNOptions,
+  type LinearSimplexOrientationAnalysisN
+} from './simplex-orientation-cast.js';
+import {
+  XpbdParticleN,
+  XpbdWorldN,
+  type XpbdStateGuardContextN,
+  type XpbdStateGuardEvaluationN,
+  type XpbdStateGuardN
+} from './xpbd-world.js';
+
+export interface CompileSimplexConstitutiveFamilyTrajectoryGuardNOptions<
+  TMaterial,
+  TEvaluation extends SimplexConstitutiveEvaluationN<TMaterial>
+> {
+  readonly id: string;
+  readonly family: SimplexConstitutiveFamilyN<TMaterial, TEvaluation>;
+  /** Required signed current/rest ratio along every linear substep chord. */
+  readonly minimumSignedMeasureRatio: number;
+  readonly timeTolerance?: number;
+  readonly maximumDepth?: number;
+  readonly relativeCoefficientTolerance?: number;
+}
+
+export type SimplexConstitutiveFamilyTrajectoryGuardStatusN =
+  | 'accepted'
+  | 'initial-violation'
+  | 'possible-violation';
+
+export interface SimplexConstitutiveFamilyTrajectoryGuardCandidateN<TMaterial> {
+  readonly elementIndex: number;
+  readonly element: SimplexConstitutiveFamilyElementN<TMaterial>;
+  readonly analysis: LinearSimplexOrientationAnalysisN;
+}
+
+export interface SimplexConstitutiveFamilyTrajectoryGuardEvaluationN<TMaterial>
+  extends XpbdStateGuardEvaluationN {
+  readonly status: SimplexConstitutiveFamilyTrajectoryGuardStatusN;
+  readonly requiredMinimumSignedMeasureRatio: number;
+  readonly inspectedElementCount: number;
+  readonly minimumMarginLowerBound: number | null;
+  readonly candidate: SimplexConstitutiveFamilyTrajectoryGuardCandidateN<TMaterial> | null;
+}
+
+/** Continuous linear-chord orientation policy for one full-dimensional family. */
+export class SimplexConstitutiveFamilyTrajectoryGuardN<
+  TMaterial,
+  TEvaluation extends SimplexConstitutiveEvaluationN<TMaterial>
+> implements XpbdStateGuardN {
+  readonly id: string;
+  readonly dimension: number;
+  readonly particles: readonly XpbdParticleN[];
+  readonly family: SimplexConstitutiveFamilyN<TMaterial, TEvaluation>;
+  readonly minimumSignedMeasureRatio: number;
+  readonly timeTolerance: number | undefined;
+  readonly maximumDepth: number | undefined;
+  readonly relativeCoefficientTolerance: number | undefined;
+  private readonly restPositions: readonly (readonly VecN[])[];
+  private attachedWorld: XpbdWorldN | null = null;
+
+  private constructor(
+    options: CompileSimplexConstitutiveFamilyTrajectoryGuardNOptions<
+      TMaterial,
+      TEvaluation
+    >
+  ) {
+    this.id = options.id;
+    this.family = options.family;
+    this.dimension = options.family.dimension;
+    this.particles = options.family.particles;
+    this.minimumSignedMeasureRatio = options.minimumSignedMeasureRatio;
+    this.timeTolerance = options.timeTolerance;
+    this.maximumDepth = options.maximumDepth;
+    this.relativeCoefficientTolerance = options.relativeCoefficientTolerance;
+    this.restPositions = Object.freeze(options.family.elements.map(
+      (_element, index) => options.family.restPositionsOfElement(index)
+    ));
+  }
+
+  static compile<
+    TMaterial,
+    TEvaluation extends SimplexConstitutiveEvaluationN<TMaterial>
+  >(
+    options: CompileSimplexConstitutiveFamilyTrajectoryGuardNOptions<
+      TMaterial,
+      TEvaluation
+    >
+  ): SimplexConstitutiveFamilyTrajectoryGuardN<TMaterial, TEvaluation> {
+    const caller = 'compileSimplexConstitutiveFamilyTrajectoryGuardN';
+    if (typeof options.id !== 'string' || options.id.trim().length === 0) {
+      throw new Error(`${caller}: id must be a non-empty string`);
+    }
+    if (!(options.family instanceof SimplexConstitutiveFamilyN)) {
+      throw new Error(`${caller}: family must be a SimplexConstitutiveFamilyN`);
+    }
+    if (options.family.sourceSimplexGroup.dim !== options.family.dimension) {
+      throw new Error(`${caller}: family simplices must be full-dimensional`);
+    }
+    if (!Number.isFinite(options.minimumSignedMeasureRatio) ||
+      options.minimumSignedMeasureRatio < 0) {
+      throw new Error(
+        `${caller}: minimumSignedMeasureRatio must be finite and non-negative`
+      );
+    }
+    validateOptionalQueryOptions(options, caller);
+    options.family.assertCurrentLineage('evaluate');
+    return new SimplexConstitutiveFamilyTrajectoryGuardN(options);
+  }
+
+  evaluate(
+    context: XpbdStateGuardContextN
+  ): SimplexConstitutiveFamilyTrajectoryGuardEvaluationN<TMaterial> {
+    this.family.assertCurrentLineage('evaluate');
+    let minimumMarginLowerBound = Number.POSITIVE_INFINITY;
+    for (let elementIndex = 0; elementIndex < this.family.elements.length; elementIndex++) {
+      const element = this.family.elements[elementIndex]!;
+      const startPositions = element.sourceVertexIndices.map((vertex) =>
+        context.positionBeforeSubstep(this.particles[vertex]!)
+      );
+      const endPositions = element.sourceVertexIndices.map((vertex) =>
+        this.particles[vertex]!.position
+      );
+      const analysis = analyzeLinearSimplexOrientationN({
+        restPositions: this.restPositions[elementIndex]!,
+        startPositions,
+        endPositions,
+        minimumSignedMeasureRatio: this.minimumSignedMeasureRatio,
+        ...(this.timeTolerance === undefined
+          ? {} : { timeTolerance: this.timeTolerance }),
+        ...(this.maximumDepth === undefined
+          ? {} : { maximumDepth: this.maximumDepth }),
+        ...(this.relativeCoefficientTolerance === undefined
+          ? {} : { relativeCoefficientTolerance: this.relativeCoefficientTolerance })
+      });
+      if (analysis.status !== 'safe') {
+        const candidate = Object.freeze({ elementIndex, element, analysis });
+        const margin = analysis.status === 'initial-violation'
+          ? analysis.initialMargin
+          : analysis.bernsteinBounds[0];
+        return Object.freeze({
+          accepted: false,
+          margin,
+          reason: analysis.status === 'initial-violation'
+            ? `source simplex ${element.sourceCellIndex} begins below the continuous orientation threshold`
+            : `source simplex ${element.sourceCellIndex} may meet the continuous orientation threshold`,
+          status: analysis.status,
+          requiredMinimumSignedMeasureRatio: this.minimumSignedMeasureRatio,
+          inspectedElementCount: elementIndex + 1,
+          minimumMarginLowerBound: Number.isFinite(minimumMarginLowerBound)
+            ? minimumMarginLowerBound : null,
+          candidate
+        });
+      }
+      minimumMarginLowerBound = Math.min(
+        minimumMarginLowerBound,
+        analysis.minimumMarginLowerBound
+      );
+    }
+    return Object.freeze({
+      accepted: true,
+      margin: minimumMarginLowerBound,
+      status: 'accepted',
+      requiredMinimumSignedMeasureRatio: this.minimumSignedMeasureRatio,
+      inspectedElementCount: this.family.elements.length,
+      minimumMarginLowerBound,
+      candidate: null
+    });
+  }
+
+  /** Registers this policy; family particles must already belong to the world. */
+  addToWorld(world: XpbdWorldN): XpbdWorldN {
+    if (!(world instanceof XpbdWorldN)) {
+      throw new Error(
+        'SimplexConstitutiveFamilyTrajectoryGuardN.addToWorld: expected an XpbdWorldN'
+      );
+    }
+    if (world.dimension !== this.dimension) {
+      throw new Error(
+        `SimplexConstitutiveFamilyTrajectoryGuardN.addToWorld: guard is R${this.dimension}, world is R${world.dimension}`
+      );
+    }
+    if (this.attachedWorld !== null && this.attachedWorld !== world) {
+      throw new Error(
+        'SimplexConstitutiveFamilyTrajectoryGuardN.addToWorld: guard is already attached to another world'
+      );
+    }
+    this.family.assertCurrentLineage('addToWorld');
+    world.addStateGuard(this);
+    this.attachedWorld = world;
+    return world;
+  }
+}
+
+export function compileSimplexConstitutiveFamilyTrajectoryGuardN<
+  TMaterial,
+  TEvaluation extends SimplexConstitutiveEvaluationN<TMaterial>
+>(
+  options: CompileSimplexConstitutiveFamilyTrajectoryGuardNOptions<
+    TMaterial,
+    TEvaluation
+  >
+): SimplexConstitutiveFamilyTrajectoryGuardN<TMaterial, TEvaluation> {
+  return SimplexConstitutiveFamilyTrajectoryGuardN.compile(options);
+}
+
+function validateOptionalQueryOptions(
+  options: Pick<
+    AnalyzeLinearSimplexOrientationNOptions,
+    'timeTolerance' | 'maximumDepth' | 'relativeCoefficientTolerance'
+  >,
+  caller: string
+): void {
+  if (options.timeTolerance !== undefined &&
+    (!Number.isFinite(options.timeTolerance) ||
+      options.timeTolerance <= 0 || options.timeTolerance > 1)) {
+    throw new Error(`${caller}: timeTolerance must be finite in (0, 1]`);
+  }
+  if (options.maximumDepth !== undefined &&
+    (!Number.isSafeInteger(options.maximumDepth) ||
+      options.maximumDepth < 1 || options.maximumDepth > 64)) {
+    throw new Error(`${caller}: maximumDepth must be an integer in [1, 64]`);
+  }
+  if (options.relativeCoefficientTolerance !== undefined &&
+    (!Number.isFinite(options.relativeCoefficientTolerance) ||
+      options.relativeCoefficientTolerance < 0)) {
+    throw new Error(
+      `${caller}: relativeCoefficientTolerance must be finite and non-negative`
+    );
+  }
+}
