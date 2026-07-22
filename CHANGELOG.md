@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-### `@holotope/core`
+## v0.0.7
+
+### `@holotope/core@0.0.7`
 
 - Added opt-in higher-dimensional cuboid cells to `createHypercube()` while
   retaining byte-stable legacy groups by default, plus dimension-generic Kuhn
@@ -13,7 +15,13 @@
   forward evaluator for affine sections, slice charts, coordinate projections,
   orthographic projection, and certified perspective branches.
 
-### `@holotope/physics`
+### `@holotope/three@0.0.7`
+
+- Kept the three.js adapter aligned with the synchronized workspace release;
+  the representation products introduced in earlier releases remain the
+  renderer boundary for the new mechanics and lineage consumers.
+
+### `@holotope/physics@0.0.7`
 
 - Added an atomic dimension-generic Float64 XPBD scalar-constraint kernel with
   physical compliance, total-multiplier force and residual diagnostics, typed
@@ -41,11 +49,33 @@
   Gram metrics, right Cauchy–Green and Green–Lagrange tensors, principal
   stretches, measure ratio, conditioning evidence, and explicit embedded vs
   full-dimensional orientation semantics.
+- Added traced simplex material assembly, source-particle lumped masses, and
+  dimension-independent StVK and compressible Neo-Hookean constitutive
+  reference paths with auditable energy, stress, and force diagnostics.
+- Added RN point-contact inequality projection and tangent friction response
+  without imposing renderer or R4-only assumptions on the deformable layer.
+- Added accepted-state adaptive stepping with continuous full-dimensional
+  orientation and embedded-simplex measure guards, so rejected candidates do
+  not leak partial state into the simulation.
+- Added a smooth C2-clamped logarithmic lower-measure barrier with a shared
+  positive-measure constitutive branch, analytic forces, and explicit active-
+  set evidence.
 
 ### Showcase
 
 - Routed the canonical source-to-simulation markers through the headless
   lineage evaluator and exposed resolvable structural source ids.
+- Added the dimensional mechanics workbench, relating the same constitutive
+  experiment across an embedded R3 body and a full R4 body with live invariant
+  evidence.
+- Improved the tesseract page so a selected projected cut and its exact affine
+  cross-section expose their source-cell correspondence in both views.
+
+### Documentation
+
+- Added a package-responsibility mental model, task-oriented cookbook, and
+  concise AI context covering the source-to-representation-to-simulation
+  pipeline and its principal public interfaces.
 
 ## v0.0.6
 
