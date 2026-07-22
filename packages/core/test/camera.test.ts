@@ -63,11 +63,30 @@ describe('CameraN', () => {
   });
 
   it('produces an orthonormal, orientation-preserving frame from any pose', () => {
-    for (let trial = 0; trial < 20; trial++) {
-      const camera = new CameraN(
-        4,
-        new VecN([1, 2, 3, 4].map(() => Math.random() * 6 - 3))
-      );
+    let state = 0x7f4a7c15;
+    const nextCoordinate = (): number => {
+      state = (Math.imul(1664525, state) + 1013904223) >>> 0;
+      return state / 0x100000000 * 6 - 3;
+    };
+    const positions = [
+      // Near-standard-axis directions exercise the cancellation branch that
+      // a nondeterministic test used to encounter only occasionally.
+      new VecN([3, 1e-10, -2e-10, 3e-10]),
+      new VecN([-2e-10, -2.5, 3e-10, -1e-10]),
+      new VecN([1e-10, -2e-10, 2, 4e-10]),
+      new VecN([-3e-10, 2e-10, -1e-10, -2.75])
+    ];
+    for (let trial = 0; trial < 32; trial++) {
+      positions.push(new VecN([
+        nextCoordinate(),
+        nextCoordinate(),
+        nextCoordinate(),
+        nextCoordinate()
+      ]));
+    }
+
+    for (const position of positions) {
+      const camera = new CameraN(4, position);
       camera.lookAt(new VecN([0, 0, 0, 0]));
       expect(camera.rotation.orthogonalityError()).toBeLessThan(1e-12);
       expect(camera.rotation.determinant()).toBeCloseTo(1, 10);

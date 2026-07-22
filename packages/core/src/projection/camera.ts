@@ -60,11 +60,17 @@ export class CameraN {
     for (const candidate of candidates) {
       if (frame.length === n - 1) break;
       const v = candidate.clone();
-      let dot = v.dot(backward);
-      for (let c = 0; c < n; c++) v.data[c]! -= dot * backward.data[c]!;
-      for (const f of frame) {
-        dot = v.dot(f);
-        for (let c = 0; c < n; c++) v.data[c]! -= dot * f.data[c]!;
+      // A second modified Gram–Schmidt pass repairs the loss of
+      // orthogonality when a retained camera axis is almost parallel to the
+      // new backward direction. The first pass finds the complement; the
+      // second removes the Float64 residual left by that near cancellation.
+      for (let pass = 0; pass < 2; pass++) {
+        let dot = v.dot(backward);
+        for (let c = 0; c < n; c++) v.data[c]! -= dot * backward.data[c]!;
+        for (const f of frame) {
+          dot = v.dot(f);
+          for (let c = 0; c < n; c++) v.data[c]! -= dot * f.data[c]!;
+        }
       }
       if (v.length() > 1e-8) frame.push(v.normalize());
     }
