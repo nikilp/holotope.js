@@ -95,10 +95,13 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 - Accepted RN state: `XpbdStateGuardN`,
   `compileSimplexConstitutiveFamilyStateGuardN`,
   `analyzeLinearSimplexOrientationN`,
-  `compileSimplexConstitutiveFamilyTrajectoryGuardN`, and bounded
-  transactional `XpbdWorldN.stepAdaptive()`. The trajectory guard certifies a
-  full-dimensional simplex only along each linear substep chord; it is not a
-  nonlinear inversion barrier or formal interval-arithmetic proof.
+  `compileSimplexConstitutiveFamilyTrajectoryGuardN`,
+  `analyzeLinearSimplexMeasureN`,
+  `compileSimplexConstitutiveFamilyMeasureTrajectoryGuardN`, and bounded
+  transactional `XpbdWorldN.stepAdaptive()`. Use the signed pair for an
+  N-simplex in R^N and the intrinsic Gram-determinant pair for a k-simplex in
+  R^N. Both certify only a linear substep chord and are not nonlinear barriers
+  or formal interval-arithmetic proofs.
 - RN velocity policies: `XpbdVelocityResponseN`,
   `compileXpbdParticleHyperplaneFrictionFamilyN` (complete Coulomb tangent
   ball), and `XpbdExponentialVelocityDampingN` (inverse-seconds decay).

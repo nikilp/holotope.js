@@ -209,6 +209,7 @@ and bounded subdivision.
 ```ts
 import {
   compileSimplexConstitutiveFamilyStateGuardN,
+  compileSimplexConstitutiveFamilyMeasureTrajectoryGuardN,
   compileSimplexConstitutiveFamilyTrajectoryGuardN
 } from '@holotope/physics';
 
@@ -219,12 +220,19 @@ const guard = compileSimplexConstitutiveFamilyStateGuardN({
 });
 guard.addToWorld(world);
 
-// Full-dimensional simplices only: certify J along each straight substep chord.
-const trajectoryGuard = compileSimplexConstitutiveFamilyTrajectoryGuardN({
-  id: 'material-linear-orientation',
-  family: material,
-  minimumSignedMeasureRatio: 0.1
-});
+const trajectoryGuard = simplexGroup.dim === source.dim
+  // Full-dimensional: retain signed orientation as well as measure.
+  ? compileSimplexConstitutiveFamilyTrajectoryGuardN({
+      id: 'material-linear-orientation',
+      family: material,
+      minimumSignedMeasureRatio: 0.1
+    })
+  // Embedded: certify intrinsic rank/measure without inventing a normal frame.
+  : compileSimplexConstitutiveFamilyMeasureTrajectoryGuardN({
+      id: 'material-linear-measure',
+      family: material,
+      minimumMeasureRatio: 0.1
+    });
 trajectoryGuard.addToWorld(world);
 
 const accepted = world.stepAdaptive(1 / 60, {
@@ -240,8 +248,10 @@ Only a typed guard rejection is retryable. Invalid APIs, NaNs, and arbitrary
 solver failures escape immediately. The first guard checks the completed
 material state. The second independently certifies the straight line between
 the substep's exact endpoint snapshots using a conservative Bernstein
-polynomial query. It requires an N-simplex in R^N and is neither a certificate
-for a nonlinear solver trajectory nor an implicit inversion barrier.
+polynomial query. Full-dimensional families use signed determinant ratio;
+embedded families use intrinsic squared-measure ratio. Neither is a
+certificate for a nonlinear solver trajectory nor an implicit inversion
+barrier.
 
 ## Add a frictional RN floor to a particle system
 

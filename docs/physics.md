@@ -1034,13 +1034,50 @@ The family policy uses the world's exact pre-substep position snapshot and the
 completed positions, retains the candidate source element and its polynomial
 evidence, and rejects through the same transactional adaptive-step seam. It is
 independent of the endpoint material-domain guard; attach both when both
-policies matter. The query accepts only an N-simplex in R^N. Embedded simplex
-collapse is an unsigned Gram-determinant problem and requires a separate
-query. Its auditable coefficient construction costs `O(2^N N^3)`, so this is a
+policies matter. The query accepts only an N-simplex in R^N. Its auditable
+coefficient construction costs `O(2^N N^3)`, so this is a
 small-N CPU golden path rather than the eventual high-dimensional backend.
 Within its explicit Float64 coefficient and subdivision tolerances it certifies
 the linear chord, not the nonlinear solver trajectory, curved prescribed
 motion, or a formal outward-rounded interval.
+
+For any non-degenerate k-simplex embedded in R^N,
+`analyzeLinearSimplexMeasureN()` supplies the complementary intrinsic query.
+With edge matrix `E(t)`, the Gram determinant
+`det(E(t)^T E(t)) / det(Erest^T Erest)` is the squared current/rest k-measure
+ratio. Its degree is at most `2k` along a linear chord. The reference path
+constructs the three Gram coefficient matrices, expands their determinant by
+column multilinearity, and applies the same shared Bernstein classifier.
+
+```ts
+import {
+  analyzeLinearSimplexMeasureN,
+  compileSimplexConstitutiveFamilyMeasureTrajectoryGuardN
+} from '@holotope/physics';
+
+const intrinsic = analyzeLinearSimplexMeasureN({
+  restPositions,
+  startPositions,
+  endPositions,
+  minimumMeasureRatio: 0.1
+});
+
+const intrinsicGuard =
+  compileSimplexConstitutiveFamilyMeasureTrajectoryGuardN({
+    id: 'membrane-linear-measure',
+    family: embeddedMaterial,
+    minimumMeasureRatio: 0.1
+  });
+intrinsicGuard.addToWorld(world);
+```
+
+The intrinsic query detects rank loss without choosing a normal frame. Its
+polynomial and reported margins are in squared-measure-ratio units. It neither
+assigns an orientation to embedded geometry nor distinguishes reflected
+embedded frames. For a full-dimensional material, prefer the signed
+orientation guard; the intrinsic guard is only a rank/measure policy. Its
+coefficient construction costs `O(3^k k^3 + N k^2)` and has the same linear
+chord, Float64 tolerance, and non-formal-certificate boundary.
 
 ### Source particles and intrinsic mass
 

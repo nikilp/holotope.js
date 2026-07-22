@@ -1,4 +1,5 @@
 import { MatN, VecN } from '@holotope/core';
+import { analyzePolynomialThresholdInterval } from './polynomial-threshold-interval.js';
 
 export interface AnalyzeLinearSimplexOrientationNOptions {
   /** Non-degenerate full-dimensional N-simplex defining positive material orientation. */
@@ -63,18 +64,6 @@ export type LinearSimplexOrientationAnalysisN =
   | LinearSimplexOrientationInitialViolationN
   | LinearSimplexOrientationPossibleViolationN;
 
-interface CandidateInterval {
-  readonly lowerTime: number;
-  readonly upperTime: number;
-  readonly minimumCoefficient: number;
-  readonly maximumCoefficient: number;
-  readonly reason: LinearSimplexOrientationPossibleViolationN['reason'];
-}
-
-interface SearchState {
-  minimumSafeLowerBound: number;
-}
-
 /**
  * Conservatively checks a linear full-dimensional simplex trajectory.
  *
@@ -90,11 +79,6 @@ export function analyzeLinearSimplexOrientationN(
   options: AnalyzeLinearSimplexOrientationNOptions
 ): LinearSimplexOrientationAnalysisN {
   const dimension = validateOptions(options);
-  const timeTolerance = options.timeTolerance ?? 2 ** -30;
-  const maximumDepth = options.maximumDepth ?? 48;
-  const relativeCoefficientTolerance = options.relativeCoefficientTolerance ??
-    256 * Number.EPSILON;
-
   const restColumns = edgeColumns(options.restPositions);
   const startColumns = edgeColumns(options.startPositions);
   const endColumns = edgeColumns(options.endPositions);
@@ -135,16 +119,19 @@ export function analyzeLinearSimplexOrientationN(
   monomialCoefficients[0] = monomialCoefficients[0]! -
     options.minimumSignedMeasureRatio;
 
-  const bernsteinCoefficients = monomialToBernstein(monomialCoefficients);
-  let coefficientScale = 1;
-  for (const coefficient of bernsteinCoefficients) {
-    coefficientScale = Math.max(coefficientScale, Math.abs(coefficient));
-  }
-  const absoluteCoefficientTolerance = relativeCoefficientTolerance *
-    coefficientScale;
+  const interval = analyzePolynomialThresholdInterval(monomialCoefficients, {
+    ...(options.timeTolerance === undefined
+      ? {} : { timeTolerance: options.timeTolerance }),
+    ...(options.maximumDepth === undefined
+      ? {} : { maximumDepth: options.maximumDepth }),
+    ...(options.relativeCoefficientTolerance === undefined
+      ? {} : {
+          relativeCoefficientTolerance: options.relativeCoefficientTolerance
+        })
+  });
   const startSignedMeasureRatio = monomialCoefficients[0]! +
     options.minimumSignedMeasureRatio;
-  const endSignedMeasureRatio = evaluatePolynomial(monomialCoefficients, 1) +
+  const endSignedMeasureRatio = interval.bernsteinCoefficients[dimension]! +
     options.minimumSignedMeasureRatio;
   const base: LinearSimplexOrientationAnalysisBaseN = {
     dimension,
@@ -153,65 +140,35 @@ export function analyzeLinearSimplexOrientationN(
     startSignedMeasureRatio,
     endSignedMeasureRatio,
     monomialCoefficients,
-    bernsteinCoefficients,
-    timeTolerance,
-    maximumDepth,
-    relativeCoefficientTolerance,
-    absoluteCoefficientTolerance
+    bernsteinCoefficients: interval.bernsteinCoefficients,
+    timeTolerance: interval.timeTolerance,
+    maximumDepth: interval.maximumDepth,
+    relativeCoefficientTolerance: interval.relativeCoefficientTolerance,
+    absoluteCoefficientTolerance: interval.absoluteCoefficientTolerance
   };
-  const initialMargin = monomialCoefficients[0]!;
-  if (initialMargin <= absoluteCoefficientTolerance) {
+  if (interval.status === 'initial-violation') {
     return Object.freeze({
       ...base,
       status: 'initial-violation',
-      initialMargin
+      initialMargin: interval.initialMargin
     });
   }
-
-  const searchState: SearchState = {
-    minimumSafeLowerBound: Number.POSITIVE_INFINITY
-  };
-  const candidate = findFirstPossibleViolation(
-    bernsteinCoefficients,
-    0,
-    1,
-    0,
-    timeTolerance,
-    maximumDepth,
-    absoluteCoefficientTolerance,
-    searchState
-  );
-  if (candidate === null) {
+  if (interval.status === 'safe') {
     return Object.freeze({
       ...base,
       status: 'safe',
-      minimumMarginLowerBound: searchState.minimumSafeLowerBound
+      minimumMarginLowerBound: interval.minimumMarginLowerBound
     });
   }
-
-  const marginAtBracketStart = evaluatePolynomial(
-    monomialCoefficients,
-    candidate.lowerTime
-  );
-  const marginAtBracketEnd = evaluatePolynomial(
-    monomialCoefficients,
-    candidate.upperTime
-  );
   return Object.freeze({
     ...base,
     status: 'possible-violation',
-    timeBracket: Object.freeze([
-      candidate.lowerTime,
-      candidate.upperTime
-    ]) as readonly [number, number],
-    candidateTime: 0.5 * (candidate.lowerTime + candidate.upperTime),
-    marginAtBracketStart,
-    marginAtBracketEnd,
-    bernsteinBounds: Object.freeze([
-      candidate.minimumCoefficient,
-      candidate.maximumCoefficient
-    ]) as readonly [number, number],
-    reason: candidate.reason
+    timeBracket: interval.timeBracket,
+    candidateTime: interval.candidateTime,
+    marginAtBracketStart: interval.marginAtBracketStart,
+    marginAtBracketEnd: interval.marginAtBracketEnd,
+    bernsteinBounds: interval.bernsteinBounds,
+    reason: interval.reason
   });
 }
 
@@ -326,122 +283,4 @@ function determinantFromColumns(columns: readonly Float64Array[]): number {
     }
   }
   return matrix.determinant();
-}
-
-function monomialToBernstein(monomial: Float64Array): Float64Array {
-  const degree = monomial.length - 1;
-  const bernstein = new Float64Array(degree + 1);
-  for (let index = 0; index <= degree; index++) {
-    let coefficient = 0;
-    for (let power = 0; power <= index; power++) {
-      coefficient += monomial[power]! *
-        binomial(index, power) / binomial(degree, power);
-    }
-    bernstein[index] = coefficient;
-  }
-  return bernstein;
-}
-
-function binomial(n: number, k: number): number {
-  if (k < 0 || k > n) return 0;
-  const reduced = Math.min(k, n - k);
-  let value = 1;
-  for (let index = 1; index <= reduced; index++) {
-    value = value * (n - reduced + index) / index;
-  }
-  return value;
-}
-
-function findFirstPossibleViolation(
-  coefficients: Float64Array,
-  lowerTime: number,
-  upperTime: number,
-  depth: number,
-  timeTolerance: number,
-  maximumDepth: number,
-  coefficientTolerance: number,
-  state: SearchState
-): CandidateInterval | null {
-  let minimumCoefficient = Number.POSITIVE_INFINITY;
-  let maximumCoefficient = Number.NEGATIVE_INFINITY;
-  for (const coefficient of coefficients) {
-    minimumCoefficient = Math.min(minimumCoefficient, coefficient);
-    maximumCoefficient = Math.max(maximumCoefficient, coefficient);
-  }
-  if (minimumCoefficient > coefficientTolerance) {
-    state.minimumSafeLowerBound = Math.min(
-      state.minimumSafeLowerBound,
-      minimumCoefficient
-    );
-    return null;
-  }
-  if (maximumCoefficient < -coefficientTolerance) {
-    return {
-      lowerTime,
-      upperTime,
-      minimumCoefficient,
-      maximumCoefficient,
-      reason: 'negative-enclosure'
-    };
-  }
-  if (upperTime - lowerTime <= timeTolerance || depth >= maximumDepth) {
-    return {
-      lowerTime,
-      upperTime,
-      minimumCoefficient,
-      maximumCoefficient,
-      reason: 'resolution-limit'
-    };
-  }
-  const [left, right] = splitBernsteinHalf(coefficients);
-  const middle = 0.5 * (lowerTime + upperTime);
-  return findFirstPossibleViolation(
-    left,
-    lowerTime,
-    middle,
-    depth + 1,
-    timeTolerance,
-    maximumDepth,
-    coefficientTolerance,
-    state
-  ) ?? findFirstPossibleViolation(
-    right,
-    middle,
-    upperTime,
-    depth + 1,
-    timeTolerance,
-    maximumDepth,
-    coefficientTolerance,
-    state
-  );
-}
-
-function splitBernsteinHalf(
-  coefficients: Float64Array
-): readonly [Float64Array, Float64Array] {
-  const degree = coefficients.length - 1;
-  const levels: Float64Array[] = [coefficients.slice()];
-  for (let level = 1; level <= degree; level++) {
-    const previous = levels[level - 1]!;
-    const next = new Float64Array(previous.length - 1);
-    for (let index = 0; index < next.length; index++) {
-      next[index] = 0.5 * (previous[index]! + previous[index + 1]!);
-    }
-    levels.push(next);
-  }
-  const left = new Float64Array(degree + 1);
-  const right = new Float64Array(degree + 1);
-  for (let index = 0; index <= degree; index++) {
-    left[index] = levels[index]![0]!;
-    right[degree - index] = levels[index]![levels[index]!.length - 1]!;
-  }
-  return [left, right];
-}
-
-function evaluatePolynomial(coefficients: Float64Array, time: number): number {
-  let value = 0;
-  for (let degree = coefficients.length - 1; degree >= 0; degree--) {
-    value = value * time + coefficients[degree]!;
-  }
-  return value;
 }

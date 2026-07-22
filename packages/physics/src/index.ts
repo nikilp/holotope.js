@@ -262,6 +262,15 @@ export {
   type LinearSimplexOrientationSafeN
 } from './simplex-orientation-cast.js';
 export {
+  analyzeLinearSimplexMeasureN,
+  type AnalyzeLinearSimplexMeasureNOptions,
+  type LinearSimplexMeasureAnalysisBaseN,
+  type LinearSimplexMeasureAnalysisN,
+  type LinearSimplexMeasureInitialViolationN,
+  type LinearSimplexMeasurePossibleViolationN,
+  type LinearSimplexMeasureSafeN
+} from './simplex-measure-cast.js';
+export {
   SimplexConstitutiveDomainErrorN,
   type SimplexConstitutiveDomainReasonN,
   type SimplexConstitutiveEvaluationN
@@ -292,6 +301,14 @@ export {
   type SimplexConstitutiveFamilyTrajectoryGuardEvaluationN,
   type SimplexConstitutiveFamilyTrajectoryGuardStatusN
 } from './simplex-constitutive-trajectory-guard.js';
+export {
+  SimplexConstitutiveFamilyMeasureTrajectoryGuardN,
+  compileSimplexConstitutiveFamilyMeasureTrajectoryGuardN,
+  type CompileSimplexConstitutiveFamilyMeasureTrajectoryGuardNOptions,
+  type SimplexConstitutiveFamilyMeasureTrajectoryGuardCandidateN,
+  type SimplexConstitutiveFamilyMeasureTrajectoryGuardEvaluationN,
+  type SimplexConstitutiveFamilyMeasureTrajectoryGuardStatusN
+} from './simplex-constitutive-measure-trajectory-guard.js';
 export {
   simplexCompressibleNeoHookeanLawN,
   simplexStVenantKirchhoffLawN
