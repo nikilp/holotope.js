@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### `@holotope/core`
+
+- Re-orthogonalized `CameraN.lookAt()` after near-axis cancellation and made
+  its strict frame proof deterministic across local and release runners.
+
+### `@holotope/physics`
+
+- Added pure candidate-state evaluation for conservative RN force providers,
+  including non-mutating simplex-family `evaluateAt()` and identity-based
+  assembly of trial potential energy and mathematical gradients.
+
 ## v0.0.7
 
 ### `@holotope/core@0.0.7`

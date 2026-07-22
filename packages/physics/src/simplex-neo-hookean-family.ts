@@ -16,7 +16,8 @@ import {
 import {
   XpbdParticleN,
   XpbdWorldN,
-  type XpbdForceProviderN
+  type XpbdConservativeForceProviderN,
+  type XpbdParticlePositionQueryN
 } from './xpbd-world.js';
 
 export interface SimplexCompressibleNeoHookeanFamilyElementContextN
@@ -52,7 +53,8 @@ export interface SimplexCompressibleNeoHookeanFamilyEvaluationN
   > {}
 
 /** Source-identified compressible Neo-Hookean family over shared RN particles. */
-export class SimplexCompressibleNeoHookeanFamilyN implements XpbdForceProviderN {
+export class SimplexCompressibleNeoHookeanFamilyN
+implements XpbdConservativeForceProviderN {
   readonly constitutiveFamily: SimplexConstitutiveFamilyN<
     SimplexCompressibleNeoHookeanMaterialN,
     SimplexCompressibleNeoHookeanEvaluationN
@@ -93,6 +95,12 @@ export class SimplexCompressibleNeoHookeanFamilyN implements XpbdForceProviderN 
 
   evaluate(): SimplexCompressibleNeoHookeanFamilyEvaluationN {
     return this.constitutiveFamily.evaluate();
+  }
+
+  evaluateAt(
+    positionOf: XpbdParticlePositionQueryN
+  ): SimplexCompressibleNeoHookeanFamilyEvaluationN {
+    return this.constitutiveFamily.evaluateAt(positionOf);
   }
 
   /** Registers this provider; particles must already belong to the world. */

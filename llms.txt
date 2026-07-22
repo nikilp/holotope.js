@@ -94,6 +94,9 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 - Constitutive assembly: `SimplexConstitutiveLawN`, built-in immutable law
   descriptors, `compileSimplexConstitutiveFamilyN`, plus named StVK and
   Neo-Hookean family compilers.
+- Candidate objectives: `XpbdConservativeForceProviderN`, family
+  `evaluateAt(positionOf)`, and `evaluateXpbdPotentialStateN` evaluate and
+  assemble trial-state energy plus `dU/dx` without mutating live particles.
 - A measure barrier can be compiled as a second generic constitutive family on
   the same simplex group and exact particles. It is a proactive force, not an
   inversion guarantee; retain endpoint and signed/intrinsic chord guards.
@@ -112,6 +115,7 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
   ball), and `XpbdExponentialVelocityDampingN` (inverse-seconds decay).
 
 Canonical complete physics export barrel: `packages/physics/src/index.ts`.
+Candidate-state objective guide: `docs/candidate-potentials.md`.
 
 ## Three anchors
 

@@ -15,8 +15,9 @@ import { evaluateSimplexSquaredMeasureN } from './xpbd-simplex-measure.js';
 import {
   XpbdParticleN,
   XpbdWorldN,
+  type XpbdConservativeForceProviderN,
   type XpbdForceProviderEvaluationN,
-  type XpbdForceProviderN
+  type XpbdParticlePositionQueryN
 } from './xpbd-world.js';
 
 /** Pure dimension-independent constitutive evaluator used by family assembly. */
@@ -94,7 +95,7 @@ export interface SimplexConstitutiveFamilyEvaluationN<
 export class SimplexConstitutiveFamilyN<
   TMaterial,
   TEvaluation extends SimplexConstitutiveEvaluationN<TMaterial>
-> implements XpbdForceProviderN {
+> implements XpbdConservativeForceProviderN {
   readonly id: string;
   readonly dimension: number;
   readonly source: CellComplex;
@@ -136,7 +137,35 @@ export class SimplexConstitutiveFamilyN<
   }
 
   evaluate(): SimplexConstitutiveFamilyEvaluationN<TMaterial, TEvaluation> {
-    this.assertCurrentLineage('evaluate');
+    return this.evaluateAt((particle) => particle.position);
+  }
+
+  /** Evaluates energy and force at a pure candidate position query. */
+  evaluateAt(
+    positionOf: XpbdParticlePositionQueryN
+  ): SimplexConstitutiveFamilyEvaluationN<TMaterial, TEvaluation> {
+    if (typeof positionOf !== 'function') {
+      throw new Error(
+        'SimplexConstitutiveFamilyN.evaluateAt: positionOf must be a function'
+      );
+    }
+    this.assertCurrentLineage('evaluateAt');
+    const candidatePositions = this.particles.map((particle, index) => {
+      const position = positionOf(particle);
+      if (!(position instanceof VecN) || position.dim !== this.dimension) {
+        throw new Error(
+          `SimplexConstitutiveFamilyN.evaluateAt: particle ${index} position must be R${this.dimension}`
+        );
+      }
+      for (const coordinate of position.data) {
+        if (!Number.isFinite(coordinate)) {
+          throw new Error(
+            `SimplexConstitutiveFamilyN.evaluateAt: particle ${index} position must be finite`
+          );
+        }
+      }
+      return position;
+    });
     const forces = this.particles.map(() => new VecN(this.dimension));
     const elementEvaluations: Array<
       SimplexConstitutiveFamilyElementEvaluationN<TMaterial, TEvaluation>
@@ -150,7 +179,7 @@ export class SimplexConstitutiveFamilyN<
     for (let elementIndex = 0; elementIndex < this.elements.length; elementIndex++) {
       const element = this.elements[elementIndex]!;
       const currentPositions = element.sourceVertexIndices.map(
-        (vertex) => this.particles[vertex]!.position
+        (vertex) => candidatePositions[vertex]!
       );
       const evaluation = this.law.evaluate(
         this.restPositions[elementIndex]!,
@@ -161,12 +190,12 @@ export class SimplexConstitutiveFamilyN<
         evaluation,
         this.dimension,
         element.simplexDimension,
-        `SimplexConstitutiveFamilyN.evaluate: law "${this.law.id}" element ${elementIndex}`
+        `SimplexConstitutiveFamilyN.evaluateAt: law "${this.law.id}" element ${elementIndex}`
       );
       potentialEnergy += evaluation.energy;
       if (!Number.isFinite(potentialEnergy)) {
         throw new Error(
-          'SimplexConstitutiveFamilyN.evaluate: potential energy is outside the Float64 range'
+          'SimplexConstitutiveFamilyN.evaluateAt: potential energy is outside the Float64 range'
         );
       }
       maximumStrainFrobeniusNorm = Math.max(
@@ -191,7 +220,7 @@ export class SimplexConstitutiveFamilyN<
           assembled.data[axis] = assembled.data[axis]! - gradient.data[axis]!;
           if (!Number.isFinite(assembled.data[axis])) {
             throw new Error(
-              'SimplexConstitutiveFamilyN.evaluate: assembled force is outside the Float64 range'
+              'SimplexConstitutiveFamilyN.evaluateAt: assembled force is outside the Float64 range'
             );
           }
         }
@@ -232,7 +261,7 @@ export class SimplexConstitutiveFamilyN<
   }
 
   /** Refuses if any retained source cell has been retired or replaced. */
-  assertCurrentLineage(operation: 'evaluate' | 'addToWorld'): void {
+  assertCurrentLineage(operation: 'evaluate' | 'evaluateAt' | 'addToWorld'): void {
     validateCurrentLineage(this.elements, operation);
   }
 
@@ -478,7 +507,7 @@ function frozenSourceId(id: SourceCellIdN): SourceCellIdN {
 
 function validateCurrentLineage<TMaterial>(
   elements: readonly SimplexConstitutiveFamilyElementN<TMaterial>[],
-  operation: 'evaluate' | 'addToWorld'
+  operation: 'evaluate' | 'evaluateAt' | 'addToWorld'
 ): void {
   for (const element of elements) {
     const referenceStatus = inspectSourceCellReferenceN(element.sourceReference);

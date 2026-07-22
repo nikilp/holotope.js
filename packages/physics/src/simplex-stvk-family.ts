@@ -16,7 +16,8 @@ import {
 import {
   XpbdParticleN,
   XpbdWorldN,
-  type XpbdForceProviderN
+  type XpbdConservativeForceProviderN,
+  type XpbdParticlePositionQueryN
 } from './xpbd-world.js';
 
 export interface SimplexStVenantKirchhoffFamilyElementContextN
@@ -50,7 +51,8 @@ export interface SimplexStVenantKirchhoffFamilyEvaluationN
   > {}
 
 /** Compatibility wrapper for the source-identified StVK constitutive family. */
-export class SimplexStVenantKirchhoffFamilyN implements XpbdForceProviderN {
+export class SimplexStVenantKirchhoffFamilyN
+implements XpbdConservativeForceProviderN {
   readonly constitutiveFamily: SimplexConstitutiveFamilyN<
     SimplexStVenantKirchhoffMaterialN,
     SimplexStVenantKirchhoffEvaluationN
@@ -91,6 +93,12 @@ export class SimplexStVenantKirchhoffFamilyN implements XpbdForceProviderN {
 
   evaluate(): SimplexStVenantKirchhoffFamilyEvaluationN {
     return this.constitutiveFamily.evaluate();
+  }
+
+  evaluateAt(
+    positionOf: XpbdParticlePositionQueryN
+  ): SimplexStVenantKirchhoffFamilyEvaluationN {
+    return this.constitutiveFamily.evaluateAt(positionOf);
   }
 
   /** Registers this compatibility provider; particles must already belong to the world. */

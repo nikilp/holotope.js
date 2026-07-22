@@ -152,9 +152,12 @@ export {
   XpbdWorldN,
   type XpbdAdaptiveStepAttemptN,
   type XpbdAdaptiveStepOptionsN,
+  type XpbdConservativeForceProviderEvaluationN,
+  type XpbdConservativeForceProviderN,
   type XpbdForceProviderEvaluationN,
   type XpbdForceProviderN,
   type XpbdParticleNOptions,
+  type XpbdParticlePositionQueryN,
   type XpbdStateGuardContextN,
   type XpbdStateGuardEvaluationN,
   type XpbdStateGuardN,
@@ -169,6 +172,12 @@ export {
   type XpbdWorldSubstepResultN,
   type XpbdWorldVelocityResponseResultN
 } from './xpbd-world.js';
+export {
+  evaluateXpbdPotentialStateN,
+  type EvaluateXpbdPotentialStateNOptions,
+  type XpbdPotentialStateEvaluationN,
+  type XpbdPotentialStateProviderResultN
+} from './xpbd-potential-state.js';
 export {
   XpbdExponentialVelocityDampingN,
   type XpbdExponentialVelocityDampingEvaluationN,

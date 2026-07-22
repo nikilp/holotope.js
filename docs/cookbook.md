@@ -200,6 +200,32 @@ back to the source. Named `compileSimplexStVenantKirchhoffFamilyN()` and
 `compileSimplexCompressibleNeoHookeanFamilyN()` wrappers are available when a
 fixed law is clearer.
 
+## Evaluate material energy at a trial configuration
+
+Use a candidate-state evaluation when an optimizer, parameter study, or
+diagnostic must inspect positions without editing the live world. Providers
+may share particles; assembly follows object identity rather than list order.
+
+```ts
+import { evaluateXpbdPotentialStateN } from '@holotope/physics';
+
+const candidate = binding.particles.map((particle) => particle.position.clone());
+candidate[selectedVertex]!.data[3] += 0.1;
+
+const trial = evaluateXpbdPotentialStateN({
+  dimension: 4,
+  particles: binding.particles,
+  positions: candidate,
+  providers: [material, barrier]
+});
+
+console.log(trial.potentialEnergy, trial.gradientNorm);
+```
+
+The returned vectors are `dU/dx`; conservative provider forces use the
+opposite sign. Live position, velocity, and force buffers remain unchanged.
+This evaluates an objective only—it is not a time step or line search.
+
 ## Add a proactive lower-measure barrier
 
 Compile the barrier as a second constitutive family over the same named

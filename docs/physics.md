@@ -925,6 +925,16 @@ cuboids compose through `simplexizeCuboidGroupN()` by adding its generated,
 named simplex group to the source before compilation; no private material-only
 decomposition is required.
 
+The family additionally implements `XpbdConservativeForceProviderN`.
+`evaluateAt(positionOf)` evaluates the same source-identified energy and
+negative-gradient forces at arbitrary trial positions without writing live
+particles. `evaluateXpbdPotentialStateN()` composes several conservative
+providers by particle identity and returns total potential energy plus
+mathematical gradients in a caller-authored particle order. This is the pure
+candidate-objective seam described in
+[Candidate-state conservative potentials](candidate-potentials.md); it does
+not itself advance time or choose a nonlinear solver.
+
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';
 import {

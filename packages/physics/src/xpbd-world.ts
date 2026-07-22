@@ -94,6 +94,23 @@ export interface XpbdForceProviderN {
   evaluate(): XpbdForceProviderEvaluationN;
 }
 
+/** Candidate-position lookup used by pure conservative evaluations. */
+export type XpbdParticlePositionQueryN = (particle: XpbdParticleN) => VecN;
+
+/** A force evaluation with the conservative potential made mandatory. */
+export interface XpbdConservativeForceProviderEvaluationN
+  extends XpbdForceProviderEvaluationN {
+  readonly potentialEnergy: number;
+}
+
+/** Conservative RN force source that can inspect a trial state without mutation. */
+export interface XpbdConservativeForceProviderN extends XpbdForceProviderN {
+  evaluate(): XpbdConservativeForceProviderEvaluationN;
+  evaluateAt(
+    positionOf: XpbdParticlePositionQueryN
+  ): XpbdConservativeForceProviderEvaluationN;
+}
+
 export interface XpbdWorldForceProviderResultN {
   readonly provider: XpbdForceProviderN;
   readonly evaluation: XpbdForceProviderEvaluationN;
