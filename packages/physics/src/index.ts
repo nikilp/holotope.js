@@ -311,6 +311,7 @@ export {
 } from './simplex-constitutive-measure-trajectory-guard.js';
 export {
   simplexCompressibleNeoHookeanLawN,
+  simplexMeasureBarrierLawN,
   simplexStVenantKirchhoffLawN
 } from './simplex-constitutive-laws.js';
 export {
@@ -324,6 +325,12 @@ export {
   type SimplexCompressibleNeoHookeanEvaluationN,
   type SimplexCompressibleNeoHookeanMaterialN
 } from './simplex-neo-hookean-material.js';
+export {
+  SIMPLEX_MEASURE_BARRIER_LAW_ID,
+  evaluateSimplexMeasureBarrierN,
+  type SimplexMeasureBarrierEvaluationN,
+  type SimplexMeasureBarrierMaterialN
+} from './simplex-measure-barrier-material.js';
 export {
   SimplexCompressibleNeoHookeanFamilyN,
   compileSimplexCompressibleNeoHookeanFamilyN,

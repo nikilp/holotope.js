@@ -956,6 +956,57 @@ the same generic lineage, ownership, rest-state, accumulation, and world
 composition behavior; neither creates another particle set or private
 simplexization.
 
+`evaluateSimplexMeasureBarrierN()` is an optional lower-measure constitutive
+component over the same intrinsic coordinate. Given minimum ratio `m`,
+activation ratio `a`, stiffness `kappa`, and `d = J - m`, `h = a - m`, its
+energy density is
+
+\[
+\psi_b(J)=
+\begin{cases}
+-\kappa(d-h)^2\log(d/h), & m < J < a,\\
+0, & J \ge a.
+\end{cases}
+\]
+
+It is exactly zero and C2 at `a`, and diverges as `J` approaches `m` from
+above. The evaluator exposes both scalar derivatives with respect to `J` and
+uses `S = (d psi_b / dJ) J C^{-1}` for its analytic second Piola stress and
+ambient vertex gradients. Embedded simplices use positive intrinsic measure;
+full-dimensional simplices must preserve signed orientation. The clamped
+scalar shape is adapted from equation 6 of Li et al.,
+[“Incremental Potential Contact” (2020)](https://ipc-sim.github.io/file/IPC-paper-fullRes.pdf),
+but this API is a constitutive reference only—it does not implement IPC's
+incremental-potential solver or inherit its guarantees.
+
+```ts
+import {
+  compileSimplexConstitutiveFamilyN,
+  simplexMeasureBarrierLawN
+} from '@holotope/physics';
+
+const barrier = compileSimplexConstitutiveFamilyN({
+  id: 'solid-measure-barrier',
+  source,
+  simplexGroup: decomposition.simplexGroup,
+  particles,
+  law: simplexMeasureBarrierLawN,
+  material: {
+    minimumMeasureRatio: 0.1,
+    activationMeasureRatio: 0.8,
+    stiffness: 4
+  }
+});
+
+solid.addToWorld(world);
+barrier.addToWorld(world);
+```
+
+The two families deliberately share source ids and particle identity while
+retaining separate energies and force evidence. A finite explicit force can
+still overshoot the boundary; the barrier therefore complements rather than
+replaces the endpoint and continuous-chord guards.
+
 An accepted-state policy remains separate from force evaluation. The optional
 `compileSimplexConstitutiveFamilyStateGuardN()` adapter reevaluates one generic
 family after each completed point-world substep. It rejects a typed

@@ -1,9 +1,10 @@
 import { MatN, VecN } from '@holotope/core';
 import {
-  SimplexConstitutiveDomainErrorN,
   completeSimplexConstitutiveEvaluationN,
+  positiveSimplexConstitutiveMeasureRatioN,
   type SimplexConstitutiveEvaluationN
 } from './simplex-constitutive.js';
+import { inversePositiveDefiniteN } from './simplex-constitutive-matrix.js';
 import { evaluateSimplexMetricDeformationN } from './simplex-deformation.js';
 
 /** Compressible Neo-Hookean parameters in intrinsic material coordinates. */
@@ -44,31 +45,18 @@ export function evaluateSimplexCompressibleNeoHookeanN(
   const { firstLameParameter, shearModulus } = validatedMaterial;
   const simplexDimension = deformation.simplexDimension;
 
-  let measureRatio = deformation.measureRatio;
-  if (deformation.orientationChange.kind === 'full-dimensional') {
-    if (deformation.orientationChange.state !== 'preserved') {
-      throw new SimplexConstitutiveDomainErrorN(
-        SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
-        deformation.orientationChange.state,
-        `${caller}: full-dimensional current simplex must preserve orientation`
-      );
-    }
-    measureRatio = deformation.orientationChange.signedMeasureRatio;
-  }
-  if (!(measureRatio > 0) || !Number.isFinite(measureRatio)) {
-    throw new SimplexConstitutiveDomainErrorN(
-      SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
-      'non-positive-measure',
-      `${caller}: current simplex must have positive finite measure ratio`
-    );
-  }
+  const measureRatio = positiveSimplexConstitutiveMeasureRatioN(
+    deformation,
+    SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
+    caller
+  );
   const volumetricLogStrain = Math.log(measureRatio);
   if (!Number.isFinite(volumetricLogStrain)) {
     throw new Error(`${caller}: logarithmic measure strain is outside the Float64 range`);
   }
 
   const rightCauchyGreen = deformation.rightCauchyGreen;
-  const inverseMetric = inversePositiveDefinite(rightCauchyGreen, caller);
+  const inverseMetric = inversePositiveDefiniteN(rightCauchyGreen, caller);
   let trace = 0;
   for (let axis = 0; axis < simplexDimension; axis++) {
     trace += rightCauchyGreen.get(axis, axis);
@@ -134,44 +122,4 @@ function validateMaterial(
     throw new Error(`${caller}: shearModulus must be finite and positive`);
   }
   return Object.freeze({ firstLameParameter, shearModulus });
-}
-
-function inversePositiveDefinite(matrix: MatN, caller: string): MatN {
-  const lower = new MatN(matrix.n);
-  for (let row = 0; row < matrix.n; row++) {
-    for (let column = 0; column <= row; column++) {
-      let value = matrix.get(row, column);
-      for (let k = 0; k < column; k++) {
-        value -= lower.get(row, k) * lower.get(column, k);
-      }
-      if (row === column) {
-        if (!(value > 0) || !Number.isFinite(value)) {
-          throw new Error(`${caller}: current metric must be positive definite`);
-        }
-        lower.set(row, column, Math.sqrt(value));
-      } else {
-        const entry = value / lower.get(column, column);
-        if (!Number.isFinite(entry)) {
-          throw new Error(`${caller}: current metric factor is outside the Float64 range`);
-        }
-        lower.set(row, column, entry);
-      }
-    }
-  }
-
-  const inverseLower = new MatN(matrix.n);
-  for (let column = 0; column < matrix.n; column++) {
-    for (let row = 0; row < matrix.n; row++) {
-      let value = row === column ? 1 : 0;
-      for (let k = 0; k < row; k++) {
-        value -= lower.get(row, k) * inverseLower.get(k, column);
-      }
-      value /= lower.get(row, row);
-      if (!Number.isFinite(value)) {
-        throw new Error(`${caller}: inverse current metric is outside the Float64 range`);
-      }
-      inverseLower.set(row, column, value);
-    }
-  }
-  return inverseLower.transpose().multiply(inverseLower);
 }

@@ -88,10 +88,15 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
   particle--hyperplane contact families.
 - Simplex constitutive references: `SimplexConstitutiveEvaluationN`,
   `evaluateSimplexStVenantKirchhoffN`, and
-  `evaluateSimplexCompressibleNeoHookeanN`.
+  `evaluateSimplexCompressibleNeoHookeanN`. The optional
+  `evaluateSimplexMeasureBarrierN` / `simplexMeasureBarrierLawN` pair supplies
+  a C2-clamped lower-measure energy and analytic gradient.
 - Constitutive assembly: `SimplexConstitutiveLawN`, built-in immutable law
   descriptors, `compileSimplexConstitutiveFamilyN`, plus named StVK and
   Neo-Hookean family compilers.
+- A measure barrier can be compiled as a second generic constitutive family on
+  the same simplex group and exact particles. It is a proactive force, not an
+  inversion guarantee; retain endpoint and signed/intrinsic chord guards.
 - Accepted RN state: `XpbdStateGuardN`,
   `compileSimplexConstitutiveFamilyStateGuardN`,
   `analyzeLinearSimplexOrientationN`,

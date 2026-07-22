@@ -200,6 +200,40 @@ back to the source. Named `compileSimplexStVenantKirchhoffFamilyN()` and
 `compileSimplexCompressibleNeoHookeanFamilyN()` wrappers are available when a
 fixed law is clearer.
 
+## Add a proactive lower-measure barrier
+
+Compile the barrier as a second constitutive family over the same named
+simplices and exact particle objects. This keeps the elastic law, barrier, and
+acceptance policy independently inspectable.
+
+```ts
+import {
+  compileSimplexConstitutiveFamilyN,
+  simplexMeasureBarrierLawN
+} from '@holotope/physics';
+
+const barrier = compileSimplexConstitutiveFamilyN({
+  id: 'solid-measure-barrier',
+  source,
+  simplexGroup,
+  particles: binding.particles,
+  law: simplexMeasureBarrierLawN,
+  material: {
+    minimumMeasureRatio: 0.1,
+    activationMeasureRatio: 0.8,
+    stiffness: 4
+  }
+});
+
+material.addToWorld(world);
+barrier.addToWorld(world);
+```
+
+The barrier is exactly zero above the activation ratio and grows without bound
+as `J` approaches the minimum from above. It supplies an explicit force but
+cannot guarantee that an explicit step will not overshoot the boundary. Use
+the endpoint and trajectory guards below when the minimum is an invariant.
+
 ## Reject and retry an inadmissible material step
 
 Keep material energy and accepted-state policy explicit. The family supplies

@@ -5,7 +5,8 @@ import { evaluateSimplexSquaredMeasureN } from './xpbd-simplex-measure.js';
 export type SimplexConstitutiveDomainReasonN =
   | 'collapsed'
   | 'inverted'
-  | 'non-positive-measure';
+  | 'non-positive-measure'
+  | 'below-minimum-measure';
 
 /** Typed material-chart refusal, distinct from malformed input or arithmetic failure. */
 export class SimplexConstitutiveDomainErrorN extends Error {
@@ -40,6 +41,33 @@ export interface SimplexConstitutiveEvaluationN<TMaterial> {
   readonly currentGradients: readonly VecN[];
   /** Norm of the summed gradients; translation invariance should make it zero. */
   readonly netGradientResidual: number;
+}
+
+/** Internal shared constitutive-chart selection for intrinsic/full-dimensional J. */
+export function positiveSimplexConstitutiveMeasureRatioN(
+  deformation: SimplexMetricDeformationN,
+  lawId: string,
+  caller: string
+): number {
+  let measureRatio = deformation.measureRatio;
+  if (deformation.orientationChange.kind === 'full-dimensional') {
+    if (deformation.orientationChange.state !== 'preserved') {
+      throw new SimplexConstitutiveDomainErrorN(
+        lawId,
+        deformation.orientationChange.state,
+        `${caller}: full-dimensional current simplex must preserve orientation`
+      );
+    }
+    measureRatio = deformation.orientationChange.signedMeasureRatio;
+  }
+  if (!(measureRatio > 0) || !Number.isFinite(measureRatio)) {
+    throw new SimplexConstitutiveDomainErrorN(
+      lawId,
+      'non-positive-measure',
+      `${caller}: current simplex must have positive finite measure ratio`
+    );
+  }
+  return measureRatio;
 }
 
 interface CompleteSimplexConstitutiveEvaluationNOptions<TMaterial> {
