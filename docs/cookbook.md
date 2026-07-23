@@ -226,6 +226,45 @@ The returned vectors are `dU/dx`; conservative provider forces use the
 opposite sign. Live position, velocity, and force buffers remain unchanged.
 This evaluates an objective only—it is not a time step or line search.
 
+## Build an inertial-plus-material objective
+
+Use the incremental objective when an optimization time step needs inertia and
+the composed conservative energy in one auditable evaluation.
+
+```ts
+import {
+  evaluateXpbdIncrementalPotentialN,
+  predictXpbdInertialStateN
+} from '@holotope/physics';
+
+const prediction = predictXpbdInertialStateN({
+  dimension: 4,
+  particles: binding.particles,
+  deltaTime: 1 / 60,
+  gravity: [0, -9.81, 0, 0]
+});
+
+const trial = evaluateXpbdIncrementalPotentialN({
+  dimension: 4,
+  particles: binding.particles,
+  positions: prediction.positions,
+  predictedPositions: prediction.positions,
+  deltaTime: prediction.deltaTime,
+  providers: [material, barrier]
+});
+
+console.log(trial.objective, trial.gradientNorm);
+```
+
+The predictor consumes accumulated particle forces as explicit forces and
+leaves conservative provider forces for implicit evaluation through their
+energies. A fixed particle's candidate must equal its prediction. The nested
+`trial.potential` retains its reaction gradient even though the top-level
+free-coordinate gradient is zero.
+
+This constructs neither a Hessian nor a solver. A future optimizer can call
+the same evaluator for every accepted or rejected line-search candidate.
+
 ## Add a proactive lower-measure barrier
 
 Compile the barrier as a second constitutive family over the same named

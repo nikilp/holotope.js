@@ -179,6 +179,14 @@ export {
   type XpbdPotentialStateProviderResultN
 } from './xpbd-potential-state.js';
 export {
+  evaluateXpbdIncrementalPotentialN,
+  predictXpbdInertialStateN,
+  type EvaluateXpbdIncrementalPotentialNOptions,
+  type PredictXpbdInertialStateNOptions,
+  type XpbdIncrementalPotentialEvaluationN,
+  type XpbdInertialPredictionN
+} from './xpbd-incremental-potential.js';
+export {
   XpbdExponentialVelocityDampingN,
   type XpbdExponentialVelocityDampingEvaluationN,
   type XpbdExponentialVelocityDampingNOptions

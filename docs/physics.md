@@ -935,6 +935,24 @@ candidate-objective seam described in
 [Candidate-state conservative potentials](candidate-potentials.md); it does
 not itself advance time or choose a nonlinear solver.
 
+`predictXpbdInertialStateN()` and
+`evaluateXpbdIncrementalPotentialN()` form the next pure layer. The predictor
+matches the point world's semi-implicit gravity and accumulated-external-force
+semantics without mutating it. The evaluator combines that prediction with
+the candidate energy as
+
+\[
+E(q)=\frac{1}{2}\sum_{i\ \mathrm{dynamic}}
+m_i\lVert q_i-\widehat q_i\rVert^2+h^2U(q).
+\]
+
+Fixed particles remain prescribed coordinates and therefore receive zero
+free-coordinate gradient; their complete conservative reaction remains in the
+nested potential evidence. See
+[Incremental potential objectives](incremental-potentials.md). This is an
+objective and gradient reference, not a Newton solver, line search, geometric
+contact barrier, or IPC implementation.
+
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';
 import {

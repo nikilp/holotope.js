@@ -12,6 +12,9 @@
 - Added pure candidate-state evaluation for conservative RN force providers,
   including non-mutating simplex-family `evaluateAt()` and identity-based
   assembly of trial potential energy and mathematical gradients.
+- Added a non-mutating RN inertial predictor plus a scaled Backward-Euler
+  incremental objective that composes particle mass, prescribed coordinates,
+  and candidate conservative providers without claiming a nonlinear solver.
 
 ## v0.0.7
 

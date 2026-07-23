@@ -50,7 +50,8 @@ import {
 import {
   massPropertiesFromCellComplex4, RigidBody4, PhysicsWorld4,
   XpbdParticleN, XpbdWorldN, compileXpbdParticleBindingN,
-  compileXpbdParticleHyperplaneFamilyN
+  compileXpbdParticleHyperplaneFamilyN, predictXpbdInertialStateN,
+  evaluateXpbdPotentialStateN, evaluateXpbdIncrementalPotentialN
 } from '@holotope/physics';
 
 // @holotope/three
@@ -97,6 +98,9 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 - Candidate objectives: `XpbdConservativeForceProviderN`, family
   `evaluateAt(positionOf)`, and `evaluateXpbdPotentialStateN` evaluate and
   assemble trial-state energy plus `dU/dx` without mutating live particles.
+- Incremental objectives: `predictXpbdInertialStateN` constructs non-mutating
+  inertial centers; `evaluateXpbdIncrementalPotentialN` returns
+  `1/2 sum m||q-qHat||^2 + h^2 U(q)` and its free-coordinate gradient.
 - A measure barrier can be compiled as a second generic constitutive family on
   the same simplex group and exact particles. It is a proactive force, not an
   inversion guarantee; retain endpoint and signed/intrinsic chord guards.
@@ -116,6 +120,7 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 
 Canonical complete physics export barrel: `packages/physics/src/index.ts`.
 Candidate-state objective guide: `docs/candidate-potentials.md`.
+Incremental objective guide: `docs/incremental-potentials.md`.
 
 ## Three anchors
 
