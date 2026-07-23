@@ -79,19 +79,92 @@ The nested `potential` result still retains the complete `dU/dq`, including
 the conservative reaction at prescribed particles. This keeps the optimizer's
 free degrees of freedom separate from physically useful support evidence.
 
+## Packed free-coordinate problems
+
+`compileXpbdIncrementalPotentialProblemN()` creates a solver view without
+replacing particle identity. Dynamic particles are packed in authored particle
+order, with all RN axes contiguous. Prescribed particles occupy no packed
+coordinate and are restored from the compiled inertial prediction.
+
+```ts
+import {
+  compileXpbdIncrementalPotentialProblemN
+} from '@holotope/physics';
+
+const problem = compileXpbdIncrementalPotentialProblemN({
+  dimension: 4,
+  particles,
+  predictedPositions: prediction.positions,
+  deltaTime: prediction.deltaTime,
+  providers: [elasticFamily, measureBarrierFamily]
+});
+
+const coordinates = problem.packPositions(candidatePositions);
+const packed = problem.evaluate(coordinates);
+
+console.log(problem.variableCount);
+console.log(packed.objective, packed.gradient);
+```
+
+The compiler clones its prediction and records each particle's inverse mass.
+It refuses evaluation if inverse mass later changes, because such a change
+would invalidate the compiled free-coordinate map. Evaluation returns both the
+packed gradient and the complete P24 particle-space evidence.
+
+## Safeguarded first-order backtracking
+
+`searchXpbdIncrementalPotentialArmijoN()` evaluates a supplied descent
+direction using the Armijo sufficient-decrease condition
+
+\[
+E(x+\alpha p)\leq E(x)+c\alpha\nabla E(x)^T p.
+\]
+
+```ts
+import {
+  searchXpbdIncrementalPotentialArmijoN
+} from '@holotope/physics';
+
+const base = problem.evaluate(coordinates);
+const direction = Float64Array.from(
+  base.gradient,
+  (component) => -component
+);
+const search = searchXpbdIncrementalPotentialArmijoN({
+  problem,
+  coordinates,
+  direction
+});
+
+if (search.status === 'accepted') {
+  console.log(search.stepLength, search.accepted.objective);
+}
+```
+
+The search returns `not-descent` without trials when
+`dot(gradient, direction) >= 0`. Otherwise it records every accepted,
+insufficient-decrease, or domain-refused trial.
+
+Only `SimplexConstitutiveDomainErrorN` is recoverable during backtracking.
+Collapse, inversion, non-positive measure, or crossing an authored
+lower-measure boundary can therefore request a smaller step. Malformed
+inputs, Float64 overflow, stale source lineage, and arbitrary provider errors
+are rethrown rather than disguised as optimization difficulty. A typed domain
+refusal at the base point is also rethrown because there is no valid state from
+which to establish sufficient decrease.
+
 ## Capability boundary
 
-This API is a deterministic Float64 objective and first-derivative reference.
-It does not:
+These APIs provide a deterministic Float64 objective, packed first derivative,
+and first-order sufficient-decrease reference. They do not:
 
-- construct or project a Hessian;
-- pack free coordinates into a linear system;
-- choose a descent direction or convergence tolerance;
-- perform a filtered line search;
+- construct or project a Hessian or linear system;
+- choose a descent direction or convergence criterion;
+- mutate or advance the live particle state;
+- perform IPC's continuous-collision-filtered line search;
 - generate geometric contact-distance barriers;
 - certify an intersection-free trajectory; or
 - implement Incremental Potential Contact.
 
 Those policies can consume this objective without changing its mass, energy,
 identity, and sign conventions.
-

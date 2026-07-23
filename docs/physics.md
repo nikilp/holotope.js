@@ -949,9 +949,16 @@ m_i\lVert q_i-\widehat q_i\rVert^2+h^2U(q).
 Fixed particles remain prescribed coordinates and therefore receive zero
 free-coordinate gradient; their complete conservative reaction remains in the
 nested potential evidence. See
-[Incremental potential objectives](incremental-potentials.md). This is an
-objective and gradient reference, not a Newton solver, line search, geometric
-contact barrier, or IPC implementation.
+[Incremental potential objectives](incremental-potentials.md). The predictor
+and evaluator alone do not choose a search direction or advance state.
+
+`compileXpbdIncrementalPotentialProblemN()` packs only dynamic particle axes
+into a deterministic solver vector while restoring fixed coordinates from the
+prediction. `searchXpbdIncrementalPotentialArmijoN()` supplies a first-order
+sufficient-decrease reference over that vector. It backtracks only typed
+`SimplexConstitutiveDomainErrorN` refusals; every malformed, arithmetic,
+lineage, or generic-provider failure escapes. An accepted search result is
+still only a candidate snapshot and does not write particle state.
 
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';

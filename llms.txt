@@ -51,7 +51,9 @@ import {
   massPropertiesFromCellComplex4, RigidBody4, PhysicsWorld4,
   XpbdParticleN, XpbdWorldN, compileXpbdParticleBindingN,
   compileXpbdParticleHyperplaneFamilyN, predictXpbdInertialStateN,
-  evaluateXpbdPotentialStateN, evaluateXpbdIncrementalPotentialN
+  evaluateXpbdPotentialStateN, evaluateXpbdIncrementalPotentialN,
+  compileXpbdIncrementalPotentialProblemN,
+  searchXpbdIncrementalPotentialArmijoN
 } from '@holotope/physics';
 
 // @holotope/three
@@ -101,6 +103,10 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 - Incremental objectives: `predictXpbdInertialStateN` constructs non-mutating
   inertial centers; `evaluateXpbdIncrementalPotentialN` returns
   `1/2 sum m||q-qHat||^2 + h^2 U(q)` and its free-coordinate gradient.
+- Solver view: `compileXpbdIncrementalPotentialProblemN` packs dynamic
+  particle axes; `searchXpbdIncrementalPotentialArmijoN` performs auditable
+  sufficient-decrease backtracking. Only typed
+  `SimplexConstitutiveDomainErrorN` trials are recoverable.
 - A measure barrier can be compiled as a second generic constitutive family on
   the same simplex group and exact particles. It is a proactive force, not an
   inversion guarantee; retain endpoint and signed/intrinsic chord guards.

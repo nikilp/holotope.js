@@ -265,6 +265,45 @@ free-coordinate gradient is zero.
 This constructs neither a Hessian nor a solver. A future optimizer can call
 the same evaluator for every accepted or rejected line-search candidate.
 
+## Pack free coordinates and backtrack a descent direction
+
+Compile one stable solver view after particles, inverse masses, predictions,
+and conservative providers are known:
+
+```ts
+import {
+  compileXpbdIncrementalPotentialProblemN,
+  searchXpbdIncrementalPotentialArmijoN
+} from '@holotope/physics';
+
+const problem = compileXpbdIncrementalPotentialProblemN({
+  dimension: 4,
+  particles: binding.particles,
+  predictedPositions: prediction.positions,
+  deltaTime: prediction.deltaTime,
+  providers: [material, barrier]
+});
+
+const coordinates = problem.packPositions(candidatePositions);
+const base = problem.evaluate(coordinates);
+const direction = Float64Array.from(base.gradient, (value) => -value);
+const search = searchXpbdIncrementalPotentialArmijoN({
+  problem,
+  coordinates,
+  direction
+});
+
+if (search.status === 'accepted') {
+  const acceptedPositions = search.accepted.positions;
+  console.log(search.stepLength, search.accepted.objective);
+}
+```
+
+Packing follows authored particle order and excludes fixed particles. The
+Armijo search records every attempted step. Typed constitutive-domain
+refusals backtrack; unrelated errors are rethrown. Neither compilation nor an
+accepted result changes live particle position, velocity, force, or mass.
+
 ## Add a proactive lower-measure barrier
 
 Compile the barrier as a second constitutive family over the same named

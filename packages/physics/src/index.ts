@@ -187,6 +187,21 @@ export {
   type XpbdInertialPredictionN
 } from './xpbd-incremental-potential.js';
 export {
+  XpbdIncrementalPotentialProblemN,
+  compileXpbdIncrementalPotentialProblemN,
+  searchXpbdIncrementalPotentialArmijoN,
+  type CompileXpbdIncrementalPotentialProblemNOptions,
+  type SearchXpbdIncrementalPotentialArmijoNOptions,
+  type XpbdArmijoAcceptedN,
+  type XpbdArmijoDomainRefusalN,
+  type XpbdArmijoExhaustedN,
+  type XpbdArmijoNotDescentN,
+  type XpbdArmijoSearchResultN,
+  type XpbdArmijoTrialN,
+  type XpbdArmijoTrialStatusN,
+  type XpbdPackedIncrementalPotentialEvaluationN
+} from './xpbd-incremental-potential-problem.js';
+export {
   XpbdExponentialVelocityDampingN,
   type XpbdExponentialVelocityDampingEvaluationN,
   type XpbdExponentialVelocityDampingNOptions

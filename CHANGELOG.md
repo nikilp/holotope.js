@@ -15,6 +15,9 @@
 - Added a non-mutating RN inertial predictor plus a scaled Backward-Euler
   incremental objective that composes particle mass, prescribed coordinates,
   and candidate conservative providers without claiming a nonlinear solver.
+- Added deterministic dynamic-particle coordinate packing and an auditable
+  Armijo backtracking reference that recovers only typed constitutive-domain
+  refusals and never applies accepted candidates to live state.
 
 ## v0.0.7
 
