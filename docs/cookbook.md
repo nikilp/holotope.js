@@ -304,6 +304,37 @@ Armijo search records every attempted step. Typed constitutive-domain
 refusals backtrack; unrelated errors are rethrown. Neither compilation nor an
 accepted result changes live particle position, velocity, force, or mass.
 
+## Minimize a small incremental-potential problem
+
+Use the bounded Float64 reference when correctness evidence is more important
+than large-system performance:
+
+```ts
+import {
+  minimizeXpbdIncrementalPotentialN
+} from '@holotope/physics';
+
+const result = minimizeXpbdIncrementalPotentialN({
+  problem,
+  initialCoordinates: coordinates,
+  gradientTolerance: 1e-8,
+  maximumIterations: 128
+});
+
+if (result.status === 'converged') {
+  console.log(result.final.positions);
+} else {
+  console.log(result.status, result.final.gradientNorm);
+}
+```
+
+Every accepted iteration retains its direction, step norm, objective decrease,
+and complete Armijo search. `line-search-exhausted` and `stalled` are evidence,
+not silent success. The result is still detached from the live world: applying
+positions and reconstructing velocity are separate state-transition policies.
+For large or stiff systems, treat this routine as a golden reference for a
+more capable optimizer rather than the final solver.
+
 ## Add a proactive lower-measure barrier
 
 Compile the barrier as a second constitutive family over the same named

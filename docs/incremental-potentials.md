@@ -153,18 +153,62 @@ are rethrown rather than disguised as optimization difficulty. A typed domain
 refusal at the base point is also rethrown because there is no valid state from
 which to establish sufficient decrease.
 
+## Bounded steepest-descent reference
+
+`minimizeXpbdIncrementalPotentialN()` closes the first-order reference loop.
+At each iterate it chooses the packed direction `p = -gradient` and delegates
+acceptance to the Armijo search:
+
+```ts
+import {
+  minimizeXpbdIncrementalPotentialN
+} from '@holotope/physics';
+
+const result = minimizeXpbdIncrementalPotentialN({
+  problem,
+  initialCoordinates: coordinates,
+  gradientTolerance: 1e-8,
+  maximumIterations: 128
+});
+
+console.log(result.status, result.final.gradientNorm);
+for (const iteration of result.iterations) {
+  console.log(
+    iteration.index,
+    iteration.stepNorm,
+    iteration.objectiveDecrease,
+    iteration.search.trials
+  );
+}
+```
+
+The result is one of `converged`, `iteration-limit`,
+`line-search-exhausted`, or `stalled`. It retains the initial and final
+evaluations and every Armijo-accepted iterate. Exhaustion includes the failed
+search; a stall states whether Float64 coordinate resolution, objective
+resolution, or a defensive non-descent result prevented further progress.
+
+Convergence means only that the absolute packed-gradient norm is at or below
+the authored tolerance. It is not a statement about a global minimum. The
+routine validates all policy values even if the initial state is already
+converged or the iteration budget is zero, and it does not catch malformed
+provider evidence or an invalid base state.
+
 ## Capability boundary
 
 These APIs provide a deterministic Float64 objective, packed first derivative,
-and first-order sufficient-decrease reference. They do not:
+first-order sufficient-decrease search, and a bounded non-mutating
+steepest-descent golden path. They do not:
 
 - construct or project a Hessian or linear system;
-- choose a descent direction or convergence criterion;
+- provide Newton, quasi-Newton, or preconditioned directions;
 - mutate or advance the live particle state;
 - perform IPC's continuous-collision-filtered line search;
 - generate geometric contact-distance barriers;
 - certify an intersection-free trajectory; or
 - implement Incremental Potential Contact.
 
-Those policies can consume this objective without changing its mass, energy,
+The minimizer is intended for small reference problems and differential
+testing, not as the production path for large stiff systems. More advanced
+solvers can consume the same problem without changing its mass, energy,
 identity, and sign conventions.

@@ -960,6 +960,14 @@ sufficient-decrease reference over that vector. It backtracks only typed
 lineage, or generic-provider failure escapes. An accepted search result is
 still only a candidate snapshot and does not write particle state.
 
+`minimizeXpbdIncrementalPotentialN()` composes those two pieces into a bounded
+steepest-descent golden path. It records every accepted direction, step,
+objective decrease, and line search, and terminates as `converged`,
+`iteration-limit`, `line-search-exhausted`, or `stalled`. Convergence is an
+authored absolute gradient-norm test, not a global-minimum claim. The routine
+is intentionally non-mutating and intended for small reference problems and
+differential tests; it is not a Hessian-based production material solver.
+
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';
 import {

@@ -202,6 +202,17 @@ export {
   type XpbdPackedIncrementalPotentialEvaluationN
 } from './xpbd-incremental-potential-problem.js';
 export {
+  minimizeXpbdIncrementalPotentialN,
+  type MinimizeXpbdIncrementalPotentialNOptions,
+  type XpbdIncrementalPotentialConvergedN,
+  type XpbdIncrementalPotentialIterationLimitN,
+  type XpbdIncrementalPotentialLineSearchExhaustedN,
+  type XpbdIncrementalPotentialMinimizationResultN,
+  type XpbdIncrementalPotentialStalledN,
+  type XpbdIncrementalPotentialStallReasonN,
+  type XpbdSteepestDescentIterationN
+} from './xpbd-incremental-potential-minimizer.js';
+export {
   XpbdExponentialVelocityDampingN,
   type XpbdExponentialVelocityDampingEvaluationN,
   type XpbdExponentialVelocityDampingNOptions

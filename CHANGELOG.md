@@ -18,6 +18,9 @@
 - Added deterministic dynamic-particle coordinate packing and an auditable
   Armijo backtracking reference that recovers only typed constitutive-domain
   refusals and never applies accepted candidates to live state.
+- Added a bounded, deterministic steepest-descent reference over packed
+  incremental objectives, with complete accepted-iterate evidence and typed
+  convergence, budget, line-search, and Float64-stall terminal states.
 
 ## v0.0.7
 

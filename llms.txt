@@ -53,7 +53,8 @@ import {
   compileXpbdParticleHyperplaneFamilyN, predictXpbdInertialStateN,
   evaluateXpbdPotentialStateN, evaluateXpbdIncrementalPotentialN,
   compileXpbdIncrementalPotentialProblemN,
-  searchXpbdIncrementalPotentialArmijoN
+  searchXpbdIncrementalPotentialArmijoN,
+  minimizeXpbdIncrementalPotentialN
 } from '@holotope/physics';
 
 // @holotope/three
@@ -107,6 +108,10 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
   particle axes; `searchXpbdIncrementalPotentialArmijoN` performs auditable
   sufficient-decrease backtracking. Only typed
   `SimplexConstitutiveDomainErrorN` trials are recoverable.
+- Reference minimization: `minimizeXpbdIncrementalPotentialN` repeatedly uses
+  the negative packed gradient and Armijo search under explicit iteration,
+  trial, and gradient-tolerance bounds. It returns converged, iteration-limit,
+  line-search-exhausted, or stalled evidence and never applies live state.
 - A measure barrier can be compiled as a second generic constitutive family on
   the same simplex group and exact particles. It is a proactive force, not an
   inversion guarantee; retain endpoint and signed/intrinsic chord guards.
@@ -170,6 +175,19 @@ body.setAngularVelocityWorld(BivectorN.fromPlanes(4, [
 ]));
 world.step(1 / 120);
 surface.update(new TransformN(4, body.rotation, body.position));
+```
+
+```ts
+// Small-system Float64 golden path; this does not apply the result.
+const result = minimizeXpbdIncrementalPotentialN({
+  problem,
+  initialCoordinates: problem.packPositions(candidatePositions),
+  gradientTolerance: 1e-8,
+  maximumIterations: 128
+});
+if (result.status === 'converged') {
+  inspectCandidate(result.final.positions);
+}
 ```
 
 ```ts
