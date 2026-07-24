@@ -108,8 +108,11 @@ console.log(packed.objective, packed.gradient);
 
 The compiler clones its prediction and records each particle's inverse mass.
 It refuses evaluation if inverse mass later changes, because such a change
-would invalidate the compiled free-coordinate map. Evaluation returns both the
-packed gradient and the complete P24 particle-space evidence.
+would invalidate the compiled free-coordinate map. It also retains a defensive
+snapshot of position, velocity, force, inverse mass, and gravity scale for the
+separate application boundary. `particleStatesBeforeStep()` returns copies of
+that snapshot. Evaluation returns both the packed gradient and the complete
+particle-space evidence.
 
 ## Safeguarded first-order backtracking
 
@@ -192,17 +195,74 @@ Convergence means only that the absolute packed-gradient norm is at or below
 the authored tolerance. It is not a statement about a global minimum. The
 routine validates all policy values even if the initial state is already
 converged or the iteration budget is zero, and it does not catch malformed
-provider evidence or an invalid base state.
+provider evidence or an invalid base state. Every result retains the exact
+compiled problem that produced it; this identity is used by the application
+transaction below.
+
+## Atomic result application
+
+`applyXpbdIncrementalPotentialResultN()` is the first state-mutating boundary
+in this ladder. It applies only a `converged` minimization result:
+
+```ts
+import {
+  applyXpbdIncrementalPotentialResultN
+} from '@holotope/physics';
+
+const application = applyXpbdIncrementalPotentialResultN({
+  result,
+  velocityUpdate: 'backward-euler',
+  clearForces: true
+});
+
+if (application.status === 'refused') {
+  console.log(application.reason);
+} else {
+  console.log(application.verifiedFinal.objective);
+}
+```
+
+With the default `backward-euler` policy, each dynamic velocity becomes
+
+\[
+v_{n+1}=\frac{q_{n+1}-q_n}{h},
+\]
+
+using the exact `q_n` captured when the problem was compiled. Fixed particles
+receive their prescribed final positions but retain their authored velocities,
+matching `XpbdWorldN`. The alternative `preserve` policy changes no velocity.
+External force accumulators clear by default after a successful application;
+`clearForces: false` leaves them under caller ownership.
+
+Before writing, the application:
+
+1. requires a converged terminal status;
+2. proves every live particle field still equals the compilation snapshot;
+3. reevaluates the final coordinates and compares position, objective, and
+   free-gradient evidence with the stored result;
+4. precomputes every position, velocity, and force and checks Float64
+   arithmetic; and
+5. commits all particles under a rollback snapshot.
+
+Expected non-application states return `refused` with reason
+`not-converged`, `stale-particle-state`, `stale-result-evidence`, or
+`verification-mutated-particle-state`. Arbitrary provider and arithmetic
+errors are not mislabeled, but any particle mutation made by a failing final
+provider evaluation is restored before the error escapes. Reapplying the same
+result normally returns `stale-particle-state`, because the first application
+has advanced its particles.
 
 ## Capability boundary
 
 These APIs provide a deterministic Float64 objective, packed first derivative,
 first-order sufficient-decrease search, and a bounded non-mutating
-steepest-descent golden path. They do not:
+steepest-descent golden path plus an explicit atomic state transition. They do
+not:
 
 - construct or project a Hessian or linear system;
 - provide Newton, quasi-Newton, or preconditioned directions;
-- mutate or advance the live particle state;
+- compose prediction, optimization, application, responses, and guards into
+  an automatic world step;
 - perform IPC's continuous-collision-filtered line search;
 - generate geometric contact-distance barriers;
 - certify an intersection-free trajectory; or

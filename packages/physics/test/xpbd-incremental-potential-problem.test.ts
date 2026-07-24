@@ -106,7 +106,7 @@ describe('packed XPBD incremental-potential problem', () => {
     }
   });
 
-  it('matches direct P24 evidence and centered packed differences', () => {
+  it('matches direct particle-space evidence and packed differences', () => {
     const particles = [
       new XpbdParticleN({
         id: 'a',

@@ -34,6 +34,7 @@ export interface XpbdSteepestDescentIterationN {
 }
 
 interface XpbdIncrementalPotentialMinimizationBaseN {
+  readonly problem: XpbdIncrementalPotentialProblemN;
   readonly initial: XpbdPackedIncrementalPotentialEvaluationN;
   readonly final: XpbdPackedIncrementalPotentialEvaluationN;
   readonly iterations: readonly XpbdSteepestDescentIterationN[];
@@ -77,10 +78,10 @@ export type XpbdIncrementalPotentialMinimizationResultN =
   | XpbdIncrementalPotentialStalledN;
 
 /**
- * Bounded Float64 steepest-descent reference for a compiled P25 problem.
+ * Bounded Float64 steepest-descent reference for a compiled packed problem.
  *
  * The routine selects `direction = -gradient`, delegates acceptance and typed
- * constitutive-domain backtracking to the P25 Armijo search, and records every
+ * constitutive-domain backtracking to the Armijo search, and records every
  * accepted iterate. It never writes the packed result into live particles.
  */
 export function minimizeXpbdIncrementalPotentialN(
@@ -138,6 +139,7 @@ export function minimizeXpbdIncrementalPotentialN(
     return resultBase({
       status: 'converged',
       convergencePoint: 'initial',
+      problem: options.problem,
       initial,
       final: current,
       iterations,
@@ -165,6 +167,7 @@ export function minimizeXpbdIncrementalPotentialN(
         status: 'stalled',
         reason: 'not-descent',
         search,
+        problem: options.problem,
         initial,
         final: current,
         iterations,
@@ -176,6 +179,7 @@ export function minimizeXpbdIncrementalPotentialN(
       return resultBase({
         status: 'line-search-exhausted',
         search,
+        problem: options.problem,
         initial,
         final: current,
         iterations,
@@ -216,6 +220,7 @@ export function minimizeXpbdIncrementalPotentialN(
         status: 'stalled',
         reason: 'coordinate-resolution',
         search,
+        problem: options.problem,
         initial,
         final: current,
         iterations,
@@ -229,6 +234,7 @@ export function minimizeXpbdIncrementalPotentialN(
       return resultBase({
         status: 'converged',
         convergencePoint: 'accepted-iterate',
+        problem: options.problem,
         initial,
         final: current,
         iterations,
@@ -241,6 +247,7 @@ export function minimizeXpbdIncrementalPotentialN(
         status: 'stalled',
         reason: 'objective-resolution',
         search,
+        problem: options.problem,
         initial,
         final: current,
         iterations,
@@ -252,6 +259,7 @@ export function minimizeXpbdIncrementalPotentialN(
 
   return resultBase({
     status: 'iteration-limit',
+    problem: options.problem,
     initial,
     final: current,
     iterations,

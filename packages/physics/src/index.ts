@@ -199,6 +199,7 @@ export {
   type XpbdArmijoSearchResultN,
   type XpbdArmijoTrialN,
   type XpbdArmijoTrialStatusN,
+  type XpbdIncrementalPotentialParticleStateN,
   type XpbdPackedIncrementalPotentialEvaluationN
 } from './xpbd-incremental-potential-problem.js';
 export {
@@ -212,6 +213,22 @@ export {
   type XpbdIncrementalPotentialStallReasonN,
   type XpbdSteepestDescentIterationN
 } from './xpbd-incremental-potential-minimizer.js';
+export {
+  applyXpbdIncrementalPotentialResultN,
+  type ApplyXpbdIncrementalPotentialResultNOptions,
+  type XpbdIncrementalPotentialApplicationRefusedN,
+  type XpbdIncrementalPotentialApplicationResultN,
+  type XpbdIncrementalPotentialAppliedN,
+  type XpbdIncrementalPotentialAppliedParticleN,
+  type XpbdIncrementalPotentialEvidenceFieldN,
+  type XpbdIncrementalPotentialEvidenceMismatchN,
+  type XpbdIncrementalPotentialNotConvergedN,
+  type XpbdIncrementalPotentialParticleStateFieldN,
+  type XpbdIncrementalPotentialParticleStateMismatchN,
+  type XpbdIncrementalPotentialStaleEvidenceN,
+  type XpbdIncrementalPotentialStaleParticleStateN,
+  type XpbdIncrementalPotentialVelocityUpdateN
+} from './xpbd-incremental-potential-application.js';
 export {
   XpbdExponentialVelocityDampingN,
   type XpbdExponentialVelocityDampingEvaluationN,

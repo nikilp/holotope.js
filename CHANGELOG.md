@@ -21,6 +21,10 @@
 - Added a bounded, deterministic steepest-descent reference over packed
   incremental objectives, with complete accepted-iterate evidence and typed
   convergence, budget, line-search, and Float64-stall terminal states.
+- Bound every minimization result to its exact compiled one-step problem and
+  added atomic converged-result application with defensive live-state
+  snapshots, fresh evidence verification, explicit velocity/force policy,
+  typed expected refusals, and rollback around final provider failures.
 
 ## v0.0.7
 

@@ -54,7 +54,8 @@ import {
   evaluateXpbdPotentialStateN, evaluateXpbdIncrementalPotentialN,
   compileXpbdIncrementalPotentialProblemN,
   searchXpbdIncrementalPotentialArmijoN,
-  minimizeXpbdIncrementalPotentialN
+  minimizeXpbdIncrementalPotentialN,
+  applyXpbdIncrementalPotentialResultN
 } from '@holotope/physics';
 
 // @holotope/three
@@ -111,7 +112,11 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
 - Reference minimization: `minimizeXpbdIncrementalPotentialN` repeatedly uses
   the negative packed gradient and Armijo search under explicit iteration,
   trial, and gradient-tolerance bounds. It returns converged, iteration-limit,
-  line-search-exhausted, or stalled evidence and never applies live state.
+  line-search-exhausted, or stalled evidence and retains its exact problem.
+- Atomic application: `applyXpbdIncrementalPotentialResultN` applies only a
+  converged result after proving live-state and result-evidence freshness.
+  Default dynamic velocity is `(qNext - qBefore) / h`; fixed velocity is
+  preserved and external force clears. Refusals do not write partial state.
 - A measure barrier can be compiled as a second generic constitutive family on
   the same simplex group and exact particles. It is a proactive force, not an
   inversion guarantee; retain endpoint and signed/intrinsic chord guards.
@@ -187,6 +192,18 @@ const result = minimizeXpbdIncrementalPotentialN({
 });
 if (result.status === 'converged') {
   inspectCandidate(result.final.positions);
+}
+```
+
+```ts
+// Explicit state transition; expected staleness is returned, not hidden.
+const application = applyXpbdIncrementalPotentialResultN({
+  result,
+  velocityUpdate: 'backward-euler',
+  clearForces: true
+});
+if (application.status === 'refused') {
+  inspectRefusal(application);
 }
 ```
 

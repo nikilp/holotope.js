@@ -89,6 +89,7 @@ describe('bounded XPBD incremental-potential minimizer', () => {
     });
 
     expect(result.status).toBe('converged');
+    expect(result.problem).toBe(problem);
     expect(result.iterations).toHaveLength(1);
     expect(result.final.coordinates[0]).toBeCloseTo(2, 14);
     expect(result.final.gradientNorm).toBeLessThanOrEqual(1e-14);

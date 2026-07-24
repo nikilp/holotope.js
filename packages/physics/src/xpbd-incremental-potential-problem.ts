@@ -30,6 +30,18 @@ export interface XpbdPackedIncrementalPotentialEvaluationN {
   readonly evaluation: XpbdIncrementalPotentialEvaluationN;
 }
 
+/** Defensive live-particle snapshot captured with one compiled step problem. */
+export interface XpbdIncrementalPotentialParticleStateN {
+  readonly index: number;
+  readonly particle: XpbdParticleN;
+  readonly particleId: string;
+  readonly position: VecN;
+  readonly velocity: VecN;
+  readonly force: VecN;
+  readonly inverseMass: number;
+  readonly gravityScale: number;
+}
+
 /**
  * Deterministic solver view over one particle-identity incremental objective.
  *
@@ -46,6 +58,8 @@ export class XpbdIncrementalPotentialProblemN {
   readonly freeParticleIndices: readonly number[];
   readonly variableCount: number;
   private readonly compiledInverseMasses: readonly number[];
+  private readonly compiledParticleStates:
+    readonly XpbdIncrementalPotentialParticleStateN[];
 
   constructor(options: CompileXpbdIncrementalPotentialProblemNOptions) {
     const caller = 'XpbdIncrementalPotentialProblemN';
@@ -76,6 +90,7 @@ export class XpbdIncrementalPotentialProblemN {
     const freeParticleIndices: number[] = [];
     const predictedPositions: VecN[] = [];
     const compiledInverseMasses: number[] = [];
+    const compiledParticleStates: XpbdIncrementalPotentialParticleStateN[] = [];
     for (let index = 0; index < options.particles.length; index++) {
       const particle = options.particles[index];
       if (!(particle instanceof XpbdParticleN)) {
@@ -102,9 +117,39 @@ export class XpbdIncrementalPotentialProblemN {
         !Number.isFinite(1 / particle.inverseMass)) {
         throw new Error(`${caller}: particle ${index} mass is outside Float64`);
       }
+      if (!Number.isFinite(particle.gravityScale)) {
+        throw new Error(
+          `${caller}: particle ${index} gravityScale must be finite`
+        );
+      }
+      const position = finiteVector(
+        particle.position,
+        options.dimension,
+        `${caller}: particle ${index} position`
+      );
+      const velocity = finiteVector(
+        particle.velocity,
+        options.dimension,
+        `${caller}: particle ${index} velocity`
+      );
+      const force = finiteVector(
+        particle.force,
+        options.dimension,
+        `${caller}: particle ${index} force`
+      );
       identities.add(particle);
       particleIds.add(particle.id);
       compiledInverseMasses.push(particle.inverseMass);
+      compiledParticleStates.push(Object.freeze({
+        index,
+        particle,
+        particleId: particle.id,
+        position,
+        velocity,
+        force,
+        inverseMass: particle.inverseMass,
+        gravityScale: particle.gravityScale
+      }));
       if (particle.inverseMass > 0) freeParticleIndices.push(index);
       predictedPositions.push(finiteVector(
         options.predictedPositions[index]!,
@@ -164,6 +209,20 @@ export class XpbdIncrementalPotentialProblemN {
     this.freeParticleIndices = Object.freeze(freeParticleIndices);
     this.variableCount = freeParticleIndices.length * options.dimension;
     this.compiledInverseMasses = Object.freeze(compiledInverseMasses);
+    this.compiledParticleStates = Object.freeze(compiledParticleStates);
+  }
+
+  /** Returns defensive copies of the exact live state captured at compilation. */
+  particleStatesBeforeStep():
+    readonly XpbdIncrementalPotentialParticleStateN[] {
+    return Object.freeze(this.compiledParticleStates.map((state) =>
+      Object.freeze({
+        ...state,
+        position: state.position.clone(),
+        velocity: state.velocity.clone(),
+        force: state.force.clone()
+      })
+    ));
   }
 
   /** Flattens only dynamic particles and verifies prescribed coordinates. */

@@ -968,6 +968,17 @@ authored absolute gradient-norm test, not a global-minimum claim. The routine
 is intentionally non-mutating and intended for small reference problems and
 differential tests; it is not a Hessian-based production material solver.
 
+`applyXpbdIncrementalPotentialResultN()` is the explicit atomic transition
+from that detached evidence to particle state. Each minimization result retains
+its exact compiled problem, whose defensive live-state snapshot provides
+`q_n`. Only converged results are eligible. The default dynamic velocity is
+`(q_(n+1) - q_n) / h`, fixed velocity is preserved, and accumulated external
+force clears after success. Preserved-velocity and retained-force policies are
+explicit options. Live-state drift, changed result evidence, and verifier
+mutation return typed refusals; generic provider or arithmetic errors escape
+only after rollback. Application still does not compose an automatic world
+step, velocity responses, state guards, or adaptive retry.
+
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';
 import {

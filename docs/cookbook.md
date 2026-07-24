@@ -165,9 +165,8 @@ explicit conversion/composition boundaries.
 
 Current rigid contact is exposed through named query, manifold, and pipeline
 APIs; it is not automatically enabled by merely adding multiple bodies to
-`PhysicsWorld4`. The Kitchen contact laboratories are the most complete
-integration references while that public convenience layer remains under
-development.
+`PhysicsWorld4`. Compose the named contact pipeline explicitly while the
+automatic convenience layer remains under development.
 
 ## Choose and assemble a simplex material law
 
@@ -334,6 +333,41 @@ not silent success. The result is still detached from the live world: applying
 positions and reconstructing velocity are separate state-transition policies.
 For large or stiff systems, treat this routine as a golden reference for a
 more capable optimizer rather than the final solver.
+
+## Apply a converged optimization result
+
+The application boundary verifies that the particles and result still belong
+to the same compiled step before it writes anything:
+
+```ts
+import {
+  applyXpbdIncrementalPotentialResultN
+} from '@holotope/physics';
+
+const applied = applyXpbdIncrementalPotentialResultN({
+  result,
+  velocityUpdate: 'backward-euler',
+  clearForces: true
+});
+
+if (applied.status === 'applied') {
+  console.log(applied.particles);
+} else {
+  console.log(applied.reason, applied);
+}
+```
+
+Only `converged` is eligible. The default velocity is
+`(finalPosition - positionBeforeStep) / deltaTime` for dynamic particles;
+fixed velocities are retained. Use `velocityUpdate: 'preserve'` for a
+configuration-relaxation workflow. `clearForces` defaults to true, matching a
+successful `XpbdWorldN` outer step.
+
+Stale live particles, altered result buffers, and changed provider evidence
+produce typed refusal records without writes. Provider exceptions still throw,
+but the complete particle state is restored first. A successful application
+does not write a bound `CellComplex`; call the binding's
+`writeSourcePositions()` at that explicit source synchronization boundary.
 
 ## Add a proactive lower-measure barrier
 
