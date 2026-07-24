@@ -230,6 +230,17 @@ export {
   type XpbdIncrementalPotentialVelocityUpdateN
 } from './xpbd-incremental-potential-application.js';
 export {
+  stepXpbdIncrementalPotentialN,
+  type StepXpbdIncrementalPotentialNOptions,
+  type XpbdIncrementalPotentialApplicationPolicyN,
+  type XpbdIncrementalPotentialMinimizationPolicyN,
+  type XpbdIncrementalPotentialStepApplicationRefusedN,
+  type XpbdIncrementalPotentialStepAppliedN,
+  type XpbdIncrementalPotentialStepMinimizationRefusedN,
+  type XpbdIncrementalPotentialStepRefusedN,
+  type XpbdIncrementalPotentialStepResultN
+} from './xpbd-incremental-potential-step.js';
+export {
   XpbdExponentialVelocityDampingN,
   type XpbdExponentialVelocityDampingEvaluationN,
   type XpbdExponentialVelocityDampingNOptions

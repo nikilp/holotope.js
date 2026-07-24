@@ -55,7 +55,8 @@ import {
   compileXpbdIncrementalPotentialProblemN,
   searchXpbdIncrementalPotentialArmijoN,
   minimizeXpbdIncrementalPotentialN,
-  applyXpbdIncrementalPotentialResultN
+  applyXpbdIncrementalPotentialResultN,
+  stepXpbdIncrementalPotentialN
 } from '@holotope/physics';
 
 // @holotope/three
@@ -117,6 +118,10 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
   converged result after proving live-state and result-evidence freshness.
   Default dynamic velocity is `(qNext - qBefore) / h`; fixed velocity is
   preserved and external force clears. Refusals do not write partial state.
+- Integrated reference step: `stepXpbdIncrementalPotentialN` composes
+  prediction, compilation, bounded minimization, verification, and application.
+  It retains each intermediate result and restores the complete pre-step
+  particle state on typed refusal or thrown failure.
 - A measure barrier can be compiled as a second generic constitutive family on
   the same simplex group and exact particles. It is a proactive force, not an
   inversion guarantee; retain endpoint and signed/intrinsic chord guards.
@@ -204,6 +209,20 @@ const application = applyXpbdIncrementalPotentialResultN({
 });
 if (application.status === 'refused') {
   inspectRefusal(application);
+}
+```
+
+```ts
+// One-call conservative RN reference step with complete transaction evidence.
+const step = stepXpbdIncrementalPotentialN({
+  dimension: 4,
+  particles,
+  providers: [material, barrier],
+  deltaTime: 1 / 120,
+  gravity: [0, -9.81, 0, 0]
+});
+if (step.status === 'applied') {
+  binding.writeSourcePositions();
 }
 ```
 

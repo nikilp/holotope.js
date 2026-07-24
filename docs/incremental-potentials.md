@@ -252,17 +252,59 @@ provider evaluation is restored before the error escapes. Reapplying the same
 result normally returns `stale-particle-state`, because the first application
 has advanced its particles.
 
+## Run one transactional reference step
+
+`stepXpbdIncrementalPotentialN()` composes prediction, problem compilation,
+bounded minimization, verification, and application while retaining the
+evidence from every layer:
+
+```ts
+import {
+  stepXpbdIncrementalPotentialN
+} from '@holotope/physics';
+
+const step = stepXpbdIncrementalPotentialN({
+  dimension: 4,
+  particles,
+  providers: [elasticFamily, measureBarrierFamily],
+  deltaTime: 1 / 120,
+  gravity: [0, -9.81, 0, 0],
+  minimization: {
+    gradientTolerance: 1e-8,
+    maximumIterations: 128
+  }
+});
+
+if (step.status === 'applied') {
+  binding.writeSourcePositions();
+} else {
+  console.log(step.stage, step.reason, step.minimization.status);
+}
+```
+
+The default initial iterate is the inertial prediction. `initialPositions`
+provides an explicit warm start in particle order; fixed entries must still
+equal their prescribed prediction. Application defaults remain
+`backward-euler` velocity reconstruction and force clearing.
+
+This is a transaction over the complete authored particle state. A typed
+minimization or application refusal restores the state from before prediction.
+Thrown provider, validation, arithmetic, and commit failures also restore that
+state before escaping. This outer boundary protects callers even when a
+malformed conservative provider mutates a live particle during an early trial
+evaluation.
+
 ## Capability boundary
 
 These APIs provide a deterministic Float64 objective, packed first derivative,
 first-order sufficient-decrease search, and a bounded non-mutating
-steepest-descent golden path plus an explicit atomic state transition. They do
-not:
+steepest-descent golden path, an explicit atomic state transition, and a
+single-call transactional reference step. They do not:
 
 - construct or project a Hessian or linear system;
 - provide Newton, quasi-Newton, or preconditioned directions;
-- compose prediction, optimization, application, responses, and guards into
-  an automatic world step;
+- apply `XpbdWorldN` velocity responses or state guards to the optimization
+  path;
 - perform IPC's continuous-collision-filtered line search;
 - generate geometric contact-distance barriers;
 - certify an intersection-free trajectory; or

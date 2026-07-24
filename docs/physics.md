@@ -979,6 +979,18 @@ mutation return typed refusals; generic provider or arithmetic errors escape
 only after rollback. Application still does not compose an automatic world
 step, velocity responses, state guards, or adaptive retry.
 
+`stepXpbdIncrementalPotentialN()` supplies the first single-call conservative
+reference step by composing prediction, compilation, bounded minimization,
+verification, and application. It retains every intermediate result rather
+than flattening the process into a boolean. Both typed refusal and thrown-error
+paths restore the complete particle state captured before prediction; only an
+`applied` result advances the live particles. The default initial iterate is
+the inertial prediction, with an explicit particle-ordered warm start
+available. This remains a small-system steepest-descent golden path. It does
+not fabricate `XpbdWorldN` constraint-solve evidence, so velocity responses,
+accepted-state guards, adaptive retry, Hessian directions, and
+collision-filtered line search remain outside this step.
+
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';
 import {

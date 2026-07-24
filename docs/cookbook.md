@@ -369,6 +369,40 @@ but the complete particle state is restored first. A successful application
 does not write a bound `CellComplex`; call the binding's
 `writeSourcePositions()` at that explicit source synchronization boundary.
 
+## Advance a conservative particle system in one call
+
+Use the integrated reference step for a small system when you want the full
+optimization transaction but do not need to author each layer separately:
+
+```ts
+import {
+  stepXpbdIncrementalPotentialN
+} from '@holotope/physics';
+
+const step = stepXpbdIncrementalPotentialN({
+  dimension: 4,
+  particles: binding.particles,
+  providers: [material, barrier],
+  deltaTime: 1 / 120,
+  gravity: [0, -9.81, 0, 0],
+  minimization: {
+    gradientTolerance: 1e-8,
+    maximumIterations: 128
+  }
+});
+
+if (step.status === 'applied') {
+  binding.writeSourcePositions();
+} else {
+  console.warn(step.stage, step.reason);
+}
+```
+
+The result retains prediction, compiled problem, minimization trace, and—on
+success—verified application evidence. Refusal and thrown failure restore the
+complete pre-step particle state. This is the Float64 correctness path for
+small systems and backend comparisons, not a large-mesh production optimizer.
+
 ## Add a proactive lower-measure barrier
 
 Compile the barrier as a second constitutive family over the same named
