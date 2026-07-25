@@ -47,6 +47,34 @@ export class ProjectedEdges3D {
   private readonly homogeneousPositions: Float64Array;
   private readonly homogeneousValidity: Uint8Array;
 
+  /**
+   * Builds the render product and allocates its geometry once; updates
+   * thereafter rewrite the position buffer in place.
+   *
+   * @param complex - Source complex. Its 1-cells become the line segments;
+   * a complex with no 1-cells is rejected, since there would be nothing to
+   * draw.
+   * @param projection - Map applied on every update. Its `fromDim` must equal
+   * the complex's `ambientDim`, and the mismatch is rejected here rather than
+   * at the first update.
+   * @param options - Material override. The default is a plain
+   * `LineBasicMaterial`; WebGL ignores line width, so weight is expressed
+   * through colour and opacity.
+   *
+   * @example
+   * A rotating tesseract. The transform is applied in R⁴ and the projection
+   * recomputed, which is what makes the wireframe change shape; rotating
+   * `product.object` instead would only turn its shadow.
+   * ```ts
+   * const product = new ProjectedEdges3D(
+   *   createHypercube({ dim: 4 }),
+   *   new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+   * );
+   * scene.add(product.object);
+   *
+   * product.update(new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle }])));
+   * ```
+   */
   constructor(complex: CellComplex, projection: Projection, options: ProjectedEdges3DOptions = {}) {
     if (complex.ambientDim !== projection.fromDim) {
       throw new Error(

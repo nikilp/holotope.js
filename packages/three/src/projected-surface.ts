@@ -56,6 +56,27 @@ export class ProjectedSurface3D {
   private readonly homogeneousPositions: Float64Array;
   private readonly homogeneousValidity: Uint8Array;
 
+  /**
+   * Builds the render product, fan-triangulating each 2-cell once. Updates
+   * rewrite positions and recompute flat normals; the triangulation is fixed.
+   *
+   * @param complex - Source complex. Its 2-cells become the triangle soup;
+   * a complex storing no 2-cells is rejected, so a builder that emits only
+   * edges and volumes cannot be rendered as a surface.
+   * @param projection - Map applied on every update; its `fromDim` must equal
+   * the complex's `ambientDim`.
+   * @param options - Material override. A projected surface self-intersects
+   * in general, so the default is translucent and double-sided.
+   *
+   * @example
+   * ```ts
+   * const faces = new ProjectedSurface3D(
+   *   create24Cell(),
+   *   new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+   * );
+   * scene.add(faces.object);
+   * ```
+   */
   constructor(
     complex: CellComplex,
     projection: Projection,

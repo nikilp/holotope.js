@@ -22,6 +22,23 @@ export class TransformN {
   rotation: RotationBackend;
   position: VecN;
 
+  /**
+   * Composes a rotation and a translation into a rigid motion of Rⁿ.
+   *
+   * @param dim - Ambient dimension. Every other argument is checked against
+   * it, so a transform cannot be built from parts of differing dimension.
+   * @param rotation - Rotation, as a dense `MatN` or — at n = 4 — a `Rotor4`.
+   * The rotor is the faster path and does not drift off the rotation manifold
+   * under repeated composition. Defaults to the identity.
+   * @param position - Translation applied after the rotation. Defaults to the
+   * origin.
+   *
+   * @example
+   * ```ts
+   * const spin = new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle }]));
+   * const placed = new TransformN(4, Rotor4.identity(), new VecN(4, [0, 0, 0, 2]));
+   * ```
+   */
   constructor(dim: number, rotation?: RotationBackend, position?: VecN) {
     this.dim = dim;
     this.rotation = rotation ?? MatN.identity(dim);

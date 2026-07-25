@@ -76,6 +76,34 @@ export class SlicedComplex3D {
   private readonly colorAttribute: BufferAttribute | undefined;
   private readonly tetColors: Float32Array | undefined;
 
+  /**
+   * Builds the section product and allocates for the largest section the
+   * tetrahedra can produce, so a moving cut never reallocates.
+   *
+   * @param complex - Source complex in R⁴, carrying tetrahedral 3-cells.
+   * Marching proceeds over tetrahedra, so a cuboid-celled complex must be
+   * decomposed with `tetrahedralizeCuboidCells` first.
+   * @param slice - The cutting hyperplane. It is retained rather than copied,
+   * so changing its `offset` or normal moves the cut on the next update.
+   * @param options - `material` overrides the appearance; `projection`
+   * expresses the section in a projection's frame instead of the slice's own,
+   * which is what allows a cut to be drawn inside the wireframe it came from.
+   *
+   * @example
+   * A section that sweeps as the offset moves. It is empty once the
+   * hyperplane passes beyond the object's extent.
+   * ```ts
+   * const solid = tetrahedralizeCuboidCells(
+   *   createHypercube({ dim: 4, maxCellDimension: 3 })
+   * );
+   * const slice = HyperplaneSlice4.axisAligned(3, 0);
+   * const section = new SlicedComplex3D(solid, slice);
+   *
+   * slice.offset = 0.25;
+   * section.update(transform);
+   * section.triangleCount; // reflects this cut, not the source
+   * ```
+   */
   constructor(
     complex: CellComplex,
     slice: HyperplaneSlice4,

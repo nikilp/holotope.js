@@ -20,6 +20,25 @@ export class CameraN {
   position: VecN;
   rotation: MatN;
 
+  /**
+   * Creates a camera in Rⁿ. Its pose is inverted to a view transform and
+   * composed before projection, exactly as at n = 3.
+   *
+   * @param dim - Ambient dimension the camera observes.
+   * @param position - Eye position. Defaults to the origin.
+   * @param rotation - Orientation as an orthonormal frame whose last axis
+   * points backward, generalising the convention by which a three.js camera
+   * looks down its own −z. Defaults to the identity, so the camera looks
+   * along −e\_{n−1}.
+   *
+   * @example
+   * Prefer `lookAt` over supplying a frame by hand; it completes the frame
+   * and keeps roll continuous across successive calls.
+   * ```ts
+   * const camera = new CameraN(4);
+   * camera.lookAt(new VecN(4, [0, 0, 0, 4]), new VecN(4));
+   * ```
+   */
   constructor(dim: number, position?: VecN, rotation?: MatN) {
     this.dim = dim;
     this.position = position ?? new VecN(dim);

@@ -40,6 +40,28 @@ export class CellComplex {
   positions: Float64Array;
   groups: CellGroup[];
 
+  /**
+   * Assembles vertex positions and cell groups into a complex, validating
+   * that every group indexes vertices that exist.
+   *
+   * @param ambientDim - Dimension each vertex is expressed in. `positions`
+   * must be a whole number of vertices at this width.
+   * @param positions - Packed vertex coordinates, vertex-major: coordinate
+   * `c` of vertex `v` is at `v * ambientDim + c`. Retained, not copied.
+   * @param groups - Cells by dimension and kind. Each is validated on
+   * construction, so an index outside the vertex range is rejected here
+   * rather than when something tries to draw it.
+   *
+   * @example
+   * A single square in the plane. Builders are the usual source of a complex;
+   * this is the shape they produce.
+   * ```ts
+   * const square = new CellComplex(2, Float64Array.of(0, 0, 1, 0, 1, 1, 0, 1), [
+   *   { dim: 1, kind: 'cuboid', verticesPerCell: 2, indices: Uint32Array.of(0, 1, 1, 2, 2, 3, 3, 0) }
+   * ]);
+   * square.vertexCount; // 4
+   * ```
+   */
   constructor(ambientDim: number, positions: Float64Array, groups: CellGroup[] = []) {
     if (positions.length % ambientDim !== 0) {
       throw new Error(
