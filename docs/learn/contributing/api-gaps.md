@@ -6,6 +6,14 @@ rather than a surprise.
 
 Measured against the generated model at the commit this page was written.
 
+::: tip The gaps below cannot grow
+CI runs a coverage gate that fails when a **newly exported** symbol carries no
+description. The 3,579 symbols undocumented when the gate was introduced are
+grandfathered in `docs/doc-baseline.json`, so the rule is *coverage may not
+regress* — new work carries documentation without anyone having to drain the
+backlog first. See [Keeping it from growing back](#keeping-it-from-growing-back).
+:::
+
 ## The shape of the gap
 
 Coverage is not uniformly low. It splits cleanly by layer:
@@ -134,3 +142,35 @@ Two rules that matter more than completeness:
    match the complex, which is not checked until update()` is documentation.
 2. **On result interfaces, say when a field is meaningful.** Most of the cast
    and contact result types have fields that are only defined on a hit.
+
+## Keeping it from growing back
+
+A one-off documentation pass decays. The gate exists so it does not have to be
+repeated.
+
+```sh
+pnpm --filter @holotope/docs coverage          # check; fails on regression
+pnpm --filter @holotope/docs coverage:update   # accept the current state
+```
+
+It reads the same TypeDoc model the reference is rendered from, so it cannot
+disagree with what the published pages show. A symbol counts as documented when
+it — or one of its signatures — carries a description.
+
+**Scope.** Only the public surface is checked: what the package barrels actually
+export. A helper that is not re-exported is invisible to the gate, as it is to
+users. Re-export aliases are skipped, since the target carries the documentation.
+
+**When the gate fails**, it names each new symbol grouped by kind. Add a
+description; do not reach for `coverage:update` first. Updating the baseline is
+for the rare symbol that genuinely does not warrant prose — and it is a visible
+diff, so the choice is reviewable.
+
+**Draining the backlog** is the reverse: document a few grandfathered symbols,
+then run `coverage:update` to remove them from the baseline. They can never
+silently regress afterwards. The baseline shrinking is the measure of progress,
+and the priorities above are the order worth doing it in.
+
+**One thing the gate does not check**: whether a description is *useful*.
+`@param n - The dimension` satisfies it and teaches nothing. The conventions
+above are not enforceable by a script.

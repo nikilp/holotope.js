@@ -34,3 +34,11 @@ jobs:
 
       - name: Build examples
         run: pnpm build:examples
+
+      # Fails when a newly exported symbol carries no description. Existing
+      # gaps are grandfathered in docs/doc-baseline.json, so this enforces
+      # "coverage may not regress" rather than blocking on the backlog.
+      - name: Documentation coverage
+        run: |
+          pnpm --filter @holotope/docs api
+          pnpm --filter @holotope/docs coverage

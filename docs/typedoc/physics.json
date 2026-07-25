@@ -9,6 +9,10 @@
   "entryPoints": ["../../packages/physics/src/index.ts"],
 
   "out": "../api/physics",
+
+  // The model is also emitted so the documentation-coverage gate can
+  // check the same data the reference is rendered from.
+  "json": "../.doc-model/physics.json",
   "docsRoot": "..",
 
   // TypeDoc reads src directly, so the reference builds without a prior

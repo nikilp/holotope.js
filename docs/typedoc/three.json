@@ -12,6 +12,10 @@
   ],
 
   "out": "../api/three",
+
+  // The model is also emitted so the documentation-coverage gate can
+  // check the same data the reference is rendered from.
+  "json": "../.doc-model/three.json",
   "docsRoot": "..",
 
   // TypeDoc reads src directly, so the reference builds without a prior
