@@ -1,4 +1,4 @@
-name: Deploy showcase
+name: Deploy showcase and docs
 
 on:
   push:
@@ -36,9 +36,22 @@ jobs:
       - name: Build showcase
         run: pnpm --filter @holotope/showcase build
 
+      # Generates the API reference from packages/*/src with typedoc, links it
+      # to the showcase demos, then renders the VitePress site. Reads source
+      # directly, so it does not require `pnpm build` or packages/*/dist.
+      - name: Build docs
+        run: pnpm --filter @holotope/docs build
+
+      # One Pages artifact: showcase at the root, docs under /docs/.
+      - name: Assemble site
+        run: |
+          mkdir -p site/docs
+          cp -R examples/showcase/dist/. site/
+          cp -R docs/.vitepress/dist/. site/docs/
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: examples/showcase/dist
+          path: site
 
       - uses: actions/deploy-pages@v4
         id: deployment
