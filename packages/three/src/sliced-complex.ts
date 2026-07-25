@@ -192,8 +192,16 @@ export class SlicedComplex3D {
   /**
    * Recomputes the cross-section. Call whenever the 4D transform, the slice
    * offset/normal, or the source positions change.
+   *
+   * @param transform - Optional R4 source transform. A transform of another
+   * dimension is rejected before the section geometry is remarched.
    */
   update(transform?: TransformN): void {
+    if (transform !== undefined && transform.dim !== this.complex.ambientDim) {
+      throw new Error(
+        `SlicedComplex3D.update: transform is R${transform.dim}, source complex is in R${this.complex.ambientDim}`
+      );
+    }
     const count = this.complex.vertexCount;
     if (transform) {
       transform.applyToPositions(this.complex.positions, this.worldPositions, count);

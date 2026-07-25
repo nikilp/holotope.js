@@ -128,4 +128,21 @@ describe('ProjectedEdges3D', () => {
       () => new ProjectedEdges3D(tesseract, new PerspectiveProjection({ fromDim: 5 }))
     ).toThrow(/ambientDim/);
   });
+
+  it('rejects an update transform from the wrong dimension before writing', () => {
+    const tesseract = createHypercube({ dim: 4 });
+    const edges = new ProjectedEdges3D(
+      tesseract,
+      new PerspectiveProjection({ fromDim: 4 })
+    );
+    const before = Array.from(edges.geometry.getAttribute('position').array);
+
+    expect(() => edges.update(new TransformN(3))).toThrow(
+      'ProjectedEdges3D.update: transform is R3, source complex is in R4'
+    );
+    expect(Array.from(edges.geometry.getAttribute('position').array)).toEqual(
+      before
+    );
+    edges.dispose();
+  });
 });

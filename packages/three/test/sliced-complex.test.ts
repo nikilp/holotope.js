@@ -83,6 +83,26 @@ describe('SlicedComplex3D', () => {
       /tetrahedralizeCuboidCells/
     );
   });
+
+  it('rejects an update transform outside R4 before remarching', () => {
+    const sliced = new SlicedComplex3D(
+      makeTesseract(),
+      HyperplaneSlice4.axisAligned(3, 0.25)
+    );
+    const before = Array.from(
+      sliced.geometry.getAttribute('position').array
+    );
+    const beforeDrawCount = sliced.geometry.drawRange.count;
+
+    expect(() => sliced.update(new TransformN(3))).toThrow(
+      'SlicedComplex3D.update: transform is R3, source complex is in R4'
+    );
+    expect(Array.from(sliced.geometry.getAttribute('position').array)).toEqual(
+      before
+    );
+    expect(sliced.geometry.drawRange.count).toBe(beforeDrawCount);
+    sliced.dispose();
+  });
 });
 
 describe('SlicedComplex3D with projection (section-in-projection overlay)', () => {

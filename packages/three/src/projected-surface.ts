@@ -220,8 +220,18 @@ export class ProjectedSurface3D {
     );
   }
 
-  /** Recomputes projected positions and flat normals. Call per frame. */
+  /**
+   * Recomputes projected positions and flat normals. Call per frame.
+   *
+   * @param transform - Optional transform in the source complex's ambient
+   * dimension. A mismatch is rejected before any render buffer is changed.
+   */
   update(transform?: TransformN): void {
+    if (transform !== undefined && transform.dim !== this.complex.ambientDim) {
+      throw new Error(
+        `ProjectedSurface3D.update: transform is R${transform.dim}, source complex is in R${this.complex.ambientDim}`
+      );
+    }
     const count = this.complex.vertexCount;
     if (transform) {
       transform.applyToPositions(this.complex.positions, this.worldPositions, count);

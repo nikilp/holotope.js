@@ -128,8 +128,16 @@ export class ProjectedEdges3D {
    * Recomputes projected positions, optionally applying an N-D world
    * transform first. Call once per frame (or whenever the transform,
    * projection parameters, or source positions change).
+   *
+   * @param transform - Optional transform in the source complex's ambient
+   * dimension. A mismatch is rejected before any render buffer is changed.
    */
   update(transform?: TransformN): void {
+    if (transform !== undefined && transform.dim !== this.complex.ambientDim) {
+      throw new Error(
+        `ProjectedEdges3D.update: transform is R${transform.dim}, source complex is in R${this.complex.ambientDim}`
+      );
+    }
     const count = this.complex.vertexCount;
     if (transform) {
       transform.applyToPositions(this.complex.positions, this.worldPositions, count);

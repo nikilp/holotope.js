@@ -96,6 +96,22 @@ describe('ProjectedSurface3D', () => {
     ).toThrow(/no faces/);
   });
 
+  it('rejects an update transform from the wrong dimension before writing', () => {
+    const surface = new ProjectedSurface3D(
+      createHypercube({ dim: 4 }),
+      new PerspectiveProjection({ fromDim: 4 })
+    );
+    const before = Array.from(surface.geometry.getAttribute('position').array);
+
+    expect(() => surface.update(new TransformN(3))).toThrow(
+      'ProjectedSurface3D.update: transform is R3, source complex is in R4'
+    );
+    expect(Array.from(surface.geometry.getAttribute('position').array)).toEqual(
+      before
+    );
+    surface.dispose();
+  });
+
   it('fan-triangulates polygon 2-cells: the 120-cell renders 720 pentagons', async () => {
     const { create120Cell } = await import('@holotope/core');
     const surface = new ProjectedSurface3D(
