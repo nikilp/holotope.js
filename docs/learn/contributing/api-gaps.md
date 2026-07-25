@@ -12,7 +12,7 @@ description. The 3,579 symbols undocumented when the gate was introduced are
 grandfathered in `docs/doc-baseline.json`, so the rule is *coverage may not
 regress* — new work carries documentation without anyone having to drain the
 backlog first. The baseline is the measure of progress: it has fallen from
-3,579 to 3,266. See [Keeping it from growing back](#keeping-it-from-growing-back).
+3,579 to 3,202. See [Keeping it from growing back](#keeping-it-from-growing-back).
 :::
 
 ## The shape of the gap
@@ -66,7 +66,7 @@ constructors is the single highest-value documentation change available.
 
 ## Priority 2 — options interfaces
 
-101 interfaces of four or more properties have **no** property documentation at
+90 interfaces of four or more properties have **no** property documentation at
 all, down from 125. In this API the options interface *is* the thing a caller has to fill in,
 so an undocumented one is a dead end. The largest:
 
@@ -95,6 +95,15 @@ and treating it as a miss is how a tunnelling bug gets written.
 `representation`: it now says to read `consistency` and `determination` before
 trusting the recovered coordinate, because a compromise and a recovered point
 are indistinguishable from the coordinate alone.
+
+The source identities and the lineage recipes are done. `SourceCellIdN` reads
+as what it is — a set of guards, each with the named refusal it produces when
+the complex has changed under it — and `SourceCellReferenceN` is the same
+identity at the other lifetime, anchored to a live group object rather than
+re-checked against a rebuilt complex. The `*MapRecipe*` family is the
+vocabulary a lineage is written in, and each member now says what it costs:
+a chart is invertible, a projection is not, a sampled surface is known only
+where it was evaluated, a ray reports only its first crossing.
 
 The narrowphase results are done as one family. A pair's types decide which
 capabilities it offers, so a result narrower than requested is not a failure —

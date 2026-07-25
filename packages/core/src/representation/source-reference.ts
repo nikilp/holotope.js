@@ -8,15 +8,31 @@ import type { CellComplex, CellGroup, CellKind } from '../geometry/cell-complex.
  * retired when the group object is removed, its cell metadata changes, or
  * the referenced vertex tuple changes. It intentionally does not claim to
  * survive regeneration into a different `CellComplex` instance.
+ *
+ * `SourceCellIdN` is the same identity at the other lifetime: this one is
+ * anchored to a live object and is cheap to resolve, that one is serializable
+ * and re-checked against a rebuilt complex. Convert when crossing a boundary
+ * the object cannot cross — storage, a worker, or a regenerated complex.
  */
 export interface SourceCellReferenceN {
+  /** Discriminant, for narrowing a union of source identities. */
   readonly kind: 'source-cell-reference';
+  /** The complex the cell belongs to, held by reference. */
   readonly complex: CellComplex;
+  /** The group object, which is what gives this reference its identity:
+   * matching is by object, so reordering the complex's groups does not
+   * disturb it and an equal-looking group from elsewhere does not satisfy it. */
   readonly group: CellGroup;
+  /** Where the group sat when the reference was made. A hint for locating it
+   * quickly, not part of the identity — the group object decides that. */
   readonly groupIndexAtCreation: number;
+  /** Ordinal of the cell within its group. */
   readonly cellIndex: number;
+  /** Dimension of the cell itself. */
   readonly intrinsicDim: number;
+  /** Its kind. */
   readonly cellKind: CellKind;
+  /** The cell's own vertex indices, which retire the reference if rewritten. */
   readonly vertexIndices: readonly number[];
 }
 
@@ -45,16 +61,44 @@ export type SourceCellGroupKeyKind = 'explicit' | 'derived';
  * after incompatible regeneration. Explicit group keys survive group
  * reordering; derived keys are deterministic only while construction order is
  * preserved.
+ *
+ * Every field here is a guard rather than a description: resolution checks
+ * them in order and refuses with a named reason at the first that no longer
+ * holds, so an id that resolves has been proven to still mean what it meant.
+ *
+ * | field | reason reported if it changed |
+ * | --- | --- |
+ * | `ambientDim` | `ambient-dimension-changed` |
+ * | `groupKey` | `group-key-missing`, or `group-key-ambiguous` |
+ * | `intrinsicDim`, `cellKind`, `verticesPerCell` | `group-metadata-changed` |
+ * | `cellIndex` | `cell-removed` |
+ * | `vertexIndices` | `cell-vertices-changed` |
+ *
+ * Refusing is the point. A cell ordinal alone would keep resolving after the
+ * complex was rebuilt differently and would quietly name a different cell;
+ * this returns unavailable instead, and says which assumption broke.
  */
 export interface SourceCellIdN {
+  /** Discriminant, for narrowing a union of source identities. */
   readonly kind: 'source-cell-id';
+  /** Dimension the complex was in; a change invalidates everything below. */
   readonly ambientDim: number;
+  /** Identifies the cell group. Its meaning depends on `groupKeyKind`. */
   readonly groupKey: string;
+  /** `explicit` when the group carried an authored key, which survives
+   * reordering. `derived` when the key encodes the group's position, which
+   * only holds while construction order is preserved. */
   readonly groupKeyKind: SourceCellGroupKeyKind;
+  /** Ordinal of the cell within its group. */
   readonly cellIndex: number;
+  /** Dimension of the cell itself, checked against the group. */
   readonly intrinsicDim: number;
+  /** Its kind, checked against the group. */
   readonly cellKind: CellKind;
+  /** Vertices per cell in the group, checked against it. */
   readonly verticesPerCell: number;
+  /** The cell's own vertex indices, compared entry for entry — the fingerprint
+   * that catches a complex rebuilt with the same shape but different content. */
   readonly vertexIndices: readonly number[];
 }
 
