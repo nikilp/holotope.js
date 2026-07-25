@@ -68,3 +68,70 @@ body {
   text-align: center;
   color: #ff9a9a;
 }
+
+/*
+ * Narrow embeds.
+ *
+ * The panel is a right-hand column at desk widths, where it costs a fifth of
+ * the frame. In a phone-width iframe the same 208px is more than half, and the
+ * shape renders centred underneath it. Below this width the frame becomes a
+ * column instead: the panel leaves the fixed layer and takes only the height
+ * its controls need, and the viewport takes the rest. The renderer sizes to
+ * `#app`, so what it draws into shrinks to match rather than the shape being
+ * hidden behind an overlay.
+ */
+@media (max-width: 560px) {
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+  #app {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+  }
+  #panel {
+    position: static;
+    width: auto;
+    max-height: 46%;
+    border-left: none;
+    border-top: 1px solid #1e2436;
+    background: #0a0a12;
+    padding: 8px 12px 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: min-content;
+    column-gap: 14px;
+    align-content: start;
+    flex: 0 0 auto;
+  }
+  /* Title and readings span the full width; controls pair up beside them. */
+  #panel h1,
+  #stats {
+    grid-column: 1 / -1;
+  }
+  #stats {
+    margin-top: 6px;
+    padding-top: 6px;
+  }
+  .row {
+    margin: 3px 0;
+  }
+}
+
+/* One column once two would leave the sliders unusably short. */
+@media (max-width: 430px) {
+  #panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*
+ * Too short to show both. The controls are what the embed is for, and the
+ * readings repeat in the surrounding page, so those go first.
+ */
+@media (max-height: 260px) {
+  #stats {
+    display: none;
+  }
+}

@@ -77,7 +77,9 @@ for (const { name, page } of entries) {
     `  src="${SHOWCASE}/${page}#${name}"`,
     `  title="Live ${name} viewer"`,
     '  loading="lazy"',
-    '  style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px;margin:1.25rem 0;"',
+        // 16/10 alone leaves a phone-width frame about 240px tall, which is not
+    // enough for a viewport and its controls; the floor keeps it usable.
+    '  style="width:100%;aspect-ratio:16/10;min-height:340px;border:1px solid var(--vp-c-divider);border-radius:8px;margin:1.25rem 0;"',
     '></iframe>',
     ''
   ].join('\n');
