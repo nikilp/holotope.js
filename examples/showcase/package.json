@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm run examples && vite",
     "build": "pnpm run examples && vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm run examples && tsc --noEmit",
     "examples": "node scripts/extract-examples.mjs"
   },
   "dependencies": {
