@@ -94,12 +94,14 @@ for (const [symbol, pages] of used) {
 
   const sorted = [...pages].sort();
   const list = sorted.map((p) => `- [${titleOf(p)}](${SHOWCASE}/${p}.html)`).join('\n');
+  // Not "Examples": typedoc already emits that heading for `@example` tags,
+  // and two identical headings would collide in the outline and its anchors.
   const block = [
     '',
     MARKER,
-    '## Examples',
+    '## Seen in the showcase',
     '',
-    `Used by ${sorted.length} showcase ${sorted.length === 1 ? 'demo' : 'demos'}:`,
+    `Demonstrated by ${sorted.length} ${sorted.length === 1 ? 'demo' : 'demos'}:`,
     '',
     list,
     ''
