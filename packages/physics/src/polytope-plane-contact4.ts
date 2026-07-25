@@ -29,6 +29,16 @@ extends ConvexPolytopeTopologyOptionsN {
   readonly maxSolverPoints?: number;
 }
 
+/**
+ * What a polytope–hyperplane test established. Three of these are answers
+ * about the geometry; two are statements about the query itself.
+ *
+ * `unsupported` means the polytope cannot be handled by this path at all —
+ * it is not vertex-enumerable — and no amount of retrying changes that.
+ * `indeterminate` means this attempt failed, at a candidate limit or on a
+ * degeneracy, and a different tolerance might succeed. Neither carries a
+ * measurement, and neither means the shapes are apart.
+ */
 export type PolytopeHyperplaneContactStatus4 =
   | 'unsupported'
   | 'indeterminate'
@@ -36,6 +46,10 @@ export type PolytopeHyperplaneContactStatus4 =
   | 'touching'
   | 'overlapping';
 
+/**
+ * Why the test stopped where it did. `complete` accompanies every genuine
+ * answer; the rest name what prevented one.
+ */
 export type PolytopeHyperplaneContactReason4 =
   | 'complete'
   | 'polytope-not-vertex-enumerable'
@@ -82,18 +96,43 @@ export interface PolytopeHyperplaneContactPatch4 {
   readonly diagnostics: PolytopeHyperplaneContactDiagnostics4;
 }
 
+/**
+ * Result of testing a convex polytope against an infinite hyperplane.
+ *
+ * Every measurement is nullable because the test can decline to answer: the
+ * polytope may not be vertex-enumerable, or facet enumeration may fail. On
+ * `unsupported` and `indeterminate` all of them are `null` together, so a
+ * caller checks `status` once rather than each field in turn.
+ *
+ * A null measurement is not a separation. Treating either non-answer as
+ * "apart" is the mistake this type is shaped to prevent, and `reason`
+ * distinguishes a permanent limitation from a retryable failure.
+ */
 export interface PolytopeHyperplaneContactResult4 {
+  /** Whether the geometry was decided, and if not, why not. */
   readonly status: PolytopeHyperplaneContactStatus4;
+  /** `complete` on an answer; otherwise what prevented one. */
   readonly reason: PolytopeHyperplaneContactReason4;
+  /** `null` unless the test produced an answer. */
   readonly intersects: boolean | null;
+  /** Signed separation, negative once the polytope crosses; `null` on a
+   * non-answer. */
   readonly signedDistance: number | null;
+  /** Its magnitude, or `null`. */
   readonly distance: number | null;
+  /** Depth of overlap, or `null`. */
   readonly penetrationDepth: number | null;
+  /** The plane's unit normal, known regardless of the outcome. */
   readonly normal: VecN;
+  /** Which kind of shape was supplied first. */
   readonly shapeAType: 'polytope' | 'hyperplane';
+  /** Which was supplied second. */
   readonly shapeBType: 'polytope' | 'hyperplane';
+  /** Spherical Minkowski radius the polytope was grown by for this test. */
   readonly polytopeMargin: number;
+  /** The polytope feature meeting the plane, or `null` on a non-answer. */
   readonly polytopeFeature: PolytopeBoundaryFeature4 | null;
+  /** The shared region; `null` when separated, and also on a non-answer. */
   readonly patch: PolytopeHyperplaneContactPatch4 | null;
 }
 

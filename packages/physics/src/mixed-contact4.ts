@@ -221,47 +221,112 @@ extends MixedAnalyticContactOptions4 {
   readonly hyperboxMargin?: number;
 }
 
+/**
+ * How a hyperbox stands relative to a hyperplane. `separated` is the only
+ * status without a contact patch, so it is what a caller checks before
+ * reading one.
+ */
 export type HyperboxHyperplaneContactStatus4 =
   | 'separated'
   | 'touching'
   | 'overlapping';
 
+/**
+ * One corner of a hyperbox–hyperplane contact patch, given on both surfaces
+ * and once more after the box is snapped onto the contact plane.
+ */
 export interface HyperboxHyperplaneContactVertex4 {
+  /** Stable identity, so a solver can warm-start this point across steps. */
   readonly id: string;
+  /** Which vertex of the box this came from, as a bit pattern over its axes. */
   readonly boxVertexId: number;
+  /** The point on the box, in world coordinates. */
   readonly pointA: VecN;
+  /** The corresponding point on the hyperplane. */
   readonly pointB: VecN;
+  /** The point after `alignmentShift` is applied, which is where the patch
+   * is actually planar and what a solver should use. */
   readonly resolvedPoint: VecN;
 }
 
+/**
+ * The region a hyperbox and a hyperplane share where they touch.
+ *
+ * `kind` and `intrinsicDim` agree by construction and say how much of the box
+ * meets the plane: a corner gives a point, an edge lying in the plane a
+ * segment, a 2-face a polygon, a facet flush against it a polyhedron. The
+ * number of `vertices` follows from that, so a caller sizing buffers reads
+ * `kind` rather than counting.
+ *
+ * The patch is planar only after the box is snapped onto the contact plane by
+ * `alignmentShift`; `maxResolvedPlaneResidual` reports how far that left
+ * things from exact.
+ */
 export interface HyperboxHyperplaneContactPatch4 {
+  /** Which shape of region the box and plane share. */
   readonly kind: HyperboxContactPatchKind4;
+  /** Its dimension, agreeing with `kind` by construction. */
   readonly intrinsicDim: 0 | 1 | 2 | 3;
+  /** Contact normal pointing from the plane toward the box. */
   readonly normal: VecN;
+  /** The plane's own unit normal, which `normal` follows or opposes according
+   * to which side the box is on. */
   readonly planeNormal: VecN;
+  /** The plane's offset as supplied. */
   readonly originalPlaneOffset: number;
+  /** Its offset after alignment, which is the plane the patch lies in. */
   readonly resolvedPlaneOffset: number;
+  /** How far the box has entered the plane; zero while merely touching. */
   readonly penetrationDepth: number;
+  /** Signed distance the box is moved to make the patch planar. */
   readonly alignmentShift: number;
+  /** Translation applied to the box before generating every returned point. */
   readonly translationA: VecN;
+  /** Which side of the pair the box is, the other being the hyperplane. */
   readonly boxRole: 'a' | 'b';
+  /** The box feature — vertex, edge, 2-face, or facet — meeting the plane. */
   readonly boxFeature: HyperboxBoundaryFeature4;
+  /** Complete vertex set of the convex contact patch. */
   readonly vertices: readonly HyperboxHyperplaneContactVertex4[];
+  /** Deterministic bounded subset intended for a later constraint solver. */
   readonly solverPoints: readonly HyperboxHyperplaneContactVertex4[];
+  /** Largest distance from a resolved point to the resolved plane; a measure
+   * of how planar the patch actually came out. */
   readonly maxResolvedPlaneResidual: number;
 }
 
+/**
+ * Result of testing a hyperbox against an infinite hyperplane.
+ *
+ * `patch` is `null` exactly when `status` is `separated`, and present
+ * otherwise — so the status is what a caller checks, rather than testing the
+ * patch for null and inferring the rest from it.
+ *
+ * The pair is reported in the order it was supplied, hence `shapeAType` and
+ * `shapeBType`: either may be the box, and `patch.boxRole` says which.
+ */
 export interface HyperboxHyperplaneContactResult4 {
+  /** Separated, touching, or overlapping. */
   readonly status: HyperboxHyperplaneContactStatus4;
+  /** True for touching and overlapping; the status distinguishes them. */
   readonly intersects: boolean;
+  /** Signed separation, negative once the box crosses the plane. */
   readonly signedDistance: number;
+  /** Its magnitude. */
   readonly distance: number;
+  /** How far the box has entered the plane; zero unless overlapping. */
   readonly penetrationDepth: number;
+  /** Contact normal pointing from the plane toward the box. */
   readonly normal: VecN;
+  /** Which kind of shape was supplied first. */
   readonly shapeAType: 'hyperbox' | 'hyperplane';
+  /** Which was supplied second. */
   readonly shapeBType: 'hyperbox' | 'hyperplane';
+  /** Spherical Minkowski radius the box was grown by for this test. */
   readonly hyperboxMargin: number;
+  /** The box feature meeting the plane. */
   readonly boxFeature: HyperboxBoundaryFeature4;
+  /** The shared region, or `null` when separated. */
   readonly patch: HyperboxHyperplaneContactPatch4 | null;
 }
 

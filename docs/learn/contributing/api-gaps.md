@@ -12,7 +12,7 @@ description. The 3,579 symbols undocumented when the gate was introduced are
 grandfathered in `docs/doc-baseline.json`, so the rule is *coverage may not
 regress* — new work carries documentation without anyone having to drain the
 backlog first. The baseline is the measure of progress: it has fallen from
-3,579 to 3,480. See [Keeping it from growing back](#keeping-it-from-growing-back).
+3,579 to 3,431. See [Keeping it from growing back](#keeping-it-from-growing-back).
 :::
 
 ## The shape of the gap
@@ -66,7 +66,7 @@ constructors is the single highest-value documentation change available.
 
 ## Priority 2 — options interfaces
 
-121 interfaces of four or more properties have **no** property documentation at
+117 interfaces of four or more properties have **no** property documentation at
 all, down from 125. In this API the options interface *is* the thing a caller has to fill in,
 so an undocumented one is a dead end. The largest:
 
@@ -95,6 +95,14 @@ and treating it as a miss is how a tunnelling bug gets written.
 `representation`: it now says to read `consistency` and `determination` before
 trusting the recovered coordinate, because a compromise and a recovered point
 are indistinguishable from the coordinate alone.
+
+The contact results follow the same shape and are done too. A hyperbox against
+a hyperplane has a patch exactly when it is not `separated`. A polytope against
+one is richer, because the test can decline: `unsupported` says the polytope is
+not vertex-enumerable and never will be, `indeterminate` says this attempt hit
+a limit and another tolerance might not. Both null every measurement at once,
+and neither means the shapes are apart — which is what these types are now
+shaped to prevent a caller assuming.
 
 ## Resolved — types that were public but unnameable
 
