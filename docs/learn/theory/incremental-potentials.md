@@ -148,13 +148,78 @@ The search returns `not-descent` without trials when
 `dot(gradient, direction) >= 0`. Otherwise it records every accepted,
 insufficient-decrease, or domain-refused trial.
 
-Only `SimplexConstitutiveDomainErrorN` is recoverable during backtracking.
-Collapse, inversion, non-positive measure, or crossing an authored
-lower-measure boundary can therefore request a smaller step. Malformed
+Only `XpbdPotentialDomainErrorN` is recoverable during backtracking.
+`SimplexConstitutiveDomainErrorN` specializes that common type, as do
+open-distance barriers. Collapse, inversion, non-positive measure, or crossing
+an authored lower boundary can therefore request a smaller step. Malformed
 inputs, Float64 overflow, stale source lineage, and arbitrary provider errors
 are rethrown rather than disguised as optimization difficulty. A typed domain
 refusal at the base point is also rethrown because there is no valid state from
 which to establish sufficient decrease.
+
+## Scalar and particle–hyperplane barriers
+
+`evaluateClampedLogBarrier()` exposes the dimension-independent scalar law
+
+$$
+b(d;\widehat d)=
+\begin{cases}
+-\kappa(d-\widehat d)^2\log(d/\widehat d),
+  &0<d<\widehat d,\\
+0,&d\geq\widehat d,
+\end{cases}
+$$
+
+together with its analytic first and second derivatives. The open boundary
+`d = 0` is deliberately outside the evaluator's domain. At and above the
+activation coordinate, value and both derivatives are exactly zero. The same
+scalar kernel supplies the simplex lower-measure barrier and contact-distance
+providers, so they share one curvature and boundary convention.
+
+`XpbdParticleHyperplaneBarrierN` composes the scalar law with the affine signed
+distance from an RN point to an oriented hyperplane:
+
+$$
+d(q)=n^Tq-o-d_{\min},\qquad
+\widehat d=d_{\mathrm{active}}-d_{\min}.
+$$
+
+Because `HyperplaneColliderN` stores a unit normal, both authored distances are
+world-space lengths. The conservative force is
+
+$$
+f(q)=-b'(d(q);\widehat d)n.
+$$
+
+```ts
+import {
+  HyperplaneColliderN,
+  XpbdParticleHyperplaneBarrierN
+} from '@holotope/physics';
+
+const floorBarrier = new XpbdParticleHyperplaneBarrierN({
+  id: 'floor/point-0',
+  particle,
+  plane: new HyperplaneColliderN([0, 1, 0, 0], 0),
+  minimumDistance: 0.01,
+  activationDistance: 0.1,
+  stiffness: 250
+});
+
+const sample = floorBarrier.evaluate();
+console.log(sample.potentialEnergy, sample.forces[0]);
+```
+
+The provider implements both live `evaluate()` and non-mutating
+`evaluateAt(positionOf)`, so it can be used by `XpbdWorldN` or placed directly
+in an incremental-potential problem. A candidate at or below
+`minimumDistance` raises a typed potential-domain refusal that Armijo can
+backtrack.
+
+A barrier potential is proactive contact energy, not by itself a proof of
+intersection-free motion. Such a guarantee also needs a valid initial state,
+complete collision candidates, and a collision-free step policy. This layer
+does not silently claim those surrounding conditions.
 
 ## Bounded steepest-descent reference
 
@@ -306,7 +371,7 @@ single-call transactional reference step. They do not:
 - apply `XpbdWorldN` velocity responses or state guards to the optimization
   path;
 - perform IPC's continuous-collision-filtered line search;
-- generate geometric contact-distance barriers;
+- build mesh-wide active collision sets from edge or face stencils;
 - certify an intersection-free trajectory; or
 - implement Incremental Potential Contact.
 

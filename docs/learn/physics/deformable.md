@@ -162,7 +162,8 @@ and evaluator alone do not choose a search direction or advance state.
 into a deterministic solver vector while restoring fixed coordinates from the
 prediction. `searchXpbdIncrementalPotentialArmijoN()` supplies a first-order
 sufficient-decrease reference over that vector. It backtracks only typed
-`SimplexConstitutiveDomainErrorN` refusals; every malformed, arithmetic,
+`XpbdPotentialDomainErrorN` refusals, including its
+`SimplexConstitutiveDomainErrorN` specialization; every malformed, arithmetic,
 lineage, or generic-provider failure escapes. An accepted search result is
 still only a candidate snapshot and does not write particle state.
 
@@ -248,8 +249,8 @@ ambient vertex gradients. Embedded simplices use positive intrinsic measure;
 full-dimensional simplices must preserve signed orientation. The clamped
 scalar shape is adapted from equation 6 of Li et al.,
 [“Incremental Potential Contact” (2020)](https://ipc-sim.github.io/file/IPC-paper-fullRes.pdf),
-but this API is a constitutive reference only—it does not implement IPC's
-incremental-potential solver or inherit its guarantees.
+but this API is a constitutive component only—it does not by itself implement
+the complete IPC algorithm or inherit its guarantees.
 
 ```ts
 import {

@@ -1,6 +1,7 @@
 import { MatN, VecN } from '@holotope/core';
 import type { SimplexMetricDeformationN } from './simplex-deformation.js';
 import { evaluateSimplexSquaredMeasureN } from './xpbd-simplex-measure.js';
+import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
 
 export type SimplexConstitutiveDomainReasonN =
   | 'collapsed'
@@ -9,19 +10,15 @@ export type SimplexConstitutiveDomainReasonN =
   | 'below-minimum-measure';
 
 /** Typed material-chart refusal, distinct from malformed input or arithmetic failure. */
-export class SimplexConstitutiveDomainErrorN extends Error {
-  readonly lawId: string;
-  readonly reason: SimplexConstitutiveDomainReasonN;
-
+export class SimplexConstitutiveDomainErrorN
+extends XpbdPotentialDomainErrorN<SimplexConstitutiveDomainReasonN> {
   constructor(
     lawId: string,
     reason: SimplexConstitutiveDomainReasonN,
     message: string
   ) {
-    super(message);
+    super(lawId, reason, message);
     this.name = 'SimplexConstitutiveDomainErrorN';
-    this.lawId = lawId;
-    this.reason = reason;
   }
 }
 

@@ -2148,8 +2148,6 @@
   "physics:Property:SimplexCompressibleNeoHookeanFamilyN.particles",
   "physics:Property:SimplexCompressibleNeoHookeanFamilyN.source",
   "physics:Property:SimplexCompressibleNeoHookeanFamilyN.sourceSimplexGroup",
-  "physics:Property:SimplexConstitutiveDomainErrorN.lawId",
-  "physics:Property:SimplexConstitutiveDomainErrorN.reason",
   "physics:Property:SimplexConstitutiveEvaluationN.deformation",
   "physics:Property:SimplexConstitutiveEvaluationN.material",
   "physics:Property:SimplexConstitutiveFamilyElementContextN.restMeasure",

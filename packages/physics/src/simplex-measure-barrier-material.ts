@@ -1,4 +1,5 @@
 import { MatN, VecN } from '@holotope/core';
+import { evaluateClampedLogBarrier } from './clamped-log-barrier.js';
 import {
   SimplexConstitutiveDomainErrorN,
   completeSimplexConstitutiveEvaluationN,
@@ -71,37 +72,19 @@ export function evaluateSimplexMeasureBarrierN(
   }
 
   const activationWidth = activationMeasureRatio - minimumMeasureRatio;
-  const normalizedGap = (measureRatio - minimumMeasureRatio) / activationWidth;
-  if (!(normalizedGap > 0) || !Number.isFinite(normalizedGap)) {
-    throw new Error(`${caller}: normalized measure gap is outside the Float64 range`);
-  }
-
-  const active = measureRatio < activationMeasureRatio;
-  let energyDensity = 0;
-  let energyDerivativeByMeasureRatio = 0;
-  let energySecondDerivativeByMeasureRatio = 0;
+  const scalarBarrier = evaluateClampedLogBarrier({
+    coordinate: measureRatio - minimumMeasureRatio,
+    activation: activationWidth,
+    stiffness
+  });
+  const normalizedGap = scalarBarrier.normalizedCoordinate;
+  const active = scalarBarrier.active;
+  const energyDensity = scalarBarrier.energy;
+  const energyDerivativeByMeasureRatio = scalarBarrier.firstDerivative;
+  const energySecondDerivativeByMeasureRatio = scalarBarrier.secondDerivative;
   const secondPiolaStress = new MatN(deformation.simplexDimension);
 
   if (active) {
-    const remaining = 1 - normalizedGap;
-    const logGap = Math.log(normalizedGap);
-    energyDensity = -stiffness * activationWidth ** 2 *
-      remaining ** 2 * logGap;
-    energyDerivativeByMeasureRatio = stiffness * activationWidth * (
-      2 * remaining * logGap - remaining ** 2 / normalizedGap
-    );
-    energySecondDerivativeByMeasureRatio = stiffness * (
-      -2 * logGap + 4 * remaining / normalizedGap +
-      remaining ** 2 / normalizedGap ** 2
-    );
-    if (!(energyDensity >= 0) ||
-      !Number.isFinite(energyDensity) ||
-      !Number.isFinite(energyDerivativeByMeasureRatio) ||
-      !(energySecondDerivativeByMeasureRatio >= 0) ||
-      !Number.isFinite(energySecondDerivativeByMeasureRatio)) {
-      throw new Error(`${caller}: barrier differential is outside the Float64 range`);
-    }
-
     const inverseMetric = inversePositiveDefiniteN(
       deformation.rightCauchyGreen,
       caller

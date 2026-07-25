@@ -174,6 +174,20 @@ export {
   type XpbdWorldVelocityResponseResultN
 } from './xpbd-world.js';
 export {
+  XpbdPotentialDomainErrorN
+} from './xpbd-potential-domain.js';
+export {
+  evaluateClampedLogBarrier,
+  type ClampedLogBarrierEvaluation,
+  type EvaluateClampedLogBarrierOptions
+} from './clamped-log-barrier.js';
+export {
+  XpbdParticleHyperplaneBarrierN,
+  type XpbdParticleHyperplaneBarrierDomainReasonN,
+  type XpbdParticleHyperplaneBarrierEvaluationN,
+  type XpbdParticleHyperplaneBarrierNOptions
+} from './xpbd-hyperplane-barrier.js';
+export {
   evaluateXpbdPotentialStateN,
   type EvaluateXpbdPotentialStateNOptions,
   type XpbdPotentialStateEvaluationN,

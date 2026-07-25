@@ -4,9 +4,8 @@ import {
   type XpbdIncrementalPotentialEvaluationN
 } from './xpbd-incremental-potential.js';
 import {
-  SimplexConstitutiveDomainErrorN,
-  type SimplexConstitutiveDomainReasonN
-} from './simplex-constitutive.js';
+  XpbdPotentialDomainErrorN
+} from './xpbd-potential-domain.js';
 import {
   XpbdParticleN,
   type XpbdConservativeForceProviderN
@@ -345,7 +344,7 @@ export type XpbdArmijoTrialStatusN =
 
 export interface XpbdArmijoDomainRefusalN {
   readonly lawId: string;
-  readonly reason: SimplexConstitutiveDomainReasonN;
+  readonly reason: string;
   readonly message: string;
 }
 
@@ -387,7 +386,7 @@ export type XpbdArmijoSearchResultN =
 /**
  * Deterministic Armijo backtracking over a compiled free-coordinate problem.
  *
- * Only typed constitutive-domain refusals are recoverable. Every malformed,
+ * Only typed potential-domain refusals are recoverable. Every malformed,
  * arithmetic, lineage, and generic provider error is rethrown.
  */
 export function searchXpbdIncrementalPotentialArmijoN(
@@ -466,7 +465,7 @@ export function searchXpbdIncrementalPotentialArmijoN(
     try {
       evaluated = options.problem.evaluate(coordinates);
     } catch (error) {
-      if (!(error instanceof SimplexConstitutiveDomainErrorN)) throw error;
+      if (!(error instanceof XpbdPotentialDomainErrorN)) throw error;
       trials.push(Object.freeze({
         index: trialIndex,
         stepLength,
