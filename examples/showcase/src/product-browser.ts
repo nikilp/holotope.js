@@ -17,10 +17,7 @@ import {
   AmbientLight,
   Color,
   DirectionalLight,
-  DoubleSide,
-  LineBasicMaterial,
   Mesh,
-  MeshStandardMaterial,
   Object3D,
   PerspectiveCamera,
   Scene,
@@ -71,11 +68,15 @@ interface ProductSpec {
 // Every entry carries 1-, 2-, and 3-cells, so one set serves all products. The
 // tesseract's cells are cuboid, and a section marches tetrahedra, so it is
 // decomposed first.
+// Ordered by number of 3-cells, which is what each name counts: a tesseract
+// is bounded by 8 cubes, a 120-cell by 120 dodecahedra, a 600-cell by 600
+// tetrahedra. Ordering by vertices instead would read as unsorted, since the
+// 600-cell has 120 of them and the 120-cell has 600.
 const SHAPES: Record<string, () => CellComplex> = {
   tesseract: () => tetrahedralizeCuboidCells(createHypercube({ dim: 4, maxCellDimension: 3 })),
   '24-cell': () => create24Cell(),
-  '600-cell': () => create600Cell(),
-  '120-cell': () => create120Cell()
+  '120-cell': () => create120Cell(),
+  '600-cell': () => create600Cell()
 };
 
 const SHAPE: Param = {
@@ -94,25 +95,16 @@ const slice = HyperplaneSlice4.axisAligned(3, 0);
 
 const SPECS: Record<string, ProductSpec> = {
   ProjectedEdges3D: {
-    create: (complex) =>
-      new ProjectedEdges3D(complex, projection, {
-        material: new LineBasicMaterial({ color: 0x8fb6ff, transparent: true, opacity: 0.85 })
-      }),
+    create: (complex) => new ProjectedEdges3D(complex, projection),
     describe: (p) => [[(p as ProjectedEdges3D).complex.cellsOfDim(1).length, 'edge groups']]
   },
 
   ProjectedSurface3D: {
-    create: (complex) =>
-      new ProjectedSurface3D(complex, projection, {
-        material: new MeshStandardMaterial({
-          color: 0x7fa8ff,
-          transparent: true,
-          opacity: 0.28,
-          side: DoubleSide,
-          roughness: 0.55,
-          flatShading: true
-        })
-      }),
+    // The product's own default is used rather than an override: it is what a
+    // caller gets, and it disables depth writing, without which translucent
+    // triangles of a self-intersecting projected surface occlude each other
+    // by buffer order and flicker as the source turns.
+    create: (complex) => new ProjectedSurface3D(complex, projection),
     describe: () => []
   },
 
@@ -120,15 +112,7 @@ const SPECS: Record<string, ProductSpec> = {
     // The offset moves the cutting hyperplane along the hidden axis; the
     // section is empty once it passes beyond the object's extent.
     params: [{ name: 'offset', label: 'offset', min: -1.4, max: 1.4, step: 0.02, value: 0 }],
-    create: (complex) =>
-      new SlicedComplex3D(complex, slice, {
-        material: new MeshStandardMaterial({
-          color: 0x9ad6b4,
-          side: DoubleSide,
-          roughness: 0.5,
-          flatShading: true
-        })
-      }),
+    create: (complex) => new SlicedComplex3D(complex, slice),
     describe: (p) => [[(p as SlicedComplex3D).triangleCount, 'section triangles']],
     animate: (v) => {
       slice.offset = v.number('offset');

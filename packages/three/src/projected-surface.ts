@@ -36,6 +36,19 @@ export interface ProjectedSurface3DOptions {
  * each other), so the default material is translucent and double-sided;
  * flat normals are recomputed per update over the triangle soup.
  *
+ * That default also disables depth writing. Without it, translucent triangles
+ * of a self-intersecting surface occlude one another in buffer order rather
+ * than depth order, which reads as flicker while the source turns. An
+ * override that keeps the transparency should keep `depthWrite: false` with
+ * it.
+ *
+ * A face's shading can invert abruptly as the source rotates. Each normal is
+ * the cross product of a triangle's projected edges, and a cell passing
+ * through the hidden axis reverses its projected orientation — the same event
+ * that makes a rotating tesseract appear to turn inside out. The normal flips
+ * with it. This is the projection reporting a real change of orientation, not
+ * a shading artefact, and it is most visible on complexes with many faces.
+ *
  * Provenance: `sourceFaceOfTriangle` maps a Raycaster faceIndex back to
  * the source 2-cell, and `faceVertices` to its source vertex indices.
  */
