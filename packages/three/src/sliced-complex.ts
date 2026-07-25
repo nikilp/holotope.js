@@ -98,6 +98,7 @@ export class SlicedComplex3D {
    * );
    * const slice = HyperplaneSlice4.axisAligned(3, 0);
    * const section = new SlicedComplex3D(solid, slice);
+   * scene.add(section.object);
    *
    * slice.offset = 0.25;
    * section.update(new TransformN(4));

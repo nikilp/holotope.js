@@ -99,6 +99,29 @@ function report(message: string, kind: 'error' | 'note'): void {
   output.dataset.kind = kind;
 }
 
+/**
+ * A readable line for whatever the snippet evaluated to. Library objects carry
+ * their own shape rather than serialising usefully, so the interesting ones are
+ * summarised by what a reader would want to know about them.
+ */
+function describeValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value !== 'object') return String(value);
+
+  const complex = value as { ambientDim?: number; vertexCount?: number; cellsOfDim?: unknown };
+  if (typeof complex.cellsOfDim === 'function' && typeof complex.vertexCount === 'number') {
+    return `CellComplex — ${complex.vertexCount} stored vertices in R${complex.ambientDim}`;
+  }
+  // A DataView is also a view but has no length, so read the one all of them
+  // carry rather than narrowing by constructor.
+  if (ArrayBuffer.isView(value)) {
+    return `${value.constructor.name}(${value.byteLength} bytes)`;
+  }
+  const name = value.constructor?.name ?? 'object';
+  const own = Object.keys(value).slice(0, 4).join(', ');
+  return own ? `${name} { ${own}${Object.keys(value).length > 4 ? ', …' : ''} }` : name;
+}
+
 function run(): void {
   // A snippet is re-run from scratch rather than layered onto its leftovers.
   frameCallbacks = [];
@@ -120,15 +143,37 @@ function run(): void {
 
   const names = [...scope.keys(), 'scene', 'camera', 'renderer', 'onFrame', 'log'];
   const values = [...scope.values(), scene, camera, renderer, onFrame, log];
+  const before = scene.children.length;
 
   try {
-    // The snippet runs inside a block so its own declarations shadow the
-    // injected names rather than colliding with them. Every library export is
-    // a parameter here, and several are ordinary words — `spin`, `camera` —
-    // that a reader will reasonably want as locals.
-    const compiled = new Function(...names, `"use strict";\n{\n${editor.value}\n}`);
-    compiled(...values);
-    if (!lines.length) report('ran without error', 'note');
+    // A direct `eval` inside the wrapper reads the injected names while
+    // keeping the snippet's own declarations to itself, so a reader may
+    // declare `spin` or `camera` even though the library exports both. It
+    // also yields the value of the final expression, which is the whole
+    // result for an example that computes rather than draws.
+    const compiled = new Function(...names, '__source', '"use strict"; return eval(__source);');
+    const result = compiled(...values, editor.value);
+
+    if (lines.length) return;
+    const added = scene.children.length !== before;
+    // `scene.add(…)` returns the scene, which is the last expression of any
+    // example that ends by showing something. Reporting it back says nothing.
+    const meaningful = result !== undefined && result !== scene;
+
+    if (meaningful) {
+      report(describeValue(result), 'note');
+    } else if (added) {
+      report('ran without error', 'note');
+    } else if (scene.children.length === before) {
+      report(
+        'Ran without error. This example computes rather than draws — nothing\n' +
+          'was added to the scene. Call log(…) to print a value, or add an\n' +
+          'object to `scene` to see it.',
+        'note'
+      );
+    } else {
+      report('ran without error', 'note');
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     // A reader pasting TypeScript gets a syntax error that does not say why.
