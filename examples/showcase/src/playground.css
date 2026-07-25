@@ -1,0 +1,111 @@
+/*
+ * Playground layout: result on the left, code on the right at desk widths.
+ * The editor is a plain textarea — snippets are a dozen lines, and an editor
+ * component would cost more than it returns at that size.
+ */
+#shell {
+  display: flex;
+  height: 100%;
+}
+#app {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#pane {
+  flex: 0 0 46%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #1e2436;
+  background: #0a0a12;
+  min-width: 0;
+}
+#bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1e2436;
+}
+#bar h1 {
+  margin: 0;
+  font-size: 12px;
+  color: #d7e3ff;
+  font-weight: 600;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button {
+  font: inherit;
+  color: #d7e3ff;
+  background: #1b2440;
+  border: 1px solid #2c3a63;
+  border-radius: 5px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+button:hover {
+  background: #24304f;
+}
+#code {
+  flex: 1 1 auto;
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 10px 12px;
+  background: transparent;
+  color: #c6d4ef;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+#output {
+  padding: 8px 12px;
+  border-top: 1px solid #1e2436;
+  color: #6f83a8;
+  white-space: pre-wrap;
+  max-height: 30%;
+  overflow: auto;
+}
+#output[data-kind='error'] {
+  color: #ff9a9a;
+}
+/* The toggle only matters once the panes stop fitting side by side. */
+#toggle {
+  display: none;
+}
+
+/*
+ * Narrow frames: the result is what the embed is for, so it keeps the frame
+ * and the code moves behind a toggle. A split would leave too little of
+ * either to be usable.
+ */
+@media (max-width: 720px) {
+  #shell {
+    flex-direction: column;
+  }
+  #toggle {
+    display: inline-block;
+  }
+  #pane {
+    flex: 0 0 auto;
+    max-width: none;
+    border-left: none;
+    border-top: 1px solid #1e2436;
+  }
+  #code,
+  #output {
+    display: none;
+  }
+  body.code-open #code {
+    display: block;
+    height: 42vh;
+  }
+  body.code-open #output {
+    display: block;
+  }
+}

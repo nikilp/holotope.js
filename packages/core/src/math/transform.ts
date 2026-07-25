@@ -35,8 +35,8 @@ export class TransformN {
    *
    * @example
    * ```ts
-   * const spin = new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle }]));
-   * const placed = new TransformN(4, Rotor4.identity(), new VecN(4, [0, 0, 0, 2]));
+   * const spin = new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle: 0.4 }]));
+   * const placed = new TransformN(4, Rotor4.identity(), new VecN([0, 0, 0, 2]));
    * ```
    */
   constructor(dim: number, rotation?: RotationBackend, position?: VecN) {

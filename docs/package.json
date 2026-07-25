@@ -8,7 +8,7 @@
     "api:core": "typedoc --options typedoc/core.json",
     "api:three": "typedoc --options typedoc/three.json",
     "api:physics": "typedoc --options typedoc/physics.json",
-    "api:examples": "node scripts/link-examples.mjs && node scripts/embed-viewers.mjs",
+    "api:examples": "node scripts/link-examples.mjs && node scripts/embed-viewers.mjs && node scripts/embed-playground.mjs",
     "coverage": "node scripts/check-coverage.mjs",
     "coverage:update": "node scripts/check-coverage.mjs --update",
     "links": "node scripts/check-links.mjs",

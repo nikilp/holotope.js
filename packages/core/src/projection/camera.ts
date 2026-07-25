@@ -35,8 +35,8 @@ export class CameraN {
    * Prefer `lookAt` over supplying a frame by hand; it completes the frame
    * and keeps roll continuous across successive calls.
    * ```ts
-   * const camera = new CameraN(4);
-   * camera.lookAt(new VecN(4, [0, 0, 0, 4]), new VecN(4));
+   * const camera = new CameraN(4, new VecN([0, 0, 0, 4]));
+   * camera.lookAt(new VecN(4));
    * ```
    */
   constructor(dim: number, position?: VecN, rotation?: MatN) {

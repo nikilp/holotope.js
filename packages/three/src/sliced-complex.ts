@@ -100,7 +100,7 @@ export class SlicedComplex3D {
    * const section = new SlicedComplex3D(solid, slice);
    *
    * slice.offset = 0.25;
-   * section.update(transform);
+   * section.update(new TransformN(4));
    * section.triangleCount; // reflects this cut, not the source
    * ```
    */

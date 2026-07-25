@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Playground</title>
+  </head>
+  <body>
+    <div id="shell">
+      <div id="app"></div>
+      <div id="pane">
+        <div id="bar">
+          <h1 id="title">playground</h1>
+          <button id="toggle" type="button">show code</button>
+          <button id="run" type="button">run</button>
+        </div>
+        <textarea id="code" spellcheck="false" autocomplete="off"></textarea>
+        <div id="output"></div>
+      </div>
+    </div>
+    <div id="err"></div>
+  </body>
+  <script type="module" src="/src/playground.ts"></script>
+</html>

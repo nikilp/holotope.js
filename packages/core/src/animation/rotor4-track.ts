@@ -53,8 +53,10 @@ export class Rotor4Track {
    *
    * @example
    * ```ts
+   * const target = Rotor4.fromPlanes([{ i: 0, j: 3, angle: Math.PI / 2 }]);
    * const track = new Rotor4Track([0, 1], [Rotor4.identity(), target], 'cubic');
-   * transform.rotation = track.evaluate(t);
+   *
+   * const transform = new TransformN(4, track.sample(0.5));
    * ```
    */
   constructor(

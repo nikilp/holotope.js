@@ -72,6 +72,7 @@ export class ProjectedEdges3D {
    * );
    * scene.add(product.object);
    *
+   * const angle = Math.PI / 6;
    * product.update(new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle }])));
    * ```
    */
