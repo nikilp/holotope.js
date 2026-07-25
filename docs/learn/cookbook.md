@@ -43,7 +43,8 @@ function render() {
 }
 ```
 
-See the complete [tesseract example](../examples/showcase/src/tesseract.ts).
+See it running in the [tesseract demo](https://nikilp.github.io/holotope.js/tesseract.html),
+or read its [full source](https://github.com/nikilp/holotope.js/blob/main/examples/showcase/src/tesseract.ts).
 
 ## Sweep and reorient a 4D slice
 

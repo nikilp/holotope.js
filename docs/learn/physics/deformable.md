@@ -24,15 +24,15 @@ gradient conventions.
 that coordinate. For Lamé parameters `lambda` and `mu`, it evaluates the
 energy density per unit rest k-measure
 
-\[
+$$
 \psi(E)=\mu\lVert E\rVert_F^2+\frac{\lambda}{2}\operatorname{tr}(E)^2,
-\]
+$$
 
 its second Piola stress
 
-\[
+$$
 S=\lambda\operatorname{tr}(E)I+2\mu E,
-\]
+$$
 
 and the analytic gradient of total energy with respect to every current
 vertex. `currentGradients[i]` is `dU/dx_i`; an internal force is its negative.
@@ -73,14 +73,14 @@ intentionally separate consumers.
 `evaluateSimplexCompressibleNeoHookeanN()` supplies a large-strain reference
 over the same coordinate. For positive intrinsic measure ratio `J`,
 
-\[
+$$
 \psi(C)=\frac{\mu}{2}(\operatorname{tr}C-k)-\mu\log J+
 \frac{\lambda}{2}(\log J)^2,
-\]
+$$
 
-\[
+$$
 S=\mu(I-C^{-1})+\lambda\log J\,C^{-1}.
-\]
+$$
 
 The reference requires `mu > 0` and `lambda >= 0`. Embedded simplices use the
 positive intrinsic measure ratio and need no ambient normal. A
@@ -147,10 +147,10 @@ matches the point world's semi-implicit gravity and accumulated-external-force
 semantics without mutating it. The evaluator combines that prediction with
 the candidate energy as
 
-\[
+$$
 E(q)=\frac{1}{2}\sum_{i\ \mathrm{dynamic}}
 m_i\lVert q_i-\widehat q_i\rVert^2+h^2U(q).
-\]
+$$
 
 Fixed particles remain prescribed coordinates and therefore receive zero
 free-coordinate gradient; their complete conservative reaction remains in the
@@ -233,13 +233,13 @@ component over the same intrinsic coordinate. Given minimum ratio `m`,
 activation ratio `a`, stiffness `kappa`, and `d = J - m`, `h = a - m`, its
 energy density is
 
-\[
+$$
 \psi_b(J)=
 \begin{cases}
 -\kappa(d-h)^2\log(d/h), & m < J < a,\\
 0, & J \ge a.
 \end{cases}
-\]
+$$
 
 It is exactly zero and C2 at `a`, and diverges as `J` approaches `m` from
 above. The evaluator exposes both scalar derivatives with respect to `J` and
@@ -452,19 +452,19 @@ dimension-explicit and independent of the velocity-level R4 rigid solver. For
 a scalar equality `C(x) = 0`, inverse point masses `w_i`, gradients `g_i`,
 physical compliance `alpha`, and step duration `h`, each sequential visit uses
 
-\[
+$$
 \widetilde\alpha=\frac{\alpha}{h^2},
 \qquad
 W=\sum_i w_i\|g_i\|^2,
-\]
+$$
 
-\[
+$$
 \Delta\lambda=
 \frac{-C(x)-\widetilde\alpha\lambda}
 {W+\widetilde\alpha},
 \qquad
 \Delta x_i=w_i g_i\Delta\lambda.
-\]
+$$
 
 The total multiplier starts at zero for each `solve()` call, so one call is one
 position-projection phase of a time step. Results expose `lambda`, the signed
@@ -479,11 +479,11 @@ A scalar inequality declares `relation: 'greater-than-or-equal'` and means
 `C(x) >= 0`. Its trial update uses the same denominator, then projects the
 total multiplier onto the non-negative ray:
 
-\[
+$$
 \lambda' = \max(0,\lambda+\Delta\lambda^*),
 \qquad
 \Delta\lambda=\lambda'-\lambda.
-\]
+$$
 
 An inactive inequality may have positive compliant slack. Results therefore
 retain `compliantResidual` as raw evidence and expose a separate
@@ -526,7 +526,7 @@ explicit branch at coincidence.
 boundary. It owns registered `XpbdParticleN` values and uses, for every substep
 of duration `h`,
 
-\[
+$$
 v^*=v+h\left(g_s g+w f\right),
 \qquad
 \widetilde x=x+h v^*,
@@ -536,7 +536,7 @@ x'=\operatorname{project}_{XPBD}(\widetilde x,h),
 v'=\frac{x'-x}{h},
 \qquad
 v''=\operatorname{respond}(v',h).
-\]
+$$
 
 Here `w` is inverse mass, `g_s` is the particle's gravity scale, and `f` is the
 sum of the persistent external accumulator and registered state-dependent
@@ -593,10 +593,10 @@ reports the factor, affected particle count, and kinetic-energy change.
 normalized oriented plane `normal dot x = offset`, with the positive side
 allowed and non-negative clearance `r`, it declares
 
-\[
+$$
 C(x)=normal\cdot x-offset-r\ge 0,
 \qquad \nabla C=normal.
-\]
+$$
 
 `compileXpbdParticleHyperplaneFamilyN()` composes one contact per source
 vertex over an existing particle binding. Each record retains its source
@@ -633,9 +633,9 @@ over that normal family. For an active contact it interprets the XPBD position
 multiplier as the normal impulse `J_n = lambda_n / h`, computes the complete
 ambient tangent velocity
 
-\[
+$$
 v_t=v-n(n\cdot v),
-\]
+$$
 
 and projects the desired stopping impulse onto the isotropic Coulomb ball
 `||J_t|| <= mu J_n`. No tangent basis is introduced. The implementation is the

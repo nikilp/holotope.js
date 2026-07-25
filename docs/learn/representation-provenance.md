@@ -8,19 +8,19 @@ or ray-marched restriction; it does not replace the source object.
 
 For a representation map
 
-\[
+$$
 R : X_N \longrightarrow Y_3,
-\]
+$$
 
 an ordinary projection is generally many-to-one. Different N-dimensional
 points may have the same 3D image, so coordinates in `Y3` do not define an
 inverse. Traceability instead comes from a second map retained during
 construction:
 
-\[
+$$
 P : \text{render primitive or hit} \longrightarrow
     \text{source primitive or evaluation record}.
-\]
+$$
 
 This distinguishes two questions:
 
@@ -179,10 +179,10 @@ golden path shared by the source-edge and source-simplex workflows. It solves
 explicit blocks of linear equations `A x = b`. Each block declares a positive
 weight and a positive scale, so its objective has auditable units:
 
-\[
+$$
 \underset{x}{\operatorname{minimize}}\;
   \sum_k \omega_k\left\|\frac{A_k x-b_k}{s_k}\right\|^2.
-\]
+$$
 
 The deterministic symmetric eigensolver supplies the pseudoinverse and rank.
 Resolved spectral components come only from the observations; an optional
@@ -273,10 +273,10 @@ An observation may declare a stable `key`; otherwise its ordered index supplies
 a deterministic local key. Source-simplex observations follow the same rule.
 The reconciled coordinate is the auditable weighted least-squares policy
 
-\[
+$$
 t^* = \underset{0 \leq t \leq 1}{\operatorname{argmin}}
       \sum_i w_i(t-t_i)^2.
-\]
+$$
 
 The result keeps every independent fit and reports parameter spread,
 parameter RMS residual, representation-space RMS residual, and maximum view
@@ -298,10 +298,10 @@ and apply their own weights or higher-dimensional constraints.
 An edge supplies one source degree of freedom. A source simplex generalizes
 that policy to barycentric coordinates
 
-\[
+$$
 w_j \geq 0, \qquad \sum_j w_j = 1, \qquad
 x = \sum_j w_j v_j.
-\]
+$$
 
 `SourceSimplexReferenceN` names an ordered vertex simplex inside a persistent
 source cell. It may name a complete simplex cell or an authored triangle used
@@ -321,10 +321,10 @@ an inverse in any view. If source vertex `j` has homogeneous image
 `(h_j, q_j)` and a view requests affine point `y`, then every displayed
 coordinate contributes the linear equation
 
-\[
+$$
 \sum_j w_j\bigl(h_{j,c} - y_c q_j\bigr) = 0,
 \qquad c \in \{0,1,2\}.
-\]
+$$
 
 `fitSourceSimplexCoordinateToObservationsN()` stacks these equations, solves
 their weighted least-squares problem on the closed barycentric simplex, and

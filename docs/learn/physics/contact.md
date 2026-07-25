@@ -395,17 +395,17 @@ world.step(fixedDt, 1, (substepDt) => {
 The patch normal points from B toward A and the relative convention remains
 `vA - vB`. At one witness pair, the scalar normal speed is
 
-\[
+$$
 v_n = n^T[(v_A + \Omega_A r_A) - (v_B + \Omega_B r_B)].
-\]
+$$
 
 A unit normal impulse changes both linear momentum and angular momentum
 `r ∧ n`. The effective mass therefore includes the six-component R4 inertia
 response, not only inverse linear masses. Each iteration applies
 
-\[
+$$
 \lambda' = \max(0,\;\lambda + m_{eff}(v_{target}-v_n)).
-\]
+$$
 
 The non-negative projection prevents attraction. `v_target` is the larger of
 the thresholded Newton-restitution speed and a bounded penetration-bias speed.
@@ -421,19 +421,19 @@ immediately; a real feature transition never inherits a nearby point's impulse.
 For an orthonormal tangent basis `T = [t1 t2 t3]`, the solver constructs the
 complete symmetric point-response matrix
 
-\[
+$$
 K_t = T^T(W_A + W_B)T,
-\]
+$$
 
 where each `W` includes linear inverse mass and the world-space inverse-inertia
 response of `r ∧ t_j`. A Cholesky solve produces the unconstrained block update,
 then the accumulated vector is projected once:
 
-\[
+$$
 \lambda_t^* = \lambda_t - K_t^{-1}v_t,
 \qquad
 \lambda_t' = \operatorname{proj}_{\|x\|\le\mu\lambda_n}(\lambda_t^*).
-\]
+$$
 
 This is a rotationally symmetric three-ball, not three independently clamped
 intervals. The world-space result is therefore invariant under changing the

@@ -8,6 +8,7 @@
     "api:examples": "node scripts/link-examples.mjs",
     "coverage": "node scripts/check-coverage.mjs",
     "coverage:update": "node scripts/check-coverage.mjs --update",
+    "links": "node scripts/check-links.mjs",
     "api:core": "typedoc --options typedoc/core.json",
     "api:three": "typedoc --options typedoc/three.json",
     "api:physics": "typedoc --options typedoc/physics.json",
@@ -16,6 +17,7 @@
     "preview": "vitepress preview"
   },
   "devDependencies": {
+    "markdown-it-mathjax3": "^5.2.0",
     "typedoc": "^0.28.20",
     "typedoc-plugin-markdown": "^4.12.0",
     "typedoc-vitepress-theme": "^1.1.3",

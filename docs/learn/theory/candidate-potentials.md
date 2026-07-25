@@ -18,9 +18,9 @@ interface XpbdConservativeForceProviderN extends XpbdForceProviderN {
 
 The force convention is
 
-\[
+$$
 f_i(q)=-\nabla_{q_i}U(q).
-\]
+$$
 
 `evaluateXpbdPotentialStateN()` composes any number of such providers and
 returns the mathematical gradients `∇U`, not forces:

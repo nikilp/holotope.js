@@ -15,6 +15,26 @@ export interface HypercubeOptions {
  * Vertex `v` (0 … 2^n − 1) has coordinate `+h` on axis `a` iff bit `a` of
  * `v` is set. Cell counts: 2^n vertices, n·2^(n−1) edges,
  * C(n,2)·2^(n−2) square faces.
+ *
+ * @param options - Ambient dimension, edge length, and the highest cell
+ * dimension to author. Raising `maxCellDimension` to 3 emits the cubic
+ * 3-cells a cross-section needs.
+ * @returns A complex in `dim` dimensions, centered at the origin.
+ *
+ * @example
+ * A tesseract, ready to project:
+ * ```ts
+ * const tesseract = createHypercube({ dim: 4 });
+ * tesseract.vertexCount; // 16
+ * ```
+ *
+ * @example
+ * To cut a cross-section rather than project a wireframe, author the
+ * 3-cells and tetrahedralize them first — a slicer marches tetrahedra:
+ * ```ts
+ * const solid = createHypercube({ dim: 4, maxCellDimension: 3 });
+ * const sliceable = tetrahedralizeCuboidCells(solid);
+ * ```
  */
 export function createHypercube({
   dim,

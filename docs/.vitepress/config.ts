@@ -76,6 +76,11 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
 
+  // The guide carries real notation — incremental-potential objectives, the
+  // graph Laplacian, so(4) generators. Rendered via MathJax so `$$…$$` blocks
+  // and `$…$` spans typeset instead of showing their source.
+  markdown: { math: true },
+
   // With ~1,100 generated reference pages, VitePress would inline a ~210 kB
   // route hash map into every page — a quadratic blowup that took the built
   // site to 469 MB. Extracting it to a shared, separately cached chunk brings

@@ -13,16 +13,16 @@ others through the full six-plane inertia operator.
 For relative anchor velocity `v = vA - vB`, the solver constructs the symmetric
 positive-definite response
 
-\[
+$$
 K_{ij} = e_i^T(W_A + W_B)e_j,
-\]
+$$
 
 where `W` includes inverse linear mass and the angular response of
 `r ∧ e_j`. One Cholesky solve produces the unconstrained update
 
-\[
+$$
 \Delta\lambda = K^{-1}(v_{target} - v).
-\]
+$$
 
 There is no component-wise projection: all four coordinates remain coupled.
 `PointJointResult4` exposes `K`, its inverse effective-mass matrix, initial
@@ -68,31 +68,31 @@ Jacobian per participant: four coefficients act on linear velocity and six
 bivector coefficients act on angular velocity. Its generalized coordinate
 speed is
 
-\[
+$$
 v_c = J_A v_A + J_B v_B,
 \qquad
 k = J M^{-1}J^T,
 \qquad
 m_{eff}=k^{-1}.
-\]
+$$
 
 `ConstraintRowSolver4` performs projected Gauss--Seidel updates. Authored
 `minForce` and `maxForce` are generalized-force bounds, so a step of duration
 `Δt` converts them to impulse bounds before projection:
 
-\[
+$$
 \lambda_{min}=f_{min}\Delta t,
 \qquad
 \lambda_{max}=f_{max}\Delta t,
-\]
+$$
 
-\[
+$$
 \lambda' =
 \Pi_{[\lambda_{min},\lambda_{max}]}
 \left(\lambda + m_{eff}(v_{target}-v_c)\right),
 \qquad
 \Delta\lambda=\lambda'-\lambda.
-\]
+$$
 
 Omitting the bounds gives the unrestricted equality row. Setting one bound to
 zero produces a unilateral row; finite bounds produce force-limited behavior
@@ -105,12 +105,12 @@ The solver exposes both `residualSpeed` and `projectedResidualSpeed`. The raw
 equality residual may correctly remain nonzero when a force bound is active.
 The projected residual instead tests the bounded-row optimality condition:
 
-\[
+$$
 r_p = \frac{
 \lambda-\Pi_{[\lambda_{min},\lambda_{max}]}
 (\lambda+m_{eff}(v_{target}-v_c))
 }{m_{eff}}.
-\]
+$$
 
 This sign matches `residualSpeed = v_c - v_target`; `r_p = 0` means the row is
 solved even at saturation. `impulseState` reports whether the impulse is
@@ -137,13 +137,13 @@ instead provide their six-plane Jacobian directly.
 The geometric part of a distance constraint is dimension-independent. For
 anchors `a` and `b` and positive rest length `ℓ`,
 
-\[
+$$
 C = \|a-b\|-\ell,
 \qquad
 n = \frac{a-b}{\|a-b\|},
 \qquad
 \dot C = n\cdot(v_A-v_B).
-\]
+$$
 
 `evaluateDistanceCoordinateN()` returns `a-b`, `n`, and the current distance
 for any `VecN` dimension. `evaluateDistanceConstraintN()` additionally returns
@@ -196,10 +196,10 @@ remains defined at coincidence.
 `DistanceIntervalJoint4` constrains the same scalar coordinate to a closed
 interval
 
-\[
+$$
 \ell_{min} \le \|a-b\| \le \ell_{max},
 \qquad 0\le\ell_{min}<\ell_{max}.
-\]
+$$
 
 `constraints(dt)` always returns two unilateral guardian rows with stable
 `:minimum` and `:maximum` ID suffixes. At the minimum, `minForce: 0` permits
@@ -209,17 +209,17 @@ negative radial impulse, so the row may pull inward but cannot push outward.
 
 While the coordinate lies inside the interval, their targets are
 
-\[
+$$
 v_{min}=\frac{\ell_{min}-\ell}{\Delta t},
 \qquad
 v_{max}=\frac{\ell_{max}-\ell}{\Delta t}.
-\]
+$$
 
 Together they enforce the first-order safe-speed corridor
 
-\[
+$$
 v_{min}\le\dot\ell\le v_{max},
-\]
+$$
 
 so constant substep velocity cannot cross either boundary. Outside the
 interval, the violated row instead carries signed position error and zero
@@ -255,9 +255,9 @@ requires the hint at construction so recovery has an explicit direction.
 force bounds. Positive `targetSpeed` lengthens the anchor distance, negative
 speed shortens it, and `maxForce` produces
 
-\[
+$$
 -f_{max}\le f\le f_{max}.
-\]
+$$
 
 Both policy values are mutable between solves. Because the motor and interval
 are independent rows on the same coordinate, the motor composes with both
@@ -360,9 +360,9 @@ coordinate and the existing rigid-Jacobian solver.
 `ConstraintBlockSolver4` couples one to six `ConstraintRow4` values through
 the exact small dense response
 
-\[
+$$
 K_{ij}=J_i M^{-1}J_j^T.
-\]
+$$
 
 The auditable Float64 path uses the shared deterministic symmetric eigensolver.
 Its relative threshold is measured against `trace(K) / k`; the default
@@ -378,16 +378,16 @@ bounds. The additive `one-bounded` projection requires exactly one bounded row
 and a full-rank response. If `E` denotes the equality rows and `b` the bounded
 row, the solver forms the scalar Schur response
 
-\[
+$$
 S=K_{bb}-K_{bE}K_{EE}^{-1}K_{Eb}.
-\]
+$$
 
 It solves and clamps the accumulated `b` impulse, then re-solves
 
-\[
+$$
 \Delta\lambda_E=K_{EE}^{-1}
   (r_E-K_{Eb}\Delta\lambda_b).
-\]
+$$
 
 This is the complete active-set solution for one bounded coordinate, not a
 componentwise approximation. Equality residuals therefore remain zero even
@@ -412,11 +412,11 @@ is their normalized bisector `m = (a+b)/|a+b|`. The difference `a-b` lies in
 the three-dimensional tangent space `m^perp`. A transported orthonormal basis
 `t_i` gives the residual and angular rows
 
-\[
+$$
 C_i=t_i\cdot(a-b),\qquad
 J_{A,i}=a\wedge t_i,\qquad
 J_{B,i}=-(b\wedge t_i).
-\]
+$$
 
 At `a=-b`, the bisector and correction direction are not unique.
 `constraint()` therefore returns `status: 'antipodal'` and no solver block.
@@ -458,17 +458,17 @@ four translational rows of `PointJoint4` gives the complete R4 weld.
 For current material frames `A` and `B`, the coordinate is expressed in frame
 B:
 
-\[
+$$
 E=B^{-1}A,\qquad e=\log(E).
-\]
+$$
 
 If `omega_A` and `omega_B` are world-left angular velocities and
 `Ad_(B^-1)` rotates a world bivector into frame B, its exact rate is
 
-\[
+$$
 \dot e=D\log_{\mathrm{left}}(e)\,
        \operatorname{Ad}_{B^{-1}}(\omega_A-\omega_B).
-\]
+$$
 
 The two participant Jacobians are therefore exact negatives. The coordinate
 does not change under a common world-left rotation, and every internal row
@@ -544,18 +544,18 @@ scalar coordinate. `PlanarRotationCoordinate4` supplies that coordinate by
 attaching one unit phase-reference direction to each side. The ordered fixed
 frame orients its complement through the canonical orientation of R4:
 
-\[
+$$
 \det[m_0\ m_1\ p_0\ p_1] > 0,
 \qquad F=p_0\wedge p_1.
-\]
+$$
 
 After projecting both phase references into the common complementary plane,
 their signed relative angle is evaluated with `atan2`. Its instantaneous rate
 is
 
-\[
+$$
 \dot\theta=F\cdot\omega_A-F\cdot\omega_B.
-\]
+$$
 
 The returned branch token retains wrapped and unwrapped angles. Successive
 samples choose the unique increment in `(-pi,pi)`. An exact half-turn has two
@@ -586,11 +586,11 @@ guardian blocks over the continuous angle: its minimum row admits only
 non-negative torque and its maximum row only non-positive torque. Inside the
 interval their targets encode the first-order safe-speed corridor
 
-\[
+$$
 \frac{\theta_{min}-\theta}{\Delta t}
 \leq \dot\theta \leq
 \frac{\theta_{max}-\theta}{\Delta t}.
-\]
+$$
 
 Outside it, signed position error supplies bounded Baumgarte repair. When a
 motor and interval are composed, solve the motor block before both guardians;

@@ -42,3 +42,9 @@ jobs:
         run: |
           pnpm --filter @holotope/docs api
           pnpm --filter @holotope/docs coverage
+
+      # VitePress only validates links between markdown routes, so a link into
+      # repository source builds clean and 404s on the deployed site. This
+      # checks that guide links resolve and that none escapes the docs root.
+      - name: Documentation links
+        run: pnpm --filter @holotope/docs links

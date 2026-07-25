@@ -3,9 +3,9 @@
 `@holotope/core` can treat the 1-skeleton of any `CellComplex` as a simple,
 undirected graph and construct its unweighted combinatorial Laplacian
 
-\[
+$$
 L = D - A,
-\]
+$$
 
 where `D` is the diagonal degree matrix and `A` is adjacency. The construction
 depends only on incidence, not on the positions or ambient dimension of the
@@ -46,11 +46,11 @@ graph sizes.
 
 Two identities provide direct audits:
 
-\[
+$$
 L\mathbf{1}=0,
 \qquad
 x^T L x = \sum_{(i,j)\in E}(x_i-x_j)^2.
-\]
+$$
 
 The multiplicity of eigenvalue zero equals the number of connected components,
 including isolated vertices.
@@ -76,9 +76,9 @@ basis vector is canonical: any orthonormal rotation within the same eigenspace
 is equally correct. `graphLaplacianModes()` therefore clusters nearby numerical
 eigenvalues, and `eigenspaceProjector()` returns
 
-\[
+$$
 P = \sum_k v_k v_k^T,
-\]
+$$
 
 which is invariant under a change of basis inside the cluster. Comparisons,
 cache keys, and symmetry tests for degenerate modes should use the projector or

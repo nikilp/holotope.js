@@ -7,10 +7,10 @@ that combines inertia with conservative energy.
 For candidate particle positions `q`, inertial predictions `qHat`, time step
 `h`, dynamic masses `m_i`, and conservative energy `U(q)`, Holotope evaluates
 
-\[
+$$
 E(q)=\frac{1}{2}\sum_{i\ \mathrm{dynamic}}
 m_i\lVert q_i-\widehat q_i\rVert^2+h^2U(q).
-\]
+$$
 
 This scaled form has the same stationary points as dividing the complete
 objective by `h²`. It follows the Incremental Potential form for Backward
@@ -23,10 +23,10 @@ paper's contact, friction, or nonlinear-solver layers.
 
 `predictXpbdInertialStateN()` produces `qHat` without changing the particles:
 
-\[
+$$
 a_i=s_i g+w_i f_i,\qquad
 \widehat q_i=q_i+h v_i+h^2a_i,
-\]
+$$
 
 where `s_i` is `gravityScale`, `w_i` is inverse mass, and `f_i` is the
 particle's accumulated explicit force. Fixed particles retain their current
@@ -63,9 +63,9 @@ The result separates `inertialObjective`,
 `scaledConservativeObjective`, and the original physical
 `conservativePotentialEnergy`. Its `gradients` are
 
-\[
+$$
 \nabla_iE=m_i(q_i-\widehat q_i)+h^2\nabla_iU
-\]
+$$
 
 for dynamic particles.
 
@@ -119,9 +119,9 @@ particle-space evidence.
 `searchXpbdIncrementalPotentialArmijoN()` evaluates a supplied descent
 direction using the Armijo sufficient-decrease condition
 
-\[
+$$
 E(x+\alpha p)\leq E(x)+c\alpha\nabla E(x)^T p.
-\]
+$$
 
 ```ts
 import {
@@ -224,9 +224,9 @@ if (application.status === 'refused') {
 
 With the default `backward-euler` policy, each dynamic velocity becomes
 
-\[
+$$
 v_{n+1}=\frac{q_{n+1}-q_n}{h},
-\]
+$$
 
 using the exact `q_n` captured when the problem was compiled. Fixed particles
 receive their prescribed final positions but retain their authored velocities,

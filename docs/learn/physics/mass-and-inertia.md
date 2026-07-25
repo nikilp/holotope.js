@@ -26,7 +26,7 @@ console.log(properties.inertiaDiagonal); // six entries, each 1/6
 
 The returned covariance is a 4×4 integral at the center of mass. A symmetric
 Jacobi solve diagonalizes that matrix; if its principal second moments are
-`m0…m3`, the inertia of the coordinate-plane bivector `e_i∧e_j` is `mi + mj`.
+`m0…m3`, the inertia of the coordinate-plane bivector $e_i \wedge e_j$ is `mi + mj`.
 This produces six principal inertias in the kernel's lexicographic order:
 `01, 02, 03, 12, 13, 23`.
 

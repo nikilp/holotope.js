@@ -1,7 +1,7 @@
 # The Holotope mental model
 
 Holotope is not a 3D renderer with an extra coordinate hidden in a material.
-It keeps an authoritative state in `R^N`, then makes every lower-dimensional
+It keeps an authoritative state in $\mathbb{R}^N$, then makes every lower-dimensional
 view an explicit observation of that state. Simulation, if present, also acts
 on the source state rather than on a projected mesh.
 
@@ -43,7 +43,7 @@ calling `product.update(...)` from your animation loop.
 
 Use this for a static or procedurally transformed object.
 
-1. Build a `CellComplex` in `R^N`.
+1. Build a `CellComplex` in $\mathbb{R}^N$.
 2. Create a `TransformN` if the source moves or rotates.
 3. Choose a `PerspectiveProjection`, `CoordinateProjection`, or
    `HyperplaneSlice4`.
