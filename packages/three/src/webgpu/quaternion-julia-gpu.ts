@@ -4,27 +4,71 @@ import { float, instanceIndex, storage, uint, uniform, wgslFn } from 'three/tsl'
 import { QuaternionJuliaField } from '@holotope/core';
 import type { ComputeCapableRenderer } from './sliced-complex-gpu.js';
 
+/**
+ * One GPU evaluation read back, as a record of arrays rather than an array of
+ * records.
+ *
+ * The buffers arrive from the device in that shape and are handed on
+ * unchanged: repacking a million samples into objects to inspect a handful
+ * would cost more than the evaluation did. `count` is the number of samples,
+ * and every array holds one entry per sample except those marked below, which
+ * hold four — the layout the shader wrote.
+ */
 export interface QuaternionJuliaGPURecordBatch {
+  /** Samples evaluated; every array below is sized from this. */
   readonly count: number;
+  /** Escape-time value per sample. */
   readonly values: Float32Array;
+  /** Final orbit magnitude per sample. */
   readonly magnitudes: Float32Array;
+  /** Escape potential per sample. */
   readonly potentials: Float32Array;
+  /** Distance estimate per sample. */
   readonly distances: Float32Array;
+  /** Iterations taken before escaping or reaching the cap. */
   readonly iterations: Uint32Array;
+  /** Whether each sample escaped, as 0 or 1. */
   readonly escaped: Uint8Array;
+  /** Orbit-trap value per sample. */
   readonly orbitTraps: Float32Array;
+  /** Derivative bound per sample, the term the distance estimate divides by. */
   readonly derivativeBounds: Float32Array;
+  /** Final orbit point, four entries per sample. */
   readonly finalPoints: Float32Array;
 }
 
+/**
+ * How far a GPU evaluation stands from the Float64 CPU reference.
+ *
+ * Two kinds of disagreement, judged differently and reported separately.
+ * The counts are over decisions — whether a point escaped, and on which
+ * iteration — which the two paths must reach identically, so any count above
+ * zero is a real divergence rather than a tolerance to widen. The maxima are
+ * over measured quantities, where Float32 and Float64 arithmetic cannot agree
+ * exactly and only the size of the gap is meaningful.
+ *
+ * The comparison rounds each input to Float32 before evaluating on the CPU.
+ * Without that, a difference would partly be the two paths having been given
+ * different points, and the check would measure the conversion rather than the
+ * arithmetic it exists to verify.
+ */
 export interface QuaternionJuliaGPUDifferential {
+  /** Samples compared. */
   readonly count: number;
+  /** Samples where the two paths disagreed on escaping at all. */
   readonly escapeMismatches: number;
+  /** Samples where they escaped on different iterations. */
   readonly iterationMismatches: number;
+  /** Largest absolute difference in escape-time value. */
   readonly maxValueError: number;
+  /** Largest absolute difference in final magnitude. */
   readonly maxMagnitudeError: number;
+  /** Largest absolute difference in potential. */
   readonly maxPotentialError: number;
+  /** Largest absolute difference in distance estimate. */
   readonly maxDistanceError: number;
+  /** Largest absolute difference in any single coordinate of a final point —
+   * a componentwise maximum, not a distance between the two points. */
   readonly maxFinalPointError: number;
 }
 

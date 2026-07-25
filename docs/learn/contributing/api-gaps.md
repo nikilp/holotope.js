@@ -12,7 +12,7 @@ description. The 3,579 symbols undocumented when the gate was introduced are
 grandfathered in `docs/doc-baseline.json`, so the rule is *coverage may not
 regress* — new work carries documentation without anyone having to drain the
 backlog first. The baseline is the measure of progress: it has fallen from
-3,579 to 3,149. See [Keeping it from growing back](#keeping-it-from-growing-back).
+3,579 to 3,107. See [Keeping it from growing back](#keeping-it-from-growing-back).
 :::
 
 ## The shape of the gap
@@ -95,6 +95,15 @@ and treating it as a miss is how a tunnelling bug gets written.
 `representation`: it now says to read `consistency` and `determination` before
 trusting the recovered coordinate, because a compromise and a recovered point
 are indistinguishable from the coordinate alone.
+
+The GPU field records are done. A readback is a record of arrays rather than
+an array of records, because the buffers arrive in that shape and repacking a
+million samples to inspect a handful would cost more than the evaluation did.
+Its differential separates two kinds of disagreement: counts over decisions,
+which the two paths must reach identically, and maxima over measured
+quantities, where Float32 and Float64 cannot agree exactly and only the size of
+the gap means anything. The comparison rounds each input to Float32 first, so
+it measures the arithmetic rather than the conversion.
 
 The linear constraint machinery is done. Its two knobs are easily confused and
 now say so: the solver minimises `weight * ||(A x - b) / scale||^2`, so `scale`
