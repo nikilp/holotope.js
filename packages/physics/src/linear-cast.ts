@@ -90,21 +90,38 @@ export interface HyperplaneLinearCastOptionsN {
   readonly speedTolerance?: number;
 }
 
+/**
+ * Result of casting a convex shape against a hyperplane under translation
+ * alone. Without rotation the closing speed is constant, so the cast is
+ * solved rather than advanced: it always decides, and neither an
+ * indeterminate status nor an iteration-limit reason can occur. `hit` is
+ * therefore a plain boolean, unlike its rigid counterparts.
+ */
 export interface HyperplaneLinearCastResultN {
+  /** Discriminant, for narrowing a union of cast results. */
   readonly kind: 'hyperplane';
   readonly status: Exclude<LinearCastStatusN, 'indeterminate'>;
   readonly reason: Exclude<
     LinearCastReasonN,
     'gjk-iteration-limit' | 'advancement-stalled' | 'advancement-limit'
   >;
+  /** Whether the shape reaches the plane within the cast. */
   readonly hit: boolean;
+  /** Time of impact, `null` on a miss. */
   readonly time: number | null;
+  /** Motion is proven contact-free up to here. */
   readonly safeTime: number;
+  /** Signed separation at the final query; negative once the shape crosses. */
   readonly distance: number;
+  /** The plane's unit normal. */
   readonly normal: VecN;
+  /** Deepest point of the shape toward the plane, in world coordinates. */
   readonly pointOnShape: VecN;
+  /** Its projection onto the plane. */
   readonly pointOnPlane: VecN;
+  /** Which support feature `pointOnShape` came from, for warm-starting. */
   readonly featureId: SupportFeatureId;
+  /** The support query the result was read from. */
   readonly finalQuery: HyperplaneQueryResult;
 }
 

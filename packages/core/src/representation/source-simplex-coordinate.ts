@@ -88,23 +88,70 @@ export type SourceSimplexObservationFitFailureReason =
   | 'no-feasible-coordinate'
   | 'invalid-reconciled-projection';
 
+/**
+ * A source position recovered from several observations of the same point,
+ * together with the evidence for how far it can be trusted.
+ *
+ * One projection of a point constrains it to a fibre rather than fixing it,
+ * so recovering a source position takes more than one observation. Whether
+ * enough were supplied is a property of the observations, not of the answer,
+ * and the fields below report it rather than leaving a caller to assume.
+ *
+ * Read in this order:
+ *
+ * - `consistency` — `conflicting` means the observations cannot describe one
+ *   point, and `coordinate` is then the least-squares compromise rather than
+ *   a recovered position;
+ * - `determination` — `rank-deficient` means the observations leave the point
+ *   underdetermined, and `unresolvedDegreesOfFreedom` counts by how much;
+ * - the residuals — small values mean the recovered point reproduces the
+ *   observations it came from.
+ *
+ * A fit that is `compatible` and `unique` with residuals at rounding error is
+ * a recovered source point. Anything else is a best effort, and which of the
+ * two it is cannot be told from `coordinate` alone.
+ */
 export interface AvailableSourceSimplexObservationFitN {
+  /** Whether the observations determined the point outright or were
+   * reconciled by least squares. */
   readonly kind: 'exact' | 'least-squares';
+  /** Whether the observations can describe a single source point at all. */
   readonly consistency: CoordinateConstraintConsistency;
+  /** Whether they pin it down, or leave directions unresolved. */
   readonly determination: CoordinateConstraintDetermination;
+  /** The recovered coordinate within its source simplex. */
   readonly coordinate: SourceSimplexCoordinateN;
+  /** The recovered point in the simplex's own parameterisation. */
   readonly point: VecN;
+  /** The same point in the complex's ambient space. */
   readonly ambientPoint: VecN;
+  /** Per-observation diagnostics, in the order supplied. */
   readonly observations: readonly SourceSimplexObservationDiagnosticN[];
+  /** Degrees of freedom the source simplex has to be pinned down. */
   readonly sourceDegreesOfFreedom: number;
+  /** How many of them the observations actually constrain. */
   readonly observationRank: number;
+  /** The shortfall between the two; zero for a unique determination. */
   readonly unresolvedDegreesOfFreedom: number;
+  /** Conditioning of the constrained directions. A large value means the
+   * rank was attained only marginally, so the point is nominally determined
+   * but numerically soft. */
   readonly rankConditioning: number;
+  /** Residual of the constraint normals, measuring how far the observations
+   * are from being mutually consistent. */
   readonly constraintNormalResidual: number;
+  /** Dimension of the simplex face the point resolved onto; lower than the
+   * simplex's own dimension when the point lies on its boundary. */
   readonly activeFaceDimension: number;
+  /** RMS of the normalised equations, comparable across observation counts. */
   readonly normalizedEquationRms: number;
+  /** RMS distance between each observation and the recovered point
+   * re-projected through the same map. */
   readonly representationRmsResidual: number;
+  /** The largest such distance; a single bad observation shows here while
+   * the RMS still looks acceptable. */
   readonly maxRepresentationResidual: number;
+  /** Simplex faces considered before settling on `activeFaceDimension`. */
   readonly candidateFaces: number;
 }
 

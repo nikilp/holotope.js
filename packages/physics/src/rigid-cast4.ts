@@ -45,43 +45,107 @@ export interface RigidCastTraceEntry4 {
   readonly advance: number | null;
 }
 
+/**
+ * Result of casting one convex R⁴ shape against another under rigid motion.
+ *
+ * `status` decides which of the remaining fields carry an answer:
+ *
+ * | status | `hit` | `time` |
+ * | --- | --- | --- |
+ * | `impact` | `true` | time of impact |
+ * | `miss` | `false` | `null` |
+ * | `initial-overlap` | `true` | `0` |
+ * | `indeterminate` | `null` | `null` |
+ *
+ * `safeTime` is the one time field always worth reading: motion up to it is
+ * proven free of contact whatever the status, so a caller that cannot use an
+ * indeterminate result can still advance that far and re-cast.
+ *
+ * An `indeterminate` status is a refusal, not a miss: the conservative
+ * advancement hit an iteration or stall limit before deciding, and `reason`
+ * says which. Treating it as a miss is how a tunnelling bug is written.
+ */
 export interface ConvexRigidCastResult4 {
+  /** Discriminant, for narrowing a union of cast results. */
   readonly kind: 'rigid-convex';
+  /** What the cast established; see the table above. */
   readonly status: LinearCastStatusN;
+  /** Why it stopped — the separating condition met, or the limit reached. */
   readonly reason: LinearCastReasonN;
+  /** `null` when the cast did not decide. */
   readonly hit: boolean | null;
+  /** Time of impact in the cast's parameter, `null` unless one was found. */
   readonly time: number | null;
+  /** Motion is proven contact-free up to here regardless of `status`. */
   readonly safeTime: number;
+  /** Separation at the final query, not at the impact. */
   readonly distance: number;
+  /** Contact normal pointing from A to B; `null` when none was determined. */
   readonly normal: VecN | null;
+  /** Closest point on A at the final query, in world coordinates. */
   readonly pointA: VecN;
+  /** Closest point on B at the final query, in world coordinates. */
   readonly pointB: VecN;
+  /** Conservative-advancement steps taken. */
   readonly iterations: number;
+  /** GJK iterations summed across those steps; the cost of the cast. */
   readonly gjkIterations: number;
+  /** Radius bounding A about its centre of rotation, as used in the bound. */
   readonly boundingRadiusA: number;
+  /** The same for B. */
   readonly boundingRadiusB: number;
+  /** Bound on A's angular speed; with the radius it bounds how fast the
+   * shapes can close, which is what makes the advancement conservative. */
   readonly angularSpeedBoundA: number;
+  /** The same for B. */
   readonly angularSpeedBoundB: number;
+  /** The GJK query the result was read from, for inspecting the witness. */
   readonly finalQuery: GjkResult;
+  /** Per-iteration record, present only when tracing was requested. */
   readonly trace?: readonly RigidCastTraceEntry4[];
 }
 
+/**
+ * Result of casting one convex R⁴ shape against an infinite hyperplane under
+ * rigid motion. `status` decides the other fields exactly as it does for a
+ * convex pair, and `safeTime` is likewise always meaningful.
+ *
+ * No GJK runs here — distance to a hyperplane is a support query — so
+ * `gjk-iteration-limit` cannot be the reason, and the type says so.
+ */
 export interface HyperplaneRigidCastResult4 {
+  /** Discriminant, for narrowing a union of cast results. */
   readonly kind: 'rigid-hyperplane';
+  /** What the cast established. */
   readonly status: LinearCastStatusN;
+  /** Why it stopped; a GJK limit is not among the possibilities. */
   readonly reason: Exclude<LinearCastReasonN, 'gjk-iteration-limit'>;
+  /** `null` when the cast did not decide. */
   readonly hit: boolean | null;
+  /** Time of impact, `null` unless one was found. */
   readonly time: number | null;
+  /** Motion is proven contact-free up to here regardless of `status`. */
   readonly safeTime: number;
+  /** Signed separation at the final query; negative once the shape crosses. */
   readonly distance: number;
+  /** The plane's unit normal, which is fixed and so never null here. */
   readonly normal: VecN;
+  /** Deepest point of the shape toward the plane, in world coordinates. */
   readonly pointOnShape: VecN;
+  /** Its projection onto the plane. */
   readonly pointOnPlane: VecN;
+  /** Which support feature `pointOnShape` came from, for warm-starting. */
   readonly featureId: SupportFeatureId;
+  /** Conservative-advancement steps taken. */
   readonly iterations: number;
+  /** Radius bounding the shape about its centre of rotation. */
   readonly boundingRadius: number;
+  /** Bound on the shape's angular speed, which with the radius bounds how
+   * fast it can approach the plane. */
   readonly angularSpeedBound: number;
+  /** The support query the result was read from. */
   readonly finalQuery: HyperplaneQueryResult;
+  /** Per-iteration record, present only when tracing was requested. */
   readonly trace?: readonly RigidCastTraceEntry4[];
 }
 

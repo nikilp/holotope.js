@@ -12,7 +12,7 @@ description. The 3,579 symbols undocumented when the gate was introduced are
 grandfathered in `docs/doc-baseline.json`, so the rule is *coverage may not
 regress* — new work carries documentation without anyone having to drain the
 backlog first. The baseline is the measure of progress: it has fallen from
-3,579 to 3,545. See [Keeping it from growing back](#keeping-it-from-growing-back).
+3,579 to 3,480. See [Keeping it from growing back](#keeping-it-from-growing-back).
 :::
 
 ## The shape of the gap
@@ -66,8 +66,8 @@ constructors is the single highest-value documentation change available.
 
 ## Priority 2 — options interfaces
 
-125 interfaces of four or more properties have **no** property documentation at
-all. In this API the options interface *is* the thing a caller has to fill in,
+121 interfaces of four or more properties have **no** property documentation at
+all, down from 125. In this API the options interface *is* the thing a caller has to fill in,
 so an undocumented one is a dead end. The largest:
 
 | Props | Package | Interface |
@@ -82,9 +82,19 @@ so an undocumented one is a dead end. The largest:
 | 11 | physics | `HyperboxHyperplaneContactResult4` |
 | 11 | physics | `XpbdOrientedCuboidFamilyCellN` |
 
-Result types matter as much as input types here: a caller who receives a
-`ConvexRigidCastResult4` with 18 undocumented fields cannot tell which are
-meaningful when the cast misses.
+Result types matter as much as input types here, and the cast results are now
+done: `ConvexRigidCastResult4`, `HyperplaneRigidCastResult4`, and
+`HyperplaneLinearCastResultN` each state which fields carry an answer for each
+status, and that `safeTime` is the one always worth reading.
+
+The distinction that documentation had been hiding: an `indeterminate` status
+is a refusal, not a miss. Conservative advancement stopped without deciding,
+and treating it as a miss is how a tunnelling bug gets written.
+
+`AvailableSourceSimplexObservationFitN` is also done, being the largest type in
+`representation`: it now says to read `consistency` and `determination` before
+trusting the recovered coordinate, because a compromise and a recovered point
+are indistinguishable from the coordinate alone.
 
 ## Resolved — types that were public but unnameable
 
