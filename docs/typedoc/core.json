@@ -29,9 +29,9 @@
   "json": "../.doc-model/core.json",
   "docsRoot": "..",
 
-  // TypeDoc reads src directly, so the reference builds without a prior
-  // `pnpm build`. That keeps docs generation off packages/*/dist, which the
-  // library build owns — important while other work is in flight.
+  // Entry points are TypeScript sources rather than declaration output, so
+  // the reference is generated from the same tree the tests run against and
+  // does not depend on packages/*/dist existing or being current.
   "skipErrorChecking": true,
   "excludeExternals": true,
   "excludePrivate": true,

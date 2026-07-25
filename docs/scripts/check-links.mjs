@@ -1,10 +1,10 @@
 /**
  * Link gate for the hand-written guide.
  *
- * VitePress validates links between markdown routes, but silently ignores a
- * relative link whose target is not markdown — so a link into repository
- * source (`../examples/showcase/src/tesseract.ts`) builds clean and 404s on
- * the deployed site. This closes that hole.
+ * VitePress validates links between markdown routes and ignores a relative
+ * link whose target is not markdown. A link into repository source therefore
+ * builds clean and resolves to nothing once deployed, because the published
+ * site contains the rendered guide and reference only, not the repository.
  *
  * Checked, for every markdown file under docs/learn plus docs/index.md:
  *

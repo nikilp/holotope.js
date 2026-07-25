@@ -1,15 +1,17 @@
 /**
  * Notation gate for the hand-written guide.
  *
- * Mathematical notation has two ways of shipping as raw source, and both have
- * already happened once:
+ * Two constructs typeset as literal source rather than as mathematics, and
+ * neither affects whether the build succeeds:
  *
- *   1. MathJax's `\[ … \]` delimiters, which VitePress does not recognise —
- *      it renders the backslashes literally;
- *   2. caret superscripts in prose or, worse, in YAML frontmatter, where no
- *      markdown renderer runs at all — the site hero shipped `R^N` this way.
+ *   1. MathJax's own `\[ … \]` delimiters. VitePress recognises `$ … $` and
+ *      `$$ … $$`; any other delimiter is emitted verbatim.
+ *   2. Notation in YAML frontmatter. The theme consumes frontmatter directly,
+ *      so no markdown renderer — and therefore no math renderer — is applied
+ *      to it. Notation there must be spelled out or written in Unicode.
  *
- * Both are invisible to a build that succeeds, so they are checked here.
+ * Caret superscripts inside fenced blocks, display-math bodies, and inline
+ * code are source in their own right and are left alone.
  *
  *   node scripts/check-notation.mjs
  */

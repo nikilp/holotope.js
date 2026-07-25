@@ -1,11 +1,9 @@
-# Moved: physics documentation is now task-shaped
+# Moved: physics documentation is organised by task
 
-This file grew append-only, one feature commit at a time, to 2,647 lines — with
-29 of its 32 sections nested under a single `## Convex support mappings and GJK`
-heading that had stopped describing them. It has been split by task.
-
-**Nothing was lost.** Every section moved verbatim; only heading levels were
-promoted one step where a `###` became a page-level `##`.
+The mechanics documentation is now seven pages under `learn/physics/`, each
+covering one task rather than one file covering the package. Sections moved
+verbatim; heading levels were promoted one step where a `###` became a
+page-level `##`.
 
 | Was in this file | Now lives in |
 | --- | --- |

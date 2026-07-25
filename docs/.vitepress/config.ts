@@ -29,16 +29,17 @@ const commonDir = (paths: string[]): string => {
 /**
  * Path-scoped API sidebars.
  *
- * VitePress server-renders every sidebar link into every page's HTML, so one
- * sidebar spanning a whole package is quadratic in symbol count: the flat
- * 602-link physics sidebar put 602 anchors on each of its ~600 pages and took
- * the built site to 469 MB. Collapsing groups does not help — collapsed items
- * are still rendered, just hidden.
+ * VitePress server-renders every sidebar link into the static HTML of every
+ * page the sidebar covers. One sidebar spanning a package therefore costs
+ * O(symbols) markup on O(symbols) pages — quadratic in the size of the
+ * package, which dominates total output well before a thousand symbols.
+ * Marking groups collapsed does not change this; collapsed items are rendered
+ * and hidden with CSS.
  *
- * So each top-level group gets its own sidebar, scoped to the path its links
- * share, preceded by a switcher across sibling groups. A physics class page
- * then carries ~70 links instead of 602, and navigation improves rather than
- * degrades: a flat 600-item list was never usable.
+ * Scoping each top-level group to the path its links share makes per-page
+ * markup proportional to one section instead of the whole package, and keeps
+ * navigation usable: a flat list of several hundred symbols is not browsable
+ * in any case. A switcher across sibling groups preserves reachability.
  */
 const apiSidebars = (pkg: string): Record<string, Item[]> => {
   let groups: Item[];
@@ -81,10 +82,10 @@ export default defineConfig({
   // and `$…$` spans typeset instead of showing their source.
   markdown: { math: true },
 
-  // With ~1,100 generated reference pages, VitePress would inline a ~210 kB
-  // route hash map into every page — a quadratic blowup that took the built
-  // site to 469 MB. Extracting it to a shared, separately cached chunk brings
-  // that back to a normal size.
+  // By default VitePress inlines a map of every route's content hash into
+  // each page, which is again quadratic once the reference contributes on the
+  // order of a thousand routes. Emitting it as a shared chunk makes the cost
+  // additive and lets the map be cached independently of any page.
   metaChunk: true,
 
   // The generated reference is large and moves with the source; a dead link

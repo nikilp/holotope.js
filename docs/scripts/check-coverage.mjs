@@ -23,7 +23,7 @@ const BASELINE = path.join(DOCS, 'doc-baseline.json');
 const PACKAGES = ['core', 'three', 'physics'];
 const UPDATE = process.argv.includes('--update');
 
-// TypeDoc ReflectionKind values we require a description on.
+// TypeDoc ReflectionKind values that must carry a description.
 const KIND = {
   8: 'Enum',
   32: 'Variable',
