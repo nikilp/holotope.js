@@ -1,11 +1,14 @@
+import type { Point3 } from '../field/sample.js';
 import type { HyperplaneSlice4 } from '../projection/slice.js';
 import { CoordinateProjection } from '../projection/coordinate.js';
 import { OrthographicProjection } from '../projection/orthographic.js';
 import { PerspectiveProjection } from '../projection/perspective.js';
 import type { Projection } from '../projection/types.js';
 
-type Point3 = readonly [number, number, number];
-type Point4 = readonly [number, number, number, number];
+export type { Point3 };
+
+/** A point of R⁴ as a plain tuple, for recipes serialised without VecN. */
+export type Point4 = readonly [number, number, number, number];
 
 interface RepresentationMapRecipeBase {
   readonly kind: string;

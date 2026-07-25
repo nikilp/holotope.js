@@ -103,7 +103,8 @@ export {
   type RayRealizationMapRecipe3,
   type RepresentationLineageN,
   type RepresentationMapRecipeN,
-  type SampledIsosurfaceMapRecipe3
+  type SampledIsosurfaceMapRecipe3,
+  type Point4
 } from './map.js';
 export {
   representationLineageCapabilitiesN,

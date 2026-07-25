@@ -30,7 +30,8 @@ export type {
 export {
   FieldRelief3D,
   type FieldRelief3DOptions,
-  type FieldReliefSample
+  type FieldReliefSample,
+  type SliceAxis3
 } from './field-relief.js';
 export {
   FRACTAL_PALETTES,

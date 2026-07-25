@@ -10,9 +10,17 @@ import {
 } from './distance-coordinate-n.js';
 import { RigidBody4 } from './rigid-body4.js';
 
-interface DistanceCoordinate4BaseOptions {
+/**
+ * What every distance coordinate needs regardless of what it measures to:
+ * an identity, one body, and the anchor on it. Variants extend this with a
+ * second body, a fixed point, or a surface.
+ */
+export interface DistanceCoordinate4BaseOptions {
+  /** Stable identity, so a solver can warm-start this coordinate. */
   readonly id: string;
+  /** The body carrying the first anchor. */
   readonly bodyA: RigidBody4;
+  /** Anchor position in `bodyA`'s local frame, not world space. */
   readonly localAnchorA: VecN | ArrayLike<number>;
   /** Coherent distance gradient used only when the two anchors coincide. */
   readonly directionHint?: VecN | ArrayLike<number>;

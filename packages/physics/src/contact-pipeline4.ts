@@ -88,14 +88,30 @@ import type {
 } from './smooth-contact.js';
 import type { PhysicsWorld4 } from './world4.js';
 
-interface ContactColliderPolicy4 {
+/**
+ * The response settings a collider contributes to a contact, separate from
+ * its geometry. Two colliders meeting supply one of these each, and the
+ * pipeline combines them into the material of the contact between them.
+ */
+export interface ContactColliderPolicy4 {
+  /** Stable identity, used to match a contact to its predecessor across steps. */
   readonly id: string;
+  /** Whether the collider is dynamic, kinematic, or static in a pair. */
   readonly participant: ContactParticipant4;
+  /** Coulomb coefficient contributed to the combined friction of a pair. */
   friction: number;
+  /** Restitution contributed to the combined bounce of a pair. */
   restitution: number;
+  /** Bits identifying which layers this collider belongs to. */
   collisionGroup: number;
+  /** Bits identifying which layers it will collide against; a pair is
+   * considered only when each side's group intersects the other's mask. */
   collisionMask: number;
+  /** When false the collider is skipped entirely, keeping its identity and
+   * warm-start state for when it is re-enabled. */
   enabled: boolean;
+  /** Republishes the collider's derived state after its shape or pose is
+   * changed directly. */
   sync(): this;
 }
 

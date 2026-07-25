@@ -88,7 +88,8 @@ export {
   type PenrosePatchOptions,
   type PenrosePhasonOffset,
   type PenroseVertexStarCensusOptions,
-  type PenroseWindowClass
+  type PenroseWindowClass,
+  type ExactPair
 } from './penrose.js';
 export {
   classifyElserSloaneIcosian,

@@ -129,7 +129,8 @@ export {
   DistanceCoordinate4,
   type DistanceCoordinate4Options,
   type DistanceJoint4Options,
-  type DistanceJointConstraint4
+  type DistanceJointConstraint4,
+  type DistanceCoordinate4BaseOptions
 } from './distance-joint4.js';
 export {
   XpbdConstraintSolverN,
@@ -723,7 +724,8 @@ export {
   type ContactPipelineWorldStep4,
   type GlomeCollider4Options,
   type HyperplaneContactCollider4Options,
-  type PolytopeCollider4Options
+  type PolytopeCollider4Options,
+  type ContactColliderPolicy4
 } from './contact-pipeline4.js';
 export {
   ContactSolver4,
@@ -752,3 +754,6 @@ export {
   type PolytopeHyperplaneContactConstraintsOptions4,
   type SmoothPointContactConstraintOptions4
 } from './normal-contact-solver4.js';
+
+// The kind tag of a contact patch, named by HyperboxContactPatchKind4.
+export type { ContactPatchKind4 } from './contact-polyhedron4.js';

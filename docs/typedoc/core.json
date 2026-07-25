@@ -4,9 +4,7 @@
   "tsconfig": "../../packages/core/tsconfig.json",
 
   // Entry points mirror the package.json exports map, so every symbol page
-  // states the subpath it is imported from. `scene` and `animation` are
-  // reachable from the root barrel but have no subpath export yet —
-  // tracked in learn/contributing/api-gaps.md.
+  // states the subpath it is imported from.
   "entryPoints": [
     "../../packages/core/src/math/index.ts",
     "../../packages/core/src/geometry/index.ts",

@@ -15,7 +15,12 @@ const PHI_MINUS_ONE = exact(-1n, 1n);
 const ONE_MINUS_PHI = exact(1n, -1n);
 const SEVEN = exact(7n);
 
-type ExactPair = readonly [ExactValue, ExactValue];
+/**
+ * Two exact ring values: a point of the internal plane, or a phason offset
+ * expressed in it. Kept exact so window membership is decided without a
+ * rounding decision.
+ */
+export type ExactPair = readonly [ExactValue, ExactValue];
 
 export type PenroseCoefficients = readonly [bigint, bigint, bigint, bigint];
 export type PenroseWindowClass = 1 | 2 | 3 | 4;

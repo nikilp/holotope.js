@@ -1,6 +1,12 @@
 import { VecN } from '@holotope/core';
 import { contactTangentBasis4 } from './contact-kinematics4.js';
 
+/**
+ * The dimension of the region two R⁴ shapes share where they touch. A patch
+ * degenerates to a point in general position and grows as features align:
+ * segment along parallel edges, polygon along parallel 2-faces, polyhedron
+ * where two facets meet flush.
+ */
 export type ContactPatchKind4 = 'point' | 'segment' | 'polygon' | 'polyhedron';
 
 /** World-space halfspace `normal.dot(point) <= offset`. */

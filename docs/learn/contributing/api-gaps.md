@@ -11,7 +11,8 @@ CI runs a coverage gate that fails when a **newly exported** symbol carries no
 description. The 3,579 symbols undocumented when the gate was introduced are
 grandfathered in `docs/doc-baseline.json`, so the rule is *coverage may not
 regress* — new work carries documentation without anyone having to drain the
-backlog first. See [Keeping it from growing back](#keeping-it-from-growing-back).
+backlog first. The baseline is the measure of progress: it has fallen from
+3,579 to 3,545. See [Keeping it from growing back](#keeping-it-from-growing-back).
 :::
 
 ## The shape of the gap
@@ -85,34 +86,25 @@ Result types matter as much as input types here: a caller who receives a
 `ConvexRigidCastResult4` with 18 undocumented fields cannot tell which are
 meaningful when the cast misses.
 
-## Priority 3 — types that are public but unnameable
+## Resolved — types that were public but unnameable
 
-These appear in public signatures but are not exported, so a caller cannot write
-the type down:
+Seven types appeared in public signatures without being exported, so a caller
+could not write the type down. All are now exported and documented:
+`ExactPair`, `Point4`, `SliceAxis3`, `ContactColliderPolicy4`,
+`DistanceCoordinate4BaseOptions`, `ContactPatchKind4`.
 
-| Type | Package | Referenced by |
-| --- | --- | --- |
-| `ExactPair` | core | `penroseUnitPentagon` |
-| `Point4` | core | `AffineSectionMapRecipe4.normal` |
-| `Point3` | core | `SampledIsosurfaceMapRecipe3.max` |
-| `SliceAxis3` | three | `FieldRelief3DOptions.planeAxes` |
-| `ContactColliderPolicy4` | physics | `GlomeCollider4` |
-| `DistanceCoordinate4BaseOptions` | physics | `DistanceCoordinate4Options` |
-| `ContactPatchKind4` | physics | `HyperboxContactPatchKind4` |
+`representation/map.ts` had redeclared `Point3` rather than importing the one
+`field/sample.ts` already exported; the duplicate is gone, so the name means
+one thing across the package.
 
-Each is a one-line export fix, and each currently forces a caller into
-`ReturnType<>` gymnastics or `any`.
+Typedoc emits no warnings.
 
-## Priority 4 — two modules with no subpath export
+## Resolved — subpath exports for `scene` and `animation`
 
-`@holotope/core` exports ten subpaths (`./math`, `./geometry`, `./polytope`,
-`./coxeter`, `./projection`, `./lattice`, `./field`, `./coupling`, `./spectral`,
-`./representation`). But `scene` and `animation` are reachable only through the
-root barrel, despite being peers of the other ten in `src/index.ts`.
-
-Either add `./scene` and `./animation` to the exports map, or document why they
-are root-only. The reference currently generates them as modules alongside the
-other ten, which quietly implies a subpath that does not exist.
+Both sat beside the other ten modules in `src/index.ts` while being reachable
+only through the root barrel. `@holotope/core/scene` and
+`@holotope/core/animation` now resolve, and the exports map is ordered as the
+modules are declared.
 
 ## Conventions when filling these in
 

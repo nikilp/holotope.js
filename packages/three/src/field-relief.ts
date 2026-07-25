@@ -13,7 +13,12 @@ import {
   type Vec4f64
 } from '@holotope/core';
 
-type SliceAxis3 = 0 | 1 | 2;
+/**
+ * Which of a slice's three basis directions a relief axis uses. A relief
+ * spans two of them and displaces along the scalar, so the pair names the
+ * plane the height field is built over.
+ */
+export type SliceAxis3 = 0 | 1 | 2;
 
 export interface FieldReliefSample<Record extends FieldEvaluation4> {
   readonly record: Record;
