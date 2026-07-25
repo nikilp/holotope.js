@@ -17,14 +17,31 @@ import {
 } from './xpbd-simplex-measure.js';
 import { XpbdParticleN, XpbdWorldN } from './xpbd-world.js';
 
+/**
+ * Where one simplex of a decomposed cuboid came from.
+ *
+ * A cuboid carries no measure constraint directly, so each is cut into
+ * simplices by lexicographic axis permutations — n! of them for an n-cube,
+ * the six-tetrahedron decomposition at n = 3 — and the constraint is written
+ * per simplex. Every field here exists so a constraint can be traced back to
+ * the cuboid it came from rather than standing alone.
+ */
 export interface XpbdOrientedCuboidFamilyCellContextN {
+  /** Index of this simplex across the whole decomposition. */
   readonly simplexIndex: number;
+  /** Index of the cuboid cell it was cut from. */
   readonly sourceCellIndex: number;
+  /** Which axis permutation produced it, as a lexicographic ordinal. */
   readonly permutationIndex: number;
+  /** That permutation itself, as an axis ordering. */
   readonly permutation: readonly number[];
+  /** Vertices of the source cuboid, indexing the complex. */
   readonly sourceCuboidVertexIndices: readonly number[];
+  /** The subset of them forming this simplex, in the permutation's order. */
   readonly sourceSimplexVertexIndices: readonly number[];
+  /** Structural identity of the source cuboid, stable across regeneration. */
   readonly sourceId: SourceCellIdN;
+  /** Signed measure of the whole source cuboid at authoring time. */
   readonly sourceOrientedMeasure: number;
 }
 
@@ -49,10 +66,26 @@ export interface CompileXpbdOrientedCuboidFamilyNOptions {
   readonly maxOutputCells?: number;
 }
 
+/**
+ * One simplex of a decomposed cuboid, with its provenance and the constraint
+ * written over it.
+ *
+ * The measure is oriented — a determinant, `det([x₁ − x₀, …]) / N!` — so it is
+ * signed rather than a volume. A constraint holding it near its rest value
+ * therefore resists inversion as well as compression: a cell turning inside
+ * out passes through zero and changes sign, which an unsigned volume
+ * constraint cannot see at all. That is what distinguishes this family, and
+ * why `restOrientedMeasure` is worth comparing against the live value rather
+ * than its magnitude.
+ */
 export interface XpbdOrientedCuboidFamilyCellN
   extends XpbdOrientedCuboidFamilyCellContextN {
+  /** Resolvable handle to the source cuboid, for inspection and picking. */
   readonly sourceReference: SourceCellReferenceN;
+  /** Signed measure of this simplex in the rest configuration; the value the
+   * constraint holds it near, sign included. */
   readonly restOrientedMeasure: number;
+  /** The compliant constraint written over this simplex's measure. */
   readonly constraint: XpbdOrientedSimplexMeasureConstraintN;
 }
 
