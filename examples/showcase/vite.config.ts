@@ -26,6 +26,7 @@ export default defineConfig({
       input: {
         index: local('./index.html'),
         polytopeBrowser: local('./polytope-browser.html'),
+        productBrowser: local('./product-browser.html'),
         dimensionBridge: local('./dimension-bridge.html'),
         mechanicsWorkbench: local('./mechanics-workbench.html'),
         tesseract: local('./tesseract.html'),

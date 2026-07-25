@@ -18,8 +18,13 @@ import { fileURLToPath } from 'node:url';
 const DOCS = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const REPO = path.dirname(DOCS);
 const API = path.join(DOCS, 'api');
-const VIEWER_SRC = path.join(REPO, 'examples/showcase/src/polytope-browser.ts');
-const VIEWER_URL = 'https://nikilp.github.io/holotope.js/polytope-browser.html';
+const SHOWCASE = 'https://nikilp.github.io/holotope.js';
+
+// Each viewer serves the symbols named in its own SPECS table.
+const VIEWERS = [
+  { source: 'examples/showcase/src/polytope-browser.ts', page: 'polytope-browser.html' },
+  { source: 'examples/showcase/src/product-browser.ts', page: 'product-browser.html' }
+];
 
 const MARKER = '<!-- live-viewer -->';
 
@@ -28,14 +33,18 @@ if (!fs.existsSync(API)) {
   process.exit(1);
 }
 
-// Keys of the SPECS record, in source order.
-const source = fs.readFileSync(VIEWER_SRC, 'utf8');
-const specsBlock = source.slice(source.indexOf('const SPECS'));
-const builders = [...specsBlock.matchAll(/^ {2}(create[A-Za-z0-9]+):\s*\{/gm)].map((m) => m[1]);
-
-if (!builders.length) {
-  console.error('embed-viewers: no builders found in the viewer SPECS table.');
-  process.exit(1);
+// Keys of each SPECS record, in source order.
+const entries = [];
+for (const viewer of VIEWERS) {
+  const source = fs.readFileSync(path.join(REPO, viewer.source), 'utf8');
+  const start = source.indexOf('const SPECS');
+  const block = start === -1 ? '' : source.slice(start, source.indexOf('\n};', start));
+  const names = [...block.matchAll(/^ {2}([A-Za-z][A-Za-z0-9]*):\s*\{/gm)].map((m) => m[1]);
+  if (!names.length) {
+    console.error(`embed-viewers: no entries found in ${viewer.source}.`);
+    process.exit(1);
+  }
+  for (const name of names) entries.push({ name, page: viewer.page });
 }
 
 // Index generated pages by symbol name.
@@ -56,15 +65,15 @@ walk(API);
 let embedded = 0;
 const missing = [];
 
-for (const builder of builders) {
-  const targets = pageOf.get(builder);
-  if (!targets) { missing.push(builder); continue; }
+for (const { name, page } of entries) {
+  const targets = pageOf.get(name);
+  if (!targets) { missing.push(name); continue; }
 
   const block = [
     MARKER,
     '<iframe',
-    `  src="${VIEWER_URL}#${builder}"`,
-    `  title="Live ${builder} viewer"`,
+    `  src="${SHOWCASE}/${page}#${name}"`,
+    `  title="Live ${name} viewer"`,
     '  loading="lazy"',
     '  style="width:100%;aspect-ratio:16/10;border:1px solid var(--vp-c-divider);border-radius:8px;margin:1.25rem 0;"',
     '></iframe>',
@@ -92,6 +101,6 @@ for (const builder of builders) {
 
 console.log(
   `embed-viewers: ${embedded} reference page(s) carry a live viewer ` +
-    `(${builders.length} builders registered${missing.length ? `, ${missing.length} not in the reference` : ''}).`
+    `(${entries.length} entries registered${missing.length ? `, ${missing.length} not in the reference` : ''}).`
 );
 if (missing.length) console.log('  not in reference:', missing.join(', '));

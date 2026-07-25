@@ -40,41 +40,16 @@ import {
   rotationFromPlanes
 } from '@holotope/core';
 import { ProjectedEdges3D } from '@holotope/three';
-
-interface NumericParam {
-  readonly kind?: 'number';
-  readonly name: string;
-  readonly label: string;
-  readonly min: number;
-  readonly max: number;
-  readonly step: number;
-  readonly value: number;
-}
-
-/** A ringed node of a Coxeter diagram, or any other on/off construction flag. */
-interface ToggleParam {
-  readonly kind: 'toggle';
-  readonly name: string;
-  readonly label: string;
-  readonly value: boolean;
-}
-
-/** A named alternative, such as which rank-4 Coxeter group to act with. */
-interface ChoiceParam {
-  readonly kind: 'choice';
-  readonly name: string;
-  readonly label: string;
-  readonly options: readonly string[];
-  readonly value: string;
-}
-
-type Param = NumericParam | ToggleParam | ChoiceParam;
-
-interface Values {
-  readonly number: (name: string) => number;
-  readonly toggle: (name: string) => boolean;
-  readonly choice: (name: string) => string;
-}
+import {
+  type NumericParam,
+  type Param,
+  type Values,
+  bindControls,
+  reportCounts,
+  reportFailure,
+  selectedEntry,
+  setTitle
+} from './viewer-ui';
 
 interface PolytopeSpec {
   readonly params: readonly Param[];
@@ -214,22 +189,15 @@ const WYTHOFF_GROUPS: Record<string, () => CoxeterDiagram> = {
   H4: coxeterH4
 };
 
-// The builder is read once at load, which is all an embedding iframe needs.
-// Reload when the fragment changes so the page is also navigable on its own.
-window.addEventListener('hashchange', () => location.reload());
-
-const selected = decodeURIComponent(location.hash.slice(1)) || 'createHypercube';
+const selected = selectedEntry('createHypercube');
 const registered = SPECS[selected];
 
 if (!registered) {
-  const box = document.getElementById('err')!;
-  box.style.display = 'grid';
-  box.textContent = `No viewer is registered for "${selected}".`;
+  reportFailure(`No viewer is registered for "${selected}".`);
   throw new Error(`polytope-browser: unknown builder ${selected}`);
 }
 const spec: PolytopeSpec = registered;
-
-document.getElementById('title')!.textContent = selected;
+setTitle(selected);
 
 // --- scene ------------------------------------------------------------------
 const container = document.getElementById('app')!;
@@ -261,16 +229,8 @@ const materialFor = (index: number, total: number): LineBasicMaterial => {
 };
 
 // --- parameters -------------------------------------------------------------
-const state: Record<string, number | boolean | string> = {};
-for (const p of spec.params) state[p.name] = p.value;
+const values: Values = bindControls(spec.params, () => rebuild());
 
-const values: Values = {
-  number: (name) => Number(state[name] ?? 0),
-  toggle: (name) => state[name] === true,
-  choice: (name) => String(state[name] ?? '')
-};
-
-const stats = document.getElementById('stats')!;
 let products: ProjectedEdges3D[] = [];
 let dim = 4;
 
@@ -321,71 +281,12 @@ function rebuild(): void {
     edges += counts.edges;
   });
 
-  stats.replaceChildren();
-  const line = (value: number | string, text: string): void => {
-    const strong = document.createElement('b');
-    strong.textContent = String(value);
-    stats.append(strong, ` ${text}`, document.createElement('br'));
-  };
-  if (family.length > 1) line(family.length, 'components');
-  line(vertices, 'vertices');
-  line(edges, 'edges');
-  line(dim, 'ambient dimensions');
-}
-
-const host = document.getElementById('controls')!;
-
-for (const p of spec.params) {
-  const row = document.createElement('div');
-  row.className = 'row';
-
-  const label = document.createElement('label');
-  label.textContent = p.label;
-  row.append(label);
-
-  if (p.kind === 'toggle') {
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.checked = p.value;
-    input.addEventListener('change', () => {
-      state[p.name] = input.checked;
-      rebuild();
-    });
-    row.append(input);
-  } else if (p.kind === 'choice') {
-    const select = document.createElement('select');
-    for (const option of p.options) {
-      const item = document.createElement('option');
-      item.value = option;
-      item.textContent = option;
-      select.append(item);
-    }
-    select.value = p.value;
-    select.addEventListener('change', () => {
-      state[p.name] = select.value;
-      rebuild();
-    });
-    row.append(select);
-  } else {
-    const input = document.createElement('input');
-    input.type = 'range';
-    input.min = String(p.min);
-    input.max = String(p.max);
-    input.step = String(p.step);
-    input.value = String(p.value);
-
-    const out = document.createElement('output');
-    out.textContent = String(p.value);
-
-    input.addEventListener('input', () => {
-      state[p.name] = Number(input.value);
-      out.textContent = input.value;
-      rebuild();
-    });
-    row.append(input, out);
-  }
-
-  host.append(row);
+  reportCounts([
+    ...(family.length > 1 ? ([[family.length, 'components']] as const) : []),
+    [vertices, 'vertices'],
+    [edges, 'edges'],
+    [dim, 'ambient dimensions']
+  ]);
 }
 
 rebuild();
