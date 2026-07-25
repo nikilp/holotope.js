@@ -52,8 +52,13 @@ const note = (name, page) => {
   used.get(name).add(page);
 };
 
+// `ui.ts` is shared chrome, and `polytope-browser.ts` backs the reference's
+// embedded viewer rather than a gallery demo — it is linked from the pages it
+// serves, so listing it as a demo of its own imports would be circular.
+const NOT_A_DEMO = new Set(['ui.ts', 'polytope-browser.ts']);
+
 for (const file of fs.readdirSync(SRC)) {
-  if (!file.endsWith('.ts') || file === 'ui.ts') continue;
+  if (!file.endsWith('.ts') || NOT_A_DEMO.has(file)) continue;
   const page = file.replace(/\.ts$/, '');
   const src = fs.readFileSync(path.join(SRC, file), 'utf8');
   for (const match of src.matchAll(IMPORTS)) {

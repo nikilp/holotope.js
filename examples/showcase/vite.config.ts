@@ -25,6 +25,7 @@ export default defineConfig({
       // Multi-page app: the gallery landing page plus one page per example.
       input: {
         index: local('./index.html'),
+        polytopeBrowser: local('./polytope-browser.html'),
         dimensionBridge: local('./dimension-bridge.html'),
         mechanicsWorkbench: local('./mechanics-workbench.html'),
         tesseract: local('./tesseract.html'),
