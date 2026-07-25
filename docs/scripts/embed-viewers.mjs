@@ -24,7 +24,8 @@ const SHOWCASE = 'https://nikilp.github.io/holotope.js';
 const VIEWERS = [
   { source: 'examples/showcase/src/polytope-browser.ts', page: 'polytope-browser.html' },
   { source: 'examples/showcase/src/product-browser.ts', page: 'product-browser.html' },
-  { source: 'examples/showcase/src/provenance-browser.ts', page: 'provenance-browser.html' }
+  { source: 'examples/showcase/src/provenance-browser.ts', page: 'provenance-browser.html' },
+  { source: 'examples/showcase/src/physics-browser.ts', page: 'physics-browser.html' }
 ];
 
 const MARKER = '<!-- live-viewer -->';

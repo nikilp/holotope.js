@@ -28,6 +28,7 @@ export default defineConfig({
         polytopeBrowser: local('./polytope-browser.html'),
         productBrowser: local('./product-browser.html'),
         provenanceBrowser: local('./provenance-browser.html'),
+        physicsBrowser: local('./physics-browser.html'),
         dimensionBridge: local('./dimension-bridge.html'),
         mechanicsWorkbench: local('./mechanics-workbench.html'),
         tesseract: local('./tesseract.html'),
