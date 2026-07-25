@@ -4,7 +4,7 @@ Dimension-independent simplex constitutive laws, intrinsic mass, and the RN comp
 
 ## Dimension-independent simplex materials
 
-Matching rest and current k-simplices in R^N define an intrinsic material
+Matching rest and current k-simplices in $\mathbb{R}^N$ define an intrinsic material
 coordinate without choosing an ambient normal. `evaluateSimplexMetricDeformationN()`
 forms the rest and current Gram metrics, normalizes by a deterministic Cholesky
 basis, and reports the right Cauchy--Green tensor `C`, Green--Lagrange strain
@@ -357,14 +357,14 @@ The family policy uses the world's exact pre-substep position snapshot and the
 completed positions, retains the candidate source element and its polynomial
 evidence, and rejects through the same transactional adaptive-step seam. It is
 independent of the endpoint material-domain guard; attach both when both
-policies matter. The query accepts only an N-simplex in R^N. Its auditable
+policies matter. The query accepts only an N-simplex in $\mathbb{R}^N$. Its auditable
 coefficient construction costs `O(2^N N^3)`, so this is a
 small-N CPU golden path rather than the eventual high-dimensional backend.
 Within its explicit Float64 coefficient and subdivision tolerances it certifies
 the linear chord, not the nonlinear solver trajectory, curved prescribed
 motion, or a formal outward-rounded interval.
 
-For any non-degenerate k-simplex embedded in R^N,
+For any non-degenerate k-simplex embedded in $\mathbb{R}^N$,
 `analyzeLinearSimplexMeasureN()` supplies the complementary intrinsic query.
 With edge matrix `E(t)`, the Gram determinant
 `det(E(t)^T E(t)) / det(Erest^T Erest)` is the squared current/rest k-measure

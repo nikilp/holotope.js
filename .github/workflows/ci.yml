@@ -43,8 +43,9 @@ jobs:
           pnpm --filter @holotope/docs api
           pnpm --filter @holotope/docs coverage
 
-      # VitePress only validates links between markdown routes, so a link into
-      # repository source builds clean and 404s on the deployed site. This
-      # checks that guide links resolve and that none escapes the docs root.
-      - name: Documentation links
-        run: pnpm --filter @holotope/docs links
+      # Two classes of defect that build cleanly and only show on the deployed
+      # site: a link into repository source (VitePress only validates markdown
+      # routes), and raw notation — MathJax's \[ \] delimiters, or a caret
+      # superscript in frontmatter, which no renderer ever sees.
+      - name: Documentation guide checks
+        run: pnpm --filter @holotope/docs guide

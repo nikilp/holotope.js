@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Holotope.js
   text: N-dimensional geometry for TypeScript
-  tagline: Keep the state in R^N. Make every lower-dimensional view an explicit, traceable observation of it.
+  tagline: Keep the state N-dimensional. Make every lower-dimensional view an explicit, traceable observation of it.
   actions:
     - theme: brand
       text: The mental model
@@ -21,7 +21,7 @@ hero:
 
 features:
   - title: The source is never the picture
-    details: A projected mesh is an observation, not the object. Simulation, picking, and editing act on the authoritative R^N state — and a pick carries its source identity back, rather than guessing it from 3D coordinates.
+    details: A projected mesh is an observation, not the object. Simulation, picking, and editing act on the authoritative N-dimensional state — and a pick carries its source identity back, rather than guessing it from 3D coordinates.
     link: /learn/representation-provenance
     linkText: Representation provenance
 

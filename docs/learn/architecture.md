@@ -187,7 +187,7 @@ include Spin(4) orientation and bivector momentum.
 Simplex measure has two deliberately separate contracts. A Gram determinant
 provides unsigned intrinsic k-measure for any `k <= N`, including embedded
 simplices. An ambient determinant provides signed measure only for an
-N-simplex in R^N; SO(N) preserves that sign and reflection reverses it. The
+N-simplex in $\mathbb{R}^N$; SO(N) preserves that sign and reflection reverses it. The
 second coordinate makes full-dimensional cell inversion observable, but its
 XPBD equality is not a continuous no-inversion barrier. Neither contract
 authors a missing normal frame or a recovery direction at deeper-rank

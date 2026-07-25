@@ -68,7 +68,7 @@ const apiSidebars = (pkg: string): Record<string, Item[]> => {
 export default defineConfig({
   title: 'Holotope.js',
   description:
-    'N-dimensional geometry for TypeScript: authoritative R^N state, explicit projection and slicing, traceable source identity, and source-space simulation.',
+    'N-dimensional geometry for TypeScript: authoritative N-dimensional state, explicit projection and slicing, traceable source identity, and source-space simulation.',
 
   // Served under the showcase site at nikilp.github.io/holotope.js/docs/.
   base: '/holotope.js/docs/',

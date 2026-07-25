@@ -35,7 +35,7 @@ const next = gjkDistance(a, b, { warmStart: query.warmStart });
 ```
 
 `gjkDistance()` is dimension-generic; its active simplex contains at most
-`n + 1` support points in R^n. In addition to the boolean and distance it
+`n + 1` support points in $\mathbb{R}^n$. In addition to the boolean and distance it
 returns closest points on both shapes, a separating normal, stable source
 feature IDs, convex weights, a conditioning estimate, and an explicit
 termination reason. An iteration-budget result is reported as indeterminate
