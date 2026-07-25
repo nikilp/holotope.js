@@ -1,7 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type DefaultTheme } from 'vitepress';
 
 const require = createRequire(import.meta.url);
+const DOCS = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // The API sidebars are emitted by typedoc-vitepress-theme into docs/api/*.
 // They are generated output, so a checkout without a prior `pnpm run api`
@@ -53,9 +57,19 @@ const apiSidebars = (pkg: string): Record<string, Item[]> => {
     .map((g) => ({ group: g, dir: commonDir(links(g.items ?? [])) }))
     .filter((s) => s.dir.startsWith(`/api/${pkg}/`) && s.dir !== `/api/${pkg}/`);
 
+  // A group's shared directory is the right key for scoping a sidebar, but it
+  // is only a navigable target when typedoc emitted an index there. It does so
+  // per module, not per symbol kind, so a package laid out by kind — or a
+  // module holding a single kind — has no page at that path. Fall back to the
+  // group's first symbol, which always exists.
+  const target = (s: { group: Item; dir: string }): string => {
+    const index = path.join(DOCS, s.dir.replace(/^\/api\//, 'api/'), 'index.md');
+    return fs.existsSync(index) ? s.dir : (links(s.group.items ?? [])[0] ?? s.dir);
+  };
+
   const switcher: Item = {
     text: `@holotope/${pkg}`,
-    items: scoped.map((s) => ({ text: s.group.text ?? s.dir, link: s.dir }))
+    items: scoped.map((s) => ({ text: s.group.text ?? s.dir, link: target(s) }))
   };
 
   const out: Record<string, Item[]> = {

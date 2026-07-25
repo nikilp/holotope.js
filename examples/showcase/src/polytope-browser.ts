@@ -78,7 +78,12 @@ interface Values {
 
 interface PolytopeSpec {
   readonly params: readonly Param[];
-  readonly build: (v: Values) => CellComplex;
+  /**
+   * A single complex, or a family. Some constructions carry their meaning
+   * only in a family: one Hopf fibre is a circle, and what distinguishes the
+   * fibration is that distinct fibres link.
+   */
+  readonly build: (v: Values) => CellComplex | readonly CellComplex[];
   /** Camera distance; a 120-cell needs more room than a simplex. */
   readonly distance?: number;
 }
@@ -152,23 +157,33 @@ const SPECS: Record<string, PolytopeSpec> = {
       })
   },
   createHopfFiber: {
-    // The fibre is the preimage of one point of the base 2-sphere, so the
-    // control is that point, given in spherical coordinates.
+    // Every fibre is a circle, so one of them shows nothing that
+    // distinguishes the fibration. What does is the relation between fibres:
+    // any two are linked, and the fibres over a circle of latitude on the
+    // base 2-sphere sweep a torus. The controls therefore choose a latitude
+    // and how many base points to take around it — one fibre each.
     params: [
-      { name: 'polar', label: 'polar', min: 5, max: 175, step: 1, value: 60 },
-      { name: 'azimuth', label: 'azimuth', min: 0, max: 360, step: 1, value: 0 }
+      { name: 'latitude', label: 'latitude', min: 5, max: 175, step: 1, value: 60 },
+      { name: 'fibers', label: 'fibres', min: 1, max: 24, step: 1, value: 10 }
     ],
     build: (v) => {
-      const theta = (v.number('polar') * Math.PI) / 180;
-      const phi = (v.number('azimuth') * Math.PI) / 180;
-      return createHopfFiber({
-        base: [
-          Math.sin(theta) * Math.cos(phi),
-          Math.sin(theta) * Math.sin(phi),
-          Math.cos(theta)
-        ],
-        segments: 256
-      });
+      const theta = (v.number('latitude') * Math.PI) / 180;
+      const count = v.number('fibers');
+      const family: CellComplex[] = [];
+      for (let k = 0; k < count; k++) {
+        const phi = (k / count) * 2 * Math.PI;
+        family.push(
+          createHopfFiber({
+            base: [
+              Math.sin(theta) * Math.cos(phi),
+              Math.sin(theta) * Math.sin(phi),
+              Math.cos(theta)
+            ],
+            segments: 192
+          })
+        );
+      }
+      return family;
     }
   },
   createWythoffPolytope: {
@@ -232,7 +247,18 @@ container.appendChild(renderer.domElement);
 const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.enableDamping = true;
 
-const material = new LineBasicMaterial({ color: 0x8fb6ff, transparent: true, opacity: 0.85 });
+const materials: LineBasicMaterial[] = [];
+
+/** One material per family member; a single complex keeps the base colour. */
+const materialFor = (index: number, total: number): LineBasicMaterial => {
+  if (!materials[index]) {
+    const color = new Color();
+    if (total === 1) color.setHex(0x8fb6ff);
+    else color.setHSL((index / total) * 0.8, 0.62, 0.66);
+    materials[index] = new LineBasicMaterial({ color, transparent: true, opacity: 0.85 });
+  }
+  return materials[index]!;
+};
 
 // --- parameters -------------------------------------------------------------
 const state: Record<string, number | boolean | string> = {};
@@ -245,7 +271,7 @@ const values: Values = {
 };
 
 const stats = document.getElementById('stats')!;
-let product: ProjectedEdges3D | null = null;
+let products: ProjectedEdges3D[] = [];
 let dim = 4;
 
 /**
@@ -269,19 +295,31 @@ const skeleton = (complex: CellComplex): { vertices: number; edges: number } => 
 };
 
 function rebuild(): void {
-  if (product) {
-    scene.remove(product.object);
-    product.object.geometry.dispose();
+  for (const previous of products) {
+    scene.remove(previous.object);
+    previous.object.geometry.dispose();
   }
+  products = [];
 
-  const complex = spec.build(values);
-  dim = complex.ambientDim;
+  const built = spec.build(values);
+  const family = Array.isArray(built) ? (built as readonly CellComplex[]) : [built as CellComplex];
+  dim = family[0]!.ambientDim;
 
   // A projection is defined from one ambient dimension, so it is rebuilt with
   // the complex rather than reused when `dim` is among the parameters.
   const projection = new PerspectiveProjection({ fromDim: dim, viewDistance: 3.2 });
-  product = new ProjectedEdges3D(complex, projection, { material });
-  scene.add(product.object);
+  let vertices = 0;
+  let edges = 0;
+  family.forEach((complex, index) => {
+    const product = new ProjectedEdges3D(complex, projection, {
+      material: materialFor(index, family.length)
+    });
+    scene.add(product.object);
+    products.push(product);
+    const counts = skeleton(complex);
+    vertices += counts.vertices;
+    edges += counts.edges;
+  });
 
   stats.replaceChildren();
   const line = (value: number | string, text: string): void => {
@@ -289,7 +327,7 @@ function rebuild(): void {
     strong.textContent = String(value);
     stats.append(strong, ` ${text}`, document.createElement('br'));
   };
-  const { vertices, edges } = skeleton(complex);
+  if (family.length > 1) line(family.length, 'components');
   line(vertices, 'vertices');
   line(edges, 'edges');
   line(dim, 'ambient dimensions');
@@ -368,12 +406,13 @@ renderer.setAnimationLoop(() => {
   angle += 0.0045;
   orbit.update();
 
-  if (product) {
+  if (products.length) {
     // One rotation in the plane of the first and last axes, and a slower one
     // among the retained axes so the solid also turns in view.
     const planes = [{ i: 0, j: dim - 1, angle }];
     if (dim >= 4) planes.push({ i: 1, j: 2, angle: angle * 0.55 });
-    product.update(new TransformN(dim, rotationFromPlanes(dim, planes)));
+    const transform = new TransformN(dim, rotationFromPlanes(dim, planes));
+    for (const product of products) product.update(transform);
   }
 
   renderer.render(scene, camera);
