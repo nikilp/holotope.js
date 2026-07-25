@@ -13,11 +13,20 @@ export type CoordinateConstraintDetermination = 'unique' | 'rank-deficient';
  * leaves the problem unchanged.
  */
 export interface LinearCoordinateConstraintBlockN {
+  /** The matrix `A`, packed row-major: `rowCount` rows of `coordinateDim`. */
   readonly coefficients: ArrayLike<number>;
+  /** The right-hand side `b`, one entry per row. */
   readonly targets: ArrayLike<number>;
+  /** Rows in this block, fixing how the packed arrays are read. */
   readonly rowCount: number;
+  /** How much this block matters relative to the others. Default 1. */
   readonly weight?: number;
+  /** The block's units. Residuals are divided by it, so blocks measuring
+   * different quantities become comparable before they are weighed against
+   * one another — scale makes blocks commensurable, weight prioritises them,
+   * and the two are not interchangeable. Default 1. */
   readonly scale?: number;
+  /** Human-readable name, for diagnostics only. */
   readonly label?: string;
 }
 
@@ -30,13 +39,31 @@ export interface LinearCoordinateConstraintOptions {
   readonly rankTolerance?: number;
 }
 
+/**
+ * What one block contributed to a solve, and how well it came out.
+ *
+ * `rank` against `rowCount` is the first thing to read: a rank below the row
+ * count means the block's own rows are not independent, so some of what it
+ * asked for was already implied. Residuals are normalized by `scale`, and so
+ * are comparable across blocks measuring different quantities — which is the
+ * point of separating scale from weight.
+ */
 export interface LinearCoordinateConstraintBlockDiagnosticN {
+  /** The block's name, if it was given one. */
   readonly label?: string;
+  /** Rows it contributed. */
   readonly rowCount: number;
+  /** The weight actually applied, after defaulting. */
   readonly weight: number;
+  /** The scale actually applied, after defaulting. */
   readonly scale: number;
+  /** Independent directions among its rows; below `rowCount` when they are
+   * not independent. */
   readonly rank: number;
+  /** RMS of its scale-normalized residuals, comparable across blocks. */
   readonly normalizedResidualRms: number;
+  /** The largest of them; one badly satisfied row shows here while the RMS
+   * still looks acceptable. */
   readonly maxNormalizedResidual: number;
 }
 

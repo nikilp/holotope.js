@@ -12,7 +12,7 @@ description. The 3,579 symbols undocumented when the gate was introduced are
 grandfathered in `docs/doc-baseline.json`, so the rule is *coverage may not
 regress* — new work carries documentation without anyone having to drain the
 backlog first. The baseline is the measure of progress: it has fallen from
-3,579 to 3,202. See [Keeping it from growing back](#keeping-it-from-growing-back).
+3,579 to 3,149. See [Keeping it from growing back](#keeping-it-from-growing-back).
 :::
 
 ## The shape of the gap
@@ -66,8 +66,8 @@ constructors is the single highest-value documentation change available.
 
 ## Priority 2 — options interfaces
 
-90 interfaces of four or more properties have **no** property documentation at
-all, down from 125. In this API the options interface *is* the thing a caller has to fill in,
+85 interfaces of four or more properties have **no** property documentation at
+all, down from 125 — and 14 of those remain in `core`, down from 29. In this API the options interface *is* the thing a caller has to fill in,
 so an undocumented one is a dead end. The largest:
 
 | Props | Package | Interface |
@@ -95,6 +95,15 @@ and treating it as a miss is how a tunnelling bug gets written.
 `representation`: it now says to read `consistency` and `determination` before
 trusting the recovered coordinate, because a compromise and a recovered point
 are indistinguishable from the coordinate alone.
+
+The linear constraint machinery is done. Its two knobs are easily confused and
+now say so: the solver minimises `weight * ||(A x - b) / scale||^2`, so `scale`
+names a block's units and makes blocks measuring different quantities
+comparable, while `weight` decides which of the comparable ones matters more.
+Per-observation diagnostics separate three judgements that fail independently —
+how much an observation constrained, how well it was satisfied, and whether it
+sat close enough to the projection's singularity that a small residual proves
+less than it appears to.
 
 The source identities and the lineage recipes are done. `SourceCellIdN` reads
 as what it is — a set of guards, each with the named refusal it produces when

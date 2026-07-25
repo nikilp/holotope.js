@@ -12,31 +12,63 @@ export interface NamedLinearCoordinateConstraintBlockInputN
   readonly key: string;
 }
 
+/**
+ * A block as the system holds it, rather than as it was supplied.
+ *
+ * Two differences from the input, both deliberate: the arrays are owned
+ * copies rather than any `ArrayLike`, so a caller mutating what it passed in
+ * cannot change a system already built; and `weight` and `scale` are resolved
+ * rather than optional, so what the solver will use is on the record instead
+ * of implied by a default.
+ */
 export interface NamedLinearCoordinateConstraintBlockN {
+  /** Stable machine identity, matching this block to its diagnostic. */
   readonly key: string;
+  /** Owned copy of `A`, packed row-major. */
   readonly coefficients: readonly number[];
+  /** Owned copy of `b`. */
   readonly targets: readonly number[];
+  /** Rows in this block. */
   readonly rowCount: number;
+  /** The weight that will be applied, defaults already resolved. */
   readonly weight: number;
+  /** The scale that will be applied, defaults already resolved. */
   readonly scale: number;
+  /** Human-readable name, for diagnostics only. */
   readonly label?: string;
 }
 
 /** Immutable ordered snapshot of named linear coordinate constraints. */
 export interface LinearCoordinateConstraintSystemN {
+  /** Discriminant, for narrowing. */
   readonly kind: 'linear-coordinate-constraint-system';
+  /** Width of the coordinate the blocks constrain; every block's rows are
+   * this long. */
   readonly coordinateDim: number;
+  /** The blocks, in the order supplied, with keys already checked unique. */
   readonly blocks: readonly NamedLinearCoordinateConstraintBlockN[];
 }
 
+/**
+ * A block diagnostic carrying the key of the block that produced it, so a
+ * result can be attributed without relying on position or on an optional
+ * human label.
+ */
 export interface NamedLinearCoordinateConstraintBlockDiagnosticN
   extends LinearCoordinateConstraintBlockDiagnosticN {
+  /** Identity of the block this describes. */
   readonly key: string;
 }
 
+/**
+ * A solve of the whole system, with each block's contribution attributed to
+ * the block that made it.
+ */
 export interface LinearCoordinateConstraintSystemFitN
   extends LinearCoordinateConstraintFitN {
+  /** Keys in the order the blocks were solved, parallel to `blocks`. */
   readonly blockKeys: readonly string[];
+  /** Per-block diagnostics; read `rank` against `rowCount` first. */
   readonly blocks: readonly NamedLinearCoordinateConstraintBlockDiagnosticN[];
 }
 

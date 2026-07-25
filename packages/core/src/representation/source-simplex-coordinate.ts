@@ -68,15 +68,42 @@ export interface SourceSimplexObservationFitOptions {
   readonly maxCandidateFaces?: number;
 }
 
+/**
+ * What one observation contributed to a fit, and whether it was worth having.
+ *
+ * Three separate judgements, and a fit can fail any one of them while the
+ * others look fine:
+ *
+ * - `individualRank` — how much this observation constrained on its own. A
+ *   projection pins a point to a ray, so one observation cannot determine a
+ *   position by itself and a low rank here is expected, not a fault;
+ * - `representationResidual` — how far the recovered point lands from where
+ *   this observation said it was, once re-projected through the same map;
+ * - `minAbsQ` — the smallest homogeneous denominator met while forming the
+ *   equations. Near zero means this observation sits close to the
+ *   projection's singularity, where the equations are ill-conditioned and a
+ *   small residual proves less than it appears to.
+ */
 export interface SourceSimplexObservationDiagnosticN {
+  /** Stable identity, matching this diagnostic to the observation supplied. */
   readonly key: string;
+  /** Human-readable name, if one was given. */
   readonly label?: string;
+  /** Weight this observation carried in the fit. */
   readonly weight: number;
+  /** Where the observation said the point appears. */
   readonly targetPoint: readonly [number, number, number];
+  /** Where the recovered coordinate actually re-projects to. */
   readonly representationPoint: readonly [number, number, number];
+  /** The distance between those two — this observation's own error. */
   readonly representationResidual: number;
+  /** RMS of the homogeneous equation residual across the three coordinates. */
   readonly homogeneousEquationRms: number;
+  /** Independent directions this observation constrained by itself. */
   readonly individualRank: number;
+  /** Smallest homogeneous denominator encountered; a conditioning warning
+   * rather than an error, since the fit already refuses a denominator that
+   * has actually degenerated. */
   readonly minAbsQ: number;
 }
 
