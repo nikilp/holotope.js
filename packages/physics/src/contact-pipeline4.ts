@@ -416,11 +416,30 @@ export type CompactContactCollider4 =
   | PolytopeCollider4;
 export type ContactCollider4 = CompactContactCollider4 | HyperplaneContactCollider4;
 
+/**
+ * One pair the pipeline examined in a step, and what came of it.
+ *
+ * Detection and response are separate facts. `patch` says the two shapes
+ * touch; `responded` says the solver was given something to do about it, and
+ * a pair can be the first without being the second — two static colliders
+ * meet and there is nothing to push apart. Counting contacts by `responded`
+ * therefore undercounts, and counting collisions by `patch` overcounts the
+ * work done.
+ *
+ * The friction and restitution here are the pair's, combined from what each
+ * collider's policy contributed, rather than either collider's own.
+ */
 export interface ContactPipelinePair4 {
+  /** Identity of the ordered pair, stable across steps for warm-starting. */
   readonly id: string;
+  /** The first collider, in the order the pair was formed. */
   readonly colliderA: ContactCollider4;
+  /** The second. */
   readonly colliderB: ContactCollider4;
+  /** What the narrowphase established, including which capability answered. */
   readonly narrowphase: NarrowphaseDispatchResultN;
+  /** The contact region, whose type follows from the pair of shapes;
+   * `null` when they do not touch. */
   readonly patch:
     | HyperboxContactPatch4
     | PolytopeContactPatch4
@@ -428,9 +447,14 @@ export interface ContactPipelinePair4 {
     | HyperboxHyperplaneContactPatch4
     | SmoothPointContactPatchN
     | null;
+  /** Coulomb coefficient for this pair, combined from both policies. */
   readonly friction: number;
+  /** Restitution for this pair, likewise combined. */
   readonly restitution: number;
+  /** Constraints this pair contributed, by id, for matching them next step. */
   readonly constraintIds: readonly string[];
+  /** Whether it contributed any — equivalently, whether `constraintIds` is
+   * non-empty. */
   readonly responded: boolean;
 }
 

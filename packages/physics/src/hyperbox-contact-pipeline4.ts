@@ -133,16 +133,40 @@ export class HyperboxCollider4 {
   }
 }
 
+/**
+ * The same record as `ContactPipelinePair4`, for the pipeline that handles
+ * hyperboxes only.
+ *
+ * Every union the general pipeline carries is a single type here — one kind of
+ * collider, one narrowphase result, one kind of patch — because this pipeline
+ * accepts nothing else. That is what it exists for: with the shape pair fixed,
+ * the exact box-against-box construction is always the one that answers, and
+ * neither dispatch nor a fallback is needed.
+ *
+ * Detection and response remain separate, as they are there: a patch means the
+ * boxes touch, `responded` means the solver was given something to do.
+ */
 export interface HyperboxContactPair4 {
+  /** Identity of the ordered pair, stable across steps for warm-starting. */
   readonly id: string;
+  /** The first box, in the order the pair was formed. */
   readonly colliderA: HyperboxCollider4;
+  /** The second. */
   readonly colliderB: HyperboxCollider4;
+  /** The narrowphase result, always the box deep-manifold capability. */
   readonly narrowphase: NarrowphaseHyperboxDeepManifoldResultN;
+  /** The underlying contact query, carried alongside so its separating axis
+   * and feature detail are reachable without unwrapping the narrowphase. */
   readonly query: HyperboxContactResult4;
+  /** The contact region; `null` when the boxes do not touch. */
   readonly patch: HyperboxContactPatch4 | null;
+  /** Coulomb coefficient for this pair, combined from both policies. */
   readonly friction: number;
+  /** Restitution for this pair, likewise combined. */
   readonly restitution: number;
+  /** Constraints this pair contributed, by id. */
   readonly constraintIds: readonly string[];
+  /** Whether it contributed any. */
   readonly responded: boolean;
 }
 

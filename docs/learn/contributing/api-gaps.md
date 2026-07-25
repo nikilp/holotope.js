@@ -12,7 +12,7 @@ description. The 3,579 symbols undocumented when the gate was introduced are
 grandfathered in `docs/doc-baseline.json`, so the rule is *coverage may not
 regress* — new work carries documentation without anyone having to drain the
 backlog first. The baseline is the measure of progress: it has fallen from
-3,579 to 3,107. See [Keeping it from growing back](#keeping-it-from-growing-back).
+3,579 to 3,075. See [Keeping it from growing back](#keeping-it-from-growing-back).
 :::
 
 ## The shape of the gap
@@ -95,6 +95,14 @@ and treating it as a miss is how a tunnelling bug gets written.
 `representation`: it now says to read `consistency` and `determination` before
 trusting the recovered coordinate, because a compromise and a recovered point
 are indistinguishable from the coordinate alone.
+
+The contact pipelines and the rotation interval are done. A pipeline pair
+separates detection from response — a patch means the shapes touch, `responded`
+means the solver was given something to do, and two static colliders are the
+first without the second. A rotation limit engages on where the step will land
+rather than where the joint is, and when a step is large enough to cross the
+whole interval it engages the bound being approached rather than the one being
+left.
 
 The GPU field records are done. A readback is a record of arrays rather than
 an array of records, because the buffers arrive in that shape and repacking a

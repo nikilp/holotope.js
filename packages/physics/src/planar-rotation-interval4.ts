@@ -6,6 +6,12 @@ import {
   type PlanarRotationCoordinateEvaluation4
 } from './planar-rotation-coordinate4.js';
 
+/**
+ * Which bound of a rotation interval is engaged, if either. `minimum` and
+ * `maximum` name the bound doing the limiting, not the side the joint is on —
+ * a step large enough to cross the whole interval engages the bound it is
+ * heading for rather than the one it is leaving.
+ */
 export type PlanarRotationIntervalState4 =
   | 'inactive'
   | 'minimum'
@@ -17,18 +23,44 @@ export interface PlanarRotationInterval4Options {
   readonly maxAngle: number;
 }
 
+/**
+ * Where a limited rotation stands relative to its interval, and whether the
+ * limit is acting.
+ *
+ * The limit is predictive: it engages on where the step will land rather than
+ * where the joint already is, since a limit that waits for the bound to be
+ * crossed permits the overshoot it exists to prevent. `predictive` reports
+ * which of the two happened — the bound already passed, or the bound about to
+ * be.
+ *
+ * One case is worth knowing before reading `state`. When a step is large
+ * enough to traverse the entire interval, the bound engaged is the one the
+ * joint is heading toward, not the one it currently sits on: a joint at its
+ * minimum whose predicted angle lies beyond the maximum reports `maximum`.
+ * Reading `state` as "the side the joint is on" is wrong in exactly that case.
+ */
 export interface PlanarRotationIntervalObservation4 {
+  /** Present only on a regular evaluation; a degenerate one returns instead. */
   readonly status: 'regular';
+  /** The underlying angle measurement this was derived from. */
   readonly coordinate: Extract<
     PlanarRotationCoordinateEvaluation4,
     { readonly status: 'regular' }
   >;
+  /** Which bound is limiting, or `inactive` when neither is. */
   readonly state: PlanarRotationIntervalState4;
+  /** Whether the bound engaged on the prediction rather than the present
+   * angle — false when the joint has already passed it. */
   readonly predictive: boolean;
+  /** The current angle. */
   readonly angle: number;
+  /** Its rate of change, which the prediction extrapolates. */
   readonly angularSpeed: number;
+  /** Where the angle lands after this step: `angle + angularSpeed * dt`. */
   readonly predictedAngle: number;
+  /** Lower bound of the permitted interval. */
   readonly minAngle: number;
+  /** Upper bound. */
   readonly maxAngle: number;
 }
 
