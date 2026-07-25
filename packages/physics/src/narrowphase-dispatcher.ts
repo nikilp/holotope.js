@@ -49,14 +49,52 @@ import {
   type SmoothContactOptionsN
 } from './smooth-contact.js';
 
+/**
+ * What a narrowphase query can establish about a shape pair. Which of these
+ * are possible is a property of the pair's types, not of their configuration:
+ * two glomes admit an analytic manifold, an arbitrary support shape does not.
+ *
+ * - `distance` — separation and closest points, via GJK, while apart;
+ * - `shallow-contact` — the same through a Minkowski margin, so a pair inside
+ *   its own skin is still resolvable without penetration machinery;
+ * - `penetration` — depth and a minimum-translation direction once
+ *   overlapping, via EPA;
+ * - `deep-manifold` — a full contact patch with multiple points, which only
+ *   shape pairs with an exact construction can offer.
+ */
 export type NarrowphaseCapabilityN =
   | 'distance'
   | 'shallow-contact'
   | 'penetration'
   | 'deep-manifold';
 
+/**
+ * What to ask of a pair: one specific capability, or `'best'`.
+ *
+ * Naming a capability is exact. If the pair does not offer it the request is
+ * refused rather than downgraded, so a caller depending on a contact manifold
+ * is never silently handed a distance instead.
+ *
+ * `'best'` is not simply the most informative available. A positive margin on
+ * either shape means the pair is meant to be tested through its skin, and
+ * shallow contact is then preferred over penetration:
+ *
+ * ```text
+ * deep-manifold, if offered
+ * else shallow-contact, when either margin is positive
+ * else penetration, else distance, else shallow-contact
+ * ```
+ *
+ * So a margin changes which query answers, and `capability` on the result
+ * says which one did.
+ */
 export type NarrowphaseRequestModeN = 'best' | NarrowphaseCapabilityN;
 
+/**
+ * Whether this query reused a previous one's warm start. `hit` and `miss`
+ * report a cache that was consulted; `disabled` that caching was off, and
+ * `unused` that the chosen capability had nothing to warm-start from.
+ */
 export type NarrowphaseCacheStatusN =
   | 'hit'
   | 'miss'
@@ -96,86 +134,185 @@ export interface NarrowphaseDispatchRequestN {
   readonly useCache?: boolean;
 }
 
+/**
+ * Carried by every narrowphase result, answered or not.
+ *
+ * `requestedMode` and `availableCapabilities` together explain the outcome:
+ * a result narrower than expected is the pair's types being what they are,
+ * not a failure, and the two fields say so without the caller having to
+ * rediscover which pairs support what.
+ */
 interface NarrowphaseResultBaseN {
+  /** Stable identity of the ordered pair, matching the request. */
   readonly pairId: string;
+  /** Ambient dimension the query ran in. */
   readonly dim: number;
+  /** What was asked for, so a result can be compared against it. */
   readonly requestedMode: NarrowphaseRequestModeN;
+  /** Everything this pair could have offered, whatever was asked. */
   readonly availableCapabilities: readonly NarrowphaseCapabilityN[];
+  /** Whether a warm start was reused; see `NarrowphaseCacheStatusN`. */
   readonly cacheStatus: NarrowphaseCacheStatusN;
 }
 
+/** Separation and closest points for a pair that is apart, from GJK. */
 export interface NarrowphaseDistanceResultN extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'distance';
+  /** The capability this result delivers. */
   readonly capability: 'distance';
+  /** The GJK query, carrying the distance and the witness points. */
   readonly query: GjkResult;
 }
 
+/**
+ * Contact resolved through the pair's Minkowski margins, so shapes touching
+ * within their own skins are handled without penetration machinery. This is
+ * what a positive margin makes `'best'` prefer.
+ */
 export interface NarrowphaseShallowContactResultN extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'shallow-contact';
+  /** The capability this result delivers. */
   readonly capability: 'shallow-contact';
+  /** Margin the first shape was grown by. */
   readonly marginA: number;
+  /** Margin the second shape was grown by. */
   readonly marginB: number;
+  /** The margin-aware GJK query the result was read from. */
   readonly query: GjkMarginResult;
 }
 
+/**
+ * Depth and a minimum-translation direction for an overlapping pair, from
+ * EPA. A single direction rather than a patch: use `deep-manifold` where the
+ * pair offers it and several contact points are needed.
+ */
 export interface NarrowphasePenetrationResult4 extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'penetration';
+  /** The capability this result delivers. */
   readonly capability: 'penetration';
+  /** Which algorithm produced it. */
   readonly algorithm: 'epa4';
+  /** The EPA query; read its error bound before trusting the depth. */
   readonly query: EpaPenetrationResult4;
 }
 
+/**
+ * A contact manifold for two oriented hyperboxes, from the exact
+ * construction for that pairing rather than from a general algorithm.
+ * Only pairs with such a construction offer `deep-manifold` at all.
+ */
 export interface NarrowphaseHyperboxDeepManifoldResultN extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'deep-manifold';
+  /** The capability this result delivers. */
   readonly capability: 'deep-manifold';
+  /** Which exact construction produced it. */
   readonly algorithm: 'hyperbox4';
+  /** The construction's own result, carrying the contact patch. */
   readonly query: HyperboxContactResult4;
 }
 
+/**
+ * A contact manifold for two vertex-enumerable convex polytopes, from the exact
+ * construction for that pairing rather than from a general algorithm.
+ * Only pairs with such a construction offer `deep-manifold` at all.
+ */
 export interface NarrowphasePolytopeDeepManifoldResult4
 extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'deep-manifold';
+  /** The capability this result delivers. */
   readonly capability: 'deep-manifold';
+  /** Which exact construction produced it. */
   readonly algorithm: 'polytope4';
+  /** The construction's own result, carrying the contact patch. */
   readonly query: PolytopeContactResult4;
 }
 
+/**
+ * A contact manifold for two glomes, from the exact
+ * construction for that pairing rather than from a general algorithm.
+ * Only pairs with such a construction offer `deep-manifold` at all.
+ */
 export interface NarrowphaseGlomeDeepManifoldResultN extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'deep-manifold';
+  /** The capability this result delivers. */
   readonly capability: 'deep-manifold';
+  /** Which exact construction produced it. */
   readonly algorithm: 'glome-glome';
+  /** The construction's own result, carrying the contact patch. */
   readonly query: GlomeGlomeContactResultN;
 }
 
+/**
+ * A contact manifold for a glome and an infinite hyperplane, from the exact
+ * construction for that pairing rather than from a general algorithm.
+ * Only pairs with such a construction offer `deep-manifold` at all.
+ */
 export interface NarrowphaseGlomeHyperplaneDeepManifoldResultN
 extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'deep-manifold';
+  /** The capability this result delivers. */
   readonly capability: 'deep-manifold';
+  /** Which exact construction produced it. */
   readonly algorithm: 'glome-hyperplane';
+  /** The construction's own result, carrying the contact patch. */
   readonly query: GlomeHyperplaneContactResultN;
 }
 
+/**
+ * A contact manifold for a glome and an oriented hyperbox, from the exact
+ * construction for that pairing rather than from a general algorithm.
+ * Only pairs with such a construction offer `deep-manifold` at all.
+ */
 export interface NarrowphaseGlomeHyperboxDeepManifoldResult4
 extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'deep-manifold';
+  /** The capability this result delivers. */
   readonly capability: 'deep-manifold';
+  /** Which exact construction produced it. */
   readonly algorithm: 'glome-hyperbox4';
+  /** The construction's own result, carrying the contact patch. */
   readonly query: GlomeHyperboxContactResult4;
 }
 
+/**
+ * A contact manifold for an oriented hyperbox and an infinite hyperplane, from the exact
+ * construction for that pairing rather than from a general algorithm.
+ * Only pairs with such a construction offer `deep-manifold` at all.
+ */
 export interface NarrowphaseHyperboxHyperplaneDeepManifoldResult4
 extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'deep-manifold';
+  /** The capability this result delivers. */
   readonly capability: 'deep-manifold';
+  /** Which exact construction produced it. */
   readonly algorithm: 'hyperbox-hyperplane4';
+  /** The construction's own result, carrying the contact patch. */
   readonly query: HyperboxHyperplaneContactResult4;
 }
 
+/**
+ * A contact manifold for a convex polytope and an infinite hyperplane, from the exact
+ * construction for that pairing rather than from a general algorithm.
+ * Only pairs with such a construction offer `deep-manifold` at all.
+ */
 export interface NarrowphasePolytopeHyperplaneDeepManifoldResult4
 extends NarrowphaseResultBaseN {
+  /** Discriminant across dispatch results. */
   readonly kind: 'deep-manifold';
+  /** The capability this result delivers. */
   readonly capability: 'deep-manifold';
+  /** Which exact construction produced it. */
   readonly algorithm: 'polytope-hyperplane4';
+  /** The construction's own result, carrying the contact patch. */
   readonly query: PolytopeHyperplaneContactResult4;
 }
 
