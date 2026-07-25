@@ -40,6 +40,18 @@ export class SampledSlicedField3D<Record extends FieldEvaluation4 = FieldEvaluat
 
   private options: SampledSlicedField3DOptions;
 
+  /**
+   * Builds a sampled section of an implicit field. The field is evaluated on
+   * a grid in the slice, so cost is the resolution cubed and a raised
+   * resolution is paid on every rebuild rather than per frame.
+   *
+   * @param field - Field to evaluate. Its full record is retained per sample,
+   * so a renderer can colour or inspect a point without rerunning the orbit.
+   * @param slice - The hyperplane to sample within. Retained, so moving its
+   * offset moves the sampled section.
+   * @param options - Grid extent and resolution, the isosurface threshold,
+   * and an optional material.
+   */
   constructor(
     field: ImplicitField4<Record>,
     slice: HyperplaneSlice4,

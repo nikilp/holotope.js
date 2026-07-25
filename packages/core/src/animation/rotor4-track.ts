@@ -40,6 +40,23 @@ export class Rotor4Track {
   private innerLeft: Float64Array[] | null = null;
   private innerRight: Float64Array[] | null = null;
 
+  /**
+   * Builds a keyed rotation track. Keys are neighbourhooded on construction:
+   * a rotor and its negation represent the same rotation, so each key is put
+   * on the cover nearest its predecessor and interpolation takes the short
+   * way round rather than an arbitrary one.
+   *
+   * @param times - Key times, strictly increasing.
+   * @param rotors - One rotor per time.
+   * @param interpolation - `'step'` holds each key, `'linear'` runs the
+   * geodesic between neighbours, `'cubic'` is C¹ across keys.
+   *
+   * @example
+   * ```ts
+   * const track = new Rotor4Track([0, 1], [Rotor4.identity(), target], 'cubic');
+   * transform.rotation = track.evaluate(t);
+   * ```
+   */
   constructor(
     times: ArrayLike<number>,
     rotors: readonly Rotor4[],

@@ -56,6 +56,17 @@ export class FieldRelief3D<Record extends FieldEvaluation4 = FieldEvaluation4> {
 
   private options: FieldRelief3DOptions<Record>;
 
+  /**
+   * Builds a height field over a plane of the slice, displacing a grid by a
+   * scalar read from each sample's record. Where a section shows where a
+   * field is, a relief shows how it varies there.
+   *
+   * @param field - Field to evaluate across the plane.
+   * @param slice - The hyperplane the plane is taken from. Retained, so
+   * moving its offset moves the relief.
+   * @param options - The two slice axes spanning the plane, grid extent and
+   * resolution, the scalar read from each record, and its displacement scale.
+   */
   constructor(
     field: ImplicitField4<Record>,
     slice: HyperplaneSlice4,

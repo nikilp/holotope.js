@@ -275,6 +275,22 @@ export class ModelSet {
   readonly window: ConvexWindow;
   readonly boundaryPolicy: WindowBoundaryPolicy;
 
+  /**
+   * Binds the three parts of a cut-and-project scheme, checking that they
+   * describe one scheme: a shared exact ring, a flat of the lattice's ambient
+   * dimension, and a window of the perpendicular space's dimension. A
+   * mismatch is rejected here rather than producing an empty point set.
+   *
+   * @param lattice - Finite-rank lattice over an exact ring.
+   * @param flat - Splits ambient space into the physical and internal
+   * coordinates the scheme reads.
+   * @param window - Acceptance region in internal space; a point is in the
+   * model set when its internal coordinate lies inside.
+   * @param boundaryPolicy - What to do when a point falls exactly on the
+   * window boundary. `'error'` refuses, since the answer is a choice rather
+   * than a computation, and silently including or excluding it would change
+   * the point set without saying so.
+   */
   constructor(
     lattice: LatticeN,
     flat: FlatN,
