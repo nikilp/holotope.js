@@ -7,10 +7,11 @@
 ## Read this first
 
 - README.md — installation, package overview, runnable public examples.
-- docs/mental-model.md — package responsibilities and the source → representation → interaction loop.
-- docs/cookbook.md — verified task-oriented snippets.
-- docs/representation-provenance.md — what a pick can and cannot recover.
-- docs/physics.md — rigid mechanics, contact capability boundaries, and RN XPBD.
+- docs/learn/mental-model.md — package responsibilities and the source → representation → interaction loop.
+- docs/learn/cookbook.md — verified task-oriented snippets.
+- docs/learn/representation-provenance.md — what a pick can and cannot recover.
+- docs/learn/physics/ — rigid mechanics, contact capability boundaries, and RN XPBD
+  (index page maps the seven task pages).
 
 ## Package map
 
@@ -140,8 +141,8 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
   ball), and `XpbdExponentialVelocityDampingN` (inverse-seconds decay).
 
 Canonical complete physics export barrel: `packages/physics/src/index.ts`.
-Candidate-state objective guide: `docs/candidate-potentials.md`.
-Incremental objective guide: `docs/incremental-potentials.md`.
+Candidate-state objective guide: `docs/learn/theory/candidate-potentials.md`.
+Incremental objective guide: `docs/learn/theory/incremental-potentials.md`.
 
 ## Three anchors
 

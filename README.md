@@ -117,7 +117,26 @@ pnpm --filter @holotope/showcase dev   # run the showcase gallery locally
 
 Early research and prototyping. The API is expected to change while the core concepts are explored.
 
-Start with the task-oriented [`docs/mental-model.md`](docs/mental-model.md), then use the verified [`docs/cookbook.md`](docs/cookbook.md). The decisions that shape the library — and why — are in [`docs/architecture.md`](docs/architecture.md). See [`docs/representation-provenance.md`](docs/representation-provenance.md) for tracing 3D representations back to N-D sources, [`docs/physics.md`](docs/physics.md) for mechanics, [`docs/candidate-potentials.md`](docs/candidate-potentials.md) for non-mutating trial-state energy and gradient assembly, [`docs/incremental-potentials.md`](docs/incremental-potentials.md) for mass-weighted optimization objectives, [`docs/spectral-analysis.md`](docs/spectral-analysis.md) for graph-Laplacian modes, [`docs/implicit-fields.md`](docs/implicit-fields.md) for headless field evaluation, [`docs/model-sets.md`](docs/model-sets.md) for cut-and-project, and [`docs/couplings.md`](docs/couplings.md) for provenance-driven parameters. [`llms.txt`](llms.txt) is the concise AI-assistant context file.
+## Documentation
+
+**[Documentation site →](https://nikilp.github.io/holotope.js/docs/)** — the guide plus a
+generated API reference for every exported symbol, with full-text search across both.
+
+New here? Read [the mental model](docs/learn/mental-model.md) first — it is the one page that
+explains why a projected mesh is never the source object — then work from
+[the cookbook](docs/learn/cookbook.md).
+
+| Guide | What it answers |
+| --- | --- |
+| [Mental model](docs/learn/mental-model.md) | How source, representation, interaction, and simulation relate |
+| [Architecture](docs/learn/architecture.md) | The decisions that shape the library, and why |
+| [Cookbook](docs/learn/cookbook.md) | Verified task-oriented recipes |
+| [Representation provenance](docs/learn/representation-provenance.md) | Tracing a 3D pick back to its N-D source |
+| [Mechanics](docs/learn/physics/) | Mass, rigid bodies, collision, contact, constraints, XPBD |
+| [Exact constructions](docs/learn/theory/model-sets.md) | Cut-and-project, [E8 folding](docs/learn/theory/e8-folding.md), [fields](docs/learn/theory/implicit-fields.md), [spectra](docs/learn/theory/spectral-analysis.md) |
+| [Provenance-driven decorations](docs/learn/couplings.md) | Assigning parameters from retained source identity |
+
+[`llms.txt`](llms.txt) is the concise AI-assistant context file.
 
 ## Roadmap (abridged)
 
