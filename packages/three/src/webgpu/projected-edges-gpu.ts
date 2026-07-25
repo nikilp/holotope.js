@@ -19,7 +19,7 @@ export interface ProjectedEdgesGPUOptions {
  * The 4D positions upload once as a static `position4` attribute; each
  * `update` only writes a mat4 rotation, a vec4 translation, and the
  * projection uniforms — no per-frame CPU projection, no buffer re-upload.
- * SO(4) being a linear map on R^4 is what makes this exact: the whole 4D
+ * SO(4) being a linear map on ℝ⁴ is what makes this exact: the whole 4D
  * rigid transform fits native GPU types.
  *
  * Requires `WebGPURenderer` (which itself falls back to WebGL2); the node

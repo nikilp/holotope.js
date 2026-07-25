@@ -1,7 +1,7 @@
 import type { VecN } from '../math/vecn.js';
 
 /**
- * A projection from ambient R^fromDim into displayable R^3.
+ * A projection from an ambient space of dimension `fromDim` into displayable ℝ³.
  *
  * Projections are first-class, explicit objects: what you see on screen is
  * always the output of a named projection mode, never an implicit default.

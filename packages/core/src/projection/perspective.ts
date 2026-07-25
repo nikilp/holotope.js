@@ -20,7 +20,7 @@ export interface PerspectiveProjectionOptions {
 }
 
 /**
- * Iterated perspective projection R^n → R^3.
+ * Iterated perspective projection ℝⁿ → ℝ³.
  *
  * Projects one dimension at a time (n → n−1 → … → 3): at each step the
  * highest remaining coordinate x_d becomes a depth, scaling the surviving

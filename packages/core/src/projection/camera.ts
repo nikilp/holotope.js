@@ -3,7 +3,7 @@ import { TransformN } from '../math/transform.js';
 import { VecN, assertSameDim } from '../math/vecn.js';
 
 /**
- * A camera in R^n: a pose (position + orthonormal frame) from which the
+ * A camera in ℝⁿ: a pose (position + orthonormal frame) from which the
  * scene is viewed before projection.
  *
  * Conventions generalize three.js: the camera looks down its **negative

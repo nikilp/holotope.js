@@ -8,7 +8,7 @@ export interface SimplexOptions {
 }
 
 /**
- * Builds a regular n-simplex (n+1 vertices) centered at the origin in R^n.
+ * Builds a regular n-simplex (n+1 vertices) centered at the origin in ℝⁿ.
  *
  * Construction: take the n+1 standard basis vectors of R^(n+1) — which form
  * a regular simplex with edge length √2 in the hyperplane orthogonal to the

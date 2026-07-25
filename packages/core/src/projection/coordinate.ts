@@ -14,7 +14,7 @@ export interface CoordinateProjectionOptions {
 }
 
 /**
- * Exact coordinate-subspace projection R^n → R^3.
+ * Exact coordinate-subspace projection ℝⁿ → ℝ³.
  *
  * Unlike `OrthographicProjection`, which always retains axes `[0, 1, 2]`,
  * this map makes the three retained coordinates explicit. It is useful for

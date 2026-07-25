@@ -10,7 +10,7 @@ export interface OrthographicProjectionOptions {
 }
 
 /**
- * Orthographic projection R^n → R^3: keeps the first three coordinates and
+ * Orthographic projection ℝⁿ → ℝ³: keeps the first three coordinates and
  * drops the rest. The simplest projection mode — useful for debugging,
  * CAD-like views, and as a reference against which other modes are tested.
  */

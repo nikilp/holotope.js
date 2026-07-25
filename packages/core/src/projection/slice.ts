@@ -26,12 +26,12 @@ export interface SliceVertexProvenanceBuffers {
 }
 
 /**
- * An affine hyperplane in R^4, `{ x : ⟨normal, x⟩ = offset }`, together with
+ * An affine hyperplane in ℝ⁴, `{ x : ⟨normal, x⟩ = offset }`, together with
  * an orthonormal basis of the hyperplane used as the display frame: sliced
  * geometry is expressed in these 3 in-plane coordinates and rendered
  * directly as 3D.
  *
- * 4D-specific for now (the slice of R^4 is the only one that is itself a
+ * 4D-specific for now (the slice of ℝ⁴ is the only one that is itself a
  * renderable 3-flat); the N-parameterized generalization arrives with
  * chained slicing.
  */
@@ -163,7 +163,7 @@ function orthogonalize(
 }
 
 /**
- * Orthonormal basis of the complement of `normal` in R^4: project the
+ * Orthonormal basis of the complement of `normal` in ℝ⁴: project the
  * standard basis vectors onto the hyperplane, keep the three least parallel
  * to the normal (stability), and run modified Gram–Schmidt. For an
  * axis-aligned normal this returns the remaining coordinate axes unchanged,
@@ -195,7 +195,7 @@ function computeComplementBasis(normal: VecN): [Float64Array, Float64Array, Floa
 }
 
 /**
- * Marching tetrahedra in R^4: intersects tetrahedral 3-cells with a
+ * Marching tetrahedra in ℝ⁴: intersects tetrahedral 3-cells with a
  * hyperplane, emitting a triangle-soup cross-section surface as **ambient
  * 4D points** (all lying in the hyperplane). Use this form when the
  * section should be re-projected like any other 4D geometry — e.g.

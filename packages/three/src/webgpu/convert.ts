@@ -3,7 +3,7 @@ import { rotationMatrix, type HyperplaneSlice4, type TransformN } from '@holotop
 
 /**
  * Writes a 4D rigid transform into GPU-native types: the SO(4) rotation is
- * a linear map on R^4, so it fits a mat4 exactly (no homogeneous trick
+ * a linear map on ℝ⁴, so it fits a mat4 exactly (no homogeneous trick
  * needed — this is the happy coincidence of the n=4 case), and the
  * translation is a plain vec4.
  *

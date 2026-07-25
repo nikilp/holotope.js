@@ -10,7 +10,7 @@ export type RotationBackend = MatN | Rotor4;
 
 /**
  * A rigid (or affine, if the rotation matrix is not orthonormal) transform
- * in R^n: `p ↦ R · p + t`.
+ * in ℝⁿ: `p ↦ R · p + t`.
  *
  * Stored as an explicit rotation/position pair rather than an (n+1)×(n+1)
  * homogeneous matrix; the pair form is easier to keep numerically clean

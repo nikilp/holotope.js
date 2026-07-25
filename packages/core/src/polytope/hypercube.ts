@@ -12,9 +12,9 @@ export interface HypercubeOptions {
 /**
  * Builds an n-cube centered at the origin with vertices at ±size/2.
  *
- * Vertex `v` (0 … 2^n − 1) has coordinate `+h` on axis `a` iff bit `a` of
- * `v` is set. Cell counts: 2^n vertices, n·2^(n−1) edges,
- * C(n,2)·2^(n−2) square faces.
+ * Vertex `v` (0 … 2ⁿ − 1) has coordinate `+h` on axis `a` iff bit `a` of
+ * `v` is set. Cell counts: 2ⁿ vertices, n·2ⁿ⁻¹ edges,
+ * C(n,2)·2ⁿ⁻² square faces.
  *
  * @param options - Ambient dimension, edge length, and the highest cell
  * dimension to author. Raising `maxCellDimension` to 3 emits the cubic

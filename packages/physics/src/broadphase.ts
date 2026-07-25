@@ -233,7 +233,7 @@ export interface SweepAndPruneCandidateProviderNOptions {
 }
 
 /**
- * Deterministic single-axis sweep-and-prune with full R^n AABB rejection.
+ * Deterministic single-axis sweep-and-prune with full ℝⁿ AABB rejection.
  *
  * The previous primary-axis order seeds insertion sort when proxy identity and
  * the chosen axis are coherent. Candidate output is always canonically sorted

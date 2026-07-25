@@ -1,7 +1,7 @@
 /**
  * Cell complexes: the N-dimensional counterpart of a mesh.
  *
- * A CellComplex stores vertex positions in ambient R^n plus groups of cells
+ * A CellComplex stores vertex positions in ambient ℝⁿ plus groups of cells
  * organized by intrinsic dimension: 1-cells (edges), 2-cells (faces),
  * 3-cells (tetrahedra or cuboids), and so on. The ambient dimension is
  * explicit on the object and never inferred from buffer sizes, so

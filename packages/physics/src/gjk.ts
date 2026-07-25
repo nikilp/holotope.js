@@ -159,7 +159,7 @@ interface Candidate {
 }
 
 /**
- * Distance/intersection query for two compact convex support shapes in R^n.
+ * Distance/intersection query for two compact convex support shapes in ℝⁿ.
  * The implementation is dimension-generic; in R4 the active simplex has at
  * most five vertices. EPA/contact response are intentionally separate APIs.
  */
