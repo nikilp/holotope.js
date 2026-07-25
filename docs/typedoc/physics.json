@@ -1,0 +1,34 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+  "tsconfig": "../../packages/physics/tsconfig.json",
+
+  // A single root export, and the largest surface in the monorepo
+  // (622 symbols, 65 classes) — the generated sidebar is the primary way
+  // to navigate it.
+  "entryPoints": ["../../packages/physics/src/index.ts"],
+
+  "out": "../api/physics",
+  "docsRoot": "..",
+
+  // TypeDoc reads src directly, so the reference builds without a prior
+  // `pnpm build`. That keeps docs generation off packages/*/dist, which the
+  // library build owns — important while other work is in flight.
+  "skipErrorChecking": true,
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "readme": "none",
+  "githubPages": false,
+
+  "useCodeBlocks": true,
+  "expandObjects": true,
+  "parametersFormat": "table",
+  "propertiesFormat": "table",
+  "enumMembersFormat": "table",
+  "typeDeclarationFormat": "table",
+  "hidePageHeader": true,
+  "hideBreadcrumbs": true,
+
+  "sidebar": { "autoConfiguration": true, "format": "vitepress" }
+}

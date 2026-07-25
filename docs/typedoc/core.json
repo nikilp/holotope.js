@@ -1,0 +1,48 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+  "tsconfig": "../../packages/core/tsconfig.json",
+
+  // Entry points mirror the package.json exports map, so every symbol page
+  // states the subpath it is imported from. `scene` and `animation` are
+  // reachable from the root barrel but have no subpath export yet —
+  // tracked in learn/contributing/api-gaps.md.
+  "entryPoints": [
+    "../../packages/core/src/math/index.ts",
+    "../../packages/core/src/geometry/index.ts",
+    "../../packages/core/src/polytope/index.ts",
+    "../../packages/core/src/coxeter/index.ts",
+    "../../packages/core/src/projection/index.ts",
+    "../../packages/core/src/lattice/index.ts",
+    "../../packages/core/src/field/index.ts",
+    "../../packages/core/src/coupling/index.ts",
+    "../../packages/core/src/spectral/index.ts",
+    "../../packages/core/src/representation/index.ts",
+    "../../packages/core/src/scene/index.ts",
+    "../../packages/core/src/animation/index.ts"
+  ],
+
+  "out": "../api/core",
+  "docsRoot": "..",
+
+  // TypeDoc reads src directly, so the reference builds without a prior
+  // `pnpm build`. That keeps docs generation off packages/*/dist, which the
+  // library build owns — important while other work is in flight.
+  "skipErrorChecking": true,
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "readme": "none",
+  "githubPages": false,
+
+  "useCodeBlocks": true,
+  "expandObjects": true,
+  "parametersFormat": "table",
+  "propertiesFormat": "table",
+  "enumMembersFormat": "table",
+  "typeDeclarationFormat": "table",
+  "hidePageHeader": true,
+  "hideBreadcrumbs": true,
+
+  "sidebar": { "autoConfiguration": true, "format": "vitepress" }
+}

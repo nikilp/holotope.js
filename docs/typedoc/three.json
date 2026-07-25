@@ -1,0 +1,37 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+  "tsconfig": "../../packages/three/tsconfig.json",
+
+  // Two entry points matching the two subpath exports. `webgpu` is kept
+  // separate in package.json so WebGL-only consumers never pull it in; the
+  // reference mirrors that split.
+  "entryPoints": [
+    "../../packages/three/src/index.ts",
+    "../../packages/three/src/webgpu/index.ts"
+  ],
+
+  "out": "../api/three",
+  "docsRoot": "..",
+
+  // TypeDoc reads src directly, so the reference builds without a prior
+  // `pnpm build`. That keeps docs generation off packages/*/dist, which the
+  // library build owns — important while other work is in flight.
+  "skipErrorChecking": true,
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "readme": "none",
+  "githubPages": false,
+
+  "useCodeBlocks": true,
+  "expandObjects": true,
+  "parametersFormat": "table",
+  "propertiesFormat": "table",
+  "enumMembersFormat": "table",
+  "typeDeclarationFormat": "table",
+  "hidePageHeader": true,
+  "hideBreadcrumbs": true,
+
+  "sidebar": { "autoConfiguration": true, "format": "vitepress" }
+}
