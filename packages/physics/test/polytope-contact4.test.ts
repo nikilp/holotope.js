@@ -118,6 +118,9 @@ describe('general R4 polytope contact patches', () => {
       facets: 8
     });
     expect(first.patch!.diagnostics.hullB.facets).toBe(8);
+    expect(first.patch!.diagnostics.epaErrorBound).toBe(
+      first.epa!.errorBound
+    );
     expectInsideResolvedHull(first.patch!, shapeA, first.patch!.translationA);
     expectInsideResolvedHull(first.patch!, shapeB, new VecN(4));
 

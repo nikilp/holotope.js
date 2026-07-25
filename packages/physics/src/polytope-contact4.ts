@@ -117,11 +117,8 @@ export interface PolytopeHullDiagnostics4 {
  * of the reported one. A width comparable to the depth means the expansion was
  * cut short and the depth is an estimate rather than a measurement.
  *
- * Zero is ambiguous here and must not be read as certainty. EPA reports no
- * bound at all when it produced neither limit, and that absence is recorded as
- * zero — so zero means either an exactly certified depth or an unknown one.
- * `EpaResult4.errorBound` keeps the two apart by staying `null` in the second
- * case; consult it when the distinction matters.
+ * `null` means EPA established no bracket at all. It is intentionally distinct
+ * from zero, which is the strongest possible statement: a zero-width bracket.
  */
 export interface PolytopeContactPatchDiagnostics4
   extends ContactPlaneIntersectionDiagnostics4 {
@@ -135,10 +132,8 @@ export interface PolytopeContactPatchDiagnostics4
   readonly epaFacets: number;
   /** Expansion steps taken. */
   readonly epaExpansions: number;
-  /** Width of the bracket EPA established around the penetration depth, or
-   * zero when it established none — see the note above before reading zero as
-   * an exact result. */
-  readonly epaErrorBound: number;
+  /** Width of EPA's penetration-depth bracket, or `null` when none exists. */
+  readonly epaErrorBound: number | null;
 }
 
 export interface PolytopeContactPatch4 {
@@ -341,7 +336,7 @@ export function polytopeContactPatch4(
         epaSupports: epa.termination.supportCount,
         epaFacets: epa.termination.facetCount,
         epaExpansions: epa.termination.expansionIterations,
-        epaErrorBound: epa.errorBound ?? 0
+        epaErrorBound: epa.errorBound
       }
     }
   };
