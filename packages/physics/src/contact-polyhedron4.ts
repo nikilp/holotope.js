@@ -28,12 +28,37 @@ export interface ContactPlaneVertex4 {
   readonly activeHalfspaces: readonly number[];
 }
 
+/**
+ * What it cost to find a contact patch by intersecting halfspaces, reported
+ * as the funnel it is. Each count narrows the one before it:
+ *
+ * ```text
+ * constraints → effectiveConstraints → triplesTested
+ *             → feasibleCandidates → uniqueVertices → solverPoints
+ * ```
+ *
+ * The contact plane is three-dimensional, so three halfspace boundaries meet
+ * at a candidate vertex and every triple of effective constraints is tried —
+ * `triplesTested` is cubic in `effectiveConstraints`, which is where the cost
+ * of a large patch lives. Dropping redundant constraints early is therefore
+ * worth far more than it appears from the counts alone.
+ *
+ * A wide gap between `feasibleCandidates` and `uniqueVertices` means many
+ * triples met at the same corner, which is what a degenerate or near-degenerate
+ * patch looks like from here.
+ */
 export interface ContactPlaneIntersectionDiagnostics4 {
+  /** Halfspaces supplied, before redundancy is considered. */
   readonly constraints: number;
+  /** Those left after redundant ones are dropped; the cubic term uses this. */
   readonly effectiveConstraints: number;
+  /** Triples of effective constraints solved for a candidate vertex. */
   readonly triplesTested: number;
+  /** Candidates that satisfied every constraint rather than only their own three. */
   readonly feasibleCandidates: number;
+  /** Distinct corners remaining once coincident candidates are merged. */
   readonly uniqueVertices: number;
+  /** Size of the bounded subset handed to a solver. */
   readonly solverPoints: number;
 }
 

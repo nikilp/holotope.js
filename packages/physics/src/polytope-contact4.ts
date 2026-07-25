@@ -82,24 +82,62 @@ export interface PolytopeFacet4 {
   readonly conditionEstimate: number;
 }
 
+/**
+ * Where one polytope's facet description came from and what it cost.
+ *
+ * `topologySource` is the field that matters for performance: `compiled`
+ * means the facets were already known and this query only had to pick
+ * supporting ones, while `enumerated` means they were recovered here, and
+ * `queryFacetCandidates` is what that cost. A shape re-enumerating on every
+ * query should be compiled once instead.
+ */
 export interface PolytopeHullDiagnostics4 {
+  /** Vertices the hull was built from. */
   readonly sourceVertices: number;
   /** Candidate count paid during original compilation. */
   readonly facetCandidates: number;
+  /** Candidates that turned out to support the hull. */
   readonly supportingCandidates: number;
+  /** Facets in the final description. */
   readonly facets: number;
+  /** Whether the topology was reused from compilation or recovered here. */
   readonly topologySource: 'compiled' | 'enumerated';
   /** Candidate hyperplanes evaluated by this contact query. */
   readonly queryFacetCandidates: number;
 }
 
+/**
+ * Everything a polytope contact query is willing to say about its own cost
+ * and confidence: the halfspace-intersection funnel it inherits, what each
+ * hull description cost, and how far EPA got.
+ *
+ * `epaErrorBound` is the one to read before trusting a depth. EPA brackets the
+ * penetration between an inner-polytope lower bound and a support-plane upper
+ * bound, and this is the width of that bracket: the true depth lies within it
+ * of the reported one. A width comparable to the depth means the expansion was
+ * cut short and the depth is an estimate rather than a measurement.
+ *
+ * Zero is ambiguous here and must not be read as certainty. EPA reports no
+ * bound at all when it produced neither limit, and that absence is recorded as
+ * zero — so zero means either an exactly certified depth or an unknown one.
+ * `EpaResult4.errorBound` keeps the two apart by staying `null` in the second
+ * case; consult it when the distinction matters.
+ */
 export interface PolytopeContactPatchDiagnostics4
   extends ContactPlaneIntersectionDiagnostics4 {
+  /** Hull description cost for the first polytope. */
   readonly hullA: PolytopeHullDiagnostics4;
+  /** The same for the second. */
   readonly hullB: PolytopeHullDiagnostics4;
+  /** Support queries EPA made while expanding. */
   readonly epaSupports: number;
+  /** Facets in its final polytope. */
   readonly epaFacets: number;
+  /** Expansion steps taken. */
   readonly epaExpansions: number;
+  /** Width of the bracket EPA established around the penetration depth, or
+   * zero when it established none — see the note above before reading zero as
+   * an exact result. */
   readonly epaErrorBound: number;
 }
 
