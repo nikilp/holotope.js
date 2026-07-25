@@ -79,6 +79,28 @@ for (const symbol of symbols) {
   }
 }
 
+// The Learn page lists every runnable example. Written from the same catalogue
+// rather than maintained by hand, so registering an example lists it.
+const LEARN = path.join(DOCS, 'learn/playground.md');
+if (fs.existsSync(LEARN)) {
+  const rows = symbols
+    .filter((s) => pageOf.has(s))
+    .sort()
+    .map((s) => {
+      const page = path.relative(DOCS, pageOf.get(s)[0]).replace(/\.md$/, '');
+      return `| [\`${s}\`](/${page}) | [open](${SHOWCASE}/playground.html#${s}) |`;
+    });
+  const table = ['| symbol | |', '| --- | --- |', ...rows].join('\n');
+  const learn = fs.readFileSync(LEARN, 'utf8');
+  const marker = '<!-- runnable-examples -->';
+  const at = learn.indexOf(marker);
+  if (at !== -1) {
+    const after = learn.indexOf('\n## ', at);
+    const tail = after === -1 ? '' : learn.slice(after);
+    fs.writeFileSync(LEARN, learn.slice(0, at + marker.length) + '\n\n' + table + '\n' + tail);
+  }
+}
+
 console.log(
   `embed-playground: ${embedded} reference page(s) carry a playground ` +
     `(${symbols.length} symbols with examples${missing.length ? `, ${missing.length} not in the reference` : ''}).`

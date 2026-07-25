@@ -111,6 +111,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Learn', link: '/learn/', activeMatch: '/learn/' },
+      { text: 'Playground', link: '/learn/playground' },
       {
         text: 'Reference',
         activeMatch: '/api/',
@@ -131,7 +132,8 @@ export default defineConfig({
             { text: 'Overview', link: '/learn/' },
             { text: 'The mental model', link: '/learn/mental-model' },
             { text: 'Architecture', link: '/learn/architecture' },
-            { text: 'Cookbook', link: '/learn/cookbook' }
+            { text: 'Cookbook', link: '/learn/cookbook' },
+            { text: 'Playground', link: '/learn/playground' }
           ]
         },
         {

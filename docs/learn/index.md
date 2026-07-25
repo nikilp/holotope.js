@@ -14,6 +14,7 @@ documentation assumes.
 | [The mental model](./mental-model) | How source, representation, interaction, and simulation relate — and why a projected mesh is never the source object |
 | [Architecture](./architecture) | The decisions that shape the library, with their reasoning |
 | [Cookbook](./cookbook) | Verified recipes for concrete tasks |
+| [Playground](./playground) | Run and edit the reference's examples in the browser |
 
 ## Source and representation
 

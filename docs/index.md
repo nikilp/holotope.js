@@ -13,6 +13,9 @@ hero:
       text: Cookbook
       link: /learn/cookbook
     - theme: alt
+      text: Playground
+      link: /learn/playground
+    - theme: alt
       text: API reference
       link: /api/core/
     - theme: alt

@@ -1,0 +1,85 @@
+# Playground
+
+Runnable code beside its result. Edit and re-run in place — nothing is
+installed, and nothing leaves the page.
+
+<iframe
+  src="https://nikilp.github.io/holotope.js/playground.html#ProjectedEdges3D"
+  title="Holotope playground"
+  loading="lazy"
+  style="width:100%;aspect-ratio:16/9;min-height:420px;border:1px solid var(--vp-c-divider);border-radius:8px;margin:1.25rem 0;"
+></iframe>
+
+## What is already in scope
+
+Everything the library exports, by name — there are no imports to write.
+Alongside them:
+
+| name | what it is |
+| --- | --- |
+| `scene` | a three.js `Scene`, already lit and rendered |
+| `camera` | the `PerspectiveCamera` looking at it, under orbit control |
+| `renderer` | the `WebGLRenderer` driving the frame |
+| `onFrame(fn)` | runs `fn(t)` every frame, `t` in seconds since the run |
+| `log(…)` | prints below the editor |
+
+Add an object to `scene` to see it. Return a value — or end on an expression —
+and the panel reports it, which is how an example that computes rather than
+draws still shows its result.
+
+```js
+const product = new ProjectedEdges3D(
+  createHypercube({ dim: 4 }),
+  new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+);
+scene.add(product.object);
+
+onFrame((t) =>
+  product.update(new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle: t }])))
+);
+```
+
+That last part is the whole idea in miniature: the rotation happens in R⁴ and
+the projection is recomputed from it. Rotating `product.object` instead would
+spin a shadow.
+
+::: tip It runs JavaScript
+The library is written in TypeScript and the reference shows TypeScript, but a
+browser runs JavaScript. Snippets here are the same code with the annotations
+removed — which for these examples means no change at all, since they call
+functions rather than annotate types. Paste an annotation and the panel will
+say so.
+:::
+
+## Runnable examples
+
+Every symbol whose documentation carries an example can be opened directly.
+These are the same snippets the reference pages show, so anything improved
+there is improved here.
+
+<!-- runnable-examples -->
+
+| symbol | |
+| --- | --- |
+| [`CameraN`](/api/core/projection/classes/CameraN) | [open](https://nikilp.github.io/holotope.js/playground.html#CameraN) |
+| [`CellComplex`](/api/core/geometry/classes/CellComplex) | [open](https://nikilp.github.io/holotope.js/playground.html#CellComplex) |
+| [`ProjectedEdges3D`](/api/three/index/classes/ProjectedEdges3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedEdges3D) |
+| [`ProjectedSurface3D`](/api/three/index/classes/ProjectedSurface3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedSurface3D) |
+| [`Rotor4Track`](/api/core/animation/classes/Rotor4Track) | [open](https://nikilp.github.io/holotope.js/playground.html#Rotor4Track) |
+| [`SlicedComplex3D`](/api/three/index/classes/SlicedComplex3D) | [open](https://nikilp.github.io/holotope.js/playground.html#SlicedComplex3D) |
+| [`TransformN`](/api/core/math/classes/TransformN) | [open](https://nikilp.github.io/holotope.js/playground.html#TransformN) |
+| [`createHypercube`](/api/core/polytope/functions/createHypercube) | [open](https://nikilp.github.io/holotope.js/playground.html#createHypercube) |
+
+## Why these are trustworthy
+
+The examples are compiled. Each one is extracted from its doc comment and
+typechecked against the real signatures as part of the build, so a method that
+does not exist or a call with the wrong number of arguments fails the build
+rather than the reader.
+
+That check exists because the first version of these examples contained four
+errors that read perfectly well: a method named `evaluate` where the accessor
+is `sample`, a two-argument call to a one-argument function, references to
+variables nothing defined, and a `VecN` built with both a dimension and values
+— which silently produced a zero vector and demonstrated nothing while
+appearing to work.
