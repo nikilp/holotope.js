@@ -188,6 +188,20 @@ export {
   type XpbdParticleHyperplaneBarrierNOptions
 } from './xpbd-hyperplane-barrier.js';
 export {
+  XpbdParticleHyperplaneBarrierStepFilterN,
+  type XpbdIncrementalPotentialStepFilterContextN,
+  type XpbdIncrementalPotentialStepFilterEvaluationN,
+  type XpbdIncrementalPotentialStepFilterIndeterminateN,
+  type XpbdIncrementalPotentialStepFilterLimitedN,
+  type XpbdIncrementalPotentialStepFilterN,
+  type XpbdIncrementalPotentialStepFilterResultN,
+  type XpbdIncrementalPotentialStepFilterSafeN,
+  type XpbdParticleHyperplaneBarrierStepFilterEvaluationN,
+  type XpbdParticleHyperplaneBarrierStepFilterEvidenceN,
+  type XpbdParticleHyperplaneBarrierStepFilterNOptions,
+  type XpbdParticleHyperplaneBarrierStepFilterRefusalReasonN
+} from './xpbd-incremental-potential-step-filter.js';
+export {
   evaluateXpbdPotentialStateN,
   type EvaluateXpbdPotentialStateNOptions,
   type XpbdPotentialStateEvaluationN,
@@ -212,6 +226,8 @@ export {
   type XpbdArmijoExhaustedN,
   type XpbdArmijoNotDescentN,
   type XpbdArmijoSearchResultN,
+  type XpbdArmijoStepFilterRefusedN,
+  type XpbdArmijoStepFilterRefusalReasonN,
   type XpbdArmijoTrialN,
   type XpbdArmijoTrialStatusN,
   type XpbdIncrementalPotentialParticleStateN,
@@ -223,6 +239,7 @@ export {
   type XpbdIncrementalPotentialConvergedN,
   type XpbdIncrementalPotentialIterationLimitN,
   type XpbdIncrementalPotentialLineSearchExhaustedN,
+  type XpbdIncrementalPotentialLineSearchRefusedN,
   type XpbdIncrementalPotentialMinimizationResultN,
   type XpbdIncrementalPotentialStalledN,
   type XpbdIncrementalPotentialStallReasonN,

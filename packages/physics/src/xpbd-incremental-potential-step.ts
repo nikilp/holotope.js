@@ -18,6 +18,9 @@ import {
   type XpbdIncrementalPotentialProblemN
 } from './xpbd-incremental-potential-problem.js';
 import {
+  type XpbdIncrementalPotentialStepFilterN
+} from './xpbd-incremental-potential-step-filter.js';
+import {
   XpbdParticleN,
   type XpbdConservativeForceProviderN
 } from './xpbd-world.js';
@@ -48,6 +51,8 @@ export interface StepXpbdIncrementalPotentialNOptions {
   readonly dimension: number;
   readonly particles: readonly XpbdParticleN[];
   readonly providers: readonly XpbdConservativeForceProviderN[];
+  /** Optional ordered particle-space admissible-step filters. */
+  readonly stepFilters?: readonly XpbdIncrementalPotentialStepFilterN[];
   readonly deltaTime: number;
   /** Constant RN gravity; defaults to zero. */
   readonly gravity?: VecN | ArrayLike<number>;
@@ -153,7 +158,10 @@ export function stepXpbdIncrementalPotentialN(
       particles: options.particles,
       predictedPositions: prediction.positions,
       deltaTime: options.deltaTime,
-      providers: options.providers
+      providers: options.providers,
+      ...(options.stepFilters === undefined
+        ? {}
+        : { stepFilters: options.stepFilters })
     });
     const initialCoordinates = problem.packPositions(
       options.initialPositions ?? prediction.positions

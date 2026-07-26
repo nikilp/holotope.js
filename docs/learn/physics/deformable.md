@@ -167,13 +167,24 @@ sufficient-decrease reference over that vector. It backtracks only typed
 lineage, or generic-provider failure escapes. An accepted search result is
 still only a candidate snapshot and does not write particle state.
 
+Optional `XpbdIncrementalPotentialStepFilterN` instances inspect the complete
+particle-space segment before any Armijo objective trial. They certify it,
+shorten it to a safe prefix, or explicitly refuse. The exact
+`XpbdParticleHyperplaneBarrierStepFilterN` specialization solves an RN
+point–static-plane crossing in closed form and stops at a conservative fraction
+of impact. Results remain on the search evidence. `indeterminate` becomes
+`step-filter-refused`, and the minimizer preserves the distinction as
+`line-search-refused`; neither state is a collision miss or ordinary line
+search exhaustion.
+
 `minimizeXpbdIncrementalPotentialN()` composes those two pieces into a bounded
 steepest-descent golden path. It records every accepted direction, step,
 objective decrease, and line search, and terminates as `converged`,
-`iteration-limit`, `line-search-exhausted`, or `stalled`. Convergence is an
-authored absolute gradient-norm test, not a global-minimum claim. The routine
-is intentionally non-mutating and intended for small reference problems and
-differential tests; it is not a Hessian-based production material solver.
+`iteration-limit`, `line-search-exhausted`, `line-search-refused`, or
+`stalled`. Convergence is an authored absolute gradient-norm test, not a
+global-minimum claim. The routine is intentionally non-mutating and intended
+for small reference problems and differential tests; it is not a Hessian-based
+production material solver.
 
 `applyXpbdIncrementalPotentialResultN()` is the explicit atomic transition
 from that detached evidence to particle state. Each minimization result retains
@@ -196,7 +207,9 @@ the inertial prediction, with an explicit particle-ordered warm start
 available. This remains a small-system steepest-descent golden path. It does
 not fabricate `XpbdWorldN` constraint-solve evidence, so velocity responses,
 accepted-state guards, adaptive retry, Hessian directions, and
-collision-filtered line search remain outside this step.
+automatic collision candidate generation remain outside this step. Authored
+step filters can protect registered point–plane segments, but absent filters
+carry no implied collision-free guarantee.
 
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';

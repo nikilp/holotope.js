@@ -221,6 +221,65 @@ intersection-free motion. Such a guarantee also needs a valid initial state,
 complete collision candidates, and a collision-free step policy. This layer
 does not silently claim those surrounding conditions.
 
+## Collision-free search prefixes
+
+`XpbdIncrementalPotentialStepFilterN` is the explicit seam between a proposed
+line-search segment and an admissible prefix. A filter sees defensive
+particle-space positions at the base and requested endpoint. It returns:
+
+- `safe` when the entire segment is certified;
+- `limited` with a smaller maximum step;
+- `indeterminate` when it cannot certify the segment.
+
+`indeterminate` is a refusal, not a collision miss. Multiple filters compose
+in authored order by taking the smallest certified step. Armijo retains every
+filter result and begins its ordinary sufficient-decrease trials from that
+step. A refusal becomes `step-filter-refused`; the minimizer reports
+`line-search-refused` rather than mislabelling it as numerical exhaustion.
+
+For a point–static-hyperplane barrier, the signed open-domain margin along a
+line-search segment is affine:
+
+$$
+g(\tau)=(1-\tau)g_0+\tau g_1,\qquad 0\leq\tau\leq1.
+$$
+
+If `g0 > 0` and `g1 <= 0`, the exact boundary fraction is
+
+$$
+\tau_{\mathrm{impact}}=\frac{g_0}{g_0-g_1}.
+$$
+
+`XpbdParticleHyperplaneBarrierStepFilterN` retains a strict fraction of that
+impact step:
+
+```ts
+import {
+  XpbdParticleHyperplaneBarrierStepFilterN,
+  compileXpbdIncrementalPotentialProblemN
+} from '@holotope/physics';
+
+const floorFilter = new XpbdParticleHyperplaneBarrierStepFilterN({
+  id: 'floor/point-0/step-filter',
+  barrier: floorBarrier,
+  conservativeScale: 0.9
+});
+
+const problem = compileXpbdIncrementalPotentialProblemN({
+  dimension: 4,
+  particles,
+  predictedPositions,
+  deltaTime,
+  providers: [material, floorBarrier],
+  stepFilters: [floorFilter]
+});
+```
+
+This calculation is exact for the registered RN point and static hyperplane.
+It does not generate missing collision pairs or certify unregistered geometry.
+A global collision-free claim still requires a valid initial state and a
+complete set of relevant filters.
+
 ## Bounded steepest-descent reference
 
 `minimizeXpbdIncrementalPotentialN()` closes the first-order reference loop.
@@ -251,10 +310,11 @@ for (const iteration of result.iterations) {
 ```
 
 The result is one of `converged`, `iteration-limit`,
-`line-search-exhausted`, or `stalled`. It retains the initial and final
-evaluations and every Armijo-accepted iterate. Exhaustion includes the failed
-search; a stall states whether Float64 coordinate resolution, objective
-resolution, or a defensive non-descent result prevented further progress.
+`line-search-exhausted`, `line-search-refused`, or `stalled`. It retains the
+initial and final evaluations and every Armijo-accepted iterate. Exhaustion
+includes the failed search; refusal preserves the blocking step filter; a
+stall states whether Float64 coordinate resolution, objective resolution, or a
+defensive non-descent result prevented further progress.
 
 Convergence means only that the absolute packed-gradient norm is at or below
 the authored tolerance. It is not a statement about a global minimum. The
@@ -362,7 +422,8 @@ evaluation.
 ## Capability boundary
 
 These APIs provide a deterministic Float64 objective, packed first derivative,
-first-order sufficient-decrease search, and a bounded non-mutating
+first-order sufficient-decrease search, ordered admissible-step filtering with
+an exact RN point–static-plane specialization, a bounded non-mutating
 steepest-descent golden path, an explicit atomic state transition, and a
 single-call transactional reference step. They do not:
 
@@ -370,7 +431,7 @@ single-call transactional reference step. They do not:
 - provide Newton, quasi-Newton, or preconditioned directions;
 - apply `XpbdWorldN` velocity responses or state guards to the optimization
   path;
-- perform IPC's continuous-collision-filtered line search;
+- perform mesh-wide continuous-collision-filtered search automatically;
 - build mesh-wide active collision sets from edge or face stencils;
 - certify an intersection-free trajectory; or
 - implement Incremental Potential Contact.

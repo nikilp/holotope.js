@@ -304,6 +304,65 @@ Armijo search records every attempted step. Typed constitutive-domain
 refusals backtrack; unrelated errors are rethrown. Neither compilation nor an
 accepted result changes live particle position, velocity, force, or mass.
 
+## Keep a point–plane barrier search inside its open domain
+
+Pair the conservative barrier provider with its exact step filter. The
+provider contributes energy and force; the filter limits a proposed search
+segment before it reaches the open distance boundary.
+
+```ts
+import {
+  HyperplaneColliderN,
+  XpbdParticleHyperplaneBarrierN,
+  XpbdParticleHyperplaneBarrierStepFilterN,
+  compileXpbdIncrementalPotentialProblemN
+} from '@holotope/physics';
+
+const floorBarrier = new XpbdParticleHyperplaneBarrierN({
+  id: 'floor/point-0',
+  particle: binding.particles[0],
+  plane: new HyperplaneColliderN([0, 1, 0, 0], 0),
+  minimumDistance: 0.01,
+  activationDistance: 0.1,
+  stiffness: 250
+});
+const floorFilter = new XpbdParticleHyperplaneBarrierStepFilterN({
+  id: 'floor/point-0/filter',
+  barrier: floorBarrier,
+  conservativeScale: 0.9
+});
+
+const filteredProblem = compileXpbdIncrementalPotentialProblemN({
+  dimension: 4,
+  particles: binding.particles,
+  predictedPositions: prediction.positions,
+  deltaTime: prediction.deltaTime,
+  providers: [material, floorBarrier],
+  stepFilters: [floorFilter]
+});
+
+const filteredBase = filteredProblem.packPositions(candidatePositions);
+const filteredEvaluation = filteredProblem.evaluate(filteredBase);
+const filteredDirection = Float64Array.from(
+  filteredEvaluation.gradient,
+  (value) => -value
+);
+const filteredSearch = searchXpbdIncrementalPotentialArmijoN({
+  problem: filteredProblem,
+  coordinates: filteredBase,
+  direction: filteredDirection
+});
+
+if (filteredSearch.status === 'step-filter-refused') {
+  console.warn(filteredSearch.reason, filteredSearch.blockingFilter);
+}
+```
+
+The exact specialization is dimension-independent and retains signed distances,
+impact fraction, and maximum step as evidence. It protects only the registered
+point and static plane. A complete deformable collision-free step requires
+complete collision candidates and corresponding filters.
+
 ## Minimize a small incremental-potential problem
 
 Use the bounded Float64 reference when correctness evidence is more important
@@ -329,11 +388,12 @@ if (result.status === 'converged') {
 ```
 
 Every accepted iteration retains its direction, step norm, objective decrease,
-and complete Armijo search. `line-search-exhausted` and `stalled` are evidence,
-not silent success. The result is still detached from the live world: applying
-positions and reconstructing velocity are separate state-transition policies.
-For large or stiff systems, treat this routine as a golden reference for a
-more capable optimizer rather than the final solver.
+and complete Armijo search. `line-search-exhausted`,
+`line-search-refused`, and `stalled` are evidence, not silent success. The
+result is still detached from the live world: applying positions and
+reconstructing velocity are separate state-transition policies. For large or
+stiff systems, treat this routine as a golden reference for a more capable
+optimizer rather than the final solver.
 
 ## Apply a converged optimization result
 

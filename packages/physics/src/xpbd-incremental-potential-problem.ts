@@ -7,16 +7,28 @@ import {
   XpbdPotentialDomainErrorN
 } from './xpbd-potential-domain.js';
 import {
+  type XpbdIncrementalPotentialStepFilterEvaluationN,
+  type XpbdIncrementalPotentialStepFilterN,
+  type XpbdIncrementalPotentialStepFilterResultN
+} from './xpbd-incremental-potential-step-filter.js';
+import {
   XpbdParticleN,
   type XpbdConservativeForceProviderN
 } from './xpbd-world.js';
 
 export interface CompileXpbdIncrementalPotentialProblemNOptions {
+  /** Ambient Euclidean dimension. */
   readonly dimension: number;
+  /** Complete authored particle identity list. */
   readonly particles: readonly XpbdParticleN[];
+  /** Inertial prediction in particle order. */
   readonly predictedPositions: readonly VecN[];
+  /** Positive outer-step duration in seconds. */
   readonly deltaTime: number;
+  /** Conservative candidate-state force providers. */
   readonly providers: readonly XpbdConservativeForceProviderN[];
+  /** Optional ordered particle-space admissible-step filters. */
+  readonly stepFilters?: readonly XpbdIncrementalPotentialStepFilterN[];
 }
 
 /** Packed free-coordinate evaluation with the complete particle-space evidence. */
@@ -54,6 +66,8 @@ export class XpbdIncrementalPotentialProblemN {
   readonly predictedPositions: readonly VecN[];
   readonly deltaTime: number;
   readonly providers: readonly XpbdConservativeForceProviderN[];
+  /** Ordered particle-space filters evaluated before Armijo trials. */
+  readonly stepFilters: readonly XpbdIncrementalPotentialStepFilterN[];
   readonly freeParticleIndices: readonly number[];
   readonly variableCount: number;
   private readonly compiledInverseMasses: readonly number[];
@@ -82,6 +96,10 @@ export class XpbdIncrementalPotentialProblemN {
     }
     if (!Array.isArray(options.providers)) {
       throw new Error(`${caller}: providers must be an array`);
+    }
+    if (options.stepFilters !== undefined &&
+      !Array.isArray(options.stepFilters)) {
+      throw new Error(`${caller}: stepFilters must be an array`);
     }
 
     const identities = new Set<XpbdParticleN>();
@@ -200,11 +218,61 @@ export class XpbdIncrementalPotentialProblemN {
       providerIds.add(provider.id);
     }
 
+    const stepFilters = options.stepFilters ?? [];
+    const stepFilterIds = new Set<string>();
+    for (let index = 0; index < stepFilters.length; index++) {
+      const filter = stepFilters[index];
+      if (typeof filter !== 'object' || filter === null) {
+        throw new Error(`${caller}: step filter ${index} must be an object`);
+      }
+      if (typeof filter.id !== 'string' || filter.id.trim().length === 0) {
+        throw new Error(
+          `${caller}: step filter ${index} id must be non-empty`
+        );
+      }
+      if (stepFilterIds.has(filter.id)) {
+        throw new Error(
+          `${caller}: duplicate step filter id "${filter.id}"`
+        );
+      }
+      if (filter.dimension !== options.dimension) {
+        throw new Error(
+          `${caller}: step filter "${filter.id}" is R${filter.dimension}, expected R${options.dimension}`
+        );
+      }
+      if (!Array.isArray(filter.particles) || filter.particles.length === 0) {
+        throw new Error(
+          `${caller}: step filter "${filter.id}" has no particles`
+        );
+      }
+      if (typeof filter.evaluate !== 'function') {
+        throw new Error(
+          `${caller}: step filter "${filter.id}" must define evaluate()`
+        );
+      }
+      const local = new Set<XpbdParticleN>();
+      for (const particle of filter.particles) {
+        if (!(particle instanceof XpbdParticleN) || !identities.has(particle)) {
+          throw new Error(
+            `${caller}: step filter "${filter.id}" contains a foreign particle`
+          );
+        }
+        if (local.has(particle)) {
+          throw new Error(
+            `${caller}: step filter "${filter.id}" repeats a particle`
+          );
+        }
+        local.add(particle);
+      }
+      stepFilterIds.add(filter.id);
+    }
+
     this.dimension = options.dimension;
     this.particles = Object.freeze(options.particles.slice());
     this.predictedPositions = Object.freeze(predictedPositions);
     this.deltaTime = options.deltaTime;
     this.providers = Object.freeze(options.providers.slice());
+    this.stepFilters = Object.freeze(stepFilters.slice());
     this.freeParticleIndices = Object.freeze(freeParticleIndices);
     this.variableCount = freeParticleIndices.length * options.dimension;
     this.compiledInverseMasses = Object.freeze(compiledInverseMasses);
@@ -362,6 +430,8 @@ interface XpbdArmijoSearchBaseN {
   readonly base: XpbdPackedIncrementalPotentialEvaluationN;
   readonly directionalDerivative: number;
   readonly trials: readonly XpbdArmijoTrialN[];
+  /** Ordered admissible-step evidence evaluated for the initial segment. */
+  readonly stepFilters: readonly XpbdIncrementalPotentialStepFilterResultN[];
 }
 
 export interface XpbdArmijoAcceptedN extends XpbdArmijoSearchBaseN {
@@ -378,10 +448,35 @@ export interface XpbdArmijoExhaustedN extends XpbdArmijoSearchBaseN {
   readonly status: 'exhausted';
 }
 
+/** Why Armijo could not begin from a certified positive step. */
+export type XpbdArmijoStepFilterRefusalReasonN =
+  | 'indeterminate'
+  | 'no-positive-step';
+
+/** Explicit pre-trial refusal from an admissible-step filter. */
+export interface XpbdArmijoStepFilterRefusedN
+  extends XpbdArmijoSearchBaseN {
+  /** Evaluated valid state from which the search direction begins. */
+  readonly base: XpbdPackedIncrementalPotentialEvaluationN;
+  /** Dot product of the base gradient and proposed direction. */
+  readonly directionalDerivative: number;
+  /** Empty because refusal occurs before an objective trial. */
+  readonly trials: readonly XpbdArmijoTrialN[];
+  /** Ordered certifications including the blocking filter result. */
+  readonly stepFilters: readonly XpbdIncrementalPotentialStepFilterResultN[];
+  /** Distinct refusal rather than search exhaustion. */
+  readonly status: 'step-filter-refused';
+  /** Whether certification failed or yielded no positive Float64 step. */
+  readonly reason: XpbdArmijoStepFilterRefusalReasonN;
+  /** First authored filter that prevented a trial. */
+  readonly blockingFilter: XpbdIncrementalPotentialStepFilterResultN;
+}
+
 export type XpbdArmijoSearchResultN =
   | XpbdArmijoAcceptedN
   | XpbdArmijoNotDescentN
-  | XpbdArmijoExhaustedN;
+  | XpbdArmijoExhaustedN
+  | XpbdArmijoStepFilterRefusedN;
 
 /**
  * Deterministic Armijo backtracking over a compiled free-coordinate problem.
@@ -438,12 +533,58 @@ export function searchXpbdIncrementalPotentialArmijoN(
       status: 'not-descent',
       base,
       directionalDerivative,
-      trials: EMPTY_ARMIJO_TRIALS
+      trials: EMPTY_ARMIJO_TRIALS,
+      stepFilters: EMPTY_STEP_FILTER_RESULTS
+    });
+  }
+
+  const stepFilterResults = evaluateStepFilters(
+    options.problem,
+    base,
+    direction,
+    initialStep,
+    caller
+  );
+  const indeterminate = stepFilterResults.find(
+    (result) => result.evaluation.status === 'indeterminate'
+  );
+  if (indeterminate !== undefined) {
+    return Object.freeze({
+      status: 'step-filter-refused',
+      reason: 'indeterminate',
+      blockingFilter: indeterminate,
+      base,
+      directionalDerivative,
+      trials: EMPTY_ARMIJO_TRIALS,
+      stepFilters: stepFilterResults
     });
   }
 
   const trials: XpbdArmijoTrialN[] = [];
   let stepLength = initialStep;
+  let limitingFilter: XpbdIncrementalPotentialStepFilterResultN | undefined;
+  for (const result of stepFilterResults) {
+    const evaluation = result.evaluation;
+    if (evaluation.status === 'indeterminate') continue;
+    if (evaluation.maximumStepLength < stepLength) {
+      stepLength = evaluation.maximumStepLength;
+      limitingFilter = result;
+    }
+  }
+  if (!(stepLength > 0)) {
+    if (limitingFilter === undefined) {
+      throw new Error(`${caller}: no-positive-step has no limiting filter`);
+    }
+    return Object.freeze({
+      status: 'step-filter-refused',
+      reason: 'no-positive-step',
+      blockingFilter: limitingFilter,
+      base,
+      directionalDerivative,
+      trials: EMPTY_ARMIJO_TRIALS,
+      stepFilters: stepFilterResults
+    });
+  }
   for (let trialIndex = 0; trialIndex < maximumTrials; trialIndex++) {
     const coordinates = new Float64Array(options.problem.variableCount);
     for (let index = 0; index < coordinates.length; index++) {
@@ -497,6 +638,7 @@ export function searchXpbdIncrementalPotentialArmijoN(
         base,
         directionalDerivative,
         trials: Object.freeze(trials),
+        stepFilters: stepFilterResults,
         stepLength,
         accepted: evaluated
       });
@@ -518,11 +660,125 @@ export function searchXpbdIncrementalPotentialArmijoN(
     status: 'exhausted',
     base,
     directionalDerivative,
-    trials: Object.freeze(trials)
+    trials: Object.freeze(trials),
+    stepFilters: stepFilterResults
   });
 }
 
 const EMPTY_ARMIJO_TRIALS: readonly XpbdArmijoTrialN[] = Object.freeze([]);
+const EMPTY_STEP_FILTER_RESULTS:
+readonly XpbdIncrementalPotentialStepFilterResultN[] = Object.freeze([]);
+
+function evaluateStepFilters(
+  problem: XpbdIncrementalPotentialProblemN,
+  base: XpbdPackedIncrementalPotentialEvaluationN,
+  direction: Float64Array,
+  requestedStepLength: number,
+  caller: string
+): readonly XpbdIncrementalPotentialStepFilterResultN[] {
+  if (problem.stepFilters.length === 0) return EMPTY_STEP_FILTER_RESULTS;
+  const endpointCoordinates = coordinatesAtStep(
+    base.coordinates,
+    direction,
+    requestedStepLength,
+    `${caller}: step-filter endpoint`
+  );
+  const before = base.positions;
+  const after = problem.unpackPositions(endpointCoordinates);
+  const indices = new Map<XpbdParticleN, number>();
+  for (let index = 0; index < problem.particles.length; index++) {
+    indices.set(problem.particles[index]!, index);
+  }
+  const position = (
+    values: readonly VecN[],
+    particle: XpbdParticleN,
+    label: string
+  ): VecN => {
+    const index = indices.get(particle);
+    if (index === undefined) {
+      throw new Error(`${caller}: ${label} requested a foreign particle`);
+    }
+    return values[index]!.clone();
+  };
+  const context = Object.freeze({
+    dimension: problem.dimension,
+    requestedStepLength,
+    positionBefore: (particle: XpbdParticleN) =>
+      position(before, particle, 'positionBefore'),
+    positionAfter: (particle: XpbdParticleN) =>
+      position(after, particle, 'positionAfter')
+  });
+  const results: XpbdIncrementalPotentialStepFilterResultN[] = [];
+  for (const filter of problem.stepFilters) {
+    const evaluation = normalizeStepFilterEvaluation(
+      filter.evaluate(context),
+      requestedStepLength,
+      `${caller}: step filter "${filter.id}"`
+    );
+    results.push(Object.freeze({
+      filterId: filter.id,
+      evaluation
+    }));
+  }
+  return Object.freeze(results);
+}
+
+function normalizeStepFilterEvaluation(
+  value: XpbdIncrementalPotentialStepFilterEvaluationN,
+  requestedStepLength: number,
+  caller: string
+): XpbdIncrementalPotentialStepFilterEvaluationN {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error(`${caller}: evaluation must be an object`);
+  }
+  if (value.status === 'indeterminate') {
+    if (typeof value.reason !== 'string' || value.reason.trim().length === 0) {
+      throw new Error(
+        `${caller}: indeterminate reason must be a non-empty string`
+      );
+    }
+    return Object.freeze({ ...value });
+  }
+  if (value.status !== 'safe' && value.status !== 'limited') {
+    throw new Error(`${caller}: unknown evaluation status`);
+  }
+  if (!Number.isFinite(value.maximumStepLength) ||
+    value.maximumStepLength < 0) {
+    throw new Error(
+      `${caller}: maximumStepLength must be finite and non-negative`
+    );
+  }
+  if (value.status === 'safe' &&
+    value.maximumStepLength !== requestedStepLength) {
+    throw new Error(
+      `${caller}: a safe evaluation must preserve requestedStepLength`
+    );
+  }
+  if (value.status === 'limited' &&
+    !(value.maximumStepLength < requestedStepLength)) {
+    throw new Error(
+      `${caller}: a limited evaluation must shorten requestedStepLength`
+    );
+  }
+  return Object.freeze({ ...value });
+}
+
+function coordinatesAtStep(
+  base: Float64Array,
+  direction: Float64Array,
+  stepLength: number,
+  caller: string
+): Float64Array {
+  const coordinates = new Float64Array(base.length);
+  for (let index = 0; index < coordinates.length; index++) {
+    const coordinate = base[index]! + stepLength * direction[index]!;
+    if (!Number.isFinite(coordinate)) {
+      throw new Error(`${caller}: coordinate is outside Float64`);
+    }
+    coordinates[index] = coordinate;
+  }
+  return coordinates;
+}
 
 function finiteCoordinates(
   value: ArrayLike<number>,

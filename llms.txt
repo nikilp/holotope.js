@@ -109,12 +109,17 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
   `1/2 sum m||q-qHat||^2 + h^2 U(q)` and its free-coordinate gradient.
 - Solver view: `compileXpbdIncrementalPotentialProblemN` packs dynamic
   particle axes; `searchXpbdIncrementalPotentialArmijoN` performs auditable
-  sufficient-decrease backtracking. Only typed
-  `SimplexConstitutiveDomainErrorN` trials are recoverable.
+  sufficient-decrease backtracking. Only typed potential-domain trials are
+  recoverable.
+- Admissible steps: `XpbdIncrementalPotentialStepFilterN` certifies, limits,
+  or explicitly refuses an initial particle-space search segment.
+  `XpbdParticleHyperplaneBarrierStepFilterN` supplies the exact RN
+  point-static-plane specialization and retains impact evidence.
 - Reference minimization: `minimizeXpbdIncrementalPotentialN` repeatedly uses
   the negative packed gradient and Armijo search under explicit iteration,
   trial, and gradient-tolerance bounds. It returns converged, iteration-limit,
-  line-search-exhausted, or stalled evidence and retains its exact problem.
+  line-search-exhausted, line-search-refused, or stalled evidence and retains
+  its exact problem.
 - Atomic application: `applyXpbdIncrementalPotentialResultN` applies only a
   converged result after proving live-state and result-evidence freshness.
   Default dynamic velocity is `(qNext - qBefore) / h`; fixed velocity is

@@ -4,6 +4,7 @@ import {
   type XpbdArmijoAcceptedN,
   type XpbdArmijoExhaustedN,
   type XpbdArmijoNotDescentN,
+  type XpbdArmijoStepFilterRefusedN,
   type XpbdPackedIncrementalPotentialEvaluationN
 } from './xpbd-incremental-potential-problem.js';
 
@@ -59,6 +60,27 @@ export interface XpbdIncrementalPotentialLineSearchExhaustedN
   readonly search: XpbdArmijoExhaustedN;
 }
 
+/** Minimization refusal before any uncertified Armijo trial is evaluated. */
+export interface XpbdIncrementalPotentialLineSearchRefusedN
+  extends XpbdIncrementalPotentialMinimizationBaseN {
+  /** Exact compiled objective and identity context. */
+  readonly problem: XpbdIncrementalPotentialProblemN;
+  /** Objective evidence at the authored initial coordinates. */
+  readonly initial: XpbdPackedIncrementalPotentialEvaluationN;
+  /** Last accepted objective evidence before refusal. */
+  readonly final: XpbdPackedIncrementalPotentialEvaluationN;
+  /** Accepted iterations preceding the refused search. */
+  readonly iterations: readonly XpbdSteepestDescentIterationN[];
+  /** Absolute gradient norm required for convergence. */
+  readonly gradientTolerance: number;
+  /** Authored accepted-step budget. */
+  readonly maximumIterations: number;
+  /** Distinct admissible-step refusal rather than numerical exhaustion. */
+  readonly status: 'line-search-refused';
+  /** Complete filter evidence from the refused Armijo search. */
+  readonly search: XpbdArmijoStepFilterRefusedN;
+}
+
 export type XpbdIncrementalPotentialStallReasonN =
   | 'coordinate-resolution'
   | 'objective-resolution'
@@ -75,6 +97,7 @@ export type XpbdIncrementalPotentialMinimizationResultN =
   | XpbdIncrementalPotentialConvergedN
   | XpbdIncrementalPotentialIterationLimitN
   | XpbdIncrementalPotentialLineSearchExhaustedN
+  | XpbdIncrementalPotentialLineSearchRefusedN
   | XpbdIncrementalPotentialStalledN;
 
 /**
@@ -178,6 +201,18 @@ export function minimizeXpbdIncrementalPotentialN(
     if (search.status === 'exhausted') {
       return resultBase({
         status: 'line-search-exhausted',
+        search,
+        problem: options.problem,
+        initial,
+        final: current,
+        iterations,
+        gradientTolerance,
+        maximumIterations
+      });
+    }
+    if (search.status === 'step-filter-refused') {
+      return resultBase({
+        status: 'line-search-refused',
         search,
         problem: options.problem,
         initial,

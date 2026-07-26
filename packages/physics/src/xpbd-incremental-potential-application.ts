@@ -282,6 +282,7 @@ function isNonConvergedStatus(
 > {
   return status === 'iteration-limit' ||
     status === 'line-search-exhausted' ||
+    status === 'line-search-refused' ||
     status === 'stalled';
 }
 
