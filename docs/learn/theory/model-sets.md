@@ -22,6 +22,33 @@ Holotope.js keeps the lattice point and both projections exact until the result 
 
 The finite bound is part of the call rather than hidden state. Generic sampling uses a coefficient box; specialized helpers may use complete lattice-norm shells. A returned patch is therefore an honest sample of an infinite model set, not a claim to have generated the whole object.
 
+## Exact enumeration strategies
+
+`ModelSet.sample()` retains two ways to inspect the same finite coefficient box:
+
+- `box`, the default, tests every coefficient tuple and limits the box with `maxCandidates`;
+- `window-pruned`, an opt-in exact branch-and-bound traversal limited by `maxTraversalNodes`.
+
+The pruned strategy does not approximate the window. Projection is linear, so the internal coordinate contributed by every unassigned coefficient lies between two exact endpoint contributions. For each window halfspace, the sampler adds the smallest possible remaining contributions to the current prefix. It rejects a whole subtree only when even that exact minimum is outside the facet.
+
+All sums, products, minima, and comparisons stay in the scheme's ordered exact ring. Equality is never pruned; accepted leaves still pass through the same boundary-policy code as the exhaustive walk. The two strategies therefore differ in work, not in the mathematical sample, point order, or provenance.
+
+```ts
+import { createAKNModelSet } from '@holotope/core/lattice';
+
+const patch = createAKNModelSet().sample({
+  coefficientRanges: Array.from({ length: 6 }, () => ({ min: -5, max: 5 })),
+  strategy: 'window-pruned',
+  maxTraversalNodes: 250_000
+});
+
+patch.candidateCount;              // size of the requested coefficient box
+patch.enumeration?.visitedNodes;   // feasible coefficient-prefix nodes entered
+patch.enumeration?.prunedSubtrees; // prefix roots proved outside
+```
+
+The traversal evidence is diagnostic. It is not a wall-clock guarantee, and `candidateCount` continues to describe the requested finite box rather than the number of nodes actually entered. The exhaustive path remains available as a reference and preserves its existing one-million-candidate default safety cap.
+
 ## Boundary conventions
 
 Window membership is an exact ordered-ring comparison. A point is classified as `inside`, `outside`, or `boundary`; no epsilon participates.

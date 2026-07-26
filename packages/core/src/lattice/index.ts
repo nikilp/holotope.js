@@ -28,12 +28,16 @@ export {
   FlatN,
   LatticeN,
   ModelSet,
+  type CoefficientBoxSampleOptions,
   type CoefficientRange,
   type ExactHalfspace,
   type FlatNOptions,
+  type ModelSetBoxSampleOptions,
   type ModelPoint,
   type ModelSetPatch,
   type ModelSetSampleOptions,
+  type ModelSetWindowPrunedEnumeration,
+  type ModelSetWindowPrunedSampleOptions,
   type WindowBoundaryPolicy,
   type WindowLocation
 } from './model-set.js';

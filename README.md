@@ -146,6 +146,7 @@ explains why a projected mesh is never the source object — then work from
 - ✅ Wythoff construction: exact face lattices for the uniform polychora (all rank-4 groups, snub 24-cell, grand antiprism)
 - ✅ Exact E8 root orbit + icosian folding into conjugate 4-spaces
 - ✅ Exact cut-and-project foundation + symbol-exact Fibonacci model set
+- ✅ Exact window-pruned model-set enumeration with exhaustive differential oracle
 - ✅ Ammann–Beenker octagonal model set with exact 8-fold symmetry and silver inflation
 - ✅ 3D Ammann–Kramer–Neri model set with a derived 30-facet triacontahedral window
 - ✅ Elser–Sloane canonical model set: 720-vertex window, complete E8 shell bounds, inflation, exact 3D sections

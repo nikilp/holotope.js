@@ -3,9 +3,9 @@ import {
   ConvexWindow,
   FlatN,
   LatticeN,
+  type CoefficientBoxSampleOptions,
   type CoefficientRange,
   type ModelPoint,
-  type ModelSetSampleOptions,
   type WindowBoundaryPolicy
 } from './model-set.js';
 
@@ -187,7 +187,10 @@ export class PenroseModelSet {
     this.boundaryPolicy = boundaryPolicy;
   }
 
-  sample({ coefficientRanges, maxCandidates = 1_000_000 }: ModelSetSampleOptions): PenroseModelSetPatch {
+  sample({
+    coefficientRanges,
+    maxCandidates = 1_000_000
+  }: CoefficientBoxSampleOptions): PenroseModelSetPatch {
     if (coefficientRanges.length !== 4) {
       throw new Error(`PenroseModelSet.sample: ${coefficientRanges.length} ranges for rank 4`);
     }

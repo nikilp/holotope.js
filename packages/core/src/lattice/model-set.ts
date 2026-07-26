@@ -257,15 +257,59 @@ export interface ModelPoint {
 
 export interface ModelSetPatch {
   readonly points: readonly ModelPoint[];
+  /** Number of coefficient tuples in the explicitly requested finite box. */
   readonly candidateCount: number;
   readonly boundaryCount: number;
+  /** Present only when exact window pruning was requested. */
+  readonly enumeration?: ModelSetWindowPrunedEnumeration;
 }
 
-export interface ModelSetSampleOptions {
+/** Shared options for samplers that exhaust an explicitly bounded coefficient box. */
+export interface CoefficientBoxSampleOptions {
   /** One inclusive range per lattice coefficient. */
-  coefficientRanges: readonly CoefficientRange[];
+  readonly coefficientRanges: readonly CoefficientRange[];
   /** Safety cap on coefficient-box size. Default 1,000,000. */
-  maxCandidates?: number;
+  readonly maxCandidates?: number;
+}
+
+/** Compatibility sampling path: test every tuple in the coefficient box. */
+export interface ModelSetBoxSampleOptions extends CoefficientBoxSampleOptions {
+  /** Exhaustively test the coefficient box; this is the compatibility default. */
+  readonly strategy?: 'box';
+  /** Window-pruned traversal budgets are invalid on the exhaustive path. */
+  readonly maxTraversalNodes?: never;
+}
+
+/**
+ * Exact branch-and-bound sampling for a single convex window.
+ *
+ * The traversal budget counts feasible prefix nodes plus roots of subtrees
+ * rejected by exact halfspace bounds. It does not change membership.
+ */
+export interface ModelSetWindowPrunedSampleOptions {
+  /** One inclusive range per lattice coefficient. */
+  readonly coefficientRanges: readonly CoefficientRange[];
+  /** Prove whole coefficient-prefix subtrees lie outside the convex window. */
+  readonly strategy: 'window-pruned';
+  /** Safety cap on all examined traversal nodes. Default 1,000,000. */
+  readonly maxTraversalNodes?: number;
+  /** Coefficient-box caps belong to the exhaustive strategy. */
+  readonly maxCandidates?: never;
+}
+
+/** Exhaustive or exact window-pruned options for a generic `ModelSet`. */
+export type ModelSetSampleOptions =
+  | ModelSetBoxSampleOptions
+  | ModelSetWindowPrunedSampleOptions;
+
+/** Auditable work evidence returned by exact window-pruned enumeration. */
+export interface ModelSetWindowPrunedEnumeration {
+  /** Identifies evidence produced by the exact convex-window pruning path. */
+  readonly strategy: 'window-pruned';
+  /** Feasible coefficient-prefix nodes entered, including root and leaves. */
+  readonly visitedNodes: number;
+  /** Prefix roots rejected by an exact halfspace lower bound. */
+  readonly prunedSubtrees: number;
 }
 
 /** A lattice viewed through an exact flat and compact acceptance window. */
@@ -312,14 +356,22 @@ export class ModelSet {
     this.boundaryPolicy = boundaryPolicy;
   }
 
-  sample({ coefficientRanges, maxCandidates = 1_000_000 }: ModelSetSampleOptions): ModelSetPatch {
+  sample(options: ModelSetSampleOptions): ModelSetPatch {
+    const { coefficientRanges } = options;
     if (coefficientRanges.length !== this.lattice.rank) {
       throw new Error(
         `ModelSet.sample: ${coefficientRanges.length} ranges for rank ${this.lattice.rank}`
       );
     }
-    if (!Number.isSafeInteger(maxCandidates) || maxCandidates < 1) {
-      throw new Error(`ModelSet.sample: invalid maxCandidates ${maxCandidates}`);
+    const strategy = (options as { readonly strategy?: unknown }).strategy ?? 'box';
+    if (strategy !== 'box' && strategy !== 'window-pruned') {
+      throw new Error(`ModelSet.sample: invalid strategy ${String(strategy)}`);
+    }
+    if (strategy === 'box' && options.maxTraversalNodes !== undefined) {
+      throw new Error('ModelSet.sample: maxTraversalNodes requires strategy window-pruned');
+    }
+    if (strategy === 'window-pruned' && options.maxCandidates !== undefined) {
+      throw new Error('ModelSet.sample: maxCandidates is only valid for strategy box');
     }
     const toInteger = (value: bigint | number): bigint => {
       if (typeof value === 'bigint') return value;
@@ -336,9 +388,20 @@ export class ModelSet {
     });
     let candidateCountBig = 1n;
     for (const range of ranges) candidateCountBig *= range.max - range.min + 1n;
-    if (candidateCountBig > BigInt(maxCandidates)) {
+    if (strategy === 'box') {
+      const maxCandidates = options.maxCandidates ?? 1_000_000;
+      if (!Number.isSafeInteger(maxCandidates) || maxCandidates < 1) {
+        throw new Error(`ModelSet.sample: invalid maxCandidates ${maxCandidates}`);
+      }
+      if (candidateCountBig > BigInt(maxCandidates)) {
+        throw new Error(
+          `ModelSet.sample: coefficient box has ${candidateCountBig} candidates, cap is ${maxCandidates}`
+        );
+      }
+    } else if (candidateCountBig > BigInt(Number.MAX_SAFE_INTEGER)) {
       throw new Error(
-        `ModelSet.sample: coefficient box has ${candidateCountBig} candidates, cap is ${maxCandidates}`
+        `ModelSet.sample: coefficient box has ${candidateCountBig} candidates, ` +
+          'which exceeds the safe integer reporting range'
       );
     }
 
@@ -386,7 +449,115 @@ export class ModelSet {
         windowLocation: location
       });
     };
-    visit(0);
-    return { points, candidateCount: Number(candidateCountBig), boundaryCount };
+
+    if (strategy === 'box') {
+      visit(0);
+      return { points, candidateCount: Number(candidateCountBig), boundaryCount };
+    }
+
+    const maxTraversalNodes = options.maxTraversalNodes ?? 1_000_000;
+    if (!Number.isSafeInteger(maxTraversalNodes) || maxTraversalNodes < 1) {
+      throw new Error(`ModelSet.sample: invalid maxTraversalNodes ${maxTraversalNodes}`);
+    }
+
+    const ring = this.lattice.ring;
+    const dot = (left: readonly ExactValue[], right: readonly ExactValue[]): ExactValue => {
+      let out = ring.zero;
+      for (let i = 0; i < left.length; i++) {
+        out = ring.add(out, ring.mul(left[i]!, right[i]!));
+      }
+      return out;
+    };
+    const internalGenerators = this.lattice.basis.map((basisVector) =>
+      this.flat.perpendicularProjection.map((row) => dot(row, basisVector))
+    );
+    const halfspaceCoefficients = this.window.halfspaces.map((halfspace) =>
+      internalGenerators.map((generator) => dot(halfspace.normal, generator))
+    );
+    const bestRemaining = this.window.halfspaces.map((_halfspace, halfspaceIndex) => {
+      const suffix = Array<ExactValue>(this.lattice.rank + 1).fill(ring.zero);
+      for (let axis = this.lattice.rank - 1; axis >= 0; axis--) {
+        const coefficient = halfspaceCoefficients[halfspaceIndex]![axis]!;
+        const lower = scaleExact(coefficient, ranges[axis]!.min);
+        const upper = scaleExact(coefficient, ranges[axis]!.max);
+        suffix[axis] = ring.add(
+          suffix[axis + 1]!,
+          ring.compare(lower, upper) <= 0 ? lower : upper
+        );
+      }
+      return suffix;
+    });
+    const partial = this.window.halfspaces.map((halfspace) =>
+      dot(halfspace.normal, this.flat.perpendicularOffset)
+    );
+
+    let visitedNodes = 0;
+    let prunedSubtrees = 0;
+    const claimTraversalNode = (kind: 'visited' | 'pruned'): void => {
+      if (visitedNodes + prunedSubtrees >= maxTraversalNodes) {
+        throw new Error(
+          `ModelSet.sample: window-pruned traversal exhausted node budget ${maxTraversalNodes}`
+        );
+      }
+      if (kind === 'visited') visitedNodes++;
+      else prunedSubtrees++;
+    };
+    const visitPruned = (axis: number): void => {
+      claimTraversalNode('visited');
+      if (axis === ranges.length) {
+        visit(axis);
+        return;
+      }
+      for (let value = ranges[axis]!.min; value <= ranges[axis]!.max; value++) {
+        let updatedHalfspaces = 0;
+        let pruned = false;
+        for (
+          let halfspaceIndex = 0;
+          halfspaceIndex < this.window.halfspaces.length;
+          halfspaceIndex++
+        ) {
+          const contribution = scaleExact(
+            halfspaceCoefficients[halfspaceIndex]![axis]!,
+            value
+          );
+          partial[halfspaceIndex] = ring.add(partial[halfspaceIndex]!, contribution);
+          updatedHalfspaces++;
+          const minimumCompletion = ring.add(
+            partial[halfspaceIndex]!,
+            bestRemaining[halfspaceIndex]![axis + 1]!
+          );
+          if (
+            ring.compare(
+              minimumCompletion,
+              this.window.halfspaces[halfspaceIndex]!.bound
+            ) > 0
+          ) {
+            pruned = true;
+            break;
+          }
+        }
+
+        if (pruned) claimTraversalNode('pruned');
+        else {
+          coefficients[axis] = value;
+          visitPruned(axis + 1);
+        }
+
+        for (let halfspaceIndex = 0; halfspaceIndex < updatedHalfspaces; halfspaceIndex++) {
+          const contribution = scaleExact(
+            halfspaceCoefficients[halfspaceIndex]![axis]!,
+            value
+          );
+          partial[halfspaceIndex] = ring.sub(partial[halfspaceIndex]!, contribution);
+        }
+      }
+    };
+    visitPruned(0);
+    return {
+      points,
+      candidateCount: Number(candidateCountBig),
+      boundaryCount,
+      enumeration: { strategy: 'window-pruned', visitedNodes, prunedSubtrees }
+    };
   }
 }

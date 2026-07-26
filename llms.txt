@@ -80,9 +80,18 @@ import {
 - Fields: quaternion and bicomplex Julia evaluators, generic samples and
   isosurface records.
 - Scientific structures: regular polychora, Coxeter/Wythoff construction,
-  model sets, graph-Laplacian modes, couplings.
+  exact-ring model sets with exhaustive or window-pruned enumeration,
+  graph-Laplacian modes, couplings.
 
 Canonical complete core export barrel: `packages/core/src/index.ts`.
+
+For a generic single-window `ModelSet`, `sample({ strategy:
+'window-pruned', maxTraversalNodes, coefficientRanges })` uses exact
+halfspace bounds to skip impossible coefficient prefixes. It returns the same
+ordered `ModelPoint` records as the default `box` strategy and adds
+`patch.enumeration` work evidence. `PenroseModelSet` remains a separate
+coefficient-box sampler because its finite `C5` class selects among four
+windows.
 
 ## Physics anchors
 
