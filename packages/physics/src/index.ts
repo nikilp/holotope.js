@@ -249,6 +249,16 @@ export {
   type XpbdIncrementalPotentialDirectionPolicyN
 } from './xpbd-incremental-potential-direction.js';
 export {
+  estimateXpbdIncrementalPotentialHessianVectorN,
+  type EstimateXpbdIncrementalPotentialHessianVectorNOptions,
+  type XpbdIncrementalPotentialHessianVectorDomainRefusalN,
+  type XpbdIncrementalPotentialHessianVectorEvaluatedN,
+  type XpbdIncrementalPotentialHessianVectorIndeterminateN,
+  type XpbdIncrementalPotentialHessianVectorProbeRefusedN,
+  type XpbdIncrementalPotentialHessianVectorResultN,
+  type XpbdIncrementalPotentialHessianVectorZeroDirectionN
+} from './xpbd-incremental-potential-curvature.js';
+export {
   minimizeXpbdIncrementalPotentialN,
   type MinimizeXpbdIncrementalPotentialNOptions,
   type XpbdIncrementalPotentialConvergedN,

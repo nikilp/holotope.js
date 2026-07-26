@@ -34,12 +34,17 @@ export interface MinimizeXpbdIncrementalPotentialNOptions {
 
 /** Complete evidence for one Armijo-accepted search-direction attempt. */
 export interface XpbdIncrementalPotentialIterationN {
+  /** Zero-based accepted-iteration index. */
   readonly index: number;
   /** Stable identity of the policy that produced `direction`. */
   readonly directionPolicyId: string;
+  /** Defensive packed direction passed to the Armijo search. */
   readonly direction: Float64Array;
+  /** Complete accepted search and admissible-step evidence. */
   readonly search: XpbdArmijoAcceptedN;
+  /** Euclidean norm of the accepted packed coordinate displacement. */
   readonly stepNorm: number;
+  /** Positive objective reduction produced by the accepted displacement. */
   readonly objectiveDecrease: number;
 }
 

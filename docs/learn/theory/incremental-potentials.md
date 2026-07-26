@@ -391,6 +391,59 @@ provider evidence or an invalid base state. Every result retains the exact
 compiled problem that produced it; this identity is used by the application
 transaction below.
 
+## Matrix-free curvature reference
+
+`estimateXpbdIncrementalPotentialHessianVectorN()` differentiates the complete
+packed gradient along one supplied direction without assembling a matrix:
+
+$$
+H(x)v\approx
+\frac{\nabla E(x+h v)-\nabla E(x-h v)}{2h}.
+$$
+
+```ts
+import {
+  estimateXpbdIncrementalPotentialHessianVectorN
+} from '@holotope/physics';
+
+const curvature =
+  estimateXpbdIncrementalPotentialHessianVectorN({
+    problem,
+    coordinates: packed.coordinates,
+    direction
+  });
+
+if (curvature.status === 'evaluated') {
+  console.log(curvature.product, curvature.quadraticForm);
+}
+```
+
+The default parameter-space step makes the coordinate perturbation
+scale-relative:
+
+$$
+h=\sqrt[3]{\epsilon}\,
+\frac{\max(1,\lVert x\rVert_2)}{\lVert v\rVert_2},
+$$
+
+where $\epsilon$ is `Number.EPSILON`. Callers may instead supply an explicit
+positive step for convergence studies. The result retains the base evaluation
+and both signed probe evaluations, the defensive direction copy, `Hv`, and
+the directional curvature `vᵀHv`.
+
+A zero direction returns exact zero evidence without offset probes. If
+Float64 rounds away any requested nonzero coordinate displacement, the result
+is `indeterminate/coordinate-resolution`. If an offset leaves a registered
+potential's open mathematical domain, the result is `probe-refused` with the
+signed side and typed law evidence. An invalid base state and ordinary
+provider failures remain errors.
+
+This construction is a deterministic differential reference for checking
+analytic, assembled, GPU, or solver-specific curvature paths. It is not an
+exact Hessian, a definiteness guarantee, or a Newton direction. In particular,
+`vᵀHv` may be negative when the underlying objective has negative curvature;
+positive-semidefinite modification is a separate policy.
+
 ## Atomic result application
 
 `applyXpbdIncrementalPotentialResultN()` is the first state-mutating boundary
@@ -494,10 +547,11 @@ These APIs provide a deterministic Float64 objective, packed first derivative,
 first-order sufficient-decrease search, ordered admissible-step filtering with
 an exact RN point–static-plane specialization, a bounded non-mutating
 direction-policy golden path with steepest and inertial-mass specializations,
-an explicit atomic state transition, and a single-call transactional reference
-step. They do not:
+an independently auditable matrix-free curvature estimate, an explicit atomic
+state transition, and a single-call transactional reference step. They do not:
 
-- construct or project a Hessian or linear system;
+- assemble an exact Hessian or linear system, or project one to a definiteness
+  class;
 - provide Newton, quasi-Newton, or material-Hessian directions;
 - apply `XpbdWorldN` velocity responses or state guards to the optimization
   path;
