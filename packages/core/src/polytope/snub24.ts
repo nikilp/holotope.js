@@ -28,8 +28,15 @@ export function createSnub24Cell(options: Snub24CellOptions = {}): CellComplex {
   return createSnub24CellCompiled(options).complex;
 }
 
-/** The snub 24-cell with its face lattice and provenance retained. */
-export function createSnub24CellCompiled({ radius = 1 }: Snub24CellOptions = {}): CompiledPolytope {
+/**
+ * The snub 24-cell with its face lattice and provenance retained.
+ *
+ * @param options - Circumradius of the compiled realization.
+ */
+export function createSnub24CellCompiled(
+  options: Snub24CellOptions = {}
+): CompiledPolytope {
+  const { radius = 1 } = options;
   const { vertices, neighbors, tets } = cell600Data();
 
   // The inscribed 24-cell: builder vertex classes 0…23. Defensive

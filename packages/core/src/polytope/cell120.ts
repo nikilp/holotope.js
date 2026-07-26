@@ -28,8 +28,15 @@ export function create120Cell(options: Cell120Options = {}): CellComplex {
   return create120CellCompiled(options).complex;
 }
 
-/** The 120-cell with its canonical face lattice and provenance retained. */
-export function create120CellCompiled({ radius = 1 }: Cell120Options = {}): CompiledPolytope {
+/**
+ * The 120-cell with its canonical face lattice and provenance retained.
+ *
+ * @param options - Circumradius of the compiled realization.
+ */
+export function create120CellCompiled(
+  options: Cell120Options = {}
+): CompiledPolytope {
+  const { radius = 1 } = options;
   const { vertices, neighbors, tets } = cell600Data();
   const tetCount = tets.length / 4; // 600
 

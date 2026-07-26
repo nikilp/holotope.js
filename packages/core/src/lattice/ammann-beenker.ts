@@ -106,12 +106,15 @@ function coefficientKey(coefficients: readonly bigint[]): string {
   return coefficients.join(',');
 }
 
-/** A radial finite patch of the canonical Ammann–Beenker vertex set. */
-export function ammannBeenkerPatch({
-  coefficientRadius = 6,
-  physicalRadius = 8,
-  phasonOffsetQuarters
-}: AmmannBeenkerPatchOptions = {}): AmmannBeenkerPatch {
+/**
+ * A radial finite patch of the canonical Ammann–Beenker vertex set.
+ *
+ * @param options - Coefficient bound, physical crop, and exact phason offset.
+ */
+export function ammannBeenkerPatch(
+  options: AmmannBeenkerPatchOptions = {}
+): AmmannBeenkerPatch {
+  const { coefficientRadius = 6, physicalRadius = 8, phasonOffsetQuarters } = options;
   if (!Number.isInteger(coefficientRadius) || coefficientRadius < 1) {
     throw new Error(`ammannBeenkerPatch: invalid coefficientRadius ${coefficientRadius}`);
   }

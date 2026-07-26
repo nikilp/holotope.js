@@ -332,14 +332,21 @@ export interface ElserSloanePatch {
   readonly boundaryCount: number;
 }
 
-/** A deterministic finite coefficient-box sample of the infinite model set. */
-export function elserSloanePatch({
-  coefficientRadius = 1,
-  physicalRadius,
-  maxCandidates = 1_000_000,
-  boundaryPolicy,
-  phasonOffsetElevenths
-}: ElserSloanePatchOptions = {}): ElserSloanePatch {
+/**
+ * A deterministic finite coefficient-box sample of the infinite model set.
+ *
+ * @param options - Coefficient bound, crop, safety cap, boundary policy, and phason.
+ */
+export function elserSloanePatch(
+  options: ElserSloanePatchOptions = {}
+): ElserSloanePatch {
+  const {
+    coefficientRadius = 1,
+    physicalRadius,
+    maxCandidates = 1_000_000,
+    boundaryPolicy,
+    phasonOffsetElevenths
+  } = options;
   if (!Number.isSafeInteger(coefficientRadius) || coefficientRadius < 0) {
     throw new Error(`elserSloanePatch: invalid coefficient radius ${coefficientRadius}`);
   }
@@ -379,13 +386,18 @@ export function elserSloanePatch({
 /**
  * A symmetry-preserving finite sample built from complete ambient E8 shells.
  * This is the preferred bounded source for explanatory renders.
+ *
+ * @param options - Shell bound, crop, boundary policy, and exact phason.
  */
-export function elserSloaneNormPatch({
-  maxE8Norm = 6,
-  physicalRadius,
-  boundaryPolicy,
-  phasonOffsetElevenths
-}: ElserSloaneNormPatchOptions = {}): ElserSloanePatch {
+export function elserSloaneNormPatch(
+  options: ElserSloaneNormPatchOptions = {}
+): ElserSloanePatch {
+  const {
+    maxE8Norm = 6,
+    physicalRadius,
+    boundaryPolicy,
+    phasonOffsetElevenths
+  } = options;
   if (physicalRadius !== undefined && (!Number.isFinite(physicalRadius) || physicalRadius <= 0)) {
     throw new Error(`elserSloaneNormPatch: physical radius must be positive and finite`);
   }
@@ -618,12 +630,15 @@ export interface ElserSloaneGermComplexOptions {
   sourceShell?: ElserSloaneSourceShell | 'both';
 }
 
-/** A renderable 4D view of the two accepted 600-cell shells. */
-export function createElserSloaneGermComplex({
-  embedding = 'parallel',
-  scale: outputScale = 1,
-  sourceShell = 'both'
-}: ElserSloaneGermComplexOptions = {}): CellComplex {
+/**
+ * A renderable 4D view of the two accepted 600-cell shells.
+ *
+ * @param options - Embedding, scale, and source shells to include.
+ */
+export function createElserSloaneGermComplex(
+  options: ElserSloaneGermComplexOptions = {}
+): CellComplex {
+  const { embedding = 'parallel', scale: outputScale = 1, sourceShell = 'both' } = options;
   if (!Number.isFinite(outputScale) || outputScale <= 0) {
     throw new Error(`createElserSloaneGermComplex: scale must be positive and finite, got ${outputScale}`);
   }

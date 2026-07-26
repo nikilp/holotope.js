@@ -24,8 +24,11 @@ export interface DuoprismOptions {
  *
  * Cells are decomposed into 6(pq − p − q) tetrahedra without helper
  * vertices (polygon fan × prism staircase), so the complex is sliceable.
+ *
+ * @param options - Polygon orders and the two factor circumradii.
  */
-export function createDuoprism({ p, q, radius1 = 1, radius2 = 1 }: DuoprismOptions): CellComplex {
+export function createDuoprism(options: DuoprismOptions): CellComplex {
+  const { p, q, radius1 = 1, radius2 = 1 } = options;
   if (p < 3 || q < 3) throw new Error(`createDuoprism: need p, q ≥ 3, got ${p}, ${q}`);
 
   // Vertex (i, j) = i-th p-gon corner in xy × j-th q-gon corner in zw.

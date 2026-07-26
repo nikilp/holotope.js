@@ -28,10 +28,15 @@ export function createGrandAntiprism(options: GrandAntiprismOptions = {}): CellC
   return createGrandAntiprismCompiled(options).complex;
 }
 
-/** The grand antiprism with its face lattice and provenance retained. */
-export function createGrandAntiprismCompiled({
-  radius = 1
-}: GrandAntiprismOptions = {}): CompiledPolytope {
+/**
+ * The grand antiprism with its face lattice and provenance retained.
+ *
+ * @param options - Circumradius of the compiled realization.
+ */
+export function createGrandAntiprismCompiled(
+  options: GrandAntiprismOptions = {}
+): CompiledPolytope {
+  const { radius = 1 } = options;
   const { vertices, neighbors, tets } = cell600Data();
 
   // Vertex lookup by rounded exact coordinates (values are separated by

@@ -163,13 +163,18 @@ function coefficientKey(coefficients: readonly bigint[]): string {
   return coefficients.join(',');
 }
 
-/** A finite radial patch of the AKN vertex set and its six edge directions. */
-export function aknPatch({
-  coefficientRadius = 2,
-  physicalRadius = 6,
-  phasonOffsetSevenths,
-  boundaryPolicy
-}: AKNPatchOptions = {}): AKNPatch {
+/**
+ * A finite radial patch of the AKN vertex set and its six edge directions.
+ *
+ * @param options - Coefficient bound, physical crop, phason, and boundary policy.
+ */
+export function aknPatch(options: AKNPatchOptions = {}): AKNPatch {
+  const {
+    coefficientRadius = 2,
+    physicalRadius = 6,
+    phasonOffsetSevenths,
+    boundaryPolicy
+  } = options;
   if (!Number.isInteger(coefficientRadius) || coefficientRadius < 1) {
     throw new Error(`aknPatch: invalid coefficientRadius ${coefficientRadius}`);
   }

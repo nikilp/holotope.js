@@ -524,11 +524,15 @@ export interface FoldedE8ShellOptions {
   scale?: number;
 }
 
-/** The two folded 600-cell vertex sets with their metric skeletons. */
-export function createFoldedE8Shells({
-  embedding = 'parallel',
-  scale: outputScale = 1
-}: FoldedE8ShellOptions = {}): CellComplex {
+/**
+ * The two folded 600-cell vertex sets with their metric skeletons.
+ *
+ * @param options - Galois embedding and uniform output scale.
+ */
+export function createFoldedE8Shells(
+  options: FoldedE8ShellOptions = {}
+): CellComplex {
+  const { embedding = 'parallel', scale: outputScale = 1 } = options;
   if (!Number.isFinite(outputScale) || outputScale <= 0) {
     throw new Error(`createFoldedE8Shells: scale must be positive and finite, got ${outputScale}`);
   }
@@ -576,12 +580,15 @@ export interface FoldedE8Options {
 /**
  * A 4D renderable view of the E8 root polytope under the H4 folding.
  * This is a view of the 8D root system, not a claim that E8 is 4D.
+ *
+ * @param options - Galois embedding, included edge classes, and output scale.
  */
-export function createFoldedE8Roots({
-  embedding = 'parallel',
-  edgeClasses = ['parallel-skeleton', 'perpendicular-skeleton', 'chord', 'strut'],
-  scale: outputScale = 1
-}: FoldedE8Options = {}): CellComplex {
+export function createFoldedE8Roots(options: FoldedE8Options = {}): CellComplex {
+  const {
+    embedding = 'parallel',
+    edgeClasses = ['parallel-skeleton', 'perpendicular-skeleton', 'chord', 'strut'],
+    scale: outputScale = 1
+  } = options;
   if (!Number.isFinite(outputScale) || outputScale <= 0) {
     throw new Error(`createFoldedE8Roots: scale must be positive and finite, got ${outputScale}`);
   }

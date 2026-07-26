@@ -22,9 +22,15 @@ export interface ResolvedQuadraticIterationOptions {
   readonly escapeRadius: number;
 }
 
+/**
+ * Validates and fills the shared limits for quadratic escape-time iteration.
+ *
+ * @param options - Iteration limit and escape radius to resolve.
+ */
 export function resolveQuadraticOptions(
-  { maxIterations = 64, escapeRadius = 4 }: QuadraticIterationOptions = {}
+  options: QuadraticIterationOptions = {}
 ): ResolvedQuadraticIterationOptions {
+  const { maxIterations = 64, escapeRadius = 4 } = options;
   if (!Number.isSafeInteger(maxIterations) || maxIterations < 1) {
     throw new Error(`quadratic iteration: invalid maxIterations ${maxIterations}`);
   }

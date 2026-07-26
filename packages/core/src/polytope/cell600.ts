@@ -135,8 +135,11 @@ export function cell600Data(): Cell600Data {
  * Builds the 600-cell: 120 vertices, 720 edges, 1200 triangular faces,
  * 600 tetrahedral cells — the finest of the regular polychora, and
  * natively sliceable since its cells are already tetrahedra.
+ *
+ * @param options - Circumradius of the returned polychoron.
  */
-export function create600Cell({ radius = 1 }: Cell600Options = {}): CellComplex {
+export function create600Cell(options: Cell600Options = {}): CellComplex {
+  const { radius = 1 } = options;
   const data = cell600Data();
   const positions = new Float64Array(data.vertices.length);
   for (let k = 0; k < positions.length; k++) positions[k] = data.vertices[k]! * radius;

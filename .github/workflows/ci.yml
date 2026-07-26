@@ -41,7 +41,8 @@ jobs:
       #             gaps are grandfathered in docs/doc-baseline.json, so the
       #             rule is that coverage may not regress
       #   guide     a link into repository source, or notation that no renderer
-      #             reaches — \[ \] delimiters, or a caret in frontmatter
+      #             reaches — \[ \] delimiters, a caret in frontmatter, or an
+      #             exported options object TypeDoc would call __namedParameters
       #   routes    an internal link in the built site with no page behind it;
       #             sidebars and navigation exist only in rendered output, so a
       #             wrong target there repeats across every page it covers

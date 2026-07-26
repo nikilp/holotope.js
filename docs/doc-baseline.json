@@ -45,7 +45,6 @@
   "core:Function:inspectSourceSimplexReferenceN",
   "core:Function:projectionMapRecipeN",
   "core:Function:raggedCount",
-  "core:Function:resolveQuadraticOptions",
   "core:Interface:AKNModelSetOptions",
   "core:Interface:AKNPatch",
   "core:Interface:AKNPatchOptions",

@@ -18,8 +18,11 @@ export interface Cell24Options {
  *
  * Each octahedron is split into 4 tetrahedra around one of its diagonals,
  * so the complex is sliceable out of the box.
+ *
+ * @param options - Circumradius of the returned polychoron.
  */
-export function create24Cell({ radius = 1 }: Cell24Options = {}): CellComplex {
+export function create24Cell(options: Cell24Options = {}): CellComplex {
+  const { radius = 1 } = options;
   const scale = radius / Math.SQRT2;
 
   // Vertices: choose 2 of 4 coordinates, 4 sign combinations each.

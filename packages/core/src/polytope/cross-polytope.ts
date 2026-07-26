@@ -12,8 +12,11 @@ export interface CrossPolytopeOptions {
  *
  * Vertices 0…n−1 are +e_i, vertices n…2n−1 are −e_i. Every vertex pair is
  * an edge except antipodal pairs: 2n(n−1) edges total.
+ *
+ * @param options - Ambient dimension and circumradius.
  */
-export function createCrossPolytope({ dim, radius = 1 }: CrossPolytopeOptions): CellComplex {
+export function createCrossPolytope(options: CrossPolytopeOptions): CellComplex {
+  const { dim, radius = 1 } = options;
   if (dim < 1) throw new Error(`createCrossPolytope: unsupported dimension ${dim}`);
   const vertexCount = 2 * dim;
 

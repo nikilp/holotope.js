@@ -14,8 +14,11 @@ export interface SimplexOptions {
  * a regular simplex with edge length √2 in the hyperplane orthogonal to the
  * all-ones vector — recenter on their centroid, express them in an
  * orthonormal basis of that hyperplane (modified Gram–Schmidt), and scale.
+ *
+ * @param options - Intrinsic dimension and target edge length.
  */
-export function createSimplex({ dim, edgeLength = 1 }: SimplexOptions): CellComplex {
+export function createSimplex(options: SimplexOptions): CellComplex {
+  const { dim, edgeLength = 1 } = options;
   if (dim < 1) throw new Error(`createSimplex: unsupported dimension ${dim}`);
   const m = dim + 1;
 

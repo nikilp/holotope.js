@@ -36,11 +36,8 @@ export interface HypercubeOptions {
  * const sliceable = tetrahedralizeCuboidCells(solid);
  * ```
  */
-export function createHypercube({
-  dim,
-  size = 1,
-  maxCellDimension = Math.min(dim, 3)
-}: HypercubeOptions): CellComplex {
+export function createHypercube(options: HypercubeOptions): CellComplex {
+  const { dim, size = 1, maxCellDimension = Math.min(dim, 3) } = options;
   if (dim < 1 || dim > 30) throw new Error(`createHypercube: unsupported dimension ${dim}`);
   if (
     !Number.isSafeInteger(maxCellDimension) ||

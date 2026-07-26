@@ -285,13 +285,18 @@ function coefficientKey(coefficients: readonly bigint[]): string {
   return coefficients.join(',');
 }
 
-/** A finite radial patch of the unit-edge rhombic Penrose tiling. */
-export function penrosePatch({
-  coefficientRadius = 7,
-  physicalRadius = 9,
-  phasonOffsetSevenths,
-  boundaryPolicy = 'error'
-}: PenrosePatchOptions = {}): PenrosePatch {
+/**
+ * A finite radial patch of the unit-edge rhombic Penrose tiling.
+ *
+ * @param options - Coefficient bound, physical crop, phason, and boundary policy.
+ */
+export function penrosePatch(options: PenrosePatchOptions = {}): PenrosePatch {
+  const {
+    coefficientRadius = 7,
+    physicalRadius = 9,
+    phasonOffsetSevenths,
+    boundaryPolicy = 'error'
+  } = options;
   if (!Number.isInteger(coefficientRadius) || coefficientRadius < 1) {
     throw new Error(`penrosePatch: invalid coefficientRadius ${coefficientRadius}`);
   }
