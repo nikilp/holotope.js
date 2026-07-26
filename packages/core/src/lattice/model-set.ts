@@ -285,6 +285,40 @@ export interface ModelSetBoxSampleOptions extends CoefficientBoxSampleOptions {
  *
  * The traversal budget counts feasible prefix nodes plus roots of subtrees
  * rejected by exact halfspace bounds. It does not change membership.
+ *
+ * @example
+ * Choosing the strategy changes the work, never the answer. Both calls
+ * return the same points in the same order, with the same boundary
+ * classification — pruning rejects only coefficient prefixes whose every
+ * completion is already outside a window halfspace, and equality is never
+ * pruned:
+ * ```ts
+ * const aperiodic = createAKNModelSet();
+ * const coefficientRanges = Array(6).fill({ min: -4, max: 4 });
+ *
+ * const exhaustive = aperiodic.sample({ coefficientRanges });
+ * const pruned = aperiodic.sample({ coefficientRanges, strategy: 'window-pruned' });
+ *
+ * pruned.points.length === exhaustive.points.length; // true — 6623 either way
+ * pruned.boundaryCount === exhaustive.boundaryCount; // true — 960 either way
+ * ```
+ *
+ * @example
+ * The evidence is auditable: how many feasible prefixes were entered, and
+ * how many subtrees were proved outside without descending. The saving
+ * grows with the number of coefficients, since a rejected prefix stands for
+ * a whole product of the remaining ranges:
+ * ```ts
+ * const aperiodic = createAKNModelSet();
+ * const patch = aperiodic.sample({
+ *   coefficientRanges: Array(6).fill({ min: -4, max: 4 }),
+ *   strategy: 'window-pruned'
+ * });
+ *
+ * patch.candidateCount; // 531441 — the box the ranges describe
+ * patch.enumeration?.visitedNodes; // 12065 prefixes entered
+ * patch.enumeration?.prunedSubtrees; // 36914 subtrees proved outside
+ * ```
  */
 export interface ModelSetWindowPrunedSampleOptions {
   /** One inclusive range per lattice coefficient. */

@@ -63,6 +63,7 @@ there is improved here.
 | --- | --- |
 | [`CameraN`](/api/core/projection/classes/CameraN) | [open](https://nikilp.github.io/holotope.js/playground.html#CameraN) |
 | [`CellComplex`](/api/core/geometry/classes/CellComplex) | [open](https://nikilp.github.io/holotope.js/playground.html#CellComplex) |
+| [`ModelSetWindowPrunedSampleOptions`](/api/core/lattice/interfaces/ModelSetWindowPrunedSampleOptions) | [open](https://nikilp.github.io/holotope.js/playground.html#ModelSetWindowPrunedSampleOptions) |
 | [`ProjectedEdges3D`](/api/three/index/classes/ProjectedEdges3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedEdges3D) |
 | [`ProjectedSurface3D`](/api/three/index/classes/ProjectedSurface3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedSurface3D) |
 | [`Rotor4Track`](/api/core/animation/classes/Rotor4Track) | [open](https://nikilp.github.io/holotope.js/playground.html#Rotor4Track) |
