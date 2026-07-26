@@ -112,3 +112,32 @@ button:hover {
     max-height: 8em;
   }
 }
+
+/*
+ * An example that computes rather than draws has nothing to put in a viewport.
+ * Showing an empty one asks the reader to work out why it is black; removing it
+ * leaves the code and its result, which is the whole of what such an example
+ * has to say.
+ */
+body.no-visual #app {
+  display: none;
+}
+body.no-visual #pane {
+  flex: 1 1 auto;
+  max-width: none;
+  border-left: none;
+}
+body.no-visual #output {
+  max-height: none;
+}
+/* With no viewport the editor is the frame's content, so it takes the room the
+   viewport would have had rather than a fixed slice of it. */
+@media (max-width: 720px) {
+  body.no-visual.code-open #code {
+    height: auto;
+    flex: 1 1 auto;
+  }
+  body.no-visual #toggle {
+    display: none;
+  }
+}

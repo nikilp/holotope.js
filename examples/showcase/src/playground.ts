@@ -154,8 +154,19 @@ function run(): void {
     const compiled = new Function(...names, '__source', '"use strict"; return eval(__source);');
     const result = compiled(...values, editor.value);
 
-    if (lines.length) return;
     const added = scene.children.length !== before;
+    // A viewport is only worth showing when something was drawn into it. An
+    // example that computes returns a value instead, and a black rectangle
+    // beside it explains nothing — so the frame becomes code and result.
+    //
+    // The code is then the content rather than an alternative to it, so it is
+    // opened: hiding it would leave a result and an empty frame, which is the
+    // same confusion in a smaller rectangle.
+    document.body.classList.toggle('no-visual', !added);
+    if (!added) showCode(true);
+    resize();
+
+    if (lines.length) return;
     // `scene.add(…)` returns the scene, which is the last expression of any
     // example that ends by showing something. Reporting it back says nothing.
     const meaningful = result !== undefined && result !== scene;
@@ -164,15 +175,8 @@ function run(): void {
       report(describeValue(result), 'note');
     } else if (added) {
       report('ran without error', 'note');
-    } else if (scene.children.length === before) {
-      report(
-        'Ran without error. This example computes rather than draws — nothing\n' +
-          'was added to the scene. Call log(…) to print a value, or add an\n' +
-          'object to `scene` to see it.',
-        'note'
-      );
     } else {
-      report('ran without error', 'note');
+      report('ran without error — this example returns no value and draws nothing', 'note');
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -195,11 +199,16 @@ editor.addEventListener('keydown', (event) => {
 // Narrow frames show the result and keep the code behind a toggle: a split
 // pane leaves too little of either to be worth having.
 const toggle = document.getElementById('toggle')!;
+
+function showCode(open: boolean): void {
+  document.body.classList.toggle('code-open', open);
+  toggle.textContent = open ? 'hide code' : 'show code';
+}
+
 toggle.addEventListener('click', () => {
-  const showing = document.body.classList.toggle('code-open');
-  toggle.textContent = showing ? 'hide code' : 'show code';
+  showCode(!document.body.classList.contains('code-open'));
   resize();
-  if (showing) editor.focus();
+  if (document.body.classList.contains('code-open')) editor.focus();
 });
 
 // --- loop --------------------------------------------------------------------
