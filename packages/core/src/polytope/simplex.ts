@@ -16,6 +16,31 @@ export interface SimplexOptions {
  * orthonormal basis of that hyperplane (modified Gram–Schmidt), and scale.
  *
  * @param options - Intrinsic dimension and target edge length.
+ *
+ * @example
+ * The 5-cell — the 4D tetrahedron, and the smallest polychoron there is:
+ * ```ts
+ * const fiveCell = createSimplex({ dim: 4 });
+ * fiveCell.vertexCount; // 5
+ * fiveCell.cellCount(1); // 10 — every pair of vertices is an edge
+ * ```
+ *
+ * @example
+ * Every simplex is its own tetrahedralization, so this projects and
+ * slices without any preparation:
+ * ```ts
+ * const fiveCell = new ProjectedEdges3D(
+ *   createSimplex({ dim: 4 }),
+ *   new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+ * );
+ * scene.add(fiveCell.object);
+ *
+ * onFrame((t) =>
+ *   fiveCell.update(
+ *     new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle: t * 0.5 }]))
+ *   )
+ * );
+ * ```
  */
 export function createSimplex(options: SimplexOptions): CellComplex {
   const { dim, edgeLength = 1 } = options;

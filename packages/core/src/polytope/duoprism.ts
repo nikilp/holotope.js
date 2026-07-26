@@ -25,7 +25,42 @@ export interface DuoprismOptions {
  * Cells are decomposed into 6(pq − p − q) tetrahedra without helper
  * vertices (polygon fan × prism staircase), so the complex is sliceable.
  *
+ * Only the pq squares are authored as 2-cells: a group carries one
+ * `verticesPerCell`, so p-gons and q-gons cannot share the quad group.
+ * The polygon faces are present in the tetrahedralization rather than as
+ * cells of their own, which is why `cellCount(2)` reports pq and not the
+ * polytope's full face count.
+ *
  * @param options - Polygon orders and the two factor circumradii.
+ *
+ * @example
+ * The 6,6-duoprism. The turn has to mix the two factors to show anything:
+ * a rotation inside the xy or the zw plane alone is a symmetry of one
+ * polygon, so the figure would slide within its own silhouette. Coupling
+ * y to z instead trades the factors against each other, and the two
+ * hexagonal rings visibly exchange roles:
+ * ```ts
+ * const duoprism = new ProjectedEdges3D(
+ *   createDuoprism({ p: 6, q: 6 }),
+ *   new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+ * );
+ * scene.add(duoprism.object);
+ *
+ * onFrame((t) =>
+ *   duoprism.update(
+ *     new TransformN(4, rotationFromPlanes(4, [{ i: 1, j: 2, angle: t * 0.4 }]))
+ *   )
+ * );
+ * ```
+ *
+ * @example
+ * Taking both polygons square gives the tesseract's vertices and edges:
+ * ```ts
+ * const square = createDuoprism({ p: 4, q: 4 });
+ * const tesseract = createHypercube({ dim: 4 });
+ * square.vertexCount === tesseract.vertexCount; // true — 16
+ * square.cellCount(1) === tesseract.cellCount(1); // true — 32
+ * ```
  */
 export function createDuoprism(options: DuoprismOptions): CellComplex {
   const { p, q, radius1 = 1, radius2 = 1 } = options;

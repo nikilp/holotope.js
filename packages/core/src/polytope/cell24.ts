@@ -20,6 +20,30 @@ export interface Cell24Options {
  * so the complex is sliceable out of the box.
  *
  * @param options - Circumradius of the returned polychoron.
+ *
+ * @example
+ * Turned in the 0–3 plane, which no rotation of 3-space reproduces:
+ * ```ts
+ * const cell24 = new ProjectedEdges3D(
+ *   create24Cell(),
+ *   new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+ * );
+ * scene.add(cell24.object);
+ *
+ * onFrame((t) =>
+ *   cell24.update(
+ *     new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle: t * 0.4 }]))
+ *   )
+ * );
+ * ```
+ *
+ * @example
+ * The 3-cells are the tetrahedra of the decomposition, not the 24
+ * octahedra they came from — each octahedron splits into four:
+ * ```ts
+ * const cell24 = create24Cell();
+ * cell24.cellCount(3); // 96 = 24 × 4
+ * ```
  */
 export function create24Cell(options: Cell24Options = {}): CellComplex {
   const { radius = 1 } = options;

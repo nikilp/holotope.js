@@ -14,6 +14,22 @@ export interface CrossPolytopeOptions {
  * an edge except antipodal pairs: 2n(n−1) edges total.
  *
  * @param options - Ambient dimension and circumradius.
+ *
+ * @example
+ * In four dimensions this is the 16-cell, dual to the tesseract — its 8
+ * vertices answer to the tesseract's 8 cubic cells:
+ * ```ts
+ * const sixteenCell = createCrossPolytope({ dim: 4 });
+ * sixteenCell.vertexCount; // 8
+ * sixteenCell.cellCount(1); // 24 — all pairs but the 4 antipodal ones
+ * ```
+ *
+ * @example
+ * The 3D case is the octahedron, so the same call covers both:
+ * ```ts
+ * const octahedron = createCrossPolytope({ dim: 3 });
+ * octahedron.vertexCount; // 6
+ * ```
  */
 export function createCrossPolytope(options: CrossPolytopeOptions): CellComplex {
   const { dim, radius = 1 } = options;

@@ -137,6 +137,31 @@ export function cell600Data(): Cell600Data {
  * natively sliceable since its cells are already tetrahedra.
  *
  * @param options - Circumradius of the returned polychoron.
+ *
+ * @example
+ * 720 edges projected at once — a denser figure than the other regular
+ * polychora, so it reads best from further back:
+ * ```ts
+ * const cell600 = new ProjectedEdges3D(
+ *   create600Cell(),
+ *   new PerspectiveProjection({ fromDim: 4, viewDistance: 3.2 })
+ * );
+ * scene.add(cell600.object);
+ *
+ * onFrame((t) =>
+ *   cell600.update(
+ *     new TransformN(4, rotationFromPlanes(4, [{ i: 1, j: 3, angle: t * 0.3 }]))
+ *   )
+ * );
+ * ```
+ *
+ * @example
+ * Its cells are already tetrahedra, so it slices without preparation —
+ * unlike a cubic complex, which a slicer needs tetrahedralized first:
+ * ```ts
+ * const cell600 = create600Cell();
+ * cell600.cellCount(3); // 600
+ * ```
  */
 export function create600Cell(options: Cell600Options = {}): CellComplex {
   const { radius = 1 } = options;
