@@ -444,6 +444,67 @@ exact Hessian, a definiteness guarantee, or a Newton direction. In particular,
 `vᵀHv` may be negative when the underlying objective has negative curvature;
 positive-semidefinite modification is a separate policy.
 
+### Exact provider composition
+
+A conservative provider may additionally implement
+`XpbdConservativeHessianVectorProviderN`. Its
+`evaluatePotentialHessianVectorAt()` method receives defensive particle-space
+position and direction queries and returns the mathematical product
+`∇²U(q)v` in provider particle order. This is deliberately the potential
+Hessian sign, not the derivative of force `-∇U`.
+
+`evaluateXpbdIncrementalPotentialAnalyticHessianVectorN()` composes those
+products with the exact inertial block:
+
+$$
+\nabla^2E(q)v=Mv+h^2\nabla^2U(q)v.
+$$
+
+```ts
+import {
+  evaluateXpbdIncrementalPotentialAnalyticHessianVectorN
+} from '@holotope/physics';
+
+const analytic =
+  evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+    problem,
+    coordinates: packed.coordinates,
+    direction
+  });
+
+if (analytic.status === 'evaluated') {
+  console.log(analytic.product, analytic.quadraticForm);
+} else if (analytic.status === 'unsupported-provider') {
+  console.log(analytic.providerIds);
+}
+```
+
+For a nonzero direction, every provider must expose the optional capability.
+The function preflights the complete authored provider list and returns every
+unsupported id before requesting any partial product. It therefore never
+misrepresents a subset of conservative curvature as the Hessian of the full
+objective. A zero direction remains exact zero and requires no provider
+capability.
+
+The successful result separates the packed mass product, full particle-space
+potential products, the packed `h²`-scaled potential contribution, and their
+sum. Fixed particles occupy no packed coordinate but retain reaction curvature
+in the full potential-product array.
+
+`XpbdParticleHyperplaneBarrierN` supplies the first exact provider
+specialization. Because its signed-distance coordinate is affine with unit
+normal `n`,
+
+$$
+\nabla^2U(q)v=b''(d(q))\,n(n^Tv).
+$$
+
+This analytic composition and the centered reference are complementary:
+provider products give exact local algebra when coverage is complete, while
+the differential construction checks that algebra and remains available for
+provider mixtures without analytic support. Neither path modifies negative
+curvature or chooses a solver direction.
+
 ## Atomic result application
 
 `applyXpbdIncrementalPotentialResultN()` is the first state-mutating boundary
@@ -547,8 +608,9 @@ These APIs provide a deterministic Float64 objective, packed first derivative,
 first-order sufficient-decrease search, ordered admissible-step filtering with
 an exact RN point–static-plane specialization, a bounded non-mutating
 direction-policy golden path with steepest and inertial-mass specializations,
-an independently auditable matrix-free curvature estimate, an explicit atomic
-state transition, and a single-call transactional reference step. They do not:
+an independently auditable matrix-free curvature estimate, exact analytic
+composition for completely capable provider mixtures, an explicit atomic state
+transition, and a single-call transactional reference step. They do not:
 
 - assemble an exact Hessian or linear system, or project one to a definiteness
   class;

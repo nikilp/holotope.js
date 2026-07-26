@@ -6,9 +6,13 @@ import {
 import { HyperplaneColliderN } from './hyperplane-collider.js';
 import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
 import {
+  type XpbdConservativeHessianVectorEvaluationN,
+  type XpbdConservativeHessianVectorProviderN,
+  type XpbdParticleDirectionQueryN
+} from './xpbd-incremental-potential-analytic-curvature.js';
+import {
   XpbdParticleN,
   type XpbdConservativeForceProviderEvaluationN,
-  type XpbdConservativeForceProviderN,
   type XpbdParticlePositionQueryN
 } from './xpbd-world.js';
 
@@ -47,6 +51,17 @@ export interface XpbdParticleHyperplaneBarrierEvaluationN
   readonly forces: readonly [VecN];
 }
 
+/** Exact potential Hessian-vector evidence for one point–plane barrier. */
+export interface XpbdParticleHyperplaneBarrierHessianVectorEvaluationN
+  extends XpbdConservativeHessianVectorEvaluationN {
+  /** Scalar barrier and signed-distance evidence at the candidate point. */
+  readonly base: XpbdParticleHyperplaneBarrierEvaluationN;
+  /** `plane.normal dot direction`. */
+  readonly normalDirection: number;
+  /** One mathematical potential Hessian-vector product. */
+  readonly products: readonly [VecN];
+}
+
 /**
  * Conservative C2-clamped log barrier between one RN point and hyperplane.
  *
@@ -57,7 +72,7 @@ export interface XpbdParticleHyperplaneBarrierEvaluationN
  * recoverable.
  */
 export class XpbdParticleHyperplaneBarrierN
-implements XpbdConservativeForceProviderN {
+implements XpbdConservativeHessianVectorProviderN {
   /** Stable force-provider identity. */
   readonly id: string;
   /** Ambient particle and plane dimension. */
@@ -187,6 +202,49 @@ implements XpbdConservativeForceProviderN {
       barrier,
       potentialEnergy: barrier.energy,
       forces: Object.freeze([force]) as readonly [VecN]
+    });
+  }
+
+  /**
+   * Evaluates `Hessian(U) * direction` from candidate-position queries.
+   *
+   * For the affine signed distance this is exactly
+   * `barrier.secondDerivative * normal * dot(normal, direction)`.
+   */
+  evaluatePotentialHessianVectorAt(
+    positionOf: XpbdParticlePositionQueryN,
+    directionOf: XpbdParticleDirectionQueryN
+  ): XpbdParticleHyperplaneBarrierHessianVectorEvaluationN {
+    const caller =
+      'XpbdParticleHyperplaneBarrierN.evaluatePotentialHessianVectorAt';
+    if (typeof directionOf !== 'function') {
+      throw new Error(`${caller}: directionOf must be a function`);
+    }
+    const base = this.evaluateAt(positionOf);
+    const direction = directionOf(this.particle);
+    if (!(direction instanceof VecN) || direction.dim !== this.dimension) {
+      throw new Error(`${caller}: candidate direction must be R${this.dimension}`);
+    }
+    for (const coordinate of direction.data) {
+      if (!Number.isFinite(coordinate)) {
+        throw new Error(`${caller}: candidate direction must be finite`);
+      }
+    }
+    const normalDirection = this.plane.normal.dot(direction);
+    const scale = base.barrier.secondDerivative * normalDirection;
+    if (!Number.isFinite(normalDirection) || !Number.isFinite(scale)) {
+      throw new Error(`${caller}: curvature is outside Float64`);
+    }
+    const product = this.plane.normal.clone().multiplyScalar(scale);
+    for (const coordinate of product.data) {
+      if (!Number.isFinite(coordinate)) {
+        throw new Error(`${caller}: product is outside Float64`);
+      }
+    }
+    return Object.freeze({
+      base,
+      normalDirection,
+      products: Object.freeze([product]) as readonly [VecN]
     });
   }
 }

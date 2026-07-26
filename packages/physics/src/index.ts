@@ -183,6 +183,7 @@ export {
 } from './clamped-log-barrier.js';
 export {
   XpbdParticleHyperplaneBarrierN,
+  type XpbdParticleHyperplaneBarrierHessianVectorEvaluationN,
   type XpbdParticleHyperplaneBarrierDomainReasonN,
   type XpbdParticleHyperplaneBarrierEvaluationN,
   type XpbdParticleHyperplaneBarrierNOptions
@@ -258,6 +259,18 @@ export {
   type XpbdIncrementalPotentialHessianVectorResultN,
   type XpbdIncrementalPotentialHessianVectorZeroDirectionN
 } from './xpbd-incremental-potential-curvature.js';
+export {
+  evaluateXpbdIncrementalPotentialAnalyticHessianVectorN,
+  type EvaluateXpbdIncrementalPotentialAnalyticHessianVectorNOptions,
+  type XpbdConservativeHessianVectorEvaluationN,
+  type XpbdConservativeHessianVectorProviderN,
+  type XpbdConservativeHessianVectorProviderResultN,
+  type XpbdIncrementalPotentialAnalyticHessianVectorEvaluatedN,
+  type XpbdIncrementalPotentialAnalyticHessianVectorResultN,
+  type XpbdIncrementalPotentialAnalyticHessianVectorUnsupportedN,
+  type XpbdIncrementalPotentialAnalyticHessianVectorZeroDirectionN,
+  type XpbdParticleDirectionQueryN
+} from './xpbd-incremental-potential-analytic-curvature.js';
 export {
   minimizeXpbdIncrementalPotentialN,
   type MinimizeXpbdIncrementalPotentialNOptions,
