@@ -97,15 +97,18 @@ button:hover {
     border-left: none;
     border-top: 1px solid #1e2436;
   }
-  #code,
-  #output {
+  #code {
     display: none;
   }
   body.code-open #code {
     display: block;
     height: 42vh;
   }
-  body.code-open #output {
-    display: block;
+  /* The result stays visible with the code hidden. An example that computes
+     rather than draws leaves the viewport empty, and this panel is the only
+     thing that accounts for it — hiding it leaves a blank frame and no
+     explanation. */
+  #output {
+    max-height: 8em;
   }
 }

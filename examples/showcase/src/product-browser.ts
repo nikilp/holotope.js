@@ -156,6 +156,17 @@ let product: Product | null = null;
 let sourceCounts: readonly (readonly [number | string, string])[] = [];
 let sinceReport = 0;
 
+/**
+ * The pose currently on screen. A rebuild reports figures for whatever it last
+ * updated with, so rebuilding at the identity would report a different cut
+ * than the one being displayed — visible as a flicker, and as a zero whenever
+ * the identity pose puts the cut outside the object.
+ */
+let pose = new TransformN(4);
+
+/** Elapsed rotation, shared so a rebuild can reproduce the current pose. */
+let angle = 0;
+
 const values: Values = bindControls([SHAPE, ...(spec.params ?? [])], () => rebuild());
 
 function rebuild(): void {
@@ -175,8 +186,8 @@ function rebuild(): void {
     .cellsOfDim(2)
     .reduce((n, g) => n + g.indices.length / g.verticesPerCell, 0);
 
-  spec.animate?.(values, 0);
-  product.update(new TransformN(4));
+  spec.animate?.(values, angle);
+  product.update(pose);
 
   sourceCounts = [
     [edges, 'source edges'],
@@ -207,7 +218,6 @@ function resize(): void {
 window.addEventListener('resize', resize);
 resize();
 
-let angle = 0;
 renderer.setAnimationLoop(() => {
   angle += 0.0038;
   orbit.update();
@@ -221,16 +231,15 @@ renderer.setAnimationLoop(() => {
     // the section runs through the polyhedra that plane actually meets. The
     // third rotation is within the retained axes and only turns the result in
     // view.
-    product.update(
-      new TransformN(
-        4,
-        rotationFromPlanes(4, [
-          { i: 0, j: 3, angle },
-          { i: 1, j: 3, angle: angle * 0.61 },
-          { i: 1, j: 2, angle: angle * 0.23 }
-        ])
-      )
+    pose = new TransformN(
+      4,
+      rotationFromPlanes(4, [
+        { i: 0, j: 3, angle },
+        { i: 1, j: 3, angle: angle * 0.61 },
+        { i: 1, j: 2, angle: angle * 0.23 }
+      ])
     );
+    product.update(pose);
 
     // Reading the section every frame would rewrite the panel 60 times a
     // second for a figure that changes slowly.
