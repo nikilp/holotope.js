@@ -6,6 +6,7 @@ import {
   type SimplexConstitutiveFamilyElementEvaluationN,
   type SimplexConstitutiveFamilyElementN,
   type SimplexConstitutiveFamilyEvaluationN,
+  type SimplexConstitutiveFamilyHessianVectorEvaluationN,
   type SimplexConstitutiveFamilyMaterialN
 } from './simplex-constitutive-family.js';
 import { simplexCompressibleNeoHookeanLawN } from './simplex-constitutive-laws.js';
@@ -13,6 +14,10 @@ import {
   type SimplexCompressibleNeoHookeanEvaluationN,
   type SimplexCompressibleNeoHookeanMaterialN
 } from './simplex-neo-hookean-material.js';
+import {
+  type XpbdConservativeHessianVectorProviderN,
+  type XpbdParticleDirectionQueryN
+} from './xpbd-incremental-potential-analytic-curvature.js';
 import {
   XpbdParticleN,
   XpbdWorldN,
@@ -52,9 +57,21 @@ export interface SimplexCompressibleNeoHookeanFamilyEvaluationN
     SimplexCompressibleNeoHookeanEvaluationN
   > {}
 
+/** Exact assembled Neo-Hookean potential curvature in family particle order. */
+export interface SimplexCompressibleNeoHookeanFamilyHessianVectorEvaluationN
+  extends SimplexConstitutiveFamilyHessianVectorEvaluationN<
+    SimplexCompressibleNeoHookeanMaterialN,
+    SimplexCompressibleNeoHookeanEvaluationN
+  > {
+  /** Stable Neo-Hookean law identity retained by the named wrapper. */
+  readonly lawId: string;
+}
+
 /** Source-identified compressible Neo-Hookean family over shared RN particles. */
 export class SimplexCompressibleNeoHookeanFamilyN
-implements XpbdConservativeForceProviderN {
+implements
+  XpbdConservativeForceProviderN,
+  XpbdConservativeHessianVectorProviderN {
   readonly constitutiveFamily: SimplexConstitutiveFamilyN<
     SimplexCompressibleNeoHookeanMaterialN,
     SimplexCompressibleNeoHookeanEvaluationN
@@ -101,6 +118,21 @@ implements XpbdConservativeForceProviderN {
     positionOf: XpbdParticlePositionQueryN
   ): SimplexCompressibleNeoHookeanFamilyEvaluationN {
     return this.constitutiveFamily.evaluateAt(positionOf);
+  }
+
+  /** Evaluates exact Neo-Hookean curvature without mutating live particles. */
+  evaluatePotentialHessianVectorAt(
+    positionOf: XpbdParticlePositionQueryN,
+    directionOf: XpbdParticleDirectionQueryN
+  ): SimplexCompressibleNeoHookeanFamilyHessianVectorEvaluationN {
+    const evaluate =
+      this.constitutiveFamily.evaluatePotentialHessianVectorAt;
+    if (evaluate === undefined) {
+      throw new Error(
+        'SimplexCompressibleNeoHookeanFamilyN: built-in law lost exact curvature'
+      );
+    }
+    return evaluate(positionOf, directionOf);
   }
 
   /** Registers this provider; particles must already belong to the world. */

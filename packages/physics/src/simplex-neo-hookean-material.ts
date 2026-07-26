@@ -4,6 +4,11 @@ import {
   positiveSimplexConstitutiveMeasureRatioN,
   type SimplexConstitutiveEvaluationN
 } from './simplex-constitutive.js';
+import {
+  completeSimplexConstitutiveHessianVectorN,
+  prepareSimplexConstitutiveHessianVectorN,
+  type SimplexConstitutiveHessianVectorEvaluationN
+} from './simplex-constitutive-curvature.js';
 import { inversePositiveDefiniteN } from './simplex-constitutive-matrix.js';
 import { evaluateSimplexMetricDeformationN } from './simplex-deformation.js';
 
@@ -105,6 +110,69 @@ export function evaluateSimplexCompressibleNeoHookeanN(
   });
 }
 
+/**
+ * Evaluates the exact matrix-free Neo-Hookean potential Hessian direction.
+ *
+ * The implementation differentiates the intrinsic material stress directly;
+ * it neither assembles a dense Hessian nor perturbs the authored positions.
+ */
+export function evaluateSimplexCompressibleNeoHookeanHessianVectorN(
+  restPositions: readonly VecN[],
+  currentPositions: readonly VecN[],
+  directions: readonly VecN[],
+  material: SimplexCompressibleNeoHookeanMaterialN
+): SimplexConstitutiveHessianVectorEvaluationN<
+  SimplexCompressibleNeoHookeanEvaluationN
+> {
+  const caller =
+    'evaluateSimplexCompressibleNeoHookeanHessianVectorN';
+  const base = evaluateSimplexCompressibleNeoHookeanN(
+    restPositions,
+    currentPositions,
+    material
+  );
+  const prepared = prepareSimplexConstitutiveHessianVectorN(
+    caller,
+    currentPositions,
+    directions,
+    base
+  );
+  const inverseMetric = inversePositiveDefiniteN(
+    base.deformation.rightCauchyGreen,
+    caller
+  );
+  const inverseDirectionalInverse = inverseMetric
+    .multiply(prepared.directionalRightCauchyGreen)
+    .multiply(inverseMetric);
+  const directionalLogMeasure =
+    0.5 * matrixProductTrace(
+      inverseMetric,
+      prepared.directionalRightCauchyGreen
+    );
+  const { firstLameParameter, shearModulus } = base.material;
+  const inverseStressScale =
+    firstLameParameter * base.volumetricLogStrain - shearModulus;
+  const directionalStress = new MatN(
+    base.deformation.simplexDimension
+  );
+  for (let row = 0; row < directionalStress.n; row++) {
+    for (let column = 0; column < directionalStress.n; column++) {
+      directionalStress.set(
+        row,
+        column,
+        firstLameParameter * directionalLogMeasure *
+          inverseMetric.get(row, column) -
+          inverseStressScale *
+          inverseDirectionalInverse.get(row, column)
+      );
+    }
+  }
+  return completeSimplexConstitutiveHessianVectorN(
+    prepared,
+    directionalStress
+  );
+}
+
 function validateMaterial(
   material: SimplexCompressibleNeoHookeanMaterialN
 ): SimplexCompressibleNeoHookeanMaterialN {
@@ -122,4 +190,14 @@ function validateMaterial(
     throw new Error(`${caller}: shearModulus must be finite and positive`);
   }
   return Object.freeze({ firstLameParameter, shearModulus });
+}
+
+function matrixProductTrace(left: MatN, right: MatN): number {
+  let trace = 0;
+  for (let row = 0; row < left.n; row++) {
+    for (let column = 0; column < left.n; column++) {
+      trace += left.get(row, column) * right.get(column, row);
+    }
+  }
+  return trace;
 }

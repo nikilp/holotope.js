@@ -6,6 +6,7 @@ import {
   type SimplexConstitutiveFamilyElementEvaluationN,
   type SimplexConstitutiveFamilyElementN,
   type SimplexConstitutiveFamilyEvaluationN,
+  type SimplexConstitutiveFamilyHessianVectorEvaluationN,
   type SimplexConstitutiveFamilyMaterialN
 } from './simplex-constitutive-family.js';
 import { simplexStVenantKirchhoffLawN } from './simplex-constitutive-laws.js';
@@ -13,6 +14,10 @@ import {
   type SimplexStVenantKirchhoffEvaluationN,
   type SimplexStVenantKirchhoffMaterialN
 } from './simplex-stvk-material.js';
+import {
+  type XpbdConservativeHessianVectorProviderN,
+  type XpbdParticleDirectionQueryN
+} from './xpbd-incremental-potential-analytic-curvature.js';
 import {
   XpbdParticleN,
   XpbdWorldN,
@@ -50,9 +55,21 @@ export interface SimplexStVenantKirchhoffFamilyEvaluationN
     SimplexStVenantKirchhoffEvaluationN
   > {}
 
+/** Exact assembled StVK potential curvature in family particle order. */
+export interface SimplexStVenantKirchhoffFamilyHessianVectorEvaluationN
+  extends SimplexConstitutiveFamilyHessianVectorEvaluationN<
+    SimplexStVenantKirchhoffMaterialN,
+    SimplexStVenantKirchhoffEvaluationN
+  > {
+  /** Stable StVK law identity retained by the compatibility wrapper. */
+  readonly lawId: string;
+}
+
 /** Compatibility wrapper for the source-identified StVK constitutive family. */
 export class SimplexStVenantKirchhoffFamilyN
-implements XpbdConservativeForceProviderN {
+implements
+  XpbdConservativeForceProviderN,
+  XpbdConservativeHessianVectorProviderN {
   readonly constitutiveFamily: SimplexConstitutiveFamilyN<
     SimplexStVenantKirchhoffMaterialN,
     SimplexStVenantKirchhoffEvaluationN
@@ -99,6 +116,21 @@ implements XpbdConservativeForceProviderN {
     positionOf: XpbdParticlePositionQueryN
   ): SimplexStVenantKirchhoffFamilyEvaluationN {
     return this.constitutiveFamily.evaluateAt(positionOf);
+  }
+
+  /** Evaluates exact StVK potential curvature without mutating live particles. */
+  evaluatePotentialHessianVectorAt(
+    positionOf: XpbdParticlePositionQueryN,
+    directionOf: XpbdParticleDirectionQueryN
+  ): SimplexStVenantKirchhoffFamilyHessianVectorEvaluationN {
+    const evaluate =
+      this.constitutiveFamily.evaluatePotentialHessianVectorAt;
+    if (evaluate === undefined) {
+      throw new Error(
+        'SimplexStVenantKirchhoffFamilyN: built-in law lost exact curvature'
+      );
+    }
+    return evaluate(positionOf, directionOf);
   }
 
   /** Registers this compatibility provider; particles must already belong to the world. */

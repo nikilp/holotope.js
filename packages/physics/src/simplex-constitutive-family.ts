@@ -11,7 +11,12 @@ import {
   type SourceCellReferenceN
 } from '@holotope/core';
 import type { SimplexConstitutiveEvaluationN } from './simplex-constitutive.js';
+import type { SimplexConstitutiveHessianVectorEvaluationN } from './simplex-constitutive-curvature.js';
 import { evaluateSimplexSquaredMeasureN } from './xpbd-simplex-measure.js';
+import type {
+  XpbdConservativeHessianVectorEvaluationN,
+  XpbdParticleDirectionQueryN
+} from './xpbd-incremental-potential-analytic-curvature.js';
 import {
   XpbdParticleN,
   XpbdWorldN,
@@ -31,6 +36,18 @@ export interface SimplexConstitutiveLawN<
     currentPositions: readonly VecN[],
     material: TMaterial
   ): TEvaluation;
+  /**
+   * Optional exact matrix-free curvature capability for this law.
+   *
+   * Its products use the mathematical potential sign
+   * `Hessian(U) * direction`.
+   */
+  evaluateHessianVector?(
+    restPositions: readonly VecN[],
+    currentPositions: readonly VecN[],
+    directions: readonly VecN[],
+    material: TMaterial
+  ): SimplexConstitutiveHessianVectorEvaluationN<TEvaluation>;
 }
 
 export interface SimplexConstitutiveFamilyElementContextN {
@@ -91,6 +108,33 @@ export interface SimplexConstitutiveFamilyEvaluationN<
   readonly netForceResidual: number;
 }
 
+/** One simplex's exact contribution to a family Hessian-vector product. */
+export interface SimplexConstitutiveFamilyElementHessianVectorEvaluationN<
+  TMaterial,
+  TEvaluation extends SimplexConstitutiveEvaluationN<TMaterial>
+> {
+  /** Source-identified simplex whose local product was evaluated. */
+  readonly element: SimplexConstitutiveFamilyElementN<TMaterial>;
+  /** Exact law-level directional tensors and vertex products for the simplex. */
+  readonly evaluation: SimplexConstitutiveHessianVectorEvaluationN<TEvaluation>;
+}
+
+/** Exact assembled potential curvature for one constitutive family. */
+export interface SimplexConstitutiveFamilyHessianVectorEvaluationN<
+  TMaterial,
+  TEvaluation extends SimplexConstitutiveEvaluationN<TMaterial>
+> extends XpbdConservativeHessianVectorEvaluationN {
+  /** Stable constitutive-law identity shared with first-order evaluation. */
+  readonly lawId: string;
+  /** One exact contribution per source simplex, in source-cell order. */
+  readonly elements: readonly SimplexConstitutiveFamilyElementHessianVectorEvaluationN<
+    TMaterial,
+    TEvaluation
+  >[];
+  /** Norm of the summed products; internal translation invariance makes it zero. */
+  readonly netProductResidual: number;
+}
+
 /** Source-identified constitutive elements assembled over shared RN particles. */
 export class SimplexConstitutiveFamilyN<
   TMaterial,
@@ -103,6 +147,21 @@ export class SimplexConstitutiveFamilyN<
   readonly particles: readonly XpbdParticleN[];
   readonly law: SimplexConstitutiveLawN<TMaterial, TEvaluation>;
   readonly elements: readonly SimplexConstitutiveFamilyElementN<TMaterial>[];
+  /**
+   * Exact provider curvature when the selected law supplies it.
+   *
+   * The property is absent for custom first-order-only laws so the global
+   * incremental-potential preflight can refuse incomplete provider mixtures.
+   */
+  readonly evaluatePotentialHessianVectorAt:
+    | ((
+      positionOf: XpbdParticlePositionQueryN,
+      directionOf: XpbdParticleDirectionQueryN
+    ) => SimplexConstitutiveFamilyHessianVectorEvaluationN<
+      TMaterial,
+      TEvaluation
+    >)
+    | undefined;
   private readonly restPositions: readonly (readonly VecN[])[];
   private attachedWorld: XpbdWorldN | null = null;
 
@@ -119,6 +178,11 @@ export class SimplexConstitutiveFamilyN<
     this.law = options.law;
     this.elements = Object.freeze([...elements]);
     this.restPositions = Object.freeze([...restPositions]);
+    this.evaluatePotentialHessianVectorAt =
+      options.law.evaluateHessianVector === undefined
+        ? undefined
+        : (positionOf, directionOf) =>
+          this.evaluateHessianVectorAt(positionOf, directionOf);
   }
 
   static compile<
@@ -247,6 +311,92 @@ export class SimplexConstitutiveFamilyN<
     });
   }
 
+  private evaluateHessianVectorAt(
+    positionOf: XpbdParticlePositionQueryN,
+    directionOf: XpbdParticleDirectionQueryN
+  ): SimplexConstitutiveFamilyHessianVectorEvaluationN<
+    TMaterial,
+    TEvaluation
+  > {
+    const caller =
+      'SimplexConstitutiveFamilyN.evaluatePotentialHessianVectorAt';
+    if (typeof positionOf !== 'function') {
+      throw new Error(`${caller}: positionOf must be a function`);
+    }
+    if (typeof directionOf !== 'function') {
+      throw new Error(`${caller}: directionOf must be a function`);
+    }
+    const lawEvaluator = this.law.evaluateHessianVector;
+    if (lawEvaluator === undefined) {
+      throw new Error(`${caller}: law "${this.law.id}" has no exact curvature`);
+    }
+    this.assertCurrentLineage('evaluatePotentialHessianVectorAt');
+    const candidatePositions = this.particles.map((particle, index) =>
+      finiteParticleVector(
+        positionOf(particle),
+        this.dimension,
+        `${caller}: particle ${index} position`
+      )
+    );
+    const candidateDirections = this.particles.map((particle, index) =>
+      finiteParticleVector(
+        directionOf(particle),
+        this.dimension,
+        `${caller}: particle ${index} direction`
+      )
+    );
+    const products = this.particles.map(() => new VecN(this.dimension));
+    const elementEvaluations: Array<
+      SimplexConstitutiveFamilyElementHessianVectorEvaluationN<
+        TMaterial,
+        TEvaluation
+      >
+    > = [];
+
+    for (let elementIndex = 0; elementIndex < this.elements.length; elementIndex++) {
+      const element = this.elements[elementIndex]!;
+      const currentPositions = element.sourceVertexIndices.map(
+        (vertex) => candidatePositions[vertex]!
+      );
+      const directions = element.sourceVertexIndices.map(
+        (vertex) => candidateDirections[vertex]!
+      );
+      const evaluation = lawEvaluator(
+        this.restPositions[elementIndex]!,
+        currentPositions,
+        directions,
+        element.material
+      );
+      validateHessianVectorEvaluation(
+        evaluation,
+        this.dimension,
+        element.simplexDimension,
+        `${caller}: law "${this.law.id}" element ${elementIndex}`
+      );
+      for (let local = 0; local < element.sourceVertexIndices.length; local++) {
+        products[element.sourceVertexIndices[local]!]!
+          .add(evaluation.products[local]!);
+      }
+      elementEvaluations.push(Object.freeze({ element, evaluation }));
+    }
+
+    let netProductResidual = 0;
+    for (let axis = 0; axis < this.dimension; axis++) {
+      let sum = 0;
+      for (const product of products) sum += product.data[axis]!;
+      netProductResidual = Math.hypot(netProductResidual, sum);
+    }
+    if (!Number.isFinite(netProductResidual)) {
+      throw new Error(`${caller}: net product residual is outside Float64`);
+    }
+    return Object.freeze({
+      products: Object.freeze(products),
+      lawId: this.law.id,
+      elements: Object.freeze(elementEvaluations),
+      netProductResidual
+    });
+  }
+
   /** Defensive copy of the compiled material rest simplex in source-cell order. */
   restPositionsOfElement(elementIndex: number): readonly VecN[] {
     if (!Number.isSafeInteger(elementIndex) ||
@@ -261,7 +411,13 @@ export class SimplexConstitutiveFamilyN<
   }
 
   /** Refuses if any retained source cell has been retired or replaced. */
-  assertCurrentLineage(operation: 'evaluate' | 'evaluateAt' | 'addToWorld'): void {
+  assertCurrentLineage(
+    operation:
+      | 'evaluate'
+      | 'evaluateAt'
+      | 'evaluatePotentialHessianVectorAt'
+      | 'addToWorld'
+  ): void {
     validateCurrentLineage(this.elements, operation);
   }
 
@@ -491,6 +647,69 @@ function validateEvaluation<TMaterial>(
   }
 }
 
+function validateHessianVectorEvaluation<
+  TMaterial,
+  TEvaluation extends SimplexConstitutiveEvaluationN<TMaterial>
+>(
+  evaluation: SimplexConstitutiveHessianVectorEvaluationN<TEvaluation>,
+  ambientDimension: number,
+  simplexDimension: number,
+  caller: string
+): void {
+  if (typeof evaluation !== 'object' || evaluation === null) {
+    throw new Error(`${caller}: law returned no curvature evaluation`);
+  }
+  validateEvaluation(
+    evaluation.base,
+    ambientDimension,
+    simplexDimension,
+    `${caller}: base`
+  );
+  if (evaluation.products.length !== simplexDimension + 1) {
+    throw new Error(`${caller}: product count mismatch`);
+  }
+  if (!(evaluation.directionalRightCauchyGreen instanceof MatN) ||
+    evaluation.directionalRightCauchyGreen.n !== simplexDimension) {
+    throw new Error(`${caller}: directional metric dimension mismatch`);
+  }
+  if (!(evaluation.directionalSecondPiolaStress instanceof MatN) ||
+    evaluation.directionalSecondPiolaStress.n !== simplexDimension) {
+    throw new Error(`${caller}: directional stress dimension mismatch`);
+  }
+  for (const matrix of [
+    evaluation.directionalRightCauchyGreen,
+    evaluation.directionalSecondPiolaStress
+  ]) {
+    for (const value of matrix.data) {
+      if (!Number.isFinite(value)) {
+        throw new Error(`${caller}: directional matrix must be finite`);
+      }
+    }
+  }
+  for (const product of evaluation.products) {
+    finiteParticleVector(product, ambientDimension, `${caller}: product`);
+  }
+  if (!Number.isFinite(evaluation.netProductResidual)) {
+    throw new Error(`${caller}: net product residual must be finite`);
+  }
+}
+
+function finiteParticleVector(
+  vector: VecN,
+  dimension: number,
+  label: string
+): VecN {
+  if (!(vector instanceof VecN) || vector.dim !== dimension) {
+    throw new Error(`${label} must be R${dimension}`);
+  }
+  for (const coordinate of vector.data) {
+    if (!Number.isFinite(coordinate)) {
+      throw new Error(`${label} must be finite`);
+    }
+  }
+  return vector.clone();
+}
+
 function sourcePosition(source: CellComplex, vertex: number): VecN {
   return new VecN(source.positions.subarray(
     vertex * source.ambientDim,
@@ -507,7 +726,11 @@ function frozenSourceId(id: SourceCellIdN): SourceCellIdN {
 
 function validateCurrentLineage<TMaterial>(
   elements: readonly SimplexConstitutiveFamilyElementN<TMaterial>[],
-  operation: 'evaluate' | 'evaluateAt' | 'addToWorld'
+  operation:
+    | 'evaluate'
+    | 'evaluateAt'
+    | 'evaluatePotentialHessianVectorAt'
+    | 'addToWorld'
 ): void {
   for (const element of elements) {
     const referenceStatus = inspectSourceCellReferenceN(element.sourceReference);

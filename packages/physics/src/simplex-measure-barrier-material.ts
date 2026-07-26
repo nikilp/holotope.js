@@ -6,6 +6,11 @@ import {
   positiveSimplexConstitutiveMeasureRatioN,
   type SimplexConstitutiveEvaluationN
 } from './simplex-constitutive.js';
+import {
+  completeSimplexConstitutiveHessianVectorN,
+  prepareSimplexConstitutiveHessianVectorN,
+  type SimplexConstitutiveHessianVectorEvaluationN
+} from './simplex-constitutive-curvature.js';
 import { inversePositiveDefiniteN } from './simplex-constitutive-matrix.js';
 import { evaluateSimplexMetricDeformationN } from './simplex-deformation.js';
 
@@ -119,6 +124,77 @@ export function evaluateSimplexMeasureBarrierN(
   });
 }
 
+/**
+ * Evaluates the exact matrix-free lower-measure-barrier Hessian direction.
+ *
+ * Outside the compact activation interval the potential, gradient, and
+ * curvature products are all exactly zero.
+ */
+export function evaluateSimplexMeasureBarrierHessianVectorN(
+  restPositions: readonly VecN[],
+  currentPositions: readonly VecN[],
+  directions: readonly VecN[],
+  material: SimplexMeasureBarrierMaterialN
+): SimplexConstitutiveHessianVectorEvaluationN<
+  SimplexMeasureBarrierEvaluationN
+> {
+  const caller = 'evaluateSimplexMeasureBarrierHessianVectorN';
+  const base = evaluateSimplexMeasureBarrierN(
+    restPositions,
+    currentPositions,
+    material
+  );
+  const prepared = prepareSimplexConstitutiveHessianVectorN(
+    caller,
+    currentPositions,
+    directions,
+    base
+  );
+  const directionalStress = new MatN(
+    base.deformation.simplexDimension
+  );
+  if (!base.active) {
+    return completeSimplexConstitutiveHessianVectorN(
+      prepared,
+      directionalStress
+    );
+  }
+
+  const inverseMetric = inversePositiveDefiniteN(
+    base.deformation.rightCauchyGreen,
+    caller
+  );
+  const inverseDirectionalInverse = inverseMetric
+    .multiply(prepared.directionalRightCauchyGreen)
+    .multiply(inverseMetric);
+  const directionalMeasure =
+    0.5 * base.measureRatio *
+    matrixProductTrace(
+      inverseMetric,
+      prepared.directionalRightCauchyGreen
+    );
+  const stressScale =
+    base.energyDerivativeByMeasureRatio * base.measureRatio;
+  const directionalStressScale = (
+    base.energySecondDerivativeByMeasureRatio * base.measureRatio +
+    base.energyDerivativeByMeasureRatio
+  ) * directionalMeasure;
+  for (let row = 0; row < directionalStress.n; row++) {
+    for (let column = 0; column < directionalStress.n; column++) {
+      directionalStress.set(
+        row,
+        column,
+        directionalStressScale * inverseMetric.get(row, column) -
+          stressScale * inverseDirectionalInverse.get(row, column)
+      );
+    }
+  }
+  return completeSimplexConstitutiveHessianVectorN(
+    prepared,
+    directionalStress
+  );
+}
+
 function validateMaterial(
   material: SimplexMeasureBarrierMaterialN
 ): SimplexMeasureBarrierMaterialN {
@@ -151,4 +227,14 @@ function validateMaterial(
     activationMeasureRatio,
     stiffness
   });
+}
+
+function matrixProductTrace(left: MatN, right: MatN): number {
+  let trace = 0;
+  for (let row = 0; row < left.n; row++) {
+    for (let column = 0; column < left.n; column++) {
+      trace += left.get(row, column) * right.get(column, row);
+    }
+  }
+  return trace;
 }

@@ -249,6 +249,14 @@ state, structural cell ids, live lineage, exact particle identities, and
 deterministic shared-vertex forces. Immutable StVK and Neo-Hookean descriptors
 are built in. Their named family compilers are typed convenience wrappers over
 the same implementation and preserve the existing StVK API/provider identity.
+The three shipped laws—StVK, compressible Neo-Hookean, and the smooth
+lower-measure barrier—also provide exact matrix-free potential
+Hessian-vector products. The law-level evaluations retain directional
+right-Cauchy–Green and second-Piola tensors; family products assemble by source
+vertex and plug into the complete incremental-objective analytic curvature
+protocol. Custom laws may remain first-order-only and are then refused
+explicitly by that protocol. No dense Hessian, definiteness modification, or
+Newton/Krylov solver is implied.
 
 `compileSimplexConstitutiveFamilyStateGuardN()` is an optional post-substep
 policy over that generic family. It rejects typed law-domain refusal,

@@ -1,17 +1,20 @@
 import type { SimplexConstitutiveLawN } from './simplex-constitutive-family.js';
 import {
   SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
+  evaluateSimplexCompressibleNeoHookeanHessianVectorN,
   evaluateSimplexCompressibleNeoHookeanN,
   type SimplexCompressibleNeoHookeanEvaluationN,
   type SimplexCompressibleNeoHookeanMaterialN
 } from './simplex-neo-hookean-material.js';
 import {
+  evaluateSimplexStVenantKirchhoffHessianVectorN,
   evaluateSimplexStVenantKirchhoffN,
   type SimplexStVenantKirchhoffEvaluationN,
   type SimplexStVenantKirchhoffMaterialN
 } from './simplex-stvk-material.js';
 import {
   SIMPLEX_MEASURE_BARRIER_LAW_ID,
+  evaluateSimplexMeasureBarrierHessianVectorN,
   evaluateSimplexMeasureBarrierN,
   type SimplexMeasureBarrierEvaluationN,
   type SimplexMeasureBarrierMaterialN
@@ -23,7 +26,8 @@ export const simplexStVenantKirchhoffLawN: SimplexConstitutiveLawN<
   SimplexStVenantKirchhoffEvaluationN
 > = Object.freeze({
   id: 'st-venant-kirchhoff',
-  evaluate: evaluateSimplexStVenantKirchhoffN
+  evaluate: evaluateSimplexStVenantKirchhoffN,
+  evaluateHessianVector: evaluateSimplexStVenantKirchhoffHessianVectorN
 });
 
 /** Immutable descriptor for the compressible Neo-Hookean reference law. */
@@ -32,7 +36,9 @@ export const simplexCompressibleNeoHookeanLawN: SimplexConstitutiveLawN<
   SimplexCompressibleNeoHookeanEvaluationN
 > = Object.freeze({
   id: SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
-  evaluate: evaluateSimplexCompressibleNeoHookeanN
+  evaluate: evaluateSimplexCompressibleNeoHookeanN,
+  evaluateHessianVector:
+    evaluateSimplexCompressibleNeoHookeanHessianVectorN
 });
 
 /** Immutable descriptor for the C2-clamped simplex lower-measure barrier. */
@@ -41,5 +47,6 @@ export const simplexMeasureBarrierLawN: SimplexConstitutiveLawN<
   SimplexMeasureBarrierEvaluationN
 > = Object.freeze({
   id: SIMPLEX_MEASURE_BARRIER_LAW_ID,
-  evaluate: evaluateSimplexMeasureBarrierN
+  evaluate: evaluateSimplexMeasureBarrierN,
+  evaluateHessianVector: evaluateSimplexMeasureBarrierHessianVectorN
 });

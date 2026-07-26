@@ -418,13 +418,18 @@ export {
   type SimplexConstitutiveEvaluationN
 } from './simplex-constitutive.js';
 export {
+  type SimplexConstitutiveHessianVectorEvaluationN
+} from './simplex-constitutive-curvature.js';
+export {
   SimplexConstitutiveFamilyN,
   compileSimplexConstitutiveFamilyN,
   type CompileSimplexConstitutiveFamilyNOptions,
   type SimplexConstitutiveFamilyElementContextN,
   type SimplexConstitutiveFamilyElementEvaluationN,
+  type SimplexConstitutiveFamilyElementHessianVectorEvaluationN,
   type SimplexConstitutiveFamilyElementN,
   type SimplexConstitutiveFamilyEvaluationN,
+  type SimplexConstitutiveFamilyHessianVectorEvaluationN,
   type SimplexConstitutiveFamilyMaterialN,
   type SimplexConstitutiveLawN
 } from './simplex-constitutive-family.js';
@@ -457,18 +462,21 @@ export {
   simplexStVenantKirchhoffLawN
 } from './simplex-constitutive-laws.js';
 export {
+  evaluateSimplexStVenantKirchhoffHessianVectorN,
   evaluateSimplexStVenantKirchhoffN,
   type SimplexStVenantKirchhoffEvaluationN,
   type SimplexStVenantKirchhoffMaterialN
 } from './simplex-stvk-material.js';
 export {
   SIMPLEX_COMPRESSIBLE_NEO_HOOKEAN_LAW_ID,
+  evaluateSimplexCompressibleNeoHookeanHessianVectorN,
   evaluateSimplexCompressibleNeoHookeanN,
   type SimplexCompressibleNeoHookeanEvaluationN,
   type SimplexCompressibleNeoHookeanMaterialN
 } from './simplex-neo-hookean-material.js';
 export {
   SIMPLEX_MEASURE_BARRIER_LAW_ID,
+  evaluateSimplexMeasureBarrierHessianVectorN,
   evaluateSimplexMeasureBarrierN,
   type SimplexMeasureBarrierEvaluationN,
   type SimplexMeasureBarrierMaterialN
@@ -481,6 +489,7 @@ export {
   type SimplexCompressibleNeoHookeanFamilyElementEvaluationN,
   type SimplexCompressibleNeoHookeanFamilyElementN,
   type SimplexCompressibleNeoHookeanFamilyEvaluationN,
+  type SimplexCompressibleNeoHookeanFamilyHessianVectorEvaluationN,
   type SimplexCompressibleNeoHookeanFamilyMaterialN
 } from './simplex-neo-hookean-family.js';
 export {
@@ -499,6 +508,7 @@ export {
   type SimplexStVenantKirchhoffFamilyElementEvaluationN,
   type SimplexStVenantKirchhoffFamilyElementN,
   type SimplexStVenantKirchhoffFamilyEvaluationN,
+  type SimplexStVenantKirchhoffFamilyHessianVectorEvaluationN,
   type SimplexStVenantKirchhoffFamilyMaterialN
 } from './simplex-stvk-family.js';
 export {

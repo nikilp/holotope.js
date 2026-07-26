@@ -491,7 +491,7 @@ potential products, the packed `h²`-scaled potential contribution, and their
 sum. Fixed particles occupy no packed coordinate but retain reaction curvature
 in the full potential-product array.
 
-`XpbdParticleHyperplaneBarrierN` supplies the first exact provider
+`XpbdParticleHyperplaneBarrierN` supplies an exact contact-barrier
 specialization. Because its signed-distance coordinate is affine with unit
 normal `n`,
 
@@ -499,11 +499,31 @@ $$
 \nabla^2U(q)v=b''(d(q))\,n(n^Tv).
 $$
 
+The shipped simplex constitutive laws also expose exact matrix-free products.
+For a simplex edge matrix `Ds`, directional edge matrix `V`, and deterministic
+inverse rest factor `A`, they first form
+
+$$
+\dot C=A(V^TD_s+D_s^TV)A^T.
+$$
+
+They then differentiate the law's second Piola stress and assemble
+`restMeasure * (V M + Ds dot(M))` back to the source vertices. The public
+`evaluateSimplexStVenantKirchhoffHessianVectorN()`,
+`evaluateSimplexCompressibleNeoHookeanHessianVectorN()`, and
+`evaluateSimplexMeasureBarrierHessianVectorN()` functions retain both
+directional material tensors and the resulting products. The generic
+`SimplexConstitutiveFamilyN` assembles this capability over shared source
+vertices when its selected law supplies it; custom first-order-only laws
+remain valid and visibly unsupported.
+
 This analytic composition and the centered reference are complementary:
 provider products give exact local algebra when coverage is complete, while
 the differential construction checks that algebra and remains available for
 provider mixtures without analytic support. Neither path modifies negative
-curvature or chooses a solver direction.
+curvature or chooses a solver direction. Exact matrix-free products do not
+imply positive semidefiniteness, a sparse Hessian, a Krylov solve, or a Newton
+policy.
 
 ## Atomic result application
 

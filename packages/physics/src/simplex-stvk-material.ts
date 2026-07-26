@@ -4,6 +4,11 @@ import {
   completeSimplexConstitutiveEvaluationN,
   type SimplexConstitutiveEvaluationN
 } from './simplex-constitutive.js';
+import {
+  completeSimplexConstitutiveHessianVectorN,
+  prepareSimplexConstitutiveHessianVectorN,
+  type SimplexConstitutiveHessianVectorEvaluationN
+} from './simplex-constitutive-curvature.js';
 
 /** Isotropic St. Venant–Kirchhoff parameters in intrinsic material coordinates. */
 export interface SimplexStVenantKirchhoffMaterialN {
@@ -96,6 +101,57 @@ export function evaluateSimplexStVenantKirchhoffN(
   });
 }
 
+/**
+ * Evaluates the exact matrix-free StVK potential Hessian along one direction.
+ *
+ * The returned products are derivatives of the vertex gradients, with the
+ * mathematical sign `Hessian(U) * direction`.
+ */
+export function evaluateSimplexStVenantKirchhoffHessianVectorN(
+  restPositions: readonly VecN[],
+  currentPositions: readonly VecN[],
+  directions: readonly VecN[],
+  material: SimplexStVenantKirchhoffMaterialN
+): SimplexConstitutiveHessianVectorEvaluationN<
+  SimplexStVenantKirchhoffEvaluationN
+> {
+  const caller = 'evaluateSimplexStVenantKirchhoffHessianVectorN';
+  const base = evaluateSimplexStVenantKirchhoffN(
+    restPositions,
+    currentPositions,
+    material
+  );
+  const prepared = prepareSimplexConstitutiveHessianVectorN(
+    caller,
+    currentPositions,
+    directions,
+    base
+  );
+  const { firstLameParameter, shearModulus } = base.material;
+  const directionalStrainTrace =
+    0.5 * matrixTrace(prepared.directionalRightCauchyGreen);
+  const directionalStress = new MatN(
+    base.deformation.simplexDimension
+  );
+  for (let row = 0; row < directionalStress.n; row++) {
+    for (let column = 0; column < directionalStress.n; column++) {
+      directionalStress.set(
+        row,
+        column,
+        shearModulus *
+          prepared.directionalRightCauchyGreen.get(row, column) +
+          (row === column
+            ? firstLameParameter * directionalStrainTrace
+            : 0)
+      );
+    }
+  }
+  return completeSimplexConstitutiveHessianVectorN(
+    prepared,
+    directionalStress
+  );
+}
+
 function validateMaterial(
   material: SimplexStVenantKirchhoffMaterialN,
   simplexDimension: number
@@ -124,4 +180,12 @@ function validateMaterial(
     );
   }
   return { firstLameParameter, shearModulus };
+}
+
+function matrixTrace(matrix: MatN): number {
+  let trace = 0;
+  for (let axis = 0; axis < matrix.n; axis++) {
+    trace += matrix.get(axis, axis);
+  }
+  return trace;
 }
