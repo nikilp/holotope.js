@@ -11,6 +11,7 @@
     "api:examples": "node scripts/link-examples.mjs && node scripts/embed-viewers.mjs && node scripts/embed-playground.mjs",
     "coverage": "node scripts/check-coverage.mjs",
     "coverage:update": "node scripts/check-coverage.mjs --update",
+    "coverage:shrink": "node scripts/check-coverage.mjs --shrink",
     "links": "node scripts/check-links.mjs",
     "notation": "node scripts/check-notation.mjs",
     "parameters": "node scripts/check-exported-parameter-names.mjs",

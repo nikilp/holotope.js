@@ -8,7 +8,17 @@
  * — new work is forced to carry documentation without blocking on a backlog.
  *
  *   node scripts/check-coverage.mjs            check; exit 1 on regression
+ *   node scripts/check-coverage.mjs --shrink    bank resolved symbols only
  *   node scripts/check-coverage.mjs --update    rewrite the baseline
+ *
+ * The two write modes differ in what they are allowed to forgive. `--shrink`
+ * intersects the baseline with what is still undocumented: symbols that gained
+ * documentation stop being grandfathered, and nothing new is absorbed, so it is
+ * always safe to run. `--update` additionally grandfathers every current
+ * violation, which is how a symbol that genuinely does not warrant a comment is
+ * accepted — and also how an unrelated undocumented addition would be swallowed
+ * by someone banking their own progress. Prefer `--shrink` unless the intent is
+ * specifically to accept the new violations the gate is reporting.
  *
  * The check runs against the same model the reference is rendered from, so it
  * cannot disagree with what the published pages actually show.
@@ -22,6 +32,7 @@ const MODELS = path.join(DOCS, '.doc-model');
 const BASELINE = path.join(DOCS, 'doc-baseline.json');
 const PACKAGES = ['core', 'three', 'physics'];
 const UPDATE = process.argv.includes('--update');
+const SHRINK = process.argv.includes('--shrink');
 
 // TypeDoc ReflectionKind values that must carry a description.
 const KIND = {
@@ -106,6 +117,21 @@ const baseline = new Set(JSON.parse(fs.readFileSync(BASELINE, 'utf8')).undocumen
 const added = unique.filter((v) => !baseline.has(v));
 const fixed = [...baseline].filter((v) => !current.has(v));
 
+// Banking resolved symbols is separate from accepting new ones: the baseline
+// keeps only entries that are still undocumented, so what was documented can
+// never quietly lapse, and a violation the gate is reporting stays reported.
+if (SHRINK) {
+  const kept = [...baseline].filter((v) => current.has(v)).sort();
+  fs.writeFileSync(BASELINE, JSON.stringify({ undocumented: kept }, null, 1) + '\n');
+  console.log(
+    `check-coverage: baseline shrunk by ${fixed.length} — ${kept.length} grandfathered symbols.`
+  );
+  if (added.length) {
+    console.log(`  ${added.length} new violation(s) left reported rather than absorbed.`);
+  }
+  process.exit(0);
+}
+
 // --- report -----------------------------------------------------------------
 const total = unique.length;
 console.log(
@@ -116,7 +142,7 @@ console.log(
 if (fixed.length) {
   console.log(
     `\n  ${fixed.length} baselined ${fixed.length === 1 ? 'symbol is' : 'symbols are'} ` +
-      'now documented. Run `--update` to shrink the baseline so they stay documented.'
+      'now documented. Run `--shrink` to bank them so they stay documented.'
   );
 }
 
@@ -142,6 +168,9 @@ console.error(
   '\nAdd a doc comment describing what each one is for.\n' +
     'On parameters, describe what the value means rather than restating its type.\n' +
     'If a symbol genuinely does not warrant one, accept it with:\n' +
-    '  pnpm --filter @holotope/docs coverage:update\n'
+    '  pnpm --filter @holotope/docs coverage:update\n' +
+    'That grandfathers every violation above, including any that are not yours.\n' +
+    'To bank documentation you added without accepting these, use:\n' +
+    '  pnpm --filter @holotope/docs coverage:shrink\n'
 );
 process.exit(1);
