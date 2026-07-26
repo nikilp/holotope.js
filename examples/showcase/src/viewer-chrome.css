@@ -46,8 +46,12 @@ body {
 }
 .row output {
   color: #d7e3ff;
-  min-width: 2.4em;
+  /* Wide enough for the longest value a control can show ("-1.00"), so the
+     slider beside it does not resize when the sign appears. Tabular figures
+     keep the digits themselves one width in the proportional case. */
+  min-width: 3.6em;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 #stats {
   margin-top: 10px;
@@ -93,7 +97,12 @@ body {
   #panel {
     position: static;
     width: auto;
-    max-height: 46%;
+    /* The panel's content is bounded — a title, a few controls, a few
+       readings — while the viewport can use whatever is left. Budgeting the
+       panel too tightly clips the last reading instead of shortening the
+       canvas, and a reader has no reason to suspect a small embed scrolls. */
+    max-height: 58%;
+    overflow-y: auto;
     border-left: none;
     border-top: 1px solid #1e2436;
     background: #0a0a12;

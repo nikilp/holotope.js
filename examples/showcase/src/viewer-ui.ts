@@ -111,12 +111,21 @@ export function bindControls(params: readonly Param[], onChange: () => void): Va
         input.step = String(p.step);
         input.value = String(p.value);
 
+        // A range input reports the shortest form of its value, so 0.2 and
+        // 0.24 differ in width and 0 collapses to a single character. Dragging
+        // then shifts the readout left and right under the pointer, which
+        // reads as the number changing rather than the value doing so. The
+        // step fixes how many decimals a value can carry, so every value is
+        // shown to that many and the field keeps one width.
+        const decimals = (String(p.step).split('.')[1] ?? '').length;
+        const format = (value: number | string): string => Number(value).toFixed(decimals);
+
         const out = document.createElement('output');
-        out.textContent = String(p.value);
+        out.textContent = format(p.value);
 
         input.addEventListener('input', () => {
           state[p.name] = Number(input.value);
-          out.textContent = input.value;
+          out.textContent = format(input.value);
           onChange();
         });
         row.append(input, out);

@@ -79,7 +79,10 @@ for (const { name, page } of entries) {
     '  loading="lazy"',
         // 16/10 alone leaves a phone-width frame about 240px tall, which is not
     // enough for a viewport and its controls; the floor keeps it usable.
-    '  style="width:100%;aspect-ratio:16/10;min-height:340px;border:1px solid var(--vp-c-divider);border-radius:8px;margin:1.25rem 0;"',
+    // The floor governs narrow screens, where the viewer stacks its panel
+    // under the canvas and the aspect ratio would leave the panel too little
+    // to show its readings without clipping the last one.
+    '  style="width:100%;aspect-ratio:16/10;min-height:420px;border:1px solid var(--vp-c-divider);border-radius:8px;margin:1.25rem 0;"',
     '></iframe>',
     ''
   ].join('\n');

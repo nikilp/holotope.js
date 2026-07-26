@@ -123,7 +123,7 @@ const SPECS: Record<string, ProductSpec> = {
       const triangles = (p as SlicedComplex3D).triangleCount;
       return triangles > 0
         ? [[triangles, 'section triangles']]
-        : [['empty', 'section — the cut lies past the solid at this angle']];
+        : [['empty', 'section — cut is past the solid']];
     },
     animate: (v) => {
       slice.offset = v.number('offset');
