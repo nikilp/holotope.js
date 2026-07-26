@@ -50,6 +50,28 @@ button {
 button:hover {
   background: #24304f;
 }
+/*
+ * Shown only for a symbol documented with more than one example. It sits above
+ * the editor rather than in the title bar so that it reads as belonging to the
+ * code it switches, and so the bar keeps a fixed set of controls.
+ */
+#variants {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 0;
+}
+#variants button {
+  font-size: 11px;
+  padding: 2px 8px;
+  color: #6f83a8;
+  background: transparent;
+  border-color: #232c47;
+}
+#variants button.on {
+  color: #d7e3ff;
+  background: #1b2440;
+  border-color: #2c3a63;
+}
 #code {
   flex: 1 1 auto;
   resize: none;
@@ -103,6 +125,14 @@ button:hover {
   body.code-open #code {
     display: block;
     height: 42vh;
+  }
+  /* The switcher belongs to the editor, so it follows it behind the toggle
+     rather than occupying a row above a hidden textarea. */
+  #variants {
+    display: none;
+  }
+  body.code-open #variants {
+    display: flex;
   }
   /* The result stays visible with the code hidden. An example that computes
      rather than draws leaves the viewport empty, and this panel is the only

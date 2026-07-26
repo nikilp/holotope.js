@@ -64,7 +64,33 @@ const FALLBACK = [
   ');'
 ].join('\n');
 
-editor.value = catalogue[selected]?.code ?? FALLBACK;
+// A symbol documented with several `@example` blocks has each of them
+// compiled, so all are known to work — reaching only the first would leave the
+// rest visible on the reference page but unreachable here. They are usually
+// complementary rather than redundant: one draws the figure, another states a
+// count or a relation, so the choice belongs to the reader.
+const entry = catalogue[selected];
+const variants = entry ? [entry.code, ...entry.alternatives] : [FALLBACK];
+
+editor.value = variants[0]!;
+
+if (variants.length > 1) {
+  const strip = document.getElementById('variants')!;
+  strip.hidden = false;
+  const buttons = variants.map((code, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = `example ${index + 1}`;
+    button.addEventListener('click', () => {
+      editor.value = code;
+      for (const other of buttons) other.classList.toggle('on', other === button);
+      run();
+    });
+    strip.appendChild(button);
+    return button;
+  });
+  buttons[0]!.classList.add('on');
+}
 
 // --- the scene the examples are written against ------------------------------
 const scene = new Scene();
