@@ -363,6 +363,54 @@ impact fraction, and maximum step as evidence. It protects only the registered
 point and static plane. A complete deformable collision-free step requires
 complete collision candidates and corresponding filters.
 
+## Compile barriers for every bound source vertex
+
+Reuse a normal contact family as the authoritative source-to-particle mapping.
+Its clearance becomes each barrier's open minimum distance; adding its
+projection constraints to an `XpbdWorldN` remains optional.
+
+```ts
+import {
+  HyperplaneColliderN,
+  compileXpbdParticleHyperplaneBarrierFamilyN,
+  compileXpbdParticleHyperplaneFamilyN,
+  stepXpbdIncrementalPotentialN
+} from '@holotope/physics';
+
+const floorContacts = compileXpbdParticleHyperplaneFamilyN({
+  id: 'floor/contacts',
+  source,
+  particles: binding.particles,
+  plane: new HyperplaneColliderN([0, 1, 0, 0], 0),
+  clearance: 0.01
+});
+
+const floorBarriers = compileXpbdParticleHyperplaneBarrierFamilyN({
+  id: 'floor/barriers',
+  contacts: floorContacts,
+  activationDistance: (vertex) => vertex.minimumDistance + 0.1,
+  stiffness: 250,
+  conservativeScale: 0.9
+});
+
+const step = stepXpbdIncrementalPotentialN({
+  dimension: 4,
+  particles: binding.particles,
+  ...floorBarriers.incrementalPotentialTerms({
+    providers: [material],
+    stepFilters: []
+  }),
+  deltaTime: 1 / 120,
+  gravity: [0, -9.81, 0, 0]
+});
+```
+
+Every compiled vertex retains its source ordinal, compile-time source position
+and signed distance, exact particle identity, normal-contact record, barrier,
+and filter. The family covers every source vertex against this one static
+plane. It neither selects an active subset nor discovers other collision
+features.
+
 ## Minimize a small incremental-potential problem
 
 Use the bounded Float64 reference when correctness evidence is more important

@@ -177,6 +177,14 @@ of impact. Results remain on the search evidence. `indeterminate` becomes
 `line-search-refused`; neither state is a collision miss or ordinary line
 search exhaustion.
 
+`compileXpbdParticleHyperplaneBarrierFamilyN()` expands the same pair over the
+source-vertex mapping retained by `XpbdParticleHyperplaneFamilyN`. Per-vertex
+activation distance, stiffness, and conservative scale may be uniform or
+source-indexed callbacks. `incrementalPotentialTerms()` returns the frozen
+provider/filter arrays together for direct use by a compiled problem or the
+transactional step. Adding the barrier family to `XpbdWorldN` registers only
+its conservative forces; normal projection constraints remain opt-in.
+
 `minimizeXpbdIncrementalPotentialN()` composes those two pieces into a bounded
 steepest-descent golden path. It records every accepted direction, step,
 objective decrease, and line search, and terminates as `converged`,
@@ -208,8 +216,9 @@ available. This remains a small-system steepest-descent golden path. It does
 not fabricate `XpbdWorldN` constraint-solve evidence, so velocity responses,
 accepted-state guards, adaptive retry, Hessian directions, and
 automatic collision candidate generation remain outside this step. Authored
-step filters can protect registered point–plane segments, but absent filters
-carry no implied collision-free guarantee.
+step filters and source-indexed point–plane barrier families can protect
+registered point–plane segments, but absent filters carry no implied
+collision-free guarantee.
 
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';

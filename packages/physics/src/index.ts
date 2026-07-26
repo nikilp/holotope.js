@@ -188,6 +188,15 @@ export {
   type XpbdParticleHyperplaneBarrierNOptions
 } from './xpbd-hyperplane-barrier.js';
 export {
+  XpbdParticleHyperplaneBarrierFamilyN,
+  compileXpbdParticleHyperplaneBarrierFamilyN,
+  type CompileXpbdParticleHyperplaneBarrierFamilyNOptions,
+  type XpbdParticleHyperplaneBarrierFamilyTermsN,
+  type XpbdParticleHyperplaneBarrierFamilyVertexContextN,
+  type XpbdParticleHyperplaneBarrierFamilyVertexN,
+  type XpbdParticleHyperplaneBarrierFamilyVertexScalarN
+} from './xpbd-hyperplane-barrier-family.js';
+export {
   XpbdParticleHyperplaneBarrierStepFilterN,
   type XpbdIncrementalPotentialStepFilterContextN,
   type XpbdIncrementalPotentialStepFilterEvaluationN,

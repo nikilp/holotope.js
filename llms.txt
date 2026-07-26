@@ -115,6 +115,12 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
   or explicitly refuses an initial particle-space search segment.
   `XpbdParticleHyperplaneBarrierStepFilterN` supplies the exact RN
   point-static-plane specialization and retains impact evidence.
+- Source-indexed contact barriers:
+  `compileXpbdParticleHyperplaneBarrierFamilyN` reuses an
+  `XpbdParticleHyperplaneFamilyN` source/particle/plane mapping and compiles
+  paired per-vertex providers plus filters.
+  Spread `...family.incrementalPotentialTerms()` into a problem or step, or
+  pass existing terms to that method to append without mutating them.
 - Reference minimization: `minimizeXpbdIncrementalPotentialN` repeatedly uses
   the negative packed gradient and Armijo search under explicit iteration,
   trial, and gradient-tolerance bounds. It returns converged, iteration-limit,

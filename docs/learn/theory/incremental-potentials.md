@@ -280,6 +280,48 @@ It does not generate missing collision pairs or certify unregistered geometry.
 A global collision-free claim still requires a valid initial state and a
 complete set of relevant filters.
 
+### Source-indexed point–plane families
+
+`XpbdParticleHyperplaneBarrierFamilyN` lifts the single-point construction over
+an existing `XpbdParticleHyperplaneFamilyN`. The normal family remains the
+authoritative mapping from each `CellComplex` vertex ordinal to its exact
+particle, plane, and clearance. The barrier family reuses that mapping and
+compiles one energy provider plus its paired admissible-step filter per source
+vertex.
+
+The normal projection constraints, conservative barriers, and velocity-level
+friction are therefore independent policies over one geometric definition.
+Compiling a barrier family does not implicitly register the normal constraints.
+
+```ts
+import {
+  compileXpbdParticleHyperplaneBarrierFamilyN
+} from '@holotope/physics';
+
+const floorBarriers = compileXpbdParticleHyperplaneBarrierFamilyN({
+  id: 'floor/barriers',
+  contacts: floorContacts,
+  activationDistance: (vertex) => vertex.minimumDistance + 0.1,
+  stiffness: 250,
+  conservativeScale: 0.9
+});
+
+const problem = compileXpbdIncrementalPotentialProblemN({
+  dimension: 4,
+  particles,
+  predictedPositions,
+  deltaTime,
+  ...floorBarriers.incrementalPotentialTerms()
+});
+```
+
+The returned provider and filter arrays are frozen and source-ordered. Optional
+base terms are retained first, so material providers and multiple barrier
+families can be composed without mutating their arrays. Pairing the arrays
+behind `incrementalPotentialTerms()` makes omission of a matching filter less
+likely while leaving both inspectable. This is still an authored
+vertex–static-plane family, not automatic mesh contact generation.
+
 ## Bounded steepest-descent reference
 
 `minimizeXpbdIncrementalPotentialN()` closes the first-order reference loop.
