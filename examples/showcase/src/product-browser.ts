@@ -109,11 +109,22 @@ const SPECS: Record<string, ProductSpec> = {
   },
 
   SlicedComplex3D: {
-    // The offset moves the cutting hyperplane along the hidden axis; the
-    // section is empty once it passes beyond the object's extent.
-    params: [{ name: 'offset', label: 'offset', min: -1.4, max: 1.4, step: 0.02, value: 0 }],
+    // The offset moves the cutting hyperplane along the hidden axis. Every
+    // shape here has circumradius 1, so no cut past that can meet any of them
+    // at any pose: a wider range would be travel that is empty by
+    // construction rather than because of where the reader put the handle.
+    params: [{ name: 'offset', label: 'offset', min: -1, max: 1, step: 0.02, value: 0 }],
     create: (complex) => new SlicedComplex3D(complex, slice),
-    describe: (p) => [[(p as SlicedComplex3D).triangleCount, 'section triangles']],
+    // An empty section is reported in words. The solid turns through a fixed
+    // hyperplane, so a cut near the rim genuinely enters and leaves it as the
+    // extent along the hidden axis rises and falls — a bare 0 appearing and
+    // vanishing reads as a fault, and the sentence says which it is.
+    describe: (p) => {
+      const triangles = (p as SlicedComplex3D).triangleCount;
+      return triangles > 0
+        ? [[triangles, 'section triangles']]
+        : [['empty', 'section — the cut lies past the solid at this angle']];
+    },
     animate: (v) => {
       slice.offset = v.number('offset');
     }
