@@ -243,12 +243,19 @@ export {
   type XpbdPackedIncrementalPotentialEvaluationN
 } from './xpbd-incremental-potential-problem.js';
 export {
+  xpbdMassPreconditionedDirectionN,
+  xpbdSteepestDescentDirectionN,
+  type XpbdIncrementalPotentialDirectionContextN,
+  type XpbdIncrementalPotentialDirectionPolicyN
+} from './xpbd-incremental-potential-direction.js';
+export {
   minimizeXpbdIncrementalPotentialN,
   type MinimizeXpbdIncrementalPotentialNOptions,
   type XpbdIncrementalPotentialConvergedN,
   type XpbdIncrementalPotentialIterationLimitN,
   type XpbdIncrementalPotentialLineSearchExhaustedN,
   type XpbdIncrementalPotentialLineSearchRefusedN,
+  type XpbdIncrementalPotentialIterationN,
   type XpbdIncrementalPotentialMinimizationResultN,
   type XpbdIncrementalPotentialStalledN,
   type XpbdIncrementalPotentialStallReasonN,

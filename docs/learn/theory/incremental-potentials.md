@@ -322,25 +322,31 @@ behind `incrementalPotentialTerms()` makes omission of a matching filter less
 likely while leaving both inspectable. This is still an authored
 vertex–static-plane family, not automatic mesh contact generation.
 
-## Bounded steepest-descent reference
+## Bounded first-order reference
 
 `minimizeXpbdIncrementalPotentialN()` closes the first-order reference loop.
-At each iterate it chooses the packed direction `p = -gradient` and delegates
-acceptance to the Armijo search:
+By default each iterate uses the packed direction `p = -gradient` and delegates
+acceptance to the Armijo search. The direction choice is an explicit policy:
 
 ```ts
 import {
-  minimizeXpbdIncrementalPotentialN
+  minimizeXpbdIncrementalPotentialN,
+  xpbdMassPreconditionedDirectionN
 } from '@holotope/physics';
 
 const result = minimizeXpbdIncrementalPotentialN({
   problem,
   initialCoordinates: coordinates,
+  directionPolicy: xpbdMassPreconditionedDirectionN,
   gradientTolerance: 1e-8,
   maximumIterations: 128
 });
 
-console.log(result.status, result.final.gradientNorm);
+console.log(
+  result.status,
+  result.directionPolicyId,
+  result.final.gradientNorm
+);
 for (const iteration of result.iterations) {
   console.log(
     iteration.index,
@@ -350,6 +356,25 @@ for (const iteration of result.iterations) {
   );
 }
 ```
+
+`xpbdSteepestDescentDirectionN` is the default and preserves the original
+golden path. `xpbdMassPreconditionedDirectionN` computes
+
+$$
+p_{i,a}=-w_i\,g_{i,a},
+$$
+
+where $w_i$ is the inverse mass of free particle $i$. This is the exact
+inverse of the diagonal inertial block, repeated across every RN axis. It is a
+first-order preconditioner, not a material Hessian or Newton direction. Armijo
+still decides whether any proposed step is acceptable.
+
+Custom `XpbdIncrementalPotentialDirectionPolicyN` implementations receive
+defensive copies of the packed coordinates, gradient, free-particle indices,
+and inverse masses. Their finite output must exactly match the packed variable
+count. Policy identity is retained on the complete result and every accepted
+iteration. A zero or ascent direction retains the existing
+`stalled/not-descent` evidence rather than being silently repaired.
 
 The result is one of `converged`, `iteration-limit`,
 `line-search-exhausted`, `line-search-refused`, or `stalled`. It retains the
@@ -427,7 +452,8 @@ evidence from every layer:
 
 ```ts
 import {
-  stepXpbdIncrementalPotentialN
+  stepXpbdIncrementalPotentialN,
+  xpbdMassPreconditionedDirectionN
 } from '@holotope/physics';
 
 const step = stepXpbdIncrementalPotentialN({
@@ -437,6 +463,7 @@ const step = stepXpbdIncrementalPotentialN({
   deltaTime: 1 / 120,
   gravity: [0, -9.81, 0, 0],
   minimization: {
+    directionPolicy: xpbdMassPreconditionedDirectionN,
     gradientTolerance: 1e-8,
     maximumIterations: 128
   }
@@ -466,11 +493,12 @@ evaluation.
 These APIs provide a deterministic Float64 objective, packed first derivative,
 first-order sufficient-decrease search, ordered admissible-step filtering with
 an exact RN point–static-plane specialization, a bounded non-mutating
-steepest-descent golden path, an explicit atomic state transition, and a
-single-call transactional reference step. They do not:
+direction-policy golden path with steepest and inertial-mass specializations,
+an explicit atomic state transition, and a single-call transactional reference
+step. They do not:
 
 - construct or project a Hessian or linear system;
-- provide Newton, quasi-Newton, or preconditioned directions;
+- provide Newton, quasi-Newton, or material-Hessian directions;
 - apply `XpbdWorldN` velocity responses or state guards to the optimization
   path;
 - perform mesh-wide continuous-collision-filtered search automatically;

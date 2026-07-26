@@ -418,12 +418,14 @@ than large-system performance:
 
 ```ts
 import {
-  minimizeXpbdIncrementalPotentialN
+  minimizeXpbdIncrementalPotentialN,
+  xpbdMassPreconditionedDirectionN
 } from '@holotope/physics';
 
 const result = minimizeXpbdIncrementalPotentialN({
   problem,
   initialCoordinates: coordinates,
+  directionPolicy: xpbdMassPreconditionedDirectionN,
   gradientTolerance: 1e-8,
   maximumIterations: 128
 });
@@ -435,8 +437,11 @@ if (result.status === 'converged') {
 }
 ```
 
-Every accepted iteration retains its direction, step norm, objective decrease,
-and complete Armijo search. `line-search-exhausted`,
+Omit `directionPolicy` for the unchanged steepest-descent reference. The mass
+policy scales every free-particle gradient block by inverse mass and is exact
+for the diagonal inertial term; it remains a first-order policy, not a Newton
+solve. Every accepted iteration retains policy identity, direction, step norm,
+objective decrease, and complete Armijo search. `line-search-exhausted`,
 `line-search-refused`, and `stalled` are evidence, not silent success. The
 result is still detached from the live world: applying positions and
 reconstructing velocity are separate state-transition policies. For large or
@@ -485,7 +490,8 @@ optimization transaction but do not need to author each layer separately:
 
 ```ts
 import {
-  stepXpbdIncrementalPotentialN
+  stepXpbdIncrementalPotentialN,
+  xpbdMassPreconditionedDirectionN
 } from '@holotope/physics';
 
 const step = stepXpbdIncrementalPotentialN({
@@ -495,6 +501,7 @@ const step = stepXpbdIncrementalPotentialN({
   deltaTime: 1 / 120,
   gravity: [0, -9.81, 0, 0],
   minimization: {
+    directionPolicy: xpbdMassPreconditionedDirectionN,
     gradientTolerance: 1e-8,
     maximumIterations: 128
   }

@@ -186,7 +186,10 @@ transactional step. Adding the barrier family to `XpbdWorldN` registers only
 its conservative forces; normal projection constraints remain opt-in.
 
 `minimizeXpbdIncrementalPotentialN()` composes those two pieces into a bounded
-steepest-descent golden path. It records every accepted direction, step,
+first-order golden path. Its default
+`xpbdSteepestDescentDirectionN` preserves negative-gradient descent, while
+`xpbdMassPreconditionedDirectionN` applies the exact inverse diagonal inertial
+mass block. It records policy identity plus every accepted direction, step,
 objective decrease, and line search, and terminates as `converged`,
 `iteration-limit`, `line-search-exhausted`, `line-search-refused`, or
 `stalled`. Convergence is an authored absolute gradient-norm test, not a
@@ -212,9 +215,9 @@ than flattening the process into a boolean. Both typed refusal and thrown-error
 paths restore the complete particle state captured before prediction; only an
 `applied` result advances the live particles. The default initial iterate is
 the inertial prediction, with an explicit particle-ordered warm start
-available. This remains a small-system steepest-descent golden path. It does
+available. This remains a small-system first-order golden path. It does
 not fabricate `XpbdWorldN` constraint-solve evidence, so velocity responses,
-accepted-state guards, adaptive retry, Hessian directions, and
+accepted-state guards, adaptive retry, material-Hessian directions, and
 automatic collision candidate generation remain outside this step. Authored
 step filters and source-indexed point–plane barrier families can protect
 registered point–plane segments, but absent filters carry no implied

@@ -14,6 +14,9 @@ import {
   type XpbdIncrementalPotentialMinimizationResultN
 } from './xpbd-incremental-potential-minimizer.js';
 import {
+  type XpbdIncrementalPotentialDirectionPolicyN
+} from './xpbd-incremental-potential-direction.js';
+import {
   compileXpbdIncrementalPotentialProblemN,
   type XpbdIncrementalPotentialProblemN
 } from './xpbd-incremental-potential-problem.js';
@@ -38,6 +41,8 @@ export interface XpbdIncrementalPotentialMinimizationPolicyN {
   readonly sufficientDecrease?: number;
   /** Trial budget for each Armijo search; default 32. */
   readonly maximumLineSearchTrials?: number;
+  /** Packed search-direction policy; defaults to steepest descent. */
+  readonly directionPolicy?: XpbdIncrementalPotentialDirectionPolicyN;
 }
 
 export interface XpbdIncrementalPotentialApplicationPolicyN {
@@ -187,7 +192,10 @@ export function stepXpbdIncrementalPotentialN(
         : { sufficientDecrease: policy.sufficientDecrease }),
       ...(policy?.maximumLineSearchTrials === undefined
         ? {}
-        : { maximumLineSearchTrials: policy.maximumLineSearchTrials })
+        : { maximumLineSearchTrials: policy.maximumLineSearchTrials }),
+      ...(policy?.directionPolicy === undefined
+        ? {}
+        : { directionPolicy: policy.directionPolicy })
     });
     const base = { prediction, problem, minimization } as const;
 

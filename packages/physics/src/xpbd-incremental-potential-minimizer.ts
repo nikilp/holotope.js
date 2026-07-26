@@ -7,6 +7,11 @@ import {
   type XpbdArmijoStepFilterRefusedN,
   type XpbdPackedIncrementalPotentialEvaluationN
 } from './xpbd-incremental-potential-problem.js';
+import {
+  xpbdSteepestDescentDirectionN,
+  type XpbdIncrementalPotentialDirectionContextN,
+  type XpbdIncrementalPotentialDirectionPolicyN
+} from './xpbd-incremental-potential-direction.js';
 
 export interface MinimizeXpbdIncrementalPotentialNOptions {
   readonly problem: XpbdIncrementalPotentialProblemN;
@@ -23,22 +28,36 @@ export interface MinimizeXpbdIncrementalPotentialNOptions {
   readonly sufficientDecrease?: number;
   /** Trial budget for each Armijo search; default 32. */
   readonly maximumLineSearchTrials?: number;
+  /** Packed search-direction policy; defaults to steepest descent. */
+  readonly directionPolicy?: XpbdIncrementalPotentialDirectionPolicyN;
 }
 
-/** Complete evidence for one Armijo-accepted steepest-descent attempt. */
-export interface XpbdSteepestDescentIterationN {
+/** Complete evidence for one Armijo-accepted search-direction attempt. */
+export interface XpbdIncrementalPotentialIterationN {
   readonly index: number;
+  /** Stable identity of the policy that produced `direction`. */
+  readonly directionPolicyId: string;
   readonly direction: Float64Array;
   readonly search: XpbdArmijoAcceptedN;
   readonly stepNorm: number;
   readonly objectiveDecrease: number;
 }
 
+/**
+ * Backward-compatible name for one accepted minimizer iteration.
+ *
+ * @deprecated Use `XpbdIncrementalPotentialIterationN`.
+ */
+export type XpbdSteepestDescentIterationN =
+  XpbdIncrementalPotentialIterationN;
+
 interface XpbdIncrementalPotentialMinimizationBaseN {
   readonly problem: XpbdIncrementalPotentialProblemN;
   readonly initial: XpbdPackedIncrementalPotentialEvaluationN;
   readonly final: XpbdPackedIncrementalPotentialEvaluationN;
-  readonly iterations: readonly XpbdSteepestDescentIterationN[];
+  readonly iterations: readonly XpbdIncrementalPotentialIterationN[];
+  /** Stable identity of the direction policy used for every attempt. */
+  readonly directionPolicyId: string;
   readonly gradientTolerance: number;
   readonly maximumIterations: number;
 }
@@ -101,11 +120,12 @@ export type XpbdIncrementalPotentialMinimizationResultN =
   | XpbdIncrementalPotentialStalledN;
 
 /**
- * Bounded Float64 steepest-descent reference for a compiled packed problem.
+ * Bounded Float64 first-order reference for a compiled packed problem.
  *
- * The routine selects `direction = -gradient`, delegates acceptance and typed
- * constitutive-domain backtracking to the Armijo search, and records every
- * accepted iterate. It never writes the packed result into live particles.
+ * The default policy selects `direction = -gradient`. An authored policy may
+ * choose another packed direction, while acceptance and typed
+ * constitutive-domain backtracking remain delegated to Armijo. The routine
+ * records every accepted iterate and never writes into live particles.
  */
 export function minimizeXpbdIncrementalPotentialN(
   options: MinimizeXpbdIncrementalPotentialNOptions
@@ -125,6 +145,9 @@ export function minimizeXpbdIncrementalPotentialN(
   const contractionFactor = options.contractionFactor ?? 0.5;
   const sufficientDecrease = options.sufficientDecrease ?? 1e-4;
   const maximumLineSearchTrials = options.maximumLineSearchTrials ?? 32;
+  const directionPolicy = options.directionPolicy === undefined
+    ? xpbdSteepestDescentDirectionN
+    : options.directionPolicy;
   if (!Number.isFinite(gradientTolerance) || gradientTolerance < 0) {
     throw new Error(
       `${caller}: gradientTolerance must be finite and non-negative`
@@ -154,10 +177,12 @@ export function minimizeXpbdIncrementalPotentialN(
       `${caller}: maximumLineSearchTrials must be a positive integer`
     );
   }
+  validateDirectionPolicy(directionPolicy, caller);
+  const directionPolicyId = directionPolicy.id;
 
   const initial = options.problem.evaluate(options.initialCoordinates);
   let current = initial;
-  const iterations: XpbdSteepestDescentIterationN[] = [];
+  const iterations: XpbdIncrementalPotentialIterationN[] = [];
   if (current.gradientNorm <= gradientTolerance) {
     return resultBase({
       status: 'converged',
@@ -166,15 +191,33 @@ export function minimizeXpbdIncrementalPotentialN(
       initial,
       final: current,
       iterations,
+      directionPolicyId,
       gradientTolerance,
       maximumIterations
     });
   }
 
+  const freeParticleInverseMasses = Float64Array.from(
+    options.problem.freeParticleIndices,
+    (particleIndex) => options.problem.particles[particleIndex]!.inverseMass
+  );
   for (let index = 0; index < maximumIterations; index++) {
-    const direction = Float64Array.from(
-      current.gradient,
-      (component) => -component
+    const direction = evaluateDirectionPolicy(
+      directionPolicy,
+      {
+        dimension: options.problem.dimension,
+        deltaTime: options.problem.deltaTime,
+        iterationIndex: index,
+        coordinates: current.coordinates.slice(),
+        gradient: current.gradient.slice(),
+        gradientNorm: current.gradientNorm,
+        freeParticleIndices: Object.freeze(
+          options.problem.freeParticleIndices.slice()
+        ),
+        freeParticleInverseMasses: freeParticleInverseMasses.slice()
+      },
+      options.problem.variableCount,
+      caller
     );
     const search = searchXpbdIncrementalPotentialArmijoN({
       problem: options.problem,
@@ -194,6 +237,7 @@ export function minimizeXpbdIncrementalPotentialN(
         initial,
         final: current,
         iterations,
+        directionPolicyId,
         gradientTolerance,
         maximumIterations
       });
@@ -206,6 +250,7 @@ export function minimizeXpbdIncrementalPotentialN(
         initial,
         final: current,
         iterations,
+        directionPolicyId,
         gradientTolerance,
         maximumIterations
       });
@@ -218,6 +263,7 @@ export function minimizeXpbdIncrementalPotentialN(
         initial,
         final: current,
         iterations,
+        directionPolicyId,
         gradientTolerance,
         maximumIterations
       });
@@ -243,6 +289,7 @@ export function minimizeXpbdIncrementalPotentialN(
     }
     const iteration = Object.freeze({
       index,
+      directionPolicyId,
       direction,
       search,
       stepNorm,
@@ -259,6 +306,7 @@ export function minimizeXpbdIncrementalPotentialN(
         initial,
         final: current,
         iterations,
+        directionPolicyId,
         gradientTolerance,
         maximumIterations
       });
@@ -273,6 +321,7 @@ export function minimizeXpbdIncrementalPotentialN(
         initial,
         final: current,
         iterations,
+        directionPolicyId,
         gradientTolerance,
         maximumIterations
       });
@@ -286,6 +335,7 @@ export function minimizeXpbdIncrementalPotentialN(
         initial,
         final: current,
         iterations,
+        directionPolicyId,
         gradientTolerance,
         maximumIterations
       });
@@ -298,9 +348,51 @@ export function minimizeXpbdIncrementalPotentialN(
     initial,
     final: current,
     iterations,
+    directionPolicyId,
     gradientTolerance,
     maximumIterations
   });
+}
+
+function validateDirectionPolicy(
+  policy: XpbdIncrementalPotentialDirectionPolicyN,
+  caller: string
+): void {
+  if (typeof policy !== 'object' || policy === null) {
+    throw new Error(`${caller}: directionPolicy must be an object`);
+  }
+  if (typeof policy.id !== 'string' || policy.id.trim().length === 0) {
+    throw new Error(`${caller}: directionPolicy id must be non-empty`);
+  }
+  if (typeof policy.evaluate !== 'function') {
+    throw new Error(`${caller}: directionPolicy must define evaluate()`);
+  }
+}
+
+function evaluateDirectionPolicy(
+  policy: XpbdIncrementalPotentialDirectionPolicyN,
+  context: XpbdIncrementalPotentialDirectionContextN,
+  variableCount: number,
+  caller: string
+): Float64Array {
+  const output = policy.evaluate(Object.freeze(context));
+  if (typeof output !== 'object' || output === null ||
+    output.length !== variableCount) {
+    throw new Error(
+      `${caller}: directionPolicy "${policy.id}" must return ${variableCount} components`
+    );
+  }
+  const direction = new Float64Array(variableCount);
+  for (let index = 0; index < variableCount; index++) {
+    const component = output[index]!;
+    if (!Number.isFinite(component)) {
+      throw new Error(
+        `${caller}: directionPolicy "${policy.id}" component ${index} must be finite`
+      );
+    }
+    direction[index] = component;
+  }
+  return direction;
 }
 
 function resultBase<T extends XpbdIncrementalPotentialMinimizationBaseN>(

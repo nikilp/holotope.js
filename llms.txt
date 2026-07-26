@@ -56,6 +56,8 @@ import {
   compileXpbdIncrementalPotentialProblemN,
   searchXpbdIncrementalPotentialArmijoN,
   minimizeXpbdIncrementalPotentialN,
+  xpbdMassPreconditionedDirectionN,
+  xpbdSteepestDescentDirectionN,
   applyXpbdIncrementalPotentialResultN,
   stepXpbdIncrementalPotentialN
 } from '@holotope/physics';
@@ -121,11 +123,13 @@ Canonical complete core export barrel: `packages/core/src/index.ts`.
   paired per-vertex providers plus filters.
   Spread `...family.incrementalPotentialTerms()` into a problem or step, or
   pass existing terms to that method to append without mutating them.
-- Reference minimization: `minimizeXpbdIncrementalPotentialN` repeatedly uses
-  the negative packed gradient and Armijo search under explicit iteration,
-  trial, and gradient-tolerance bounds. It returns converged, iteration-limit,
+- Reference minimization: `minimizeXpbdIncrementalPotentialN` uses an explicit
+  packed direction policy and Armijo search under iteration, trial, and
+  gradient-tolerance bounds. `xpbdSteepestDescentDirectionN` is the unchanged
+  default; `xpbdMassPreconditionedDirectionN` scales each free-particle block
+  by its exact inverse inertial mass. It returns converged, iteration-limit,
   line-search-exhausted, line-search-refused, or stalled evidence and retains
-  its exact problem.
+  its exact problem plus direction-policy identity.
 - Atomic application: `applyXpbdIncrementalPotentialResultN` applies only a
   converged result after proving live-state and result-evidence freshness.
   Default dynamic velocity is `(qNext - qBefore) / h`; fixed velocity is
@@ -204,6 +208,7 @@ surface.update(new TransformN(4, body.rotation, body.position));
 const result = minimizeXpbdIncrementalPotentialN({
   problem,
   initialCoordinates: problem.packPositions(candidatePositions),
+  directionPolicy: xpbdMassPreconditionedDirectionN,
   gradientTolerance: 1e-8,
   maximumIterations: 128
 });
