@@ -95,6 +95,109 @@ export interface XpbdParticleHyperplaneBarrierFamilyTermsN {
  * The family reuses an existing normal-contact family's exact source,
  * particle, plane, and clearance mapping. It compiles one conservative
  * provider and one collision-free step filter per source vertex.
+ *
+ * Authoring a barrier without the filter that certifies its steps is the
+ * mistake this exists to prevent: at one vertex the two are written
+ * together, and at many they are compiled together, one pair per source
+ * vertex, so the counts cannot drift apart.
+ *
+ * The normal-contact family stays authoritative for which particle answers
+ * to which source vertex — this compiles energy terms over that mapping
+ * rather than restating it, and `addToWorld` registers only the conservative
+ * providers, leaving the projection constraints independent.
+ *
+ * @example
+ * Four points held above the floor `y = 0`. Compiling yields one barrier
+ * and one filter per source vertex, in source order, with identities
+ * derived from the family's own:
+ * ```ts
+ * const heights = [0.5, 0.3, 0.8, 0.2];
+ * const source = new CellComplex(
+ *   3,
+ *   new Float64Array(heights.flatMap((y, i) => [i, y, 0])),
+ *   []
+ * );
+ * const particles = heights.map(
+ *   (y, i) => new XpbdParticleN({ id: `v${i}`, position: new VecN([i, y, 0]) })
+ * );
+ * const contacts = compileXpbdParticleHyperplaneFamilyN({
+ *   id: 'floor-contacts',
+ *   source,
+ *   particles,
+ *   plane: new HyperplaneColliderN(new VecN([0, 1, 0]), 0)
+ * });
+ *
+ * const family = compileXpbdParticleHyperplaneBarrierFamilyN({
+ *   id: 'floor-barriers', contacts, activationDistance: 0.1, stiffness: 1
+ * });
+ *
+ * family.vertices.length; // 4
+ * family.vertices.map((v) => v.barrier.id);
+ * // ['floor-barriers/vertex/0/barrier', … one per source vertex]
+ * ```
+ *
+ * @example
+ * `activationDistance`, `stiffness`, and `conservativeScale` each accept a
+ * function of the source vertex, so a policy can depend on where a vertex
+ * started. Here the vertices that begin nearest the plane are stiffened:
+ * ```ts
+ * const heights = [0.5, 0.3, 0.8, 0.2];
+ * const source = new CellComplex(
+ *   3,
+ *   new Float64Array(heights.flatMap((y, i) => [i, y, 0])),
+ *   []
+ * );
+ * const particles = heights.map(
+ *   (y, i) => new XpbdParticleN({ id: `v${i}`, position: new VecN([i, y, 0]) })
+ * );
+ * const contacts = compileXpbdParticleHyperplaneFamilyN({
+ *   id: 'floor-contacts',
+ *   source,
+ *   particles,
+ *   plane: new HyperplaneColliderN(new VecN([0, 1, 0]), 0)
+ * });
+ *
+ * const family = compileXpbdParticleHyperplaneBarrierFamilyN({
+ *   id: 'floor-barriers',
+ *   contacts,
+ *   activationDistance: 0.1,
+ *   stiffness: (vertex) => 1 / vertex.sourceSignedDistance
+ * });
+ *
+ * family.vertices.map((v) => v.barrier.stiffness); // [2, 3.33…, 1.25, 5]
+ * ```
+ *
+ * @example
+ * The compiled terms append after terms already assembled, and the array
+ * passed in is left alone — so several families can contribute to one
+ * search without any of them owning the list:
+ * ```ts
+ * const heights = [0.5, 0.3, 0.8, 0.2];
+ * const source = new CellComplex(
+ *   3,
+ *   new Float64Array(heights.flatMap((y, i) => [i, y, 0])),
+ *   []
+ * );
+ * const particles = heights.map(
+ *   (y, i) => new XpbdParticleN({ id: `v${i}`, position: new VecN([i, y, 0]) })
+ * );
+ * const contacts = compileXpbdParticleHyperplaneFamilyN({
+ *   id: 'floor-contacts',
+ *   source,
+ *   particles,
+ *   plane: new HyperplaneColliderN(new VecN([0, 1, 0]), 0)
+ * });
+ * const family = compileXpbdParticleHyperplaneBarrierFamilyN({
+ *   id: 'floor-barriers', contacts, activationDistance: 0.1, stiffness: 1
+ * });
+ *
+ * const base = { providers: [], stepFilters: [] };
+ * const combined = family.incrementalPotentialTerms(base);
+ *
+ * combined.providers.length; // 4
+ * combined.stepFilters.length; // 4 — one per provider, always
+ * base.providers.length; // 0 — the input is not mutated
+ * ```
  */
 export class XpbdParticleHyperplaneBarrierFamilyN {
   /** Stable authored family identity. */
