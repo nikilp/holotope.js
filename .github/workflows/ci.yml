@@ -23,19 +23,12 @@ jobs:
 
       # Build before typecheck: @holotope/three resolves @holotope/core
       # through its built dist.
-      - name: Build packages
-        run: pnpm build
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-      - name: Build examples
-        run: pnpm build:examples
-
-      # Each of these fails on a defect that a successful build does not:
+      # `pnpm verify` is the single definition of this job, so a local run
+      # is this job rather than a hand-assembled subset of it. Two CI
+      # failures were caused by local runs that omitted a step listed only
+      # here.
+      #
+      # What the documentation gates catch, which a successful build does not:
       #
       #   coverage  a newly exported symbol carrying no description; existing
       #             gaps are grandfathered in docs/doc-baseline.json, so the
@@ -48,9 +41,5 @@ jobs:
       #             wrong target there repeats across every page it covers
       #
       # `routes` reads the built site, so the build runs first.
-      - name: Documentation
-        run: |
-          pnpm --filter @holotope/docs build
-          pnpm --filter @holotope/docs coverage
-          pnpm --filter @holotope/docs guide
-          pnpm --filter @holotope/docs routes
+      - name: Verify
+        run: pnpm verify
