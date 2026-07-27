@@ -79,6 +79,8 @@ there is improved here.
 | [`createSimplex`](/api/core/polytope/functions/createSimplex) | [open](https://nikilp.github.io/holotope.js/playground.html#createSimplex) |
 | [`estimateXpbdIncrementalPotentialHessianVectorN`](/api/physics/functions/estimateXpbdIncrementalPotentialHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#estimateXpbdIncrementalPotentialHessianVectorN) |
 | [`evaluateClampedLogBarrier`](/api/physics/functions/evaluateClampedLogBarrier) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateClampedLogBarrier) |
+| [`evaluateSimplexMeasureBarrierHessianVectorN`](/api/physics/functions/evaluateSimplexMeasureBarrierHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexMeasureBarrierHessianVectorN) |
+| [`evaluateSimplexStVenantKirchhoffHessianVectorN`](/api/physics/functions/evaluateSimplexStVenantKirchhoffHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexStVenantKirchhoffHessianVectorN) |
 | [`evaluateXpbdIncrementalPotentialAnalyticHessianVectorN`](/api/physics/functions/evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) |
 
 ## Why these are trustworthy

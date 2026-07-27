@@ -106,6 +106,61 @@ export function evaluateSimplexStVenantKirchhoffN(
  *
  * The returned products are derivatives of the vertex gradients, with the
  * mathematical sign `Hessian(U) * direction`.
+ *
+ * This is the optional capability that lets a compiled objective containing
+ * StVK elements answer
+ * `evaluateXpbdIncrementalPotentialAnalyticHessianVectorN` exactly. A law
+ * without it still works as a force provider, but is named by that routine's
+ * completeness preflight rather than silently contributing nothing.
+ *
+ * @example
+ * A unit tetrahedron stretched along x, with one vertex pulled further the
+ * same way. The products are the curvature felt at each vertex, and they
+ * sum to zero: the element's internal response has nowhere else to go:
+ * ```ts
+ * const rest = [
+ *   new VecN([0, 0, 0]), new VecN([1, 0, 0]),
+ *   new VecN([0, 1, 0]), new VecN([0, 0, 1])
+ * ];
+ * const current = [
+ *   new VecN([0, 0, 0]), new VecN([1.2, 0, 0]),
+ *   new VecN([0, 1, 0]), new VecN([0, 0, 1])
+ * ];
+ * const directions = [
+ *   new VecN([0, 0, 0]), new VecN([1, 0, 0]),
+ *   new VecN([0, 0, 0]), new VecN([0, 0, 0])
+ * ];
+ *
+ * const curvature = evaluateSimplexStVenantKirchhoffHessianVectorN(
+ *   rest, current, directions, { firstLameParameter: 1, shearModulus: 1 }
+ * );
+ *
+ * curvature.products.map((p) => p.data[0]); // [-0.83, 0.83, 0, 0]
+ * curvature.netProductResidual; // 0
+ * ```
+ *
+ * @example
+ * Translation invariance is exact rather than approximate. Moving every
+ * vertex the same way cannot change the stored energy, so the curvature
+ * along a rigid translation vanishes identically — a cheap check that a
+ * material's analytic derivative is the derivative of its own energy:
+ * ```ts
+ * const rest = [
+ *   new VecN([0, 0, 0]), new VecN([1, 0, 0]),
+ *   new VecN([0, 1, 0]), new VecN([0, 0, 1])
+ * ];
+ * const current = [
+ *   new VecN([0, 0, 0]), new VecN([1.2, 0, 0]),
+ *   new VecN([0, 1, 0]), new VecN([0, 0, 1])
+ * ];
+ * const translation = Array.from({ length: 4 }, () => new VecN([1, 0, 0]));
+ *
+ * const curvature = evaluateSimplexStVenantKirchhoffHessianVectorN(
+ *   rest, current, translation, { firstLameParameter: 1, shearModulus: 1 }
+ * );
+ *
+ * curvature.products.every((p) => p.lengthSq() === 0); // true, exactly
+ * ```
  */
 export function evaluateSimplexStVenantKirchhoffHessianVectorN(
   restPositions: readonly VecN[],

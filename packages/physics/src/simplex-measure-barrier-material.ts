@@ -129,6 +129,43 @@ export function evaluateSimplexMeasureBarrierN(
  *
  * Outside the compact activation interval the potential, gradient, and
  * curvature products are all exactly zero.
+ *
+ * The compact support carries into the curvature for the same reason it
+ * holds for the energy: an element comfortably above the activation ratio is
+ * not merely cheap to evaluate, it contributes nothing at all, so an
+ * inactive element cannot bias a direction it should have no opinion about.
+ *
+ * @example
+ * Flattening a unit tetrahedron towards its base drives the measure ratio
+ * `J` down. Above the activation ratio the barrier is silent in energy and
+ * in curvature alike; below it, both rise steeply towards the hard chart
+ * boundary at `minimumMeasureRatio`:
+ * ```ts
+ * const rest = [
+ *   new VecN([0, 0, 0]), new VecN([1, 0, 0]),
+ *   new VecN([0, 1, 0]), new VecN([0, 0, 1])
+ * ];
+ * const material = {
+ *   minimumMeasureRatio: 0.1, activationMeasureRatio: 0.6, stiffness: 1
+ * };
+ * const directions = [
+ *   new VecN([0, 0, 0]), new VecN([0, 0, 0]),
+ *   new VecN([0, 0, 0]), new VecN([0, 0, -1])
+ * ];
+ * const flattenedTo = [0.8, 0.3].map((height) => [
+ *   new VecN([0, 0, 0]), new VecN([1, 0, 0]),
+ *   new VecN([0, 1, 0]), new VecN([0, 0, height])
+ * ]);
+ *
+ * const curvatures = flattenedTo.map((current) =>
+ *   evaluateSimplexMeasureBarrierHessianVectorN(rest, current, directions, material)
+ * );
+ *
+ * // J = 0.8, above activation: exactly zero, not merely small.
+ * // J = 0.3, inside the support: the element resists being flattened.
+ * curvatures.map((c) => c.products.every((p) => p.lengthSq() === 0)); // [true, false]
+ * curvatures.map((c) => c.netProductResidual); // [0, 0] — translation invariant either way
+ * ```
  */
 export function evaluateSimplexMeasureBarrierHessianVectorN(
   restPositions: readonly VecN[],
