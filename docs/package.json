@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "api": "pnpm run api:core && pnpm run api:three && pnpm run api:physics && pnpm run api:examples",
+    "api": "pnpm run api:core && pnpm run api:links && pnpm run api:three && pnpm run api:links && pnpm run api:physics && pnpm run api:examples",
     "api:core": "typedoc --options typedoc/core.json",
     "api:three": "typedoc --options typedoc/three.json",
     "api:physics": "typedoc --options typedoc/physics.json",
@@ -19,7 +19,8 @@
     "routes": "node scripts/check-routes.mjs",
     "dev": "pnpm run api && vitepress dev",
     "build": "pnpm run api && vitepress build",
-    "preview": "vitepress preview"
+    "preview": "vitepress preview",
+    "api:links": "node scripts/link-packages.mjs"
   },
   "devDependencies": {
     "markdown-it-mathjax3": "^5.2.0",
