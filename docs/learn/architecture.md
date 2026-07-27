@@ -9,17 +9,21 @@ GPU rasterization consumes 3D clip space and produces 2D fragments — there is 
 - **`@holotope/core`** — a zero-dependency kernel where all N-dimensional state lives and stays N-dimensional until the last responsible moment. Float64 on the CPU is the source of truth.
 - **Renderer adapters** (`@holotope/three` first) — thin packages that turn *projections* of that state into ordinary renderer objects. three.js is a peer dependency, never forked and never subclassed: its 3D assumptions (`Vector3` positions, quaternions, frusta) are load-bearing, and quaternions do not even generalize past 4D.
 - **`@holotope/physics`** — a separate headless simulation world. It consumes core geometry and math but does not depend on a renderer or make a visible projection/slice authoritative. Render-object synchronization remains an explicit adapter boundary.
-- **`@holotope/experiment`** — an inert document boundary for describing a
-  source–model–representation experience. It validates and identifies authored
-  recipes without constructing runtime objects. Future compilation receives
-  explicit caller capabilities rather than consulting a global registry.
+- **`@holotope/experiment`** — a document boundary for describing a
+  source–model–representation experience, plus the first headless compilation
+  stage. Validation and identity never construct runtime objects; compilation
+  receives explicit caller capabilities rather than consulting a global
+  registry, and is all-or-nothing — an unclaimed kind, version mismatch, or
+  not-yet-constructible category is a typed refusal that builds nothing.
 
 The experiment layer introduces a third identity boundary alongside source and
-representation provenance. An authored experiment id belongs to a runtime
-registry, runtime object identity belongs to the package that constructed the
-object, and `RepresentationLineageN` remains derived evidence of an actual
-representation map. Experiment ids are therefore not fields on `ObjectN`, and
-descriptors never masquerade as lineage.
+representation provenance. An authored experiment id belongs to the
+compilation registry, runtime object identity belongs to the package that
+constructed the object, and `RepresentationLineageN` remains derived evidence
+of an actual representation map — the compiler derives it from the projection
+or slice it built, so a closed-vocabulary experiment can never report
+`custom-projection`. Experiment ids are therefore not fields on `ObjectN`,
+and descriptors never masquerade as lineage.
 
 ## 2. Render products are explicit
 
@@ -302,7 +306,10 @@ only where subgroup geometry supplies an honest abelian coordinate.
 9. ✅ Spectral foundation: general symmetric eigensystems and combinatorial modes of any `CellComplex` 1-skeleton
 10. ◐ `@holotope/physics`: convex R4 mass properties, ballistic and prescribed-kinematic bodies, scene synchronization, GJK with coherent caches, dimension-independent swept broadphase, simplex metric deformation with typed StVK and compressible Neo-Hookean references plus provenance-preserving generic constitutive family assembly and accepted-state guards, candidate-state and mass-weighted incremental objectives with packed Armijo, bounded steepest-descent, atomic result-application references, ordered admissible-step filters with an exact RN point–static-plane specialization, and source-indexed paired point–plane barrier/filter families, intrinsic simplex mass lumping, topology-neutral source-particle bindings, per-substep RN force providers, bounded transactional adaptive subdivision, and projected XPBD scalar relations including exact RN particle–hyperplane contact plus unsigned intrinsic and signed full-dimensional simplex coordinates, ordered post-projection RN velocity policies with isotropic particle–plane Coulomb friction and timestep-invariant damping, an RN point world and provenance-preserving `CellComplex` distance, simplex, and cuboid-volume compilers, conservative linear casts, explicit constant-generator R4 trajectories and conservative rigid casts, shared dynamic/kinematic pose plans, opt-in rotational R4 event stepping, bounded general R4 EPA penetration, persistent polytope manifolds, analytic mixed contacts, coupled three-ball friction, deterministic mixed-shape orchestration, point/distance policies, branch-aware SO(4) coordinates, common small equality and one-bounded blocks, direction preservation with its SO(3) stabilizer, planar SO(2) coordinates with torque-limited motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; Hessian/Newton material solvers, integrated optimization-world stepping, bending, active-set mesh contact generation and collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping pending
 11. ◐ `@holotope/experiment`: bounded schema-v0 intake, semantic validation,
-    canonical SHA-256 document identity, and dependency planning; explicit
-    capability compilation, a registry-owned runtime, bounded actions,
-    observations, and honest replay evidence pending
+    canonical SHA-256 document identity, dependency planning, and explicit
+    caller-capability compilation of core hypercube sources,
+    coordinate/perspective/section representations, and literal transforms
+    into a registry of live core objects with derived lineage witnesses;
+    model compilation, bounded actions, observations, and honest replay
+    evidence pending
 11. Formats: `.hyper.json` container, OFF import/export, glTF export with projected fallback

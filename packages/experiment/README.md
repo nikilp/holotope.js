@@ -1,15 +1,19 @@
 # @holotope/experiment
 
-Versioned, inert experiment documents for Holotope.
+Versioned, inert experiment documents for Holotope, plus the first headless
+compilation stage.
 
-This first slice defines and validates authored descriptions of sources,
-models, representations, parameters, actions, observations, panes, and backend
-requirements. It also produces a canonical JSON form and SHA-256 identity.
-It deliberately does **not** compile descriptors into live core, physics, or
-Three.js objects yet.
+The package defines and validates authored descriptions of sources, models,
+representations, parameters, actions, observations, panes, and backend
+requirements; produces a canonical JSON form and SHA-256 identity; and can
+compile the prepared document's core hypercube sources and
+coordinate/perspective/section representations into live `@holotope/core`
+objects behind a registry.
 
 ```ts
 import {
+  compileExperimentDocumentV0,
+  coreExperimentCompilerV0,
   parseExperimentJsonV0,
   prepareExperimentDocumentV0,
   validateExperimentDocumentV0
@@ -24,8 +28,18 @@ if (!report.valid) {
 } else {
   const prepared = await prepareExperimentDocumentV0(parsed.value);
   if (prepared.ok) {
-    console.log(prepared.value.documentHash);
-    console.log(prepared.value.compileOrder);
+    const compiled = compileExperimentDocumentV0(prepared.value, {
+      compilers: [coreExperimentCompilerV0()]
+    });
+    if (compiled.ok) {
+      console.log(compiled.value.ids);
+      const section = compiled.value.get('section');
+      if (section.ok && section.value.category === 'representation') {
+        console.log(section.value.lineage.steps);
+      }
+    } else {
+      console.error(compiled.failures);
+    }
   }
 }
 ```
@@ -36,11 +50,16 @@ Validation is synchronous and non-mutating. Preparation is asynchronous
 because it uses the standard Web Crypto SHA-256 API, and returns a copied,
 deeply frozen document.
 
-Construction descriptors are authored recipes. They are not runtime objects
-and they are not `RepresentationLineageN`: lineage is evidence derived when a
-representation is actually constructed. A later package slice will add a
-caller-capability compiler and runtime registry without putting experiment ids
-on `ObjectN`.
+Compilation is synchronous, all-or-nothing, and driven by explicit
+caller-supplied capabilities — there is no global kind registry and a
+document can never name or load code. A kind without a supplied capability,
+a version mismatch, or a category this slice cannot construct (physics
+models, panes, and model-owned transforms) is a typed refusal that constructs
+nothing. The registry alone owns experiment ids; compiled core objects stay
+anonymous mathematical values, and `RepresentationLineageN` is derived from
+the projection or slice actually constructed, never from the descriptor.
+Because the compiled vocabulary is closed, a compiled representation never
+reports a `custom-projection` lineage step.
 
 See the [experiment document guide](../../docs/learn/experiment-documents.md)
 for the contract and its current boundary.

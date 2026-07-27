@@ -22,8 +22,11 @@
   It never renders and it does not automatically make all registered rigid
   bodies collide.
 - `@holotope/experiment`: inert, versioned experiment documents with bounded
-  JSON intake, semantic validation, canonical SHA-256 identity, and stable
-  dependency planning. It does not compile or execute documents yet.
+  JSON intake, semantic validation, canonical SHA-256 identity, stable
+  dependency planning, and headless explicit-capability compilation of core
+  hypercube sources and coordinate/perspective/section representations into a
+  registry of live core objects with derived lineage. Models, actions,
+  observations, and replay are not executed yet.
 - `@holotope/three`: Three.js peer-dependency adapters. Products expose an
   ordinary `.object` and must be updated from authoritative source state.
 - `@holotope/three/webgpu`: optional WebGPU/TSL realization paths. Preserve
@@ -77,7 +80,8 @@ import {
 // @holotope/experiment
 import {
   parseExperimentJsonV0, validateExperimentDocumentV0,
-  prepareExperimentDocumentV0
+  prepareExperimentDocumentV0, compileExperimentDocumentV0,
+  coreExperimentCompilerV0
 } from '@holotope/experiment';
 ```
 
@@ -85,8 +89,15 @@ For untrusted experiment text, call `parseExperimentJsonV0()` before object
 validation; a retained JavaScript object cannot expose duplicate JSON keys
 discarded by an earlier parser. Descriptors are authored recipes, not runtime
 objects or `RepresentationLineageN`. `prepareExperimentDocumentV0()` returns a
-copied, deeply frozen, canonically hashed document; live compilation is not yet
-part of the public package.
+copied, deeply frozen, canonically hashed document.
+`compileExperimentDocumentV0(prepared, { compilers: [coreExperimentCompilerV0()] })`
+then constructs live core objects behind a registry that owns every experiment
+id; capabilities are explicit caller values, never a global registry, and a
+kind without a supplied capability is a typed `capability-unavailable` refusal
+rather than a partial compilation. Representation lineage is derived from the
+constructed projection or slice, so a compiled experiment can never report
+`custom-projection`. Physics models, panes, actions, observations, snapshots,
+and replay are not compiled or executed yet.
 
 ## Core anchors
 

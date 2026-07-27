@@ -16,7 +16,7 @@ export type ExperimentDescriptorKind = string;
 /** Schema identifier for the first experiment document contract. */
 export type ExperimentSchemaIdV0 = 'holotope.experiment/0';
 
-/** Stable typed reason for refusing document intake or validation. */
+/** Stable typed reason for refusing intake, validation, or compilation. */
 export type ExperimentFailureCode =
   | 'malformed-json'
   | 'duplicate-key'
@@ -31,6 +31,7 @@ export type ExperimentFailureCode =
   | 'non-finite-number'
   | 'unknown-kind'
   | 'kind-version-mismatch'
+  | 'capability-unavailable'
   | 'missing-reference'
   | 'dependency-cycle'
   | 'dimension-mismatch'
@@ -39,7 +40,8 @@ export type ExperimentFailureCode =
   | 'out-of-range'
   | 'replay-limited'
   | 'canonicalization-failed'
-  | 'crypto-unavailable';
+  | 'crypto-unavailable'
+  | 'disposed';
 
 /** JSON-compatible evidence for one refused document operation. */
 export interface ExperimentFailure {

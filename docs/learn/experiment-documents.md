@@ -6,8 +6,8 @@ to say which authoritative geometry exists, which simulation owns its pose,
 which lower-dimensional representations should be produced, and which
 parameters, actions, and observations are available.
 
-The current `holotope.experiment/0` slice is intentionally only the document
-boundary:
+The current `holotope.experiment/0` pipeline covers the document boundary and
+the first headless compilation stage:
 
 ```text
 untrusted JSON
@@ -15,8 +15,11 @@ untrusted JSON
   → structural and semantic validation
   → canonical JSON + SHA-256 identity + stable dependency order
   → immutable prepared document
+  → explicit caller-supplied compiler capabilities
+  → registry-owned experiment ids over live core objects
+  → derived RepresentationLineageN evidence
 
-  [runtime compilation comes next]
+  [models, actions, observations, and replay come next]
 ```
 
 It does not create a scene, a physics world, DOM controls, or a Three.js
@@ -27,14 +30,15 @@ without hiding construction choices in a convenient demo wrapper.
 
 | Identity | Owned by | Meaning |
 | --- | --- | --- |
-| Experiment id | Future runtime registry | The authored name of a source, model, representation, or pane |
+| Experiment id | The compilation registry | The authored name of a source, model, representation, or pane |
 | Runtime object identity | Core, physics, or adapter package | The actual compiled object and its lifetime |
 | `RepresentationLineageN` | A constructed representation | Evidence describing how a visible result was derived from its source |
 
 A descriptor is a construction recipe, not provenance. Lineage only exists
 after construction and must describe what actually happened. Experiment ids
-therefore do not become fields on `ObjectN`; the future runtime registry will
-own the association externally.
+therefore do not become fields on `ObjectN`; the compilation registry owns
+the association externally, and compiled core objects stay anonymous
+mathematical values.
 
 ## Safe intake
 
@@ -90,6 +94,58 @@ freezes the copy. Equal documents with different object-key insertion order
 therefore receive the same identity. The operation is asynchronous because
 the standard browser crypto API is asynchronous.
 
+## Compiling with explicit capabilities
+
+`compileExperimentDocumentV0()` turns a prepared document into live core
+objects. The caller states what the environment can construct by passing
+capability values; the document itself can never name, request, or load one:
+
+```ts
+import {
+  compileExperimentDocumentV0,
+  coreExperimentCompilerV0
+} from '@holotope/experiment';
+
+const compiled = compileExperimentDocumentV0(prepared.value, {
+  compilers: [coreExperimentCompilerV0()]
+});
+if (!compiled.ok) {
+  console.error(compiled.failures); // typed, pointer-addressed, collected
+  return;
+}
+
+console.log(compiled.value.ids);    // registry ids in construction order
+const section = compiled.value.get('section');
+if (section.ok && section.value.category === 'representation') {
+  section.value.lineage;            // derived from the live slice
+  section.value.capabilities;       // exact lift, no inverse fibre, …
+}
+
+compiled.value.dispose();           // releases the registry exactly once
+```
+
+The core capability constructs `core.source.hypercube` (optionally
+tetrahedralized) and the three closed representation kinds —
+`core.representation.coordinate`, `core.representation.perspective`, and
+`core.representation.section4` — plus literal transforms. Compilation is
+all-or-nothing: every descriptor in the dependency order is planned against
+the supplied capabilities first, and an unclaimed kind, a kind-version
+mismatch, a physics model, a pane, or a model-owned transform refuses the
+whole compilation with typed evidence before any object exists. Nothing is
+partially or optimistically compiled.
+
+Lineage is where the one-way arrow becomes visible. The compiler derives each
+representation's `RepresentationLineageN` from the projection or slice it
+actually constructed — a section authored with a non-unit normal is witnessed
+with the unit normal and chart basis the live object carries. Because the
+compiled vocabulary is closed, a compiled representation can never report a
+`custom-projection` step, so experiment lineage is always fully
+parameterized.
+
+The R3 specialization stays clean: an `ambientDim: 3` document compiles a
+cube and an exact XYZ coordinate view without manufacturing any fourth
+coordinate.
+
 ## The first vertical document
 
 Schema v0 can describe one source-first R4 bridge:
@@ -104,25 +160,31 @@ Schema v0 can describe one source-first R4 bridge:
   geometry;
 - a mandatory CPU reference backend when backend requirements are declared.
 
-The document can be validated and identified today. Live compilation, bounded
-action execution, observation reads, and replay evidence are subsequent
-runtime slices. A `continuous` section frame is already accepted with a
-`replay-limited` warning because its transported display frame depends on
-history; a canonical section frame is the deterministic default.
+The document can be validated, identified, and — for its core source and
+representation path — compiled today. Model stepping, bounded action
+execution, observation reads, and replay evidence are subsequent runtime
+slices, so a document that declares a `physics.model.rigid4` or presentation
+panes is refused by a core-only compilation with `capability-unavailable`
+evidence instead of being partially constructed. A `continuous` section frame
+is already accepted with a `replay-limited` warning because its transported
+display frame depends on history; a canonical section frame is the
+deterministic default.
 
 ## Deliberate boundaries
 
-- There is no global kind registry. Future compilation receives an explicit
-  caller-supplied capability set.
+- There is no global kind registry. Compilation receives an explicit
+  caller-supplied capability set and copies it, so separate compilations
+  share no state.
 - There is no dynamic import or arbitrary constructor name in the document.
 - The JSON Schema subset has no remote `$ref`, pattern engine, or executable
   default.
 - A prepared hash identifies the authored document, not hidden runtime state.
+  Compilation carries that identity; it does not re-hash or certify it.
 - Presentation metadata cannot make a renderer authoritative over source or
-  simulation state.
-- Validation does not promise that every accepted descriptor has been
-  compiled; compilation capabilities and refusal evidence remain a separate
-  contract.
+  simulation state; a headless compilation constructs no panes.
+- Validation does not promise that every accepted descriptor can be
+  compiled; capability coverage is judged per compilation, and refusal
+  evidence names the exact kind and location.
 
 These boundaries are what make the format suitable for local tools, paper
 companions, and agent-guided construction without turning a declarative file

@@ -1,4 +1,20 @@
 export {
+  compileExperimentDocumentV0,
+  type CompileExperimentDocumentV0Options,
+  type ExperimentCompilationDisposalV0,
+  type ExperimentCompilationV0,
+  type ExperimentCompileContextV0,
+  type ExperimentCompiledCategoryV0,
+  type ExperimentCompiledEntryV0,
+  type ExperimentCompiledRepresentationMapV0,
+  type ExperimentCompiledRepresentationV0,
+  type ExperimentCompiledSourceV0,
+  type ExperimentDescriptorCompilerV0
+} from './compile.js';
+export {
+  coreExperimentCompilerV0
+} from './core-compiler.js';
+export {
   DEFAULT_EXPERIMENT_VALIDATION_LIMITS_V0,
   canonicalizeExperimentJsonV0,
   parseExperimentJsonV0,

@@ -70,10 +70,11 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ RN stepping          XPBD contact/friction + transactional adaptive subdivision
   └─ hyperbox pipeline    specialized homogeneous box orchestration
 
-@holotope/experiment      inert, versioned experiment documents
+@holotope/experiment      versioned experiment documents and headless compilation
   ├─ intake               bounded JSON parsing with duplicate-key evidence
   ├─ validation           typed structural, reference, dimension, frame, and unit refusals
-  └─ preparation          canonical JSON, SHA-256 identity, immutable copy, dependency order
+  ├─ preparation          canonical JSON, SHA-256 identity, immutable copy, dependency order
+  └─ compilation          explicit caller capabilities, registry-owned ids, derived lineage
 ```
 
 A core correctness contract: **the n=3 specialization must reproduce ordinary three.js behavior.** The test suite verifies Holotope rotations and transforms against three.js `Matrix4` directly, and the GPU products are verified differentially against their Float64 CPU counterparts.
@@ -135,7 +136,7 @@ explains why a projected mesh is never the source object — then work from
 | --- | --- |
 | [Mental model](docs/learn/mental-model.md) | How source, representation, interaction, and simulation relate |
 | [Architecture](docs/learn/architecture.md) | The decisions that shape the library, and why |
-| [Experiment documents](docs/learn/experiment-documents.md) | Safe, discoverable authored recipes for future headless compilation |
+| [Experiment documents](docs/learn/experiment-documents.md) | Safe authored recipes and their headless explicit-capability compilation |
 | [Cookbook](docs/learn/cookbook.md) | Verified task-oriented recipes |
 | [Representation provenance](docs/learn/representation-provenance.md) | Tracing a 3D pick back to its N-D source |
 | [Mechanics](docs/learn/physics/) | Mass, rigid bodies, collision, contact, constraints, XPBD |
@@ -161,7 +162,7 @@ explains why a projected mesh is never the source object — then work from
 - ✅ Spectral foundation: deterministic symmetric eigensystems and dimension-independent CellComplex graph-Laplacian modes
 - ✅ Source-coordinate constraints: deterministic weighted Float64 solving with shared compatibility, rank, null-space, conditioning, and residual diagnostics
 - ✅ Immutable named constraint composition with stable evidence replacement, removal, snapshots, and keyed diagnostics
-- ◐ Versioned experiment documents: bounded intake, validation, canonical identity, and dependency planning shipped; capability compilation, runtime actions, observations, and replay pending
+- ◐ Versioned experiment documents: bounded intake, validation, canonical identity, dependency planning, and headless explicit-capability compilation of core hypercube sources and coordinate/perspective/section representations with registry-owned ids and derived lineage witnesses shipped; model compilation, runtime actions, observations, and replay pending
 - GPU surface/section rendering and the materials/transparency phase
 - `.hyper.json` container format and OFF import/export
 - ◐ `@holotope/physics`: ballistic and prescribed-kinematic bodies, fixed-clock animation-to-trajectory driving, support/GJK, dimension-independent swept broadphase, typed StVK, compressible Neo-Hookean, smooth lower-measure and point–hyperplane barrier references with provenance-preserving generic family assembly and exact matrix-free constitutive Hessian-vector products, candidate-state conservative energy, mass-weighted incremental objectives, deterministic free-coordinate packing, first-order Armijo backtracking, ordered admissible-step filters with an exact RN point–static-plane specialization and source-indexed paired barrier/filter families, bounded non-mutating direction-policy references with steepest-descent and inertial-mass preconditioning, a bounded matrix-free preconditioned-CG Newton-direction diagnostic with explicit unsupported-provider and non-positive-curvature evidence, and atomic converged-result application with state/evidence staleness proofs, endpoint accepted-state guards, conservative full-dimensional orientation checks, and intrinsic embedded-simplex rank/measure checks along linear substep chords, intrinsic density-based simplex mass lumping, topology-neutral source-particle bindings with per-substep RN force providers, projected Float64 XPBD relations with exact RN particle–hyperplane contact, post-projection RN velocity policies, bounded transactional adaptive subdivision, isotropic particle–plane Coulomb friction, timestep-invariant damping, distance plus unsigned and full-dimensional signed simplex compliance, a renderer-neutral RN point world, provenance-preserving `CellComplex` distance networks, simplex families, and cuboid-to-oriented-simplex families, and linear CCD, explicit R4 rigid trajectories, conservative rotational casts, and a shared pose-plan event loop, bounded R4 EPA penetration, persistent clipped polytope manifolds, analytic mixed contact, coupled three-ball friction, deterministic mixed-shape response, point/distance policies, branch-aware SO(4) coordinates, exact small equality and one-bounded blocks, SO(3)-stabilizer direction, SO(2)-stabilizer planar rotation with motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints; PSD-projected and globally admissible Newton material stepping, automatic active-set mesh collision candidates and complete collision-filtered search, integrated optimization-world stepping, bending, collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping remain
