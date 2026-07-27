@@ -15,6 +15,10 @@ on:
         description: 'Publish @holotope/physics (disable for its one-time npm bootstrap)'
         type: boolean
         default: true
+      include-experiment-physics:
+        description: 'Publish @holotope/experiment-physics (disable for its one-time npm bootstrap)'
+        type: boolean
+        default: true
       include-experiment:
         description: 'Publish @holotope/experiment (disable for its one-time npm bootstrap)'
         type: boolean
@@ -46,7 +50,7 @@ jobs:
         shell: bash
         run: |
           expected="${GITHUB_REF_NAME#v}"
-          for package in core experiment three physics; do
+          for package in core experiment three physics experiment-physics; do
             actual=$(node -p "require('./packages/$package/package.json').version")
             if [[ "$actual" != "$expected" ]]; then
               echo "Tag $GITHUB_REF_NAME requires @holotope/$package@$expected, found $actual" >&2
@@ -75,6 +79,10 @@ jobs:
           packages+=(three)
           if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-physics'] }}" == "true" ]]; then
             packages+=(physics)
+          fi
+          # Depends on core, experiment, and physics, so it publishes last.
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-experiment-physics'] }}" == "true" ]]; then
+            packages+=(experiment-physics)
           fi
           for package in "${packages[@]}"; do
             directory="packages/$package"

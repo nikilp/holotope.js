@@ -29,6 +29,7 @@ const OUT = path.join(DOCS, 'typedoc', 'external-links.json');
 const PRODUCERS = [
   { pkg: '@holotope/core', dir: 'core' },
   { pkg: '@holotope/experiment', dir: 'experiment' },
+  { pkg: '@holotope/physics', dir: 'physics' },
   { pkg: '@holotope/three', dir: 'three' }
 ];
 

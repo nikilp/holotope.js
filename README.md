@@ -71,6 +71,7 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   └─ hyperbox pipeline    specialized homogeneous box orchestration
 
 @holotope/experiment      versioned experiment documents and headless compilation
+@holotope/experiment-physics  physics model capability for experiment documents
   ├─ intake               bounded JSON parsing with duplicate-key evidence
   ├─ validation           typed structural, reference, dimension, frame, and unit refusals
   ├─ preparation          canonical JSON, SHA-256 identity, immutable copy, dependency order

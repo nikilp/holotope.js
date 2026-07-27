@@ -1,0 +1,43 @@
+{
+  "name": "@holotope/experiment-physics",
+  "version": "0.0.7",
+  "description": "Physics model capability for Holotope experiment documents: compiles physics.model.rigid4 descriptors into live R4 rigid bodies.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikilp/holotope.js.git",
+    "directory": "packages/experiment"
+  },
+  "homepage": "https://nikilp.github.io/holotope.js/",
+  "bugs": "https://github.com/nikilp/holotope.js/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@holotope/core": "workspace:*",
+    "@holotope/experiment": "workspace:*",
+    "@holotope/physics": "workspace:*"
+  },
+  "keywords": [
+    "scientific-visualization",
+    "experiment",
+    "schema",
+    "4d",
+    "nd"
+  ]
+}

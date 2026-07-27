@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 const DOCS = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const MODELS = path.join(DOCS, '.doc-model');
-const PACKAGES = ['core', 'experiment', 'three', 'physics'];
+const PACKAGES = ['core', 'experiment', 'experiment-physics', 'three', 'physics'];
 const INHERITED_ONLY = process.argv.includes('--inherited');
 const AS_JSON = process.argv.includes('--json');
 

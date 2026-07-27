@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url';
 const DOCS = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const MODELS = path.join(DOCS, '.doc-model');
 const BASELINE = path.join(DOCS, 'doc-baseline.json');
-const PACKAGES = ['core', 'experiment', 'three', 'physics'];
+const PACKAGES = ['core', 'experiment', 'experiment-physics', 'three', 'physics'];
 const UPDATE = process.argv.includes('--update');
 const SHRINK = process.argv.includes('--shrink');
 

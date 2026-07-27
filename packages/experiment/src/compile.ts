@@ -14,6 +14,7 @@ import type {
   ExperimentDocumentV0,
   ExperimentFailure,
   ExperimentId,
+  ExperimentModelDescriptorV0,
   ExperimentRepresentationDescriptorV0,
   ExperimentResult,
   ExperimentSourceDescriptorV0,
@@ -24,7 +25,7 @@ const DOCUMENT_HASH_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const KNOWN_NAMESPACES = new Set(['core', 'physics', 'three']);
 
 /** Registry category of one compiled experiment entry. */
-export type ExperimentCompiledCategoryV0 = 'source' | 'representation';
+export type ExperimentCompiledCategoryV0 = 'source' | 'model' | 'representation';
 
 /** Live authoritative geometry compiled from one source descriptor. */
 export interface ExperimentCompiledSourceV0 {
@@ -57,6 +58,27 @@ export type ExperimentCompiledRepresentationMapV0 =
       readonly frame: 'canonical' | 'continuous';
     };
 
+/**
+ * Where a compiled representation reads its source pose from.
+ *
+ * A literal transform is compiled once and never changes. A model binding is
+ * resolved through the registry at read time, because the model owns its pose
+ * and a copy taken at compile time would be stale the moment it advanced.
+ */
+export type ExperimentCompiledPoseV0 =
+  | {
+      /** Discriminator for a pose fixed at compilation. */
+      readonly kind: 'static';
+      /** Compiled literal source pose, or null when the descriptor has none. */
+      readonly transform: TransformN | null;
+    }
+  | {
+      /** Discriminator for a pose owned by a compiled model. */
+      readonly kind: 'model';
+      /** Registry id of the model whose pose this representation follows. */
+      readonly model: ExperimentId;
+    };
+
 /** Compiled representation: the live map plus its derived lineage evidence. */
 export interface ExperimentCompiledRepresentationV0 {
   /** Registry discriminator for a compiled representation. */
@@ -69,17 +91,49 @@ export interface ExperimentCompiledRepresentationV0 {
   readonly source: ExperimentId;
   /** The live projection or slice actually constructed. */
   readonly map: ExperimentCompiledRepresentationMapV0;
-  /** Compiled literal source pose, or null when the descriptor has none. */
-  readonly transform: TransformN | null;
+  /** Where this representation's source pose comes from. */
+  readonly pose: ExperimentCompiledPoseV0;
   /** Lineage derived from the constructed map, never from the descriptor. */
   readonly lineage: RepresentationLineageN;
   /** Capability composition of the derived lineage. */
   readonly capabilities: RepresentationMapCapabilitiesN;
 }
 
+/**
+ * A compiled model: authoritative pose plus a bounded advance seam.
+ *
+ * The contract is expressible in core types alone, so the registry can hold
+ * and drive a model whose mathematics it has no dependency on. Whatever the
+ * supplying capability actually built is reached through `runtime`, narrowed
+ * by that capability's own types.
+ */
+export interface ExperimentCompiledModelV0 {
+  /** Registry discriminator for a compiled model. */
+  readonly category: 'model';
+  /** Document key that owns this compiled model. */
+  readonly id: ExperimentId;
+  /** Construction kind that produced the model. */
+  readonly kind: ExperimentDescriptorKind;
+  /** Registry id of the source supplying the model's mass shape. */
+  readonly source: ExperimentId;
+  /** Fresh defensive copy of the current authoritative source-frame pose. */
+  pose(): TransformN;
+  /**
+   * Advances this model by whole fixed steps.
+   *
+   * Driven by the compilation clock. Calling it directly desynchronizes that
+   * clock from the model, which is the caller forfeiting determinism rather
+   * than something the model prevents.
+   */
+  advanceModel(steps: number): ExperimentResult<{ readonly modelStep: number }>;
+  /** Model-owned live objects, narrowed by the supplying capability. */
+  readonly runtime: unknown;
+}
+
 /** One registry-owned compiled entry. */
 export type ExperimentCompiledEntryV0 =
   | ExperimentCompiledSourceV0
+  | ExperimentCompiledModelV0
   | ExperimentCompiledRepresentationV0;
 
 /** Per-descriptor construction context handed to a capability. */
@@ -92,6 +146,8 @@ export interface ExperimentCompileContextV0 {
   readonly pointer: string;
   /** Resolves an already compiled source dependency; never throws. */
   resolveSource(id: ExperimentId): ExperimentCompiledSourceV0 | undefined;
+  /** Resolves an already compiled model dependency; never throws. */
+  resolveModel(id: ExperimentId): ExperimentCompiledModelV0 | undefined;
 }
 
 /**
@@ -113,6 +169,11 @@ export interface ExperimentDescriptorCompilerV0 {
     descriptor: ExperimentSourceDescriptorV0,
     context: ExperimentCompileContextV0
   ): ExperimentResult<ExperimentCompiledSourceV0>;
+  /** Constructs one claimed model descriptor. */
+  compileModel?(
+    descriptor: ExperimentModelDescriptorV0,
+    context: ExperimentCompileContextV0
+  ): ExperimentResult<ExperimentCompiledModelV0>;
   /** Constructs one claimed representation descriptor. */
   compileRepresentation?(
     descriptor: ExperimentRepresentationDescriptorV0,
@@ -143,6 +204,21 @@ export interface ExperimentCompilationV0 {
   readonly ids: readonly ExperimentId[];
   /** Whether `dispose()` has released the registry. */
   readonly disposed: boolean;
+  /**
+   * Document-level integer clock, counting accepted fixed steps from zero.
+   *
+   * It counts steps and not seconds: models declaring different `fixedStep`
+   * durations advance the same number of steps of their own duration. Step
+   * boundaries are the only points at which model state is meaningful.
+   */
+  readonly step: number;
+  /**
+   * Advances every compiled model by whole fixed steps, then the clock.
+   *
+   * A document with no models advances only the clock, which is honest rather
+   * than an error: the clock is the document's, not any model's.
+   */
+  advance(steps: number): ExperimentResult<{ readonly step: number }>;
   /** Deterministic registry lookup with typed refusal evidence. */
   get(id: ExperimentId): ExperimentResult<ExperimentCompiledEntryV0>;
   /** Releases every compiled entry exactly once; repeat calls are refused. */
@@ -220,6 +296,12 @@ export function compileExperimentDocumentV0(
       ambientDim: document.ambientDim,
       id: plan.id,
       pointer: plan.pointer,
+      resolveModel: (id) => {
+        const entry = registry.get(id);
+        return entry !== undefined && entry.category === 'model'
+          ? entry
+          : undefined;
+      },
       resolveSource: (id) => {
         const entry = registry.get(id);
         return entry !== undefined && entry.category === 'source'
@@ -227,7 +309,12 @@ export function compileExperimentDocumentV0(
           : undefined;
       }
     };
-    const compiled = plan.category === 'source'
+    const compiled = plan.category === 'model'
+      ? plan.compiler.compileModel!(
+        plan.descriptor as ExperimentModelDescriptorV0,
+        context
+      )
+      : plan.category === 'source'
       ? plan.compiler.compileSource!(
         plan.descriptor as ExperimentSourceDescriptorV0,
         context
@@ -268,6 +355,7 @@ interface PlannedDescriptor {
   readonly category: ExperimentCompiledCategoryV0;
   readonly descriptor:
     | ExperimentSourceDescriptorV0
+    | ExperimentModelDescriptorV0
     | ExperimentRepresentationDescriptorV0;
   readonly compiler: ExperimentDescriptorCompilerV0;
 }
@@ -280,6 +368,7 @@ interface LocatedDescriptor {
   readonly kindVersion: number;
   readonly descriptor:
     | ExperimentSourceDescriptorV0
+    | ExperimentModelDescriptorV0
     | ExperimentRepresentationDescriptorV0
     | null;
 }
@@ -289,6 +378,7 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
   readonly documentHash: `sha256:${string}`;
   readonly ids: readonly ExperimentId[];
   private released = false;
+  private clock = 0;
   private readonly registry: Map<ExperimentId, ExperimentCompiledEntryV0>;
 
   constructor(
@@ -304,6 +394,38 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
 
   get disposed(): boolean {
     return this.released;
+  }
+
+  get step(): number {
+    return this.clock;
+  }
+
+  advance(steps: number): ExperimentResult<{ readonly step: number }> {
+    if (this.released) {
+      return refused(failure(
+        'disposed',
+        'this experiment compilation has been disposed',
+        '',
+        { steps }
+      ));
+    }
+    if (typeof steps !== 'number' || !Number.isSafeInteger(steps) || steps <= 0) {
+      return refused(failure(
+        'invalid-value',
+        'advance requires a positive safe integer number of fixed steps',
+        '',
+        { steps }
+      ));
+    }
+    // Every model advances before the clock moves, so a refusing model leaves
+    // the clock where it was and the document is never ahead of its models.
+    for (const entry of this.registry.values()) {
+      if (entry.category !== 'model') continue;
+      const advanced = entry.advanceModel(steps);
+      if (!advanced.ok) return advanced;
+    }
+    this.clock += steps;
+    return { ok: true, value: { step: this.clock } };
   }
 
   get(id: ExperimentId): ExperimentResult<ExperimentCompiledEntryV0> {
@@ -357,6 +479,8 @@ function copyCompilers(
       typeof compiler.kinds !== 'object' || compiler.kinds === null ||
       (compiler.compileSource !== undefined &&
         typeof compiler.compileSource !== 'function') ||
+      (compiler.compileModel !== undefined &&
+        typeof compiler.compileModel !== 'function') ||
       (compiler.compileRepresentation !== undefined &&
         typeof compiler.compileRepresentation !== 'function')) {
       throw new TypeError(
@@ -391,7 +515,7 @@ function locateDescriptor(
       category: 'model',
       kind: model.kind,
       kindVersion: model.kindVersion ?? 0,
-      descriptor: null
+      descriptor: model
     };
   }
   const representation = document.representations[id];
@@ -457,18 +581,20 @@ function planDescriptor(
       { kind: located.kind, declared: located.kindVersion, supported }
     ));
   }
-  if (located.category === 'model' || located.category === 'pane') {
+  if (located.category === 'pane') {
     return refused(failure(
       'capability-unavailable',
-      `this compilation slice constructs sources and representations only; ` +
-        `${located.category} ${JSON.stringify(located.id)} has no constructor seam yet`,
+      `this compilation slice constructs sources, models, and representations ` +
+        `only; pane ${JSON.stringify(located.id)} has no constructor seam yet`,
       `${located.pointer}/kind`,
       { kind: located.kind, category: located.category }
     ));
   }
   const constructor = located.category === 'source'
     ? compiler.compileSource
-    : compiler.compileRepresentation;
+    : located.category === 'model'
+      ? compiler.compileModel
+      : compiler.compileRepresentation;
   if (constructor === undefined) {
     return refused(failure(
       'capability-unavailable',

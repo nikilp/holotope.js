@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "api": "pnpm run api:core && pnpm run api:links && pnpm run api:experiment && pnpm run api:three && pnpm run api:links && pnpm run api:physics && pnpm run api:examples",
+    "api": "pnpm run api:core && pnpm run api:links && pnpm run api:experiment && pnpm run api:three && pnpm run api:physics && pnpm run api:links && pnpm run api:experiment-physics && pnpm run api:examples",
     "api:core": "typedoc --options typedoc/core.json",
     "api:experiment": "typedoc --options typedoc/experiment.json",
     "api:three": "typedoc --options typedoc/three.json",
@@ -22,7 +22,8 @@
     "build": "pnpm run api && vitepress build",
     "preview": "vitepress preview",
     "api:links": "node scripts/link-packages.mjs",
-    "coverage:leverage": "node scripts/report-coverage-leverage.mjs"
+    "coverage:leverage": "node scripts/report-coverage-leverage.mjs",
+    "api:experiment-physics": "typedoc --options typedoc/experiment-physics.json"
   },
   "devDependencies": {
     "markdown-it-mathjax3": "^5.2.0",

@@ -21,6 +21,9 @@
 - `@holotope/physics`: headless R4 rigid bodies and RN point/XPBD systems.
   It never renders and it does not automatically make all registered rigid
   bodies collide.
+- `@holotope/experiment-physics`: the physics model capability; compiles
+  `physics.model.rigid4` descriptors into live R4 rigid bodies driven by a
+  document-level integer step clock. Depends on core, physics, experiment.
 - `@holotope/experiment`: inert, versioned experiment documents with bounded
   JSON intake, semantic validation, canonical SHA-256 identity, stable
   dependency planning, and headless explicit-capability compilation of core

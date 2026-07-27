@@ -66,6 +66,18 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/experiment-physics:
+    dependencies:
+      '@holotope/core':
+        specifier: workspace:*
+        version: link:../core
+      '@holotope/experiment':
+        specifier: workspace:*
+        version: link:../experiment
+      '@holotope/physics':
+        specifier: workspace:*
+        version: link:../physics
+
   packages/physics:
     dependencies:
       '@holotope/core':

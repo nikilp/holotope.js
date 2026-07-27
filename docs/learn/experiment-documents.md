@@ -170,6 +170,73 @@ is already accepted with a `replay-limited` warning because its transported
 display frame depends on history; a canonical section frame is the
 deterministic default.
 
+## Models, and the clock they run on
+
+A document becomes more than a static assembly once something owns a pose
+that changes. `physics.model.rigid4` compiles to a live R4 rigid body, and
+`@holotope/experiment-physics` is the capability that builds it.
+
+It is a separate package on purpose. `@holotope/experiment` depends on
+`@holotope/core` and nothing else — a fact the test suite enforces rather
+than merely intends — and a `@holotope/physics` subpath would hand every
+physics consumer an experiment dependency it never asked for.
+
+```ts
+const compilation = compileExperimentDocumentV0(prepared, {
+  capabilities: [coreExperimentCompilerV0(), physicsExperimentCompilerV0()]
+});
+```
+
+### The pose a representation sees is motion, not position
+
+Rigid dynamics run in the principal frame: the body starts at its centre of
+mass under its principal rotor. Source geometry, though, is authored in world
+coordinates — that is what sections and projections already read. Handing a
+representation the body pose would displace geometry that was never displaced.
+
+So the model publishes motion *relative to where the geometry was authored*:
+
+```text
+referencePose = TransformN(4, principalRotor, centerOfMass)   (frozen at compile)
+modelPose(t)  = bodyPose(t) ∘ referencePose⁻¹
+```
+
+At rest `modelPose(0)` is exactly identity, and the source complex is never
+rebased or copied — it stays the single authoritative object.
+
+### Representations bind, they do not copy
+
+A representation with `transform: { fromModel: 'tumble' }` compiles to a
+binding, not a transform:
+
+```ts
+representation.pose; // { kind: 'model', model: 'tumble' }
+```
+
+Consumers resolve it through the registry at read time. A pose copied at
+compile time would be stale the moment the model advanced, and nothing in the
+type would say so. A literal transform compiles to `{ kind: 'static', … }`
+instead, which cannot go stale because nothing updates it.
+
+### The clock counts steps, not seconds
+
+```ts
+compilation.advance(120); // every model by 120 fixed steps, then the clock
+compilation.step;         // 120
+```
+
+Each `advance(k)` calls `world.step(fixedStep, substeps)` exactly `k` times
+per model, so the clock counts *fixed steps of each model's own duration*.
+Models advance before the clock moves, so a refusing model leaves the clock
+where it was and the document is never ahead of its models. Step boundaries
+are the only points at which model state is meaningful.
+
+A document with no models advances only its clock. That is honest rather than
+an error — the clock belongs to the document, not to any model.
+
+Non-positive, fractional, and unsafe step counts are typed `invalid-value`
+refusals; advancing after `dispose()` is `disposed`.
+
 ## Deliberate boundaries
 
 - There is no global kind registry. Compilation receives an explicit

@@ -118,6 +118,7 @@ export default defineConfig({
         items: [
           { text: '@holotope/core', link: '/api/core/' },
           { text: '@holotope/experiment', link: '/api/experiment/' },
+  { text: '@holotope/experiment-physics', link: '/api/experiment-physics/' },
           { text: '@holotope/three', link: '/api/three/' },
           { text: '@holotope/physics', link: '/api/physics/' }
         ]
@@ -186,6 +187,7 @@ export default defineConfig({
 
       ...apiSidebars('core'),
       ...apiSidebars('experiment'),
+  ...apiSidebars('experiment-physics'),
       ...apiSidebars('three'),
       ...apiSidebars('physics')
     },

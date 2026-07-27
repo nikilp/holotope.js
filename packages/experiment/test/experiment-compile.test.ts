@@ -2,13 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import {
-  HyperplaneSlice4,
-  Rotor4,
-  VecN,
-  sliceTetrahedra,
-  sliceTetrahedraAmbient
-} from '@holotope/core';
+import { HyperplaneSlice4, Rotor4, TransformN, VecN, sliceTetrahedra, sliceTetrahedraAmbient } from '@holotope/core';
 import {
   compileExperimentDocumentV0,
   coreExperimentCompilerV0,
@@ -381,7 +375,9 @@ describe('@holotope/experiment compilation registry', () => {
       'representation'
     );
 
-    expect(spun.transform).not.toBeNull();
+    expect(spun.pose.kind).toBe('static');
+    if (spun.pose.kind !== 'static') throw new Error('unreachable');
+    expect(spun.pose.transform).not.toBeNull();
     const samples = [
       [1, -1, 1, -1],
       [0.5, 0.25, -0.75, 2],
@@ -391,7 +387,7 @@ describe('@holotope/experiment compilation registry', () => {
       const expected = authored
         .applyToPoint(new VecN(sample))
         .add(new VecN([0.25, 0, -0.5, 1]));
-      const received = spun.transform!.applyToPoint(new VecN(sample));
+      const received = spun.pose.transform!.applyToPoint(new VecN(sample));
       for (let coordinate = 0; coordinate < 4; coordinate++) {
         expect(Math.abs(
           received.data[coordinate]! - expected.data[coordinate]!
@@ -553,7 +549,8 @@ describe('@holotope/experiment compilation registry', () => {
         ambientDim: 4,
         id: 'tesseract',
         pointer: '/sources/tesseract',
-        resolveSource: () => undefined
+        resolveSource: () => undefined,
+        resolveModel: () => undefined
       }
     );
     expect(source.ok).toBe(true);
@@ -572,16 +569,50 @@ describe('@holotope/experiment compilation registry', () => {
         ambientDim: 4,
         id: 'perspective',
         pointer: '/representations/perspective',
-        resolveSource: (id) => (id === 'tesseract' ? source.value : undefined)
+        resolveSource: (id) => (id === 'tesseract' ? source.value : undefined),
+        resolveModel: () => undefined
       }
     );
     expect(refused).toMatchObject({
       ok: false,
       failures: [{
-        code: 'capability-unavailable',
+        code: 'missing-reference',
         pointer: '/representations/perspective/transform/fromModel'
       }]
     });
+
+    // With a model in the registry the same descriptor binds to it rather
+    // than copying a pose the model owns.
+    const bound = core.compileRepresentation!(
+      {
+        kind: 'core.representation.perspective',
+        source: 'tesseract',
+        fromDim: 4,
+        viewDistance: 5.4,
+        transform: { fromModel: 'tumble' },
+        product: 'both'
+      },
+      {
+        ambientDim: 4,
+        id: 'perspective',
+        pointer: '/representations/perspective',
+        resolveSource: (id) => (id === 'tesseract' ? source.value : undefined),
+        resolveModel: (id) => (id === 'tumble'
+          ? ({
+            category: 'model',
+            id: 'tumble',
+            kind: 'physics.model.rigid4',
+            source: 'tesseract',
+            pose: () => new TransformN(4),
+            advanceModel: () => ({ ok: true, value: { modelStep: 0 } }),
+            runtime: null
+          } as never)
+          : undefined)
+      }
+    );
+    expect(bound.ok).toBe(true);
+    if (!bound.ok) return;
+    expect(bound.value.pose).toEqual({ kind: 'model', model: 'tumble' });
   });
 
   it('isolates capability sets and compiled objects between compilations', async () => {

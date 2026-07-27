@@ -8,11 +8,14 @@ export {
   type ExperimentCompiledEntryV0,
   type ExperimentCompiledRepresentationMapV0,
   type ExperimentCompiledRepresentationV0,
+  type ExperimentCompiledModelV0,
+  type ExperimentCompiledPoseV0,
   type ExperimentCompiledSourceV0,
   type ExperimentDescriptorCompilerV0
 } from './compile.js';
 export {
-  coreExperimentCompilerV0
+  coreExperimentCompilerV0,
+  experimentRotor4FromPairV0
 } from './core-compiler.js';
 export {
   DEFAULT_EXPERIMENT_VALIDATION_LIMITS_V0,

@@ -16,6 +16,7 @@ import {
 } from '@holotope/core';
 import type {
   ExperimentCompileContextV0,
+  ExperimentCompiledPoseV0,
   ExperimentCompiledRepresentationMapV0,
   ExperimentCompiledRepresentationV0,
   ExperimentCompiledSourceV0,
@@ -122,7 +123,8 @@ function compileRepresentation(
   const transform = compileTransform(
     descriptor.transform,
     source.dim,
-    `${context.pointer}/transform`
+    `${context.pointer}/transform`,
+    context
   );
   if (!transform.ok) return transform;
 
@@ -182,7 +184,7 @@ function compileRepresentation(
       kind: descriptor.kind,
       source: descriptor.source,
       map,
-      transform: transform.value,
+      pose: transform.value,
       lineage,
       capabilities: representationLineageCapabilitiesN(lineage)
     })
@@ -192,23 +194,30 @@ function compileRepresentation(
 function compileTransform(
   descriptor: ExperimentTransformDescriptorV0 | undefined,
   dim: number,
-  pointer: string
-): ExperimentResult<TransformN | null> {
+  pointer: string,
+  context: ExperimentCompileContextV0
+): ExperimentResult<ExperimentCompiledPoseV0> {
   if (descriptor === undefined) {
-    return { ok: true, value: null };
+    return { ok: true, value: { kind: 'static', transform: null } };
   }
   if ('fromModel' in descriptor) {
-    return refused(failure(
-      'capability-unavailable',
-      'model-owned transforms require a model capability, which this ' +
-        'headless core slice does not supply',
-      `${pointer}/fromModel`,
-      { fromModel: descriptor.fromModel }
-    ));
+    // A binding, never a copy: the model owns its pose, and a transform read
+    // at compile time would be stale as soon as the model advanced.
+    const model = context.resolveModel(descriptor.fromModel);
+    if (model === undefined) {
+      return refused(failure(
+        'missing-reference',
+        `model ${JSON.stringify(descriptor.fromModel)} is not a compiled ` +
+          'model of this document',
+        `${pointer}/fromModel`,
+        { fromModel: descriptor.fromModel }
+      ));
+    }
+    return { ok: true, value: { kind: 'model', model: descriptor.fromModel } };
   }
   let rotation: Rotor4 | undefined;
   if (descriptor.rotor4 !== undefined) {
-    const rotor = rotorFromPair(descriptor.rotor4, `${pointer}/rotor4`);
+    const rotor = experimentRotor4FromPairV0(descriptor.rotor4, `${pointer}/rotor4`);
     if (!rotor.ok) return rotor;
     rotation = rotor.value;
   }
@@ -217,7 +226,7 @@ function compileTransform(
     : undefined;
   return {
     ok: true,
-    value: new TransformN(dim, rotation, position)
+    value: { kind: 'static', transform: new TransformN(dim, rotation, position) }
   };
 }
 
@@ -230,7 +239,7 @@ function compileTransform(
  * `Rotor4.fromMatrix` factorization re-checks orthonormality, determinant,
  * and residual, guarding the convention itself.
  */
-function rotorFromPair(
+export function experimentRotor4FromPairV0(
   pair: readonly number[],
   pointer: string
 ): ExperimentResult<Rotor4> {
