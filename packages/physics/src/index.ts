@@ -251,7 +251,8 @@ export {
   type XpbdIncrementalPotentialDirectionOutcomeN,
   type XpbdIncrementalPotentialDirectionPolicyN,
   type XpbdIncrementalPotentialDirectionProposalN,
-  type XpbdIncrementalPotentialDirectionRefusalN
+  type XpbdIncrementalPotentialDirectionRefusalN,
+  type XpbdIncrementalPotentialDirectionValuePolicyN
 } from './xpbd-incremental-potential-direction.js';
 export {
   xpbdNewtonDirectionPolicyN,
