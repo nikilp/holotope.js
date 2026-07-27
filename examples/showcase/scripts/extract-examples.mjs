@@ -111,6 +111,18 @@ const exportedNames = (barrel) => {
 
 const coreNames = exportedNames(path.join(REPO, 'packages/core/src/index.ts'));
 const threeNames = exportedNames(path.join(REPO, 'packages/three/src/index.ts'));
+// Examples are read from the physics package too, so its names have to be in
+// scope here or a physics example fails to compile for want of its own symbols
+// rather than for anything wrong with it.
+const physicsNames = exportedNames(path.join(REPO, 'packages/physics/src/index.ts'));
+
+// A name exported by more than one package would be declared twice in the same
+// block. Later packages yield to earlier ones, which is also the order the
+// playground injects them in, so a snippet resolves the same name either way.
+const seen = new Set(coreNames);
+const uniqueThree = threeNames.filter((n) => !seen.has(n) && seen.add(n));
+const uniquePhysics = physicsNames.filter((n) => !seen.has(n) && seen.add(n));
+const allNames = [...coreNames, ...uniqueThree, ...uniquePhysics];
 
 const safe = (symbol) => symbol.replace(/[^\w]/g, '_');
 const bodies = Object.entries(examples).flatMap(([symbol, entry]) =>
@@ -122,8 +134,9 @@ const bodies = Object.entries(examples).flatMap(([symbol, entry]) =>
       `/** Compiles the \`${symbol}\` example exactly as the reference renders it. */`,
       `export function ${name}(): void {`,
       `  const { ${coreNames.join(', ')} } = core;`,
-      `  const { ${threeNames.join(', ')} } = three;`,
-      `  void [${[...coreNames, ...threeNames].join(', ')}];`,
+      `  const { ${uniqueThree.join(', ')} } = three;`,
+      `  const { ${uniquePhysics.join(', ')} } = physics;`,
+      `  void [${allNames.join(', ')}];`,
       '  {',
       code.split('\n').map((line) => `    ${line}`).join('\n'),
       '  }',
@@ -141,6 +154,7 @@ const header = [
   '',
   "import * as core from '@holotope/core';",
   "import * as three from '@holotope/three';",
+  "import * as physics from '@holotope/physics';",
   "import type { Scene, PerspectiveCamera, WebGLRenderer } from 'three';",
   '',
   '// The context the examples are written against, and which the playground',

@@ -29,6 +29,7 @@ import {
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as holotopeCore from '@holotope/core';
 import * as holotopeThree from '@holotope/three';
+import * as holotopePhysics from '@holotope/physics';
 import examples from './generated-examples.json';
 import './viewer-chrome.css';
 import './playground.css';
@@ -111,10 +112,15 @@ const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.enableDamping = true;
 
 // --- running -----------------------------------------------------------------
-/** Every library export, by name, for injection into the evaluated snippet. */
+// Every library export, by name, for injection into the evaluated snippet.
+// A Map keyed by name means a symbol re-exported by two packages is bound
+// once; earlier entries win, matching the order the compile check declares
+// them in, so a snippet resolves the same name in both places.
 const scope = new Map<string, unknown>();
-for (const module of [holotopeCore, holotopeThree]) {
-  for (const [name, value] of Object.entries(module)) scope.set(name, value);
+for (const module of [holotopeCore, holotopeThree, holotopePhysics]) {
+  for (const [name, value] of Object.entries(module)) {
+    if (!scope.has(name)) scope.set(name, value);
+  }
 }
 
 let frameCallbacks: ((t: number) => void)[] = [];
