@@ -5,7 +5,8 @@ import {
   type XpbdIncrementalPotentialDirectionContextN,
   type XpbdIncrementalPotentialDirectionEvidenceN,
   type XpbdIncrementalPotentialDirectionOutcomeN,
-  type XpbdIncrementalPotentialDirectionPolicyN
+  type XpbdIncrementalPotentialDirectionPolicyN,
+  type XpbdIncrementalPotentialDirectionValuePolicyN
 } from './xpbd-incremental-potential-direction.js';
 import {
   solveXpbdIncrementalPotentialNewtonDirectionN,
@@ -30,8 +31,8 @@ export type XpbdNewtonDirectionFallbackTriggerN =
 
 /** An explicitly authored first-order policy and the outcomes it answers for. */
 export interface XpbdNewtonDirectionFallbackN {
-  /** Plain first-order policy; must return a direction value, never refuse. */
-  readonly policy: XpbdIncrementalPotentialDirectionPolicyN;
+  /** Plain first-order policy; the type forbids it refusing. */
+  readonly policy: XpbdIncrementalPotentialDirectionValuePolicyN;
   /** Non-empty, unique triggers this fallback is authored for. */
   readonly on: readonly XpbdNewtonDirectionFallbackTriggerN[];
 }
@@ -113,21 +114,39 @@ const TRIGGERS: readonly XpbdNewtonDirectionFallbackTriggerN[] = Object.freeze([
  * ends the minimization with the rejected ray retained rather than being
  * silently repaired:
  * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 0.3, 0]) });
+ * const problem = compileXpbdIncrementalPotentialProblemN({
+ *   dimension: 3,
+ *   particles: [particle],
+ *   predictedPositions: [new VecN([0, 0.3, 0])],
+ *   deltaTime: 1 / 60,
+ *   providers: []
+ * });
+ *
  * const policy = xpbdNewtonDirectionPolicyN({ problem });
  * const result = minimizeXpbdIncrementalPotentialN({
  *   problem,
- *   initialCoordinates,
+ *   initialCoordinates: [0, 0.3, 0],
  *   directionPolicy: policy
  * });
  *
- * result.status; // 'direction-refused' at an indefinite linearization
  * policy.id; // 'newton-cg'
+ * result.status; // 'direction-refused' at an indefinite linearization
  * ```
  *
  * @example
  * Continuing first-order past a refusal is authored, naming both the policy
  * and the exact outcomes it answers for:
  * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 0.3, 0]) });
+ * const problem = compileXpbdIncrementalPotentialProblemN({
+ *   dimension: 3,
+ *   particles: [particle],
+ *   predictedPositions: [new VecN([0, 0.3, 0])],
+ *   deltaTime: 1 / 60,
+ *   providers: []
+ * });
+ *
  * const policy = xpbdNewtonDirectionPolicyN({
  *   problem,
  *   fallback: {

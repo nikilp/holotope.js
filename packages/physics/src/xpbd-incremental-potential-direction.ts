@@ -88,12 +88,28 @@ export interface XpbdIncrementalPotentialDirectionPolicyN {
 }
 
 /**
+ * A policy that always proposes a packed direction and never refuses.
+ *
+ * The built-in first-order policies are of this kind, and so is anything
+ * usable as a Newton fallback: a fallback exists to supply a direction, so one
+ * that could refuse would leave the composite with a reason from one layer and
+ * evidence from another.
+ */
+export interface XpbdIncrementalPotentialDirectionValuePolicyN
+  extends XpbdIncrementalPotentialDirectionPolicyN {
+  /** Returns one finite component per packed free coordinate. */
+  evaluate(
+    context: XpbdIncrementalPotentialDirectionContextN
+  ): Float64Array;
+}
+
+/**
  * Deterministic negative-gradient reference direction.
  *
  * This is the default policy and preserves the original bounded minimizer.
  */
 export const xpbdSteepestDescentDirectionN:
-  XpbdIncrementalPotentialDirectionPolicyN = Object.freeze({
+  XpbdIncrementalPotentialDirectionValuePolicyN = Object.freeze({
   id: 'steepest-descent',
   evaluate(context: XpbdIncrementalPotentialDirectionContextN) {
     return Float64Array.from(
@@ -158,7 +174,7 @@ export const xpbdSteepestDescentDirectionN:
  * ```
  */
 export const xpbdMassPreconditionedDirectionN:
-  XpbdIncrementalPotentialDirectionPolicyN = Object.freeze({
+  XpbdIncrementalPotentialDirectionValuePolicyN = Object.freeze({
   id: 'mass-diagonal',
   evaluate(context: XpbdIncrementalPotentialDirectionContextN) {
     const direction = new Float64Array(context.gradient.length);
