@@ -573,6 +573,78 @@ nonlinear step, invoke Armijo backtracking, mutate particles, or claim a
 globally convergent Newton method. Those are separate policies so callers
 cannot mistake a locally valid direction for an accepted simulation state.
 
+## Globalizing the Newton direction
+
+A Newton direction is only valid where the objective is locally convex. Away
+from that, the linearized equation is solving the wrong problem, and a
+curvature ray with `dᵀHd ≤ 0` is the search saying so. What a globalized
+method does with that fact is where designs diverge.
+
+`xpbdNewtonDirectionPolicyN()` composes the solve into the existing
+minimization stack as an ordinary [direction
+policy](/api/physics/interfaces/XpbdIncrementalPotentialDirectionPolicyN).
+Nothing else moves: step filters still certify the requested segment before
+any trial, Armijo still owns acceptance and backtracking, and the gradient
+norm still owns convergence. Steepest descent remains the default everywhere
+— Newton is never selected for you.
+
+### Refusal is the default
+
+The common alternative is to repair the curvature: project the Hessian to its
+positive part, clamp or reflect eigenvalues, or substitute a surrogate. Each
+returns a direction, and each quietly changes the problem being solved. The
+caller receives something shaped like a Newton direction that is no longer
+one, with nothing in the result to say so.
+
+This library refuses instead. A rejected ray stays rejected, and the
+minimization terminates as `direction-refused` carrying the complete evidence
+— the rejected direction, its product, the quadratic form, and the threshold
+it failed. Nothing was tried and nothing moved, so the last accepted iterate
+is still the final state.
+
+### Continuing is authored, never inferred
+
+Refusing is not always what you want. A first-order step is a perfectly good
+answer to indefinite curvature — but it is a modelling decision, so it is
+written down:
+
+```ts
+const policy = xpbdNewtonDirectionPolicyN({
+  problem,
+  fallback: {
+    policy: xpbdMassPreconditionedDirectionN,
+    on: ['non-positive-curvature']
+  }
+});
+```
+
+The fallback names both the policy and the exact outcomes it answers for. The
+Newton refusal evidence is retained beside the fallback's identity, so the
+record shows what was refused *and* what was done instead. The policy id
+becomes `newton-cg+fallback:mass-diagonal`, so a result cannot be mistaken for
+a pure Newton run.
+
+Armijo's `not-descent` verdict is deliberately not a fallback trigger. The
+policy never sees it: a Newton direction that fails sufficient decrease
+surfaces as the existing `stalled/not-descent` terminal with the direction
+evidence attached, rather than as a second attempt at choosing a direction.
+
+### Truncation is honest, exhaustion is not
+
+Exhausting the Krylov budget after at least one iteration yields
+`truncated-newton`. Every completed iteration passed the curvature test, so
+the accumulated direction is a genuine descent direction — just a less
+complete solve. Armijo still decides whether to accept it.
+
+A budget that completed *no* iteration is different: there is no Krylov
+information at all and the accumulated direction is still zero. That is
+`empty-iteration-limit`, a refusal trigger rather than a direction.
+
+The partial direction accumulated before a rejected ray is discarded rather
+than reused. Reusing it is a real technique, but it makes the outcome a
+matter of degree; discarding keeps the decision binary and the evidence
+readable.
+
 ## Atomic result application
 
 `applyXpbdIncrementalPotentialResultN()` is the first state-mutating boundary

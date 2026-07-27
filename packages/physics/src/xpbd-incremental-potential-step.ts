@@ -43,6 +43,18 @@ export interface XpbdIncrementalPotentialMinimizationPolicyN {
   readonly maximumLineSearchTrials?: number;
   /** Packed search-direction policy; defaults to steepest descent. */
   readonly directionPolicy?: XpbdIncrementalPotentialDirectionPolicyN;
+  /**
+   * Builds the direction policy from the problem this step compiles.
+   *
+   * The step owns compilation, so a policy needing the compiled objective
+   * cannot be constructed by the caller beforehand. Invoked exactly once,
+   * after compilation and before minimization. Mutually exclusive with
+   * `directionPolicy`: supplying both is ambiguous about which is authoritative
+   * rather than resolvable by precedence.
+   */
+  readonly directionPolicyFactory?: (
+    problem: XpbdIncrementalPotentialProblemN
+  ) => XpbdIncrementalPotentialDirectionPolicyN;
 }
 
 export interface XpbdIncrementalPotentialApplicationPolicyN {
@@ -172,6 +184,16 @@ export function stepXpbdIncrementalPotentialN(
       options.initialPositions ?? prediction.positions
     );
     const policy = options.minimization;
+    if (policy?.directionPolicy !== undefined &&
+      policy.directionPolicyFactory !== undefined) {
+      throw new Error(
+        `${caller}: minimization.directionPolicy and directionPolicyFactory ` +
+          'are mutually exclusive'
+      );
+    }
+    const directionPolicy = policy?.directionPolicyFactory === undefined
+      ? policy?.directionPolicy
+      : policy.directionPolicyFactory(problem);
     const minimization = minimizeXpbdIncrementalPotentialN({
       problem,
       initialCoordinates,
@@ -193,9 +215,7 @@ export function stepXpbdIncrementalPotentialN(
       ...(policy?.maximumLineSearchTrials === undefined
         ? {}
         : { maximumLineSearchTrials: policy.maximumLineSearchTrials }),
-      ...(policy?.directionPolicy === undefined
-        ? {}
-        : { directionPolicy: policy.directionPolicy })
+      ...(directionPolicy === undefined ? {} : { directionPolicy })
     });
     const base = { prediction, problem, minimization } as const;
 

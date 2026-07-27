@@ -247,8 +247,20 @@ export {
   xpbdMassPreconditionedDirectionN,
   xpbdSteepestDescentDirectionN,
   type XpbdIncrementalPotentialDirectionContextN,
-  type XpbdIncrementalPotentialDirectionPolicyN
+  type XpbdIncrementalPotentialDirectionEvidenceN,
+  type XpbdIncrementalPotentialDirectionOutcomeN,
+  type XpbdIncrementalPotentialDirectionPolicyN,
+  type XpbdIncrementalPotentialDirectionProposalN,
+  type XpbdIncrementalPotentialDirectionRefusalN
 } from './xpbd-incremental-potential-direction.js';
+export {
+  xpbdNewtonDirectionPolicyN,
+  type XpbdNewtonDirectionFallbackN,
+  type XpbdNewtonDirectionFallbackTriggerN,
+  type XpbdNewtonDirectionOutcomeN,
+  type XpbdNewtonDirectionPolicyEvidenceN,
+  type XpbdNewtonDirectionPolicyNOptions
+} from './xpbd-incremental-potential-newton-policy.js';
 export {
   estimateXpbdIncrementalPotentialHessianVectorN,
   type EstimateXpbdIncrementalPotentialHessianVectorNOptions,
@@ -293,6 +305,7 @@ export {
   type XpbdIncrementalPotentialLineSearchRefusedN,
   type XpbdIncrementalPotentialIterationN,
   type XpbdIncrementalPotentialMinimizationResultN,
+  type XpbdIncrementalPotentialDirectionRefusedN,
   type XpbdIncrementalPotentialStalledN,
   type XpbdIncrementalPotentialStallReasonN,
   type XpbdSteepestDescentIterationN

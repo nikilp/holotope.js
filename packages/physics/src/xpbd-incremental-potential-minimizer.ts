@@ -10,7 +10,10 @@ import {
 import {
   xpbdSteepestDescentDirectionN,
   type XpbdIncrementalPotentialDirectionContextN,
-  type XpbdIncrementalPotentialDirectionPolicyN
+  type XpbdIncrementalPotentialDirectionEvidenceN,
+  type XpbdIncrementalPotentialDirectionPolicyN,
+  type XpbdIncrementalPotentialDirectionProposalN,
+  type XpbdIncrementalPotentialDirectionRefusalN
 } from './xpbd-incremental-potential-direction.js';
 
 export interface MinimizeXpbdIncrementalPotentialNOptions {
@@ -46,6 +49,8 @@ export interface XpbdIncrementalPotentialIterationN {
   readonly stepNorm: number;
   /** Positive objective reduction produced by the accepted displacement. */
   readonly objectiveDecrease: number;
+  /** Policy-defined record of how this iteration's direction was obtained. */
+  readonly directionEvidence?: XpbdIncrementalPotentialDirectionEvidenceN;
 }
 
 /**
@@ -56,15 +61,29 @@ export interface XpbdIncrementalPotentialIterationN {
 export type XpbdSteepestDescentIterationN =
   XpbdIncrementalPotentialIterationN;
 
+/** Evidence every minimization terminal carries, however it ended. */
 interface XpbdIncrementalPotentialMinimizationBaseN {
+  /** Exact compiled objective and identity context the search ran against. */
   readonly problem: XpbdIncrementalPotentialProblemN;
+  /** Objective evidence at the authored initial coordinates. */
   readonly initial: XpbdPackedIncrementalPotentialEvaluationN;
+  /** Objective evidence at the last accepted iterate. */
   readonly final: XpbdPackedIncrementalPotentialEvaluationN;
+  /** Accepted iterations in execution order, empty when none were. */
   readonly iterations: readonly XpbdIncrementalPotentialIterationN[];
   /** Stable identity of the direction policy used for every attempt. */
   readonly directionPolicyId: string;
+  /** Absolute packed-gradient norm required for convergence. */
   readonly gradientTolerance: number;
+  /** Authored accepted-step budget. */
   readonly maximumIterations: number;
+  /**
+   * Evidence of the final direction attempt.
+   *
+   * Present on a terminal reached because that attempt failed, so the record
+   * of why survives the terminal rather than being discarded with it.
+   */
+  readonly directionEvidence?: XpbdIncrementalPotentialDirectionEvidenceN;
 }
 
 export interface XpbdIncrementalPotentialConvergedN
@@ -117,8 +136,24 @@ export interface XpbdIncrementalPotentialStalledN
   readonly search: XpbdArmijoAcceptedN | XpbdArmijoNotDescentN;
 }
 
+/**
+ * Termination because the direction policy declined to propose a direction.
+ *
+ * Distinct from a stall: the minimizer did not run out of progress, it was
+ * never given a direction to try. No Armijo trial was evaluated and no
+ * coordinate moved.
+ */
+export interface XpbdIncrementalPotentialDirectionRefusedN
+  extends XpbdIncrementalPotentialMinimizationBaseN {
+  /** Distinguishes a policy refusal from a search or resolution terminal. */
+  readonly status: 'direction-refused';
+  /** Stable policy-stated reason, such as `'non-positive-curvature'`. */
+  readonly reason: string;
+}
+
 export type XpbdIncrementalPotentialMinimizationResultN =
   | XpbdIncrementalPotentialConvergedN
+  | XpbdIncrementalPotentialDirectionRefusedN
   | XpbdIncrementalPotentialIterationLimitN
   | XpbdIncrementalPotentialLineSearchExhaustedN
   | XpbdIncrementalPotentialLineSearchRefusedN
@@ -207,7 +242,7 @@ export function minimizeXpbdIncrementalPotentialN(
     (particleIndex) => options.problem.particles[particleIndex]!.inverseMass
   );
   for (let index = 0; index < maximumIterations; index++) {
-    const direction = evaluateDirectionPolicy(
+    const proposal = evaluateDirectionPolicy(
       directionPolicy,
       {
         dimension: options.problem.dimension,
@@ -224,6 +259,25 @@ export function minimizeXpbdIncrementalPotentialN(
       options.problem.variableCount,
       caller
     );
+    if (proposal.status === 'refused') {
+      // No trial was evaluated and nothing moved, so the last accepted
+      // iterate is still the final state.
+      return resultBase({
+        status: 'direction-refused',
+        reason: proposal.reason,
+        ...(proposal.evidence === undefined
+          ? {}
+          : { directionEvidence: proposal.evidence }),
+        problem: options.problem,
+        initial,
+        final: current,
+        iterations,
+        directionPolicyId,
+        gradientTolerance,
+        maximumIterations
+      });
+    }
+    const { direction, evidence: directionEvidence } = proposal;
     const search = searchXpbdIncrementalPotentialArmijoN({
       problem: options.problem,
       coordinates: current.coordinates,
@@ -238,6 +292,7 @@ export function minimizeXpbdIncrementalPotentialN(
         status: 'stalled',
         reason: 'not-descent',
         search,
+        ...(directionEvidence === undefined ? {} : { directionEvidence }),
         problem: options.problem,
         initial,
         final: current,
@@ -251,6 +306,7 @@ export function minimizeXpbdIncrementalPotentialN(
       return resultBase({
         status: 'line-search-exhausted',
         search,
+        ...(directionEvidence === undefined ? {} : { directionEvidence }),
         problem: options.problem,
         initial,
         final: current,
@@ -264,6 +320,7 @@ export function minimizeXpbdIncrementalPotentialN(
       return resultBase({
         status: 'line-search-refused',
         search,
+        ...(directionEvidence === undefined ? {} : { directionEvidence }),
         problem: options.problem,
         initial,
         final: current,
@@ -298,7 +355,8 @@ export function minimizeXpbdIncrementalPotentialN(
       direction,
       search,
       stepNorm,
-      objectiveDecrease
+      objectiveDecrease,
+      ...(directionEvidence === undefined ? {} : { directionEvidence })
     });
     iterations.push(iteration);
 
@@ -307,6 +365,7 @@ export function minimizeXpbdIncrementalPotentialN(
         status: 'stalled',
         reason: 'coordinate-resolution',
         search,
+        ...(directionEvidence === undefined ? {} : { directionEvidence }),
         problem: options.problem,
         initial,
         final: current,
@@ -336,6 +395,7 @@ export function minimizeXpbdIncrementalPotentialN(
         status: 'stalled',
         reason: 'objective-resolution',
         search,
+        ...(directionEvidence === undefined ? {} : { directionEvidence }),
         problem: options.problem,
         initial,
         final: current,
@@ -374,17 +434,85 @@ function validateDirectionPolicy(
   }
 }
 
+/** One validated direction, or the policy's refusal to propose one. */
+type EvaluatedDirectionN =
+  | {
+    readonly status: 'direction';
+    readonly direction: Float64Array;
+    readonly evidence?: XpbdIncrementalPotentialDirectionEvidenceN;
+  }
+  | {
+    readonly status: 'refused';
+    readonly reason: string;
+    readonly evidence?: XpbdIncrementalPotentialDirectionEvidenceN;
+  };
+
 function evaluateDirectionPolicy(
   policy: XpbdIncrementalPotentialDirectionPolicyN,
   context: XpbdIncrementalPotentialDirectionContextN,
   variableCount: number,
   caller: string
-): Float64Array {
+): EvaluatedDirectionN {
   const output = policy.evaluate(Object.freeze(context));
+  if (typeof output !== 'object' || output === null) {
+    throw new Error(
+      `${caller}: directionPolicy "${policy.id}" must return ${variableCount} components`
+    );
+  }
+
+  // A packed direction is indexed, not tagged. Only an outcome object carries
+  // a string `status`, so the original contract is read exactly as before and
+  // a policy predating this seam cannot be misread as refusing.
+  const tagged = output as { readonly status?: unknown };
+  if (typeof tagged.status === 'string') {
+    if (tagged.status === 'refused') {
+      const refusal = output as XpbdIncrementalPotentialDirectionRefusalN;
+      if (typeof refusal.reason !== 'string' || refusal.reason.trim().length === 0) {
+        throw new Error(
+          `${caller}: directionPolicy "${policy.id}" refusal must state a reason`
+        );
+      }
+      return {
+        status: 'refused',
+        reason: refusal.reason,
+        ...(refusal.evidence === undefined ? {} : { evidence: refusal.evidence })
+      };
+    }
+    if (tagged.status !== 'direction') {
+      throw new Error(
+        `${caller}: directionPolicy "${policy.id}" returned unknown status "${String(tagged.status)}"`
+      );
+    }
+    const proposal = output as XpbdIncrementalPotentialDirectionProposalN;
+    return {
+      status: 'direction',
+      direction: packedDirection(proposal.direction, policy.id, variableCount, caller),
+      ...(proposal.evidence === undefined ? {} : { evidence: proposal.evidence })
+    };
+  }
+
+  return {
+    status: 'direction',
+    direction: packedDirection(
+      output as ArrayLike<number>,
+      policy.id,
+      variableCount,
+      caller
+    )
+  };
+}
+
+/** Length and finiteness hold identically for a bare value and a proposal. */
+function packedDirection(
+  output: ArrayLike<number>,
+  policyId: string,
+  variableCount: number,
+  caller: string
+): Float64Array {
   if (typeof output !== 'object' || output === null ||
     output.length !== variableCount) {
     throw new Error(
-      `${caller}: directionPolicy "${policy.id}" must return ${variableCount} components`
+      `${caller}: directionPolicy "${policyId}" must return ${variableCount} components`
     );
   }
   const direction = new Float64Array(variableCount);
@@ -392,7 +520,7 @@ function evaluateDirectionPolicy(
     const component = output[index]!;
     if (!Number.isFinite(component)) {
       throw new Error(
-        `${caller}: directionPolicy "${policy.id}" component ${index} must be finite`
+        `${caller}: directionPolicy "${policyId}" component ${index} must be finite`
       );
     }
     direction[index] = component;

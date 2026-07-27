@@ -19,18 +19,72 @@ export interface XpbdIncrementalPotentialDirectionContextN {
 }
 
 /**
+ * Policy-defined evidence retained beside a proposed or refused direction.
+ *
+ * The discriminator is the policy's own, not this module's: a policy that
+ * computes something worth auditing describes it in its own vocabulary, and
+ * the minimizer carries the record without interpreting it.
+ */
+export interface XpbdIncrementalPotentialDirectionEvidenceN {
+  /** Stable policy-defined evidence discriminator. */
+  readonly kind: string;
+}
+
+/** A direction a policy is prepared to stand behind, with optional evidence. */
+export interface XpbdIncrementalPotentialDirectionProposalN {
+  /** Distinguishes a proposal from a refusal. */
+  readonly status: 'direction';
+  /** One finite component per packed free coordinate. */
+  readonly direction: ArrayLike<number>;
+  /** Optional policy-defined record of how the direction was obtained. */
+  readonly evidence?: XpbdIncrementalPotentialDirectionEvidenceN;
+}
+
+/**
+ * A policy declining to propose a direction at all.
+ *
+ * This is a refusal, not a failure: a policy that cannot certify a direction
+ * says so rather than returning one it does not believe in. The minimizer
+ * terminates on it, retaining whatever evidence the policy supplied.
+ */
+export interface XpbdIncrementalPotentialDirectionRefusalN {
+  /** Distinguishes a refusal from a proposal. */
+  readonly status: 'refused';
+  /** Stable policy-defined reason within that policy's vocabulary. */
+  readonly reason: string;
+  /** Optional policy-defined record of what was refused and why. */
+  readonly evidence?: XpbdIncrementalPotentialDirectionEvidenceN;
+}
+
+/**
+ * What one direction-policy evaluation may return.
+ *
+ * A bare `ArrayLike` remains valid and unchanged in meaning, so a policy
+ * written against the original seam keeps working. The minimizer discriminates
+ * on a string `status` property: anything without one is a packed direction.
+ */
+export type XpbdIncrementalPotentialDirectionOutcomeN =
+  | ArrayLike<number>
+  | XpbdIncrementalPotentialDirectionProposalN
+  | XpbdIncrementalPotentialDirectionRefusalN;
+
+/**
  * Auditable RN search-direction policy for an incremental-potential minimizer.
  *
- * Policies choose only a packed direction. Armijo acceptance, admissible-step
- * filtering, convergence, and typed refusal remain owned by the minimizer.
+ * Policies choose only a packed direction, or decline to. Armijo acceptance,
+ * admissible-step filtering, convergence, and typed refusal remain owned by
+ * the minimizer.
  */
 export interface XpbdIncrementalPotentialDirectionPolicyN {
   /** Stable authored identity retained in minimization evidence. */
   readonly id: string;
-  /** Returns one finite component per packed free coordinate. */
+  /**
+   * Returns one finite component per packed free coordinate, a proposal
+   * carrying the same with evidence, or an explicit refusal.
+   */
   evaluate(
     context: XpbdIncrementalPotentialDirectionContextN
-  ): ArrayLike<number>;
+  ): XpbdIncrementalPotentialDirectionOutcomeN;
 }
 
 /**
