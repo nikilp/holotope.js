@@ -256,7 +256,16 @@ right-Cauchy–Green and second-Piola tensors; family products assemble by sourc
 vertex and plug into the complete incremental-objective analytic curvature
 protocol. Custom laws may remain first-order-only and are then refused
 explicitly by that protocol. No dense Hessian, definiteness modification, or
-Newton/Krylov solver is implied.
+Newton/Krylov solver is implied by the provider capability itself.
+
+`solveXpbdIncrementalPotentialNewtonDirectionN()` composes the complete
+analytic objective product into a bounded, non-mutating preconditioned-CG
+reference for `H(q) p = -gradient(Phi(q))`. Identity and exact inertial
+mass-diagonal preconditioners are available. Results retain per-iteration
+residual and curvature evidence and distinguish convergence, an exact zero
+gradient, budget exhaustion, unsupported providers, and non-positive or
+numerically unresolved curvature. The function assembles no matrix and does
+not modify definiteness, choose a nonlinear step, run Armijo, or apply state.
 
 `compileSimplexConstitutiveFamilyStateGuardN()` is an optional post-substep
 policy over that generic family. It rejects typed law-domain refusal,

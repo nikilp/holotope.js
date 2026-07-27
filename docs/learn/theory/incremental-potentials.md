@@ -525,6 +525,54 @@ curvature or chooses a solver direction. Exact matrix-free products do not
 imply positive semidefiniteness, a sparse Hessian, a Krylov solve, or a Newton
 policy.
 
+### Bounded matrix-free Newton direction
+
+`solveXpbdIncrementalPotentialNewtonDirectionN()` is the first bounded linear
+solver over that exact analytic operator. It uses preconditioned conjugate
+gradients to attempt
+
+$$
+\nabla^2E(q)\,p=-\nabla E(q)
+$$
+
+without assembling a dense or sparse Hessian. The default mass-diagonal
+preconditioner applies the exact inverse of the inertial mass block; an
+identity reference is also available.
+
+```ts
+import {
+  solveXpbdIncrementalPotentialNewtonDirectionN
+} from '@holotope/physics';
+
+const linear = solveXpbdIncrementalPotentialNewtonDirectionN({
+  problem,
+  coordinates: packed.coordinates,
+  preconditioner: 'mass-diagonal',
+  maximumIterations: 64
+});
+
+if (linear.status === 'converged') {
+  console.log(linear.direction, linear.residualNorm);
+} else {
+  console.log(linear.status);
+}
+```
+
+The result is deliberately evidence-rich. It retains every completed Krylov
+iteration, residual reduction, operator-evaluation count, and the authored
+tolerances. A mixed objective with first-order-only providers returns
+`unsupported-provider`. A search ray whose
+`dᵀHd` is non-positive or too small relative to `||d|| ||Hd||` returns
+`non-positive-curvature` with the rejecting direction and product. Exact
+stationarity, convergence, and exhaustion of a finite iteration budget have
+separate statuses.
+
+This function solves only the linearized equation at one fixed coordinate.
+It does not make the Hessian positive semidefinite, select an admissible
+nonlinear step, invoke Armijo backtracking, mutate particles, or claim a
+globally convergent Newton method. Those are separate policies so callers
+cannot mistake a locally valid direction for an accepted simulation state.
+
 ## Atomic result application
 
 `applyXpbdIncrementalPotentialResultN()` is the first state-mutating boundary

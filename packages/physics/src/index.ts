@@ -272,6 +272,19 @@ export {
   type XpbdParticleDirectionQueryN
 } from './xpbd-incremental-potential-analytic-curvature.js';
 export {
+  solveXpbdIncrementalPotentialNewtonDirectionN,
+  type SolveXpbdIncrementalPotentialNewtonDirectionNOptions,
+  type XpbdIncrementalPotentialNewtonDirectionBaseN,
+  type XpbdIncrementalPotentialNewtonDirectionConvergedN,
+  type XpbdIncrementalPotentialNewtonDirectionIterationLimitN,
+  type XpbdIncrementalPotentialNewtonDirectionNonPositiveCurvatureN,
+  type XpbdIncrementalPotentialNewtonDirectionResultN,
+  type XpbdIncrementalPotentialNewtonDirectionUnsupportedN,
+  type XpbdIncrementalPotentialNewtonDirectionZeroGradientN,
+  type XpbdIncrementalPotentialNewtonIterationN,
+  type XpbdIncrementalPotentialNewtonPreconditionerN
+} from './xpbd-incremental-potential-newton-direction.js';
+export {
   minimizeXpbdIncrementalPotentialN,
   type MinimizeXpbdIncrementalPotentialNOptions,
   type XpbdIncrementalPotentialConvergedN,

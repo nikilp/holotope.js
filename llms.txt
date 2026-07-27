@@ -118,6 +118,12 @@ windows.
   `Hessian(U) * direction`; capable families assemble the same optional
   provider seam by source vertex. This is not force-derivative sign, a dense
   Hessian, or a Newton policy.
+- Matrix-free Newton direction:
+  `solveXpbdIncrementalPotentialNewtonDirectionN` applies bounded
+  preconditioned CG to the complete analytic incremental-objective operator.
+  It returns explicit convergence, budget, unsupported-provider, and
+  non-positive-curvature evidence. It does not select or apply a nonlinear
+  step.
 - Candidate objectives: `XpbdConservativeForceProviderN`, family
   `evaluateAt(positionOf)`, and `evaluateXpbdPotentialStateN` evaluate and
   assemble trial-state energy plus `dU/dx` without mutating live particles.
