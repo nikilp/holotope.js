@@ -13,7 +13,9 @@
     "@holotope/core": "workspace:*",
     "@holotope/physics": "workspace:*",
     "@holotope/three": "workspace:*",
-    "three": "0.185.1"
+    "three": "0.185.1",
+    "@holotope/experiment": "workspace:*",
+    "@holotope/experiment-physics": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

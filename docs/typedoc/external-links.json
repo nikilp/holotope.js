@@ -1058,6 +1058,7 @@
       "XpbdIncrementalPotentialDirectionProposalN": "/api/physics/interfaces/XpbdIncrementalPotentialDirectionProposalN",
       "XpbdIncrementalPotentialDirectionRefusalN": "/api/physics/interfaces/XpbdIncrementalPotentialDirectionRefusalN",
       "XpbdIncrementalPotentialDirectionRefusedN": "/api/physics/interfaces/XpbdIncrementalPotentialDirectionRefusedN",
+      "XpbdIncrementalPotentialDirectionValuePolicyN": "/api/physics/interfaces/XpbdIncrementalPotentialDirectionValuePolicyN",
       "XpbdIncrementalPotentialEvaluationN": "/api/physics/interfaces/XpbdIncrementalPotentialEvaluationN",
       "XpbdIncrementalPotentialEvidenceFieldN": "/api/physics/type-aliases/XpbdIncrementalPotentialEvidenceFieldN",
       "XpbdIncrementalPotentialEvidenceMismatchN": "/api/physics/interfaces/XpbdIncrementalPotentialEvidenceMismatchN",

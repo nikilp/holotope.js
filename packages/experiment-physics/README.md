@@ -11,7 +11,7 @@ import { coreExperimentCompilerV0, compileExperimentDocumentV0 } from '@holotope
 import { physicsExperimentCompilerV0 } from '@holotope/experiment-physics';
 
 const compilation = compileExperimentDocumentV0(prepared, {
-  capabilities: [coreExperimentCompilerV0(), physicsExperimentCompilerV0()]
+  compilers: [coreExperimentCompilerV0(), physicsExperimentCompilerV0()]
 });
 if (compilation.ok) {
   compilation.value.advance(120);        // 120 fixed steps, then the clock

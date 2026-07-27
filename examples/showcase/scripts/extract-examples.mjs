@@ -19,6 +19,7 @@ const OUT = path.join(SHOWCASE, 'src/generated-examples.json');
 const CHECK = path.join(SHOWCASE, 'src/generated-example-check.ts');
 
 const sources = [];
+const compileOnlyFiles = new Set();
 const walk = (dir) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -26,9 +27,33 @@ const walk = (dir) => {
     else if (entry.name.endsWith('.ts')) sources.push(full);
   }
 };
-for (const pkg of ['core', 'three', 'physics']) {
-  const dir = path.join(REPO, 'packages', pkg, 'src');
-  if (fs.existsSync(dir)) walk(dir);
+/**
+ * Packages whose examples are read, and whether the playground can run them.
+ *
+ * The experiment packages are compile-checked but not offered in the
+ * playground: their examples prepare a document, which is asynchronous, and
+ * the runner evaluates a snippet for its completion value rather than awaiting
+ * one. Listing them would advertise entries that cannot run.
+ */
+const PACKAGES = [
+  { name: 'core', playground: true },
+  { name: 'three', playground: true },
+  { name: 'physics', playground: true },
+  { name: 'experiment', playground: false },
+  { name: 'experiment-physics', playground: false }
+];
+
+/** Symbols whose examples are compiled but withheld from the playground. */
+const compileOnly = new Set();
+
+for (const pkg of PACKAGES) {
+  const dir = path.join(REPO, 'packages', pkg.name, 'src');
+  if (!fs.existsSync(dir)) continue;
+  const before = sources.length;
+  walk(dir);
+  if (!pkg.playground) {
+    for (const file of sources.slice(before)) compileOnlyFiles.add(file);
+  }
 }
 
 /** The declaration a doc comment sits above, which is the symbol it documents. */
@@ -61,11 +86,15 @@ for (const file of sources) {
     // Several @example blocks on one symbol are alternatives; the first is the
     // one a reader meets, so it seeds the playground.
     examples[symbol] = { code: blocks[0], alternatives: blocks.slice(1) };
+    if (compileOnlyFiles.has(file)) compileOnly.add(symbol);
   }
 }
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
-fs.writeFileSync(OUT, JSON.stringify(examples, null, 2) + '\n');
+const playable = Object.fromEntries(
+  Object.entries(examples).filter(([symbol]) => !compileOnly.has(symbol))
+);
+fs.writeFileSync(OUT, JSON.stringify(playable, null, 2) + '\n');
 console.log(
   `extract-examples: ${Object.keys(examples).length} symbols with examples -> ${path.relative(SHOWCASE, OUT)}`
 );
@@ -95,6 +124,13 @@ const exportedNames = (barrel) => {
     for (const m of text.matchAll(/export\s+\*\s+from\s+'([^']+)'/g)) {
       visit(path.join(path.dirname(file), m[1].replace(/\.js$/, '.ts')));
     }
+    // A barrel may also declare directly rather than re-export, which the
+    // adapter packages do; those names are exported just the same.
+    for (const m of text.matchAll(
+      /export\s+(?:async\s+)?(?:function|const|let|class)\s+([A-Za-z_$][\w$]*)/g
+    )) {
+      names.add(m[1]);
+    }
     // `export { a, type B } from './x.js'` — take the value names only, since
     // a type cannot be destructured at runtime.
     for (const m of text.matchAll(/export\s*\{([^}]*)\}\s*from/g)) {
@@ -115,6 +151,10 @@ const threeNames = exportedNames(path.join(REPO, 'packages/three/src/index.ts'))
 // scope here or a physics example fails to compile for want of its own symbols
 // rather than for anything wrong with it.
 const physicsNames = exportedNames(path.join(REPO, 'packages/physics/src/index.ts'));
+const experimentNames = exportedNames(path.join(REPO, 'packages/experiment/src/index.ts'));
+const experimentPhysicsNames = exportedNames(
+  path.join(REPO, 'packages/experiment-physics/src/index.ts')
+);
 
 // A name exported by more than one package would be declared twice in the same
 // block. Later packages yield to earlier ones, which is also the order the
@@ -122,7 +162,13 @@ const physicsNames = exportedNames(path.join(REPO, 'packages/physics/src/index.t
 const seen = new Set(coreNames);
 const uniqueThree = threeNames.filter((n) => !seen.has(n) && seen.add(n));
 const uniquePhysics = physicsNames.filter((n) => !seen.has(n) && seen.add(n));
-const allNames = [...coreNames, ...uniqueThree, ...uniquePhysics];
+const uniqueExperiment = experimentNames.filter((n) => !seen.has(n) && seen.add(n));
+const uniqueExperimentPhysics = experimentPhysicsNames
+  .filter((n) => !seen.has(n) && seen.add(n));
+const allNames = [
+  ...coreNames, ...uniqueThree, ...uniquePhysics,
+  ...uniqueExperiment, ...uniqueExperimentPhysics
+];
 
 const safe = (symbol) => symbol.replace(/[^\w]/g, '_');
 const bodies = Object.entries(examples).flatMap(([symbol, entry]) =>
@@ -132,10 +178,12 @@ const bodies = Object.entries(examples).flatMap(([symbol, entry]) =>
     // brought into scope rather than colliding with them.
     return [
       `/** Compiles the \`${symbol}\` example exactly as the reference renders it. */`,
-      `export function ${name}(): void {`,
+      `export async function ${name}(): Promise<void> {`,
       `  const { ${coreNames.join(', ')} } = core;`,
       `  const { ${uniqueThree.join(', ')} } = three;`,
       `  const { ${uniquePhysics.join(', ')} } = physics;`,
+      `  const { ${uniqueExperiment.join(', ')} } = experiment;`,
+      `  const { ${uniqueExperimentPhysics.join(', ')} } = experimentPhysics;`,
       `  void [${allNames.join(', ')}];`,
       '  {',
       code.split('\n').map((line) => `    ${line}`).join('\n'),
@@ -155,6 +203,8 @@ const header = [
   "import * as core from '@holotope/core';",
   "import * as three from '@holotope/three';",
   "import * as physics from '@holotope/physics';",
+  "import * as experiment from '@holotope/experiment';",
+  "import * as experimentPhysics from '@holotope/experiment-physics';",
   "import type { Scene, PerspectiveCamera, WebGLRenderer } from 'three';",
   '',
   '// The context the examples are written against, and which the playground',

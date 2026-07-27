@@ -154,7 +154,57 @@ export interface ExperimentCompiledModelV0 {
   observeModel?(quantity: string): ExperimentResult<ExperimentJsonValue>;
 }
 
-/** Evidence from exactly one parameter application attempt. */
+/**
+ * Evidence from exactly one parameter application attempt.
+ *
+ * @example
+ * State is read through to the compiled object, so `previous` is what a read
+ * would have returned rather than a remembered copy — and a refusal leaves
+ * the target and the revision exactly as they were:
+ * ```ts
+ * const prepared = await prepareExperimentDocumentV0({
+ *   schema: 'holotope.experiment/0',
+ *   title: 'Section control',
+ *   ambientDim: 4,
+ *   sources: { tesseract: { kind: 'core.source.hypercube', dim: 4, size: 2 } },
+ *   representations: {
+ *     section: {
+ *       kind: 'core.representation.section4',
+ *       source: 'tesseract',
+ *       normal: [0, 0, 0, 1],
+ *       offset: 0.12,
+ *       frame: 'canonical'
+ *     }
+ *   },
+ *   parameters: [{
+ *     id: 'sliceOffset',
+ *     label: 'Slice offset',
+ *     value: { type: 'number', default: 0.12, min: -1, max: 1 },
+ *     dimension: 'length',
+ *     frame: { space: 'ambient', dim: 4 },
+ *     unit: 'm',
+ *     target: { kind: 'representation-field', ref: 'section', field: 'offset' }
+ *   }]
+ * });
+ * if (!prepared.ok) return;
+ * const compiled = compileExperimentDocumentV0(prepared.value, {
+ *   compilers: [coreExperimentCompilerV0()]
+ * });
+ * if (!compiled.ok) return;
+ * const compilation = compiled.value;
+ *
+ * const applied = compilation.setParameter('sliceOffset', 0.62);
+ * applied.outcome; // 'applied'
+ * applied.previous; // 0.12
+ * applied.revision; // 2
+ *
+ * const refused = compilation.setParameter('sliceOffset', 1.4);
+ * refused.outcome; // 'refused'
+ * refused.failure?.code; // 'out-of-range'
+ * refused.previous; // undefined — nothing was read because nothing was written
+ * compilation.revision; // still 2
+ * ```
+ */
 export interface ExperimentParameterApplicationV0 {
   /** Document key of the parameter that was applied. */
   readonly parameter: ExperimentId;
@@ -179,6 +229,50 @@ export interface ExperimentParameterApplicationV0 {
  * Values are never memoized in this slice, so a record is always current at
  * the moment it was taken. Staleness is the caller's comparison to make:
  * `record.revision < compilation.revision` means something has changed since.
+ *
+ * @example
+ * A record is stamped with the state it was computed at, so staleness is a
+ * comparison rather than a flag to trust:
+ * ```ts
+ * const prepared = await prepareExperimentDocumentV0({
+ *   schema: 'holotope.experiment/0',
+ *   title: 'Section control',
+ *   ambientDim: 4,
+ *   sources: { tesseract: { kind: 'core.source.hypercube', dim: 4, size: 2 } },
+ *   representations: {
+ *     section: {
+ *       kind: 'core.representation.section4',
+ *       source: 'tesseract',
+ *       normal: [0, 0, 0, 1],
+ *       offset: 0.12,
+ *       frame: 'canonical'
+ *     }
+ *   },
+ *   parameters: [{
+ *     id: 'sliceOffset',
+ *     label: 'Slice offset',
+ *     value: { type: 'number', default: 0.12, min: -1, max: 1 },
+ *     dimension: 'length',
+ *     frame: { space: 'ambient', dim: 4 },
+ *     unit: 'm',
+ *     target: { kind: 'representation-field', ref: 'section', field: 'offset' }
+ *   }]
+ * });
+ * if (!prepared.ok) return;
+ * const compiled = compileExperimentDocumentV0(prepared.value, {
+ *   compilers: [coreExperimentCompilerV0()]
+ * });
+ * if (!compiled.ok) return;
+ * const compilation = compiled.value;
+ *
+ * const record = compilation.observe('sectionTriangles');
+ * if (record.ok) {
+ *   record.value.revision; // the revision it was computed at
+ *   record.value.step; // the clock step it was computed at
+ *   // Staleness is this comparison, not a flag the record carries.
+ *   record.value.revision < compilation.revision;
+ * }
+ * ```
  */
 export interface ExperimentObservationRecordV0 {
   /** Document key of the observation. */

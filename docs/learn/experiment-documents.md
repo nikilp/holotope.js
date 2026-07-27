@@ -183,7 +183,7 @@ physics consumer an experiment dependency it never asked for.
 
 ```ts
 const compilation = compileExperimentDocumentV0(prepared, {
-  capabilities: [coreExperimentCompilerV0(), physicsExperimentCompilerV0()]
+  compilers: [coreExperimentCompilerV0(), physicsExperimentCompilerV0()]
 });
 ```
 

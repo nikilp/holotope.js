@@ -61,9 +61,11 @@ export interface ExperimentRigidModel4RuntimeV0 {
  *
  * @example
  * ```ts
- * const compiled = compileExperimentDocumentV0({
- *   prepared,
- *   capabilities: [coreExperimentCompilerV0(), physicsExperimentCompilerV0()]
+ * const prepared = await prepareExperimentDocumentV0(document);
+ * if (!prepared.ok) return;
+ *
+ * const compiled = compileExperimentDocumentV0(prepared.value, {
+ *   compilers: [coreExperimentCompilerV0(), physicsExperimentCompilerV0()]
  * });
  * ```
  */
