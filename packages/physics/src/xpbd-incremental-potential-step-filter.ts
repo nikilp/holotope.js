@@ -122,6 +122,79 @@ export type XpbdParticleHyperplaneBarrierStepFilterEvaluationN =
  * The affine signed gap is solved in closed form. A crossing is shortened to
  * `conservativeScale` times the exact impact step, keeping the accepted point
  * strictly inside the barrier's open domain.
+ *
+ * A barrier alone does not keep a step admissible: it scores the endpoints a
+ * search proposes, and a long enough trial can pass straight through the
+ * plane between two finite evaluations. Certifying the *segment* is this
+ * filter's job, which is why the two are authored as a pair.
+ *
+ * @example
+ * A particle a unit above the floor `y = 0`, and the segment that carries it
+ * halfway down. Nothing crosses, so the whole requested step is certified:
+ * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 1, 0]) });
+ * const plane = new HyperplaneColliderN(new VecN([0, 1, 0]), 0);
+ * const barrier = new XpbdParticleHyperplaneBarrierN({
+ *   id: 'floor', particle, plane, activationDistance: 0.1, stiffness: 1
+ * });
+ * const filter = new XpbdParticleHyperplaneBarrierStepFilterN({ id: 'floor-ccd', barrier });
+ *
+ * const clear = filter.evaluate({
+ *   dimension: 3,
+ *   requestedStepLength: 1,
+ *   positionBefore: () => new VecN([0, 1, 0]),
+ *   positionAfter: () => new VecN([0, 0.5, 0])
+ * });
+ * clear.status; // 'safe'
+ * clear.impactFraction; // null — nothing to solve for
+ * ```
+ *
+ * @example
+ * A segment that would end below the floor is cut back to a strict prefix.
+ * The crossing is solved exactly, then scaled by `conservativeScale` so the
+ * accepted point stays strictly inside the open domain rather than on it:
+ * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 1, 0]) });
+ * const plane = new HyperplaneColliderN(new VecN([0, 1, 0]), 0);
+ * const barrier = new XpbdParticleHyperplaneBarrierN({
+ *   id: 'floor', particle, plane, activationDistance: 0.1, stiffness: 1
+ * });
+ * const filter = new XpbdParticleHyperplaneBarrierStepFilterN({ id: 'floor-ccd', barrier });
+ *
+ * const crossing = filter.evaluate({
+ *   dimension: 3,
+ *   requestedStepLength: 1,
+ *   positionBefore: () => new VecN([0, 1, 0]),
+ *   positionAfter: () => new VecN([0, -0.5, 0])
+ * });
+ * crossing.impactFraction; // 2/3 — where the segment meets the plane
+ * if (crossing.status === 'limited') {
+ *   crossing.maximumStepLength; // 0.6, the default 0.9 of the impact step
+ * }
+ * ```
+ *
+ * @example
+ * An `indeterminate` result is a refusal, not a missed collision. A segment
+ * beginning outside the open domain is refused even though it moves back
+ * towards safety, because there is no admissible prefix to certify:
+ * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 1, 0]) });
+ * const plane = new HyperplaneColliderN(new VecN([0, 1, 0]), 0);
+ * const barrier = new XpbdParticleHyperplaneBarrierN({
+ *   id: 'floor', particle, plane, activationDistance: 0.1, stiffness: 1
+ * });
+ * const filter = new XpbdParticleHyperplaneBarrierStepFilterN({ id: 'floor-ccd', barrier });
+ *
+ * const refused = filter.evaluate({
+ *   dimension: 3,
+ *   requestedStepLength: 1,
+ *   positionBefore: () => new VecN([0, -0.1, 0]),
+ *   positionAfter: () => new VecN([0, 0.5, 0])
+ * });
+ * if (refused.status === 'indeterminate') {
+ *   refused.reason; // 'initial-domain-violation'
+ * }
+ * ```
  */
 export class XpbdParticleHyperplaneBarrierStepFilterN
 implements XpbdIncrementalPotentialStepFilterN {

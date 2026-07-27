@@ -69,12 +69,14 @@ there is improved here.
 | [`Rotor4Track`](/api/core/animation/classes/Rotor4Track) | [open](https://nikilp.github.io/holotope.js/playground.html#Rotor4Track) |
 | [`SlicedComplex3D`](/api/three/index/classes/SlicedComplex3D) | [open](https://nikilp.github.io/holotope.js/playground.html#SlicedComplex3D) |
 | [`TransformN`](/api/core/math/classes/TransformN) | [open](https://nikilp.github.io/holotope.js/playground.html#TransformN) |
+| [`XpbdParticleHyperplaneBarrierStepFilterN`](/api/physics/classes/XpbdParticleHyperplaneBarrierStepFilterN) | [open](https://nikilp.github.io/holotope.js/playground.html#XpbdParticleHyperplaneBarrierStepFilterN) |
 | [`create24Cell`](/api/core/polytope/functions/create24Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create24Cell) |
 | [`create600Cell`](/api/core/polytope/functions/create600Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create600Cell) |
 | [`createCrossPolytope`](/api/core/polytope/functions/createCrossPolytope) | [open](https://nikilp.github.io/holotope.js/playground.html#createCrossPolytope) |
 | [`createDuoprism`](/api/core/polytope/functions/createDuoprism) | [open](https://nikilp.github.io/holotope.js/playground.html#createDuoprism) |
 | [`createHypercube`](/api/core/polytope/functions/createHypercube) | [open](https://nikilp.github.io/holotope.js/playground.html#createHypercube) |
 | [`createSimplex`](/api/core/polytope/functions/createSimplex) | [open](https://nikilp.github.io/holotope.js/playground.html#createSimplex) |
+| [`evaluateClampedLogBarrier`](/api/physics/functions/evaluateClampedLogBarrier) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateClampedLogBarrier) |
 
 ## Why these are trustworthy
 

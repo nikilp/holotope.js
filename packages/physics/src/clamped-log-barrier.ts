@@ -40,6 +40,33 @@ export interface ClampedLogBarrierEvaluation {
  *
  * This is the dimension-independent scalar law used by IPC-style distance
  * barriers, independently implemented from the published formula.
+ *
+ * @example
+ * The clamping is what makes the law usable: the energy is *exactly* zero
+ * at and above `activation`, so a configuration that is not near contact is
+ * not perturbed at all. An unclamped log barrier would pull on every
+ * separation, however large:
+ * ```ts
+ * const near = evaluateClampedLogBarrier({ coordinate: 0.01, activation: 0.1, stiffness: 1 });
+ * near.energy; // 1.865e-2 — resists closing the gap
+ *
+ * const clear = evaluateClampedLogBarrier({ coordinate: 0.2, activation: 0.1, stiffness: 1 });
+ * clear.energy; // 0 — outside the support, and exactly zero, not merely small
+ * clear.firstDerivative; // 0 — so it contributes no force either
+ * ```
+ *
+ * @example
+ * The domain is open at zero: contact itself has no finite energy, so it is
+ * a range error rather than a large number. A search that proposes such a
+ * candidate has to be refused rather than scored, which is what the step
+ * filters and the typed potential refusals exist to do:
+ * ```ts
+ * evaluateClampedLogBarrier({ coordinate: 0.001, activation: 0.1, stiffness: 1 }).energy;
+ * // 4.514e-2 — steep, but finite
+ *
+ * evaluateClampedLogBarrier({ coordinate: 0, activation: 0.1, stiffness: 1 });
+ * // RangeError: coordinate must be finite and positive
+ * ```
  */
 export function evaluateClampedLogBarrier(
   options: EvaluateClampedLogBarrierOptions
