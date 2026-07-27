@@ -39,10 +39,22 @@ export type DistanceCoordinate4Options = DistanceCoordinate4BaseOptions & (
 
 /** Reusable local/world anchor binding for one scalar distance coordinate. */
 export class DistanceCoordinate4 {
+  /** Stable identity, so a solver can warm-start this coordinate. */
   readonly id: string;
+  /** The body carrying the first anchor. */
   readonly bodyA: RigidBody4;
+  /** First anchor in `bodyA`'s local frame, not world space. */
   readonly localAnchorA: VecN;
+  /**
+   * The body carrying the second anchor, or null when it is pinned to the
+   * world — which is what distinguishes a two-body joint from an anchor.
+   */
   readonly bodyB: RigidBody4 | null;
+  /**
+   * The second anchor, read in `bodyB`'s local frame when there is one and in
+   * world space otherwise. The frame follows `bodyB`, so the two cases cannot
+   * be told apart from this field alone.
+   */
   readonly anchorB: VecN;
   protected directionHint: VecN | undefined;
 

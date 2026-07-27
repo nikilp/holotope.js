@@ -92,6 +92,12 @@ export interface HomogeneousProjectionPointN {
 
 /** A projection that exposes the full affine preimage of an R3 point. */
 export interface FibreProjection extends Projection {
+  /**
+   * The preimage of one projected point: everything the projection collapsed.
+   *
+   * Projection is lossy by construction, so this recovers what was lost as an
+   * explicit fibre rather than leaving it implicit in the mapping.
+   */
   inverseFibre(point: ArrayLike<number>): ProjectionFibreN;
 }
 
@@ -104,7 +110,14 @@ export interface FibreProjection extends Projection {
 export interface HomogeneousProjection extends FibreProjection {
   /** Row-major 4 x (`fromDim + 1`) matrix. */
   homogeneousMatrix(): Float64Array;
+  /** Projects one point, reporting its homogeneous fibre and domain validity. */
   projectHomogeneousPoint(point: ArrayLike<number>): HomogeneousProjectionPointN;
+  /**
+   * Projects `count` packed points, optionally recording per-point validity.
+   *
+   * Bulk form of the single-point path: a caller that needs the certified
+   * domain per point supplies `validity` rather than testing afterwards.
+   */
   projectHomogeneousPositions(
     src: Float64Array,
     count: number,

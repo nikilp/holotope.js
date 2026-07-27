@@ -18,19 +18,36 @@ export interface AnalyzeLinearSimplexOrientationNOptions {
   readonly relativeCoefficientTolerance?: number;
 }
 
+/**
+ * Evidence shared by every outcome of one linear orientation analysis.
+ *
+ * Unlike measure, the signed ratio carries a sign, so crossing the threshold
+ * means the simplex inverted rather than merely flattened. The fields record
+ * the polynomial analysed along the trajectory and the tolerances used, so an
+ * outcome can be reproduced from the record without re-deriving it.
+ */
 export interface LinearSimplexOrientationAnalysisBaseN {
+  /** Euclidean dimension shared by the simplex vertices. */
   readonly dimension: number;
+  /** Degree of the signed-ratio polynomial in normalized time. */
   readonly degree: number;
+  /** Required signed current/rest measure ratio, as authored. */
   readonly minimumSignedMeasureRatio: number;
+  /** Signed measure ratio at normalized time zero. */
   readonly startSignedMeasureRatio: number;
+  /** Signed measure ratio at normalized time one. */
   readonly endSignedMeasureRatio: number;
   /** Coefficients of `signedRatio(t) - minimumSignedMeasureRatio` in powers of t. */
   readonly monomialCoefficients: Float64Array;
   /** The same threshold polynomial in the Bernstein basis on [0,1]. */
   readonly bernsteinCoefficients: Float64Array;
+  /** Smallest normalized-time interval the subdivision will not split. */
   readonly timeTolerance: number;
+  /** Hard de Casteljau subdivision depth, bounding the search regardless. */
   readonly maximumDepth: number;
+  /** Bernstein-coefficient tolerance relative to the coefficient scale. */
   readonly relativeCoefficientTolerance: number;
+  /** Absolute Bernstein-coefficient tolerance derived from that scale. */
   readonly absoluteCoefficientTolerance: number;
 }
 

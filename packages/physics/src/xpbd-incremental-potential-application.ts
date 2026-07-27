@@ -66,10 +66,15 @@ export interface XpbdIncrementalPotentialAppliedParticleN {
   readonly forceAfter: VecN;
 }
 
+/** Context every application outcome carries, whether or not it applied. */
 interface XpbdIncrementalPotentialApplicationBaseN {
+  /** Compiled objective the minimization ran against. */
   readonly problem: XpbdIncrementalPotentialProblemN;
+  /** The complete minimization result this application was asked to apply. */
   readonly result: XpbdIncrementalPotentialMinimizationResultN;
+  /** Authored policy for deriving velocities from the accepted positions. */
   readonly velocityUpdate: XpbdIncrementalPotentialVelocityUpdateN;
+  /** Whether accumulated particle forces are cleared once positions land. */
   readonly clearForces: boolean;
 }
 

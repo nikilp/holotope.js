@@ -50,11 +50,17 @@ export interface SimplexConstitutiveLawN<
   ): SimplexConstitutiveHessianVectorEvaluationN<TEvaluation>;
 }
 
+/** Source-side identity of one compiled element, before any material is chosen. */
 export interface SimplexConstitutiveFamilyElementContextN {
+  /** Ordinal of the source cell this element was compiled from. */
   readonly sourceCellIndex: number;
+  /** Source vertex ordinals of the element, in the cell's own order. */
   readonly sourceVertexIndices: readonly number[];
+  /** Structural source-cell identity, stable across regeneration. */
   readonly sourceId: SourceCellIdN;
+  /** Intrinsic simplex dimension `k`, one less than its vertex count. */
   readonly simplexDimension: number;
+  /** Undeformed k-measure, the reference the energy density is scaled by. */
   readonly restMeasure: number;
 }
 
@@ -75,17 +81,23 @@ export interface CompileSimplexConstitutiveFamilyNOptions<
   readonly material: SimplexConstitutiveFamilyMaterialN<TMaterial>;
 }
 
+/** One compiled element: its source identity together with its material. */
 export interface SimplexConstitutiveFamilyElementN<TMaterial>
   extends SimplexConstitutiveFamilyElementContextN {
+  /** Provenance record tying this element back to the cell it came from. */
   readonly sourceReference: SourceCellReferenceN;
+  /** Material resolved for this element, uniform or per-element. */
   readonly material: TMaterial;
 }
 
+/** One element paired with what its law reported at the current state. */
 export interface SimplexConstitutiveFamilyElementEvaluationN<
   TMaterial,
   TEvaluation extends SimplexConstitutiveEvaluationN<TMaterial>
 > {
+  /** The compiled element the evaluation belongs to. */
   readonly element: SimplexConstitutiveFamilyElementN<TMaterial>;
+  /** Complete law evaluation at this element's current positions. */
   readonly evaluation: TEvaluation;
 }
 

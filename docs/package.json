@@ -21,7 +21,8 @@
     "dev": "pnpm run api && vitepress dev",
     "build": "pnpm run api && vitepress build",
     "preview": "vitepress preview",
-    "api:links": "node scripts/link-packages.mjs"
+    "api:links": "node scripts/link-packages.mjs",
+    "coverage:leverage": "node scripts/report-coverage-leverage.mjs"
   },
   "devDependencies": {
     "markdown-it-mathjax3": "^5.2.0",

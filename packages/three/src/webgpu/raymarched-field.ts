@@ -111,16 +111,27 @@ export class RaymarchedField3D<
   Record extends FieldEvaluation4 = FieldEvaluation4,
   Field extends ImplicitField4<Record> = ImplicitField4<Record>
 > {
+  /** The R4 implicit field being restricted to the slice and marched. */
   readonly field: Field;
+  /** The field's packed TSL evaluator, as compiled for the shader. */
   readonly fieldNode: ImplicitFieldNode4<Record, Field>;
+  /** Affine 3-flat the field is restricted to; its offset drives the uniform. */
   readonly slice: HyperplaneSlice4;
+  /** Half-width of the proxy cube supplying fragments and the ray interval. */
   readonly extent: number;
+  /** Maximum sphere-tracing steps per fragment. */
   readonly maxSteps: number;
+  /** Surface hit threshold in slice coordinates. */
   readonly surfaceEpsilon: number;
+  /** Finite-difference step for field-gradient normals. */
   readonly normalEpsilon: number;
+  /** Safety factor applied to the field's distance estimate. */
   readonly stepSafety: number;
+  /** Record-driven presentation mapping evaluation records to color. */
   readonly style: RaymarchedFieldStyle3D;
+  /** Whether the marched hit depth is written into the scene depth buffer. */
   readonly writeDepth: boolean;
+  /** The proxy mesh to add to a scene; it carries fragments, not a surface. */
   readonly object: Mesh;
 
   private _revision = 0;

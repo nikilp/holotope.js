@@ -22,8 +22,11 @@ export type XpbdConstraintRelationN = 'equality' | 'greater-than-or-equal';
 
 /** Dimension-explicit scalar relation with physical compliance. */
 export interface XpbdScalarConstraintN {
+  /** Stable identity, retained in solver evidence across substeps. */
   readonly id: string;
+  /** Ambient Euclidean dimension shared by every constrained point. */
   readonly dimension: number;
+  /** Exact points the scalar coordinate reads, in authored order. */
   readonly points: readonly XpbdPointN[];
   /** Default `equality`; inequalities declare `C(x) >= 0`. */
   readonly relation?: XpbdConstraintRelationN;

@@ -20,11 +20,17 @@ export interface RigidJacobian4 {
  * a coherent ID and Jacobian orientation for warm starting.
  */
 export interface ConstraintRow4 {
+  /** Stable identity, so a solver can warm-start this row's impulse. */
   readonly id: string;
+  /** First body or anchor the row couples. */
   readonly participantA: ConstraintParticipant4;
+  /** How `participantA`'s motion enters the coordinate, in its own frame. */
   readonly jacobianA: RigidJacobian4;
+  /** Second body or anchor the row couples. */
   readonly participantB: ConstraintParticipant4;
+  /** How `participantB`'s motion enters the coordinate, in its own frame. */
   readonly jacobianB: RigidJacobian4;
+  /** Signed coordinate violation to be stabilized away. Default 0. */
   readonly positionError?: number;
   /** Authored coordinate speed before position stabilization. Default 0. */
   readonly velocityTarget?: number;

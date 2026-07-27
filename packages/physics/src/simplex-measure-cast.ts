@@ -18,21 +18,41 @@ export interface AnalyzeLinearSimplexMeasureNOptions {
   readonly relativeCoefficientTolerance?: number;
 }
 
+/**
+ * Evidence shared by every outcome of one linear simplex-measure analysis.
+ *
+ * The squared measure ratio along a linear trajectory is a polynomial in
+ * normalized time, so the question "does this simplex stay above its minimum
+ * measure" is a polynomial threshold question. These fields record the
+ * polynomial that was analysed and the tolerances it was analysed under,
+ * which is what makes any outcome reproducible from the record alone.
+ */
 export interface LinearSimplexMeasureAnalysisBaseN {
+  /** Euclidean dimension the simplex vertices live in. */
   readonly ambientDimension: number;
+  /** Intrinsic simplex dimension `k`, counting one less than its vertices. */
   readonly simplexDimension: number;
+  /** Degree of the squared-ratio polynomial in normalized time. */
   readonly degree: number;
+  /** Required intrinsic current/rest k-measure ratio, as authored. */
   readonly minimumMeasureRatio: number;
+  /** Its square, which is the threshold actually compared against. */
   readonly minimumSquaredMeasureRatio: number;
+  /** Squared measure ratio at normalized time zero. */
   readonly startSquaredMeasureRatio: number;
+  /** Squared measure ratio at normalized time one. */
   readonly endSquaredMeasureRatio: number;
   /** Coefficients of `squaredMeasureRatio(t) - minimumMeasureRatio^2`. */
   readonly monomialCoefficients: Float64Array;
   /** The same squared-ratio threshold polynomial in Bernstein form on [0,1]. */
   readonly bernsteinCoefficients: Float64Array;
+  /** Smallest normalized-time interval the subdivision will not split. */
   readonly timeTolerance: number;
+  /** Hard de Casteljau subdivision depth, bounding the search regardless. */
   readonly maximumDepth: number;
+  /** Bernstein-coefficient tolerance relative to the coefficient scale. */
   readonly relativeCoefficientTolerance: number;
+  /** Absolute Bernstein-coefficient tolerance derived from that scale. */
   readonly absoluteCoefficientTolerance: number;
 }
 
