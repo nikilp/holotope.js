@@ -1,3 +1,4 @@
+import { VecN, sliceTetrahedra } from '@holotope/core';
 import type {
   CellComplex,
   HyperplaneSlice4,
@@ -14,7 +15,13 @@ import type {
   ExperimentDocumentV0,
   ExperimentFailure,
   ExperimentId,
+  ExperimentJsonValue,
   ExperimentModelDescriptorV0,
+  ExperimentObservationDeclarationV0,
+  ExperimentObservationSourceV0,
+  ExperimentParameterDeclarationV0,
+  ExperimentParameterTargetV0,
+  ExperimentParameterValueDeclarationV0,
   ExperimentRepresentationDescriptorV0,
   ExperimentResult,
   ExperimentSourceDescriptorV0,
@@ -128,6 +135,60 @@ export interface ExperimentCompiledModelV0 {
   advanceModel(steps: number): ExperimentResult<{ readonly modelStep: number }>;
   /** Model-owned live objects, narrowed by the supplying capability. */
   readonly runtime: unknown;
+  /**
+   * Applies one authored model field, returning what it replaced.
+   *
+   * Optional: a model kind that exposes no writable field simply omits it,
+   * and a parameter aimed at one refuses rather than silently doing nothing.
+   */
+  applyModelField?(
+    field: string,
+    value: ExperimentJsonValue
+  ): ExperimentResult<{ readonly previous: ExperimentJsonValue }>;
+  /**
+   * Evaluates one model quantity as a JSON-compatible value.
+   *
+   * Optional for the same reason: an unobservable model refuses by absence
+   * rather than by returning something invented.
+   */
+  observeModel?(quantity: string): ExperimentResult<ExperimentJsonValue>;
+}
+
+/** Evidence from exactly one parameter application attempt. */
+export interface ExperimentParameterApplicationV0 {
+  /** Document key of the parameter that was applied. */
+  readonly parameter: ExperimentId;
+  /** Whether the live target actually changed. */
+  readonly outcome: 'applied' | 'refused';
+  /**
+   * Live target value read immediately before application.
+   *
+   * Absent on refusal. State is read through to the compiled object, so this
+   * is exactly what a read would have returned, not a remembered copy.
+   */
+  readonly previous?: ExperimentJsonValue;
+  /** Compilation revision after the call; unchanged on refusal. */
+  readonly revision: number;
+  /** Typed reason the application was refused. */
+  readonly failure?: ExperimentFailure;
+}
+
+/**
+ * One freshly computed observation value with the state it was computed at.
+ *
+ * Values are never memoized in this slice, so a record is always current at
+ * the moment it was taken. Staleness is the caller's comparison to make:
+ * `record.revision < compilation.revision` means something has changed since.
+ */
+export interface ExperimentObservationRecordV0 {
+  /** Document key of the observation. */
+  readonly id: ExperimentId;
+  /** Frozen JSON-compatible value, shaped by the declaration. */
+  readonly value: ExperimentJsonValue;
+  /** Revision the value was computed at. */
+  readonly revision: number;
+  /** Document clock step the value was computed at. */
+  readonly step: number;
 }
 
 /** One registry-owned compiled entry. */
@@ -219,6 +280,24 @@ export interface ExperimentCompilationV0 {
    * than an error: the clock is the document's, not any model's.
    */
   advance(steps: number): ExperimentResult<{ readonly step: number }>;
+  /**
+   * Monotone counter over accepted mutations, starting at 1 on compilation.
+   *
+   * Every accepted `setParameter` and `advance` bumps it exactly once. A
+   * refusal never does, and never partially applies.
+   */
+  readonly revision: number;
+  /** Frozen view of the document's parameter declarations, for discovery. */
+  listParameters(): readonly ExperimentParameterDeclarationV0[];
+  /** Frozen view of the document's observation declarations, for discovery. */
+  listObservations(): readonly ExperimentObservationDeclarationV0[];
+  /** Validates a value against its declared domain and applies it. */
+  setParameter(
+    id: ExperimentId,
+    value: ExperimentJsonValue
+  ): ExperimentParameterApplicationV0;
+  /** Computes one observation freshly, stamped with revision and step. */
+  observe(id: ExperimentId): ExperimentResult<ExperimentObservationRecordV0>;
   /** Deterministic registry lookup with typed refusal evidence. */
   get(id: ExperimentId): ExperimentResult<ExperimentCompiledEntryV0>;
   /** Releases every compiled entry exactly once; repeat calls are refused. */
@@ -379,6 +458,7 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
   readonly ids: readonly ExperimentId[];
   private released = false;
   private clock = 0;
+  private revisionCounter = 1;
   private readonly registry: Map<ExperimentId, ExperimentCompiledEntryV0>;
 
   constructor(
@@ -398,6 +478,104 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
 
   get step(): number {
     return this.clock;
+  }
+
+  get revision(): number {
+    return this.revisionCounter;
+  }
+
+  listParameters(): readonly ExperimentParameterDeclarationV0[] {
+    return Object.freeze([...(this.document.parameters ?? [])]);
+  }
+
+  listObservations(): readonly ExperimentObservationDeclarationV0[] {
+    return Object.freeze([...(this.document.observations ?? [])]);
+  }
+
+  setParameter(
+    id: ExperimentId,
+    value: ExperimentJsonValue
+  ): ExperimentParameterApplicationV0 {
+    const refuse = (failed: ExperimentFailure): ExperimentParameterApplicationV0 =>
+      Object.freeze({
+        parameter: id,
+        outcome: 'refused' as const,
+        revision: this.revisionCounter,
+        failure: failed
+      });
+
+    if (this.released) {
+      return refuse(failure('disposed', 'this experiment compilation has been disposed', '', { id }));
+    }
+    const declarations = this.document.parameters ?? [];
+    const index = declarations.findIndex((candidate) => candidate.id === id);
+    const declaration = declarations[index];
+    if (declaration === undefined) {
+      return refuse(failure(
+        'missing-reference',
+        `parameter ${JSON.stringify(id)} is not declared by this document`,
+        '',
+        { id }
+      ));
+    }
+    const pointer = `/parameters/${index}`;
+    const domain = validateParameterValue(declaration.value, value, `${pointer}/value`);
+    if (!domain.ok) return refuse(domain.failures[0]!);
+
+    const applied = applyParameterTarget(
+      declaration.target,
+      domain.value,
+      this.registry,
+      pointer
+    );
+    if (!applied.ok) return refuse(applied.failures[0]!);
+
+    // Only an accepted application moves the revision, so a caller comparing
+    // a record against it cannot be told something changed when nothing did.
+    this.revisionCounter += 1;
+    return Object.freeze({
+      parameter: id,
+      outcome: 'applied' as const,
+      previous: applied.value.previous,
+      revision: this.revisionCounter
+    });
+  }
+
+  observe(id: ExperimentId): ExperimentResult<ExperimentObservationRecordV0> {
+    if (this.released) {
+      return refused(failure(
+        'disposed',
+        'this experiment compilation has been disposed',
+        '',
+        { id }
+      ));
+    }
+    const declarations = this.document.observations ?? [];
+    const index = declarations.findIndex((candidate) => candidate.id === id);
+    const declaration = declarations[index];
+    if (declaration === undefined) {
+      return refused(failure(
+        'missing-reference',
+        `observation ${JSON.stringify(id)} is not declared by this document`,
+        '',
+        { id }
+      ));
+    }
+    const evaluated = evaluateObservation(
+      declaration.source,
+      this.registry,
+      `/observations/${index}/source`
+    );
+    if (!evaluated.ok) return evaluated;
+    return {
+      ok: true,
+      value: Object.freeze({
+        id,
+        value: evaluated.value,
+        revision: this.revisionCounter,
+        step: this.clock
+      })
+    };
   }
 
   advance(steps: number): ExperimentResult<{ readonly step: number }> {
@@ -425,6 +603,7 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
       if (!advanced.ok) return advanced;
     }
     this.clock += steps;
+    this.revisionCounter += 1;
     return { ok: true, value: { step: this.clock } };
   }
 
@@ -637,4 +816,386 @@ function failure(
 
 function refused(...failures: ExperimentFailure[]): ExperimentResult<never> {
   return { ok: false, failures: Object.freeze(failures) };
+}
+
+/** Checks one value against its declared domain, returning it normalized. */
+function validateParameterValue(
+  declaration: ExperimentParameterValueDeclarationV0,
+  value: ExperimentJsonValue,
+  pointer: string
+): ExperimentResult<ExperimentJsonValue> {
+  switch (declaration.type) {
+    case 'number': {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return refused(failure(
+          'invalid-type', 'expected a finite number', pointer, { value: describe(value) }
+        ));
+      }
+      // `step` is advisory: it suggests a control increment, and refusing
+      // values between increments would make the domain narrower than declared.
+      if (value < declaration.min || value > declaration.max) {
+        return refused(failure(
+          'out-of-range',
+          `value ${value} is outside [${declaration.min}, ${declaration.max}]`,
+          pointer,
+          { value, min: declaration.min, max: declaration.max }
+        ));
+      }
+      return { ok: true, value: value as ExperimentJsonValue };
+    }
+    case 'boolean': {
+      if (typeof value !== 'boolean') {
+        return refused(failure('invalid-type', 'expected a boolean', pointer, { value: describe(value) }));
+      }
+      return { ok: true, value: value as ExperimentJsonValue };
+    }
+    case 'choice': {
+      if (typeof value !== 'string') {
+        return refused(failure('invalid-type', 'expected a string option', pointer, { value: describe(value) }));
+      }
+      if (!declaration.options.includes(value)) {
+        return refused(failure(
+          'invalid-value',
+          `option ${JSON.stringify(value)} is not one of the declared options`,
+          pointer,
+          { value, options: declaration.options.join(', ') }
+        ));
+      }
+      return { ok: true, value: value as ExperimentJsonValue };
+    }
+    case 'vector': {
+      if (!Array.isArray(value)) {
+        return refused(failure('invalid-type', 'expected a numeric vector', pointer, { value: describe(value) }));
+      }
+      if (value.length !== declaration.length) {
+        return refused(failure(
+          'invalid-value',
+          `expected ${declaration.length} components, received ${value.length}`,
+          pointer,
+          { length: value.length, expected: declaration.length }
+        ));
+      }
+      const components: number[] = [];
+      for (let index = 0; index < value.length; index++) {
+        const component = value[index];
+        if (typeof component !== 'number' || !Number.isFinite(component)) {
+          return refused(failure(
+            'invalid-type', `component ${index} must be a finite number`,
+            `${pointer}/${index}`, { value: describe(component) }
+          ));
+        }
+        if ((declaration.min !== undefined && component < declaration.min) ||
+          (declaration.max !== undefined && component > declaration.max)) {
+          return refused(failure(
+            'out-of-range',
+            `component ${index} is outside the declared bounds`,
+            `${pointer}/${index}`,
+            {
+              value: component,
+              ...(declaration.min === undefined ? {} : { min: declaration.min }),
+              ...(declaration.max === undefined ? {} : { max: declaration.max })
+            }
+          ));
+        }
+        components.push(component);
+      }
+      return { ok: true, value: Object.freeze(components) };
+    }
+  }
+}
+
+/** Writes one validated value into the live compiled object it targets. */
+function applyParameterTarget(
+  target: ExperimentParameterTargetV0,
+  value: ExperimentJsonValue,
+  registry: Map<ExperimentId, ExperimentCompiledEntryV0>,
+  pointer: string
+): ExperimentResult<{ readonly previous: ExperimentJsonValue }> {
+  if (target.kind === 'clock') {
+    return refused(failure(
+      'capability-unavailable',
+      'the headless runtime has no playback driver; clock parameters await ' +
+        'the workbench slice',
+      `${pointer}/target`,
+      { field: target.field }
+    ));
+  }
+  if (target.kind === 'presentation') {
+    return refused(failure(
+      'capability-unavailable',
+      'panes are not compiled headlessly, so presentation parameters have no ' +
+        'target',
+      `${pointer}/target`,
+      { ref: target.ref, field: target.field }
+    ));
+  }
+
+  const entry = registry.get(target.ref);
+  if (entry === undefined) {
+    return refused(failure(
+      'missing-reference',
+      `target ${JSON.stringify(target.ref)} is not a compiled entry`,
+      `${pointer}/target/ref`,
+      { ref: target.ref }
+    ));
+  }
+
+  if (target.kind === 'model-field') {
+    if (entry.category !== 'model') {
+      return refused(failure(
+        'invalid-value',
+        `target ${JSON.stringify(target.ref)} is not a model`,
+        `${pointer}/target/ref`,
+        { ref: target.ref, category: entry.category }
+      ));
+    }
+    if (entry.applyModelField === undefined) {
+      return refused(failure(
+        'capability-unavailable',
+        `the capability compiling ${JSON.stringify(entry.kind)} exposes no ` +
+          'writable model fields',
+        `${pointer}/target`,
+        { ref: target.ref, kind: entry.kind, field: target.field }
+      ));
+    }
+    return entry.applyModelField(target.field, value);
+  }
+
+  if (entry.category !== 'representation') {
+    return refused(failure(
+      'invalid-value',
+      `target ${JSON.stringify(target.ref)} is not a representation`,
+      `${pointer}/target/ref`,
+      { ref: target.ref, category: entry.category }
+    ));
+  }
+  return applyRepresentationField(entry, target.field, value, pointer);
+}
+
+/** Writes an offset, normal, or view distance into a live map object. */
+function applyRepresentationField(
+  entry: ExperimentCompiledRepresentationV0,
+  field: 'offset' | 'normal' | 'viewDistance',
+  value: ExperimentJsonValue,
+  pointer: string
+): ExperimentResult<{ readonly previous: ExperimentJsonValue }> {
+  const map = entry.map;
+  if (field === 'viewDistance') {
+    if (map.kind !== 'projection') {
+      return refused(failure(
+        'invalid-value', 'viewDistance applies to a projection only',
+        `${pointer}/target/field`, { ref: entry.id, kind: map.kind }
+      ));
+    }
+    const projection = map.projection as { viewDistance?: number };
+    if (typeof projection.viewDistance !== 'number') {
+      return refused(failure(
+        'capability-unavailable',
+        'this projection exposes no view distance',
+        `${pointer}/target/field`, { ref: entry.id }
+      ));
+    }
+    const previous = projection.viewDistance;
+    try {
+      projection.viewDistance = value as number;
+    } catch (error) {
+      // The projection guards its own epsilon; surfacing its refusal keeps one
+      // definition of the admissible range rather than duplicating it here.
+      return refused(failure(
+        'out-of-range',
+        error instanceof Error ? error.message : String(error),
+        `${pointer}/value`, { value: describe(value) }
+      ));
+    }
+    return { ok: true, value: { previous } };
+  }
+
+  if (map.kind !== 'slice4') {
+    return refused(failure(
+      'invalid-value', `${field} applies to a section only`,
+      `${pointer}/target/field`, { ref: entry.id, kind: map.kind }
+    ));
+  }
+  if (field === 'offset') {
+    const previous = map.slice.offset;
+    map.slice.offset = value as number;
+    return { ok: true, value: { previous } };
+  }
+
+  // The stored normal is the normalized one, so `previous` reports what a read
+  // would have returned rather than whatever was last written.
+  const previous = Object.freeze([...map.slice.normal.data]);
+  const components = value as readonly number[];
+  if (components.every((component) => component === 0)) {
+    return refused(failure(
+      'invalid-value', 'a section normal must be a nonzero vector',
+      `${pointer}/value`, { value: describe([...components]) }
+    ));
+  }
+  try {
+    map.slice.setNormal(new VecN([...components]), { frame: map.frame });
+  } catch (error) {
+    return refused(failure(
+      'invalid-value',
+      error instanceof Error ? error.message : String(error),
+      `${pointer}/value`, { value: describe([...components]) }
+    ));
+  }
+  return { ok: true, value: { previous } };
+}
+
+/** Computes one observation from the live compiled objects, never from state. */
+function evaluateObservation(
+  source: ExperimentObservationSourceV0,
+  registry: Map<ExperimentId, ExperimentCompiledEntryV0>,
+  pointer: string
+): ExperimentResult<ExperimentJsonValue> {
+  if (source.kind === 'selection') {
+    return refused(failure(
+      'capability-unavailable',
+      'no selection surface exists until the probe slice',
+      pointer
+    ));
+  }
+
+  const entry = registry.get(source.ref);
+  if (entry === undefined) {
+    return refused(failure(
+      'missing-reference',
+      `observation target ${JSON.stringify(source.ref)} is not compiled`,
+      `${pointer}/ref`,
+      { ref: source.ref }
+    ));
+  }
+
+  if (source.kind === 'model-invariant') {
+    if (entry.category !== 'model') {
+      return refused(failure(
+        'invalid-value',
+        `target ${JSON.stringify(source.ref)} is not a model`,
+        `${pointer}/ref`, { ref: source.ref, category: entry.category }
+      ));
+    }
+    if (entry.observeModel === undefined) {
+      return refused(failure(
+        'capability-unavailable',
+        `the capability compiling ${JSON.stringify(entry.kind)} exposes no ` +
+          'observable quantities',
+        pointer,
+        { ref: source.ref, kind: entry.kind, quantity: source.quantity }
+      ));
+    }
+    return entry.observeModel(source.quantity);
+  }
+
+  if (entry.category !== 'representation') {
+    return refused(failure(
+      'invalid-value',
+      `target ${JSON.stringify(source.ref)} is not a representation`,
+      `${pointer}/ref`, { ref: source.ref, category: entry.category }
+    ));
+  }
+
+  if (source.kind === 'lineage') {
+    // Already frozen JSON-compatible evidence derived from the constructed
+    // map, so it is returned rather than rebuilt.
+    return { ok: true, value: entry.lineage as unknown as ExperimentJsonValue };
+  }
+  return countRepresentation(entry, source.quantity, registry, pointer);
+}
+
+/** A failure detail carries primitives, so anything else is described. */
+function describe(value: unknown): string | number | boolean {
+  if (typeof value === 'string' || typeof value === 'number' ||
+    typeof value === 'boolean') {
+    return value;
+  }
+  return JSON.stringify(value) ?? String(value);
+}
+
+/**
+ * Counts what a representation's product actually emits.
+ *
+ * These are measured algorithm outputs, not ideal-shape counts. A tesseract
+ * section marches tetrahedra and emits 48 triangles where the solid's
+ * cross-section has 12 faces; reporting 12 would describe a product nothing
+ * produced.
+ */
+function countRepresentation(
+  entry: ExperimentCompiledRepresentationV0,
+  quantity: 'triangles' | 'vertices' | 'edges',
+  registry: Map<ExperimentId, ExperimentCompiledEntryV0>,
+  pointer: string
+): ExperimentResult<ExperimentJsonValue> {
+  const sourceEntry = registry.get(entry.source);
+  if (sourceEntry === undefined || sourceEntry.category !== 'source') {
+    return refused(failure(
+      'missing-reference',
+      `source ${JSON.stringify(entry.source)} is not compiled`,
+      `${pointer}/ref`, { ref: entry.source }
+    ));
+  }
+  const complex = sourceEntry.complex;
+
+  if (entry.map.kind === 'projection') {
+    if (quantity === 'vertices') return { ok: true, value: complex.vertexCount };
+    if (quantity === 'edges') return { ok: true, value: complex.cellCount(1) };
+    let triangles = 0;
+    for (const group of complex.cellsOfDim(2)) {
+      const cells = group.indices.length / group.verticesPerCell;
+      // A quad emits two triangles, a simplex face one.
+      triangles += group.kind === 'cuboid' ? cells * 2 : cells;
+    }
+    return { ok: true, value: triangles };
+  }
+
+  if (quantity === 'edges') {
+    return refused(failure(
+      'invalid-value',
+      'a marched section is a triangle soup and retains no edge product',
+      pointer, { ref: entry.id, quantity }
+    ));
+  }
+
+  const tetGroups = complex.cellsOfDim(3)
+    .filter((group) => group.kind === 'simplex' && group.verticesPerCell === 4);
+  let indexLength = 0;
+  for (const group of tetGroups) indexLength += group.indices.length;
+  if (indexLength === 0) {
+    return refused(failure(
+      'invalid-value',
+      `source ${JSON.stringify(entry.source)} has no simplex 3-cells to march`,
+      `${pointer}/ref`, { ref: entry.source }
+    ));
+  }
+  const tets = new Uint32Array(indexLength);
+  let offset = 0;
+  for (const group of tetGroups) {
+    tets.set(group.indices, offset);
+    offset += group.indices.length;
+  }
+
+  // The pose is resolved now rather than remembered: a model binding must be
+  // read at observation time or the count describes a stale configuration.
+  const world = new Float64Array(complex.positions.length);
+  const pose = resolvePose(entry.pose, registry);
+  if (pose === null) world.set(complex.positions);
+  else pose.applyToPositions(complex.positions, world, complex.vertexCount);
+
+  const out = new Float32Array((tets.length / 4) * 18);
+  const emitted = sliceTetrahedra(world, tets, entry.map.slice, out);
+  return {
+    ok: true,
+    value: quantity === 'vertices' ? emitted : emitted / 3
+  };
+}
+
+/** The transform a representation is currently posed by, or null for none. */
+function resolvePose(
+  pose: ExperimentCompiledPoseV0,
+  registry: Map<ExperimentId, ExperimentCompiledEntryV0>
+): TransformN | null {
+  if (pose.kind === 'static') return pose.transform;
+  const model = registry.get(pose.model);
+  return model !== undefined && model.category === 'model' ? model.pose() : null;
 }

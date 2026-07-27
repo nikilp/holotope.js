@@ -237,6 +237,85 @@ an error — the clock belongs to the document, not to any model.
 Non-positive, fractional, and unsafe step counts are typed `invalid-value`
 refusals; advancing after `dispose()` is `disposed`.
 
+## Controlling and observing a compiled experiment
+
+A compiled document exposes what it can be told and what it can be asked:
+
+```ts
+compilation.listParameters();   // declared controls
+compilation.listObservations(); // declared readouts
+```
+
+These are frozen views of the document's own declarations, not new
+information. They exist so a tool — or an agent — can discover a document's
+surface without being told it out of band.
+
+### Parameter state is read-through
+
+There is no shadow parameter store. The compiled object's field *is* the
+state, so `previous` is read from the live object at application time and is
+exactly what a read would have returned:
+
+```ts
+const applied = compilation.setParameter('sliceOffset', 0.62);
+applied.outcome;  // 'applied'
+applied.previous; // 0.12
+applied.revision; // 2
+```
+
+A refusal changes nothing — not the target, not the revision, and never
+partially:
+
+```ts
+const refused = compilation.setParameter('sliceOffset', 1.4);
+refused.outcome;       // 'refused'
+refused.failure?.code; // 'out-of-range'
+compilation.revision;  // still 2
+```
+
+A `normal` parameter is stored normalized, so a later read reports the unit
+vector rather than what was written — and `previous` reports the normalized
+value for the same reason.
+
+### Counts are what the product emits
+
+An observation of `triangles` on a section reports **48** for a tesseract, not
+the 12 faces its cross-section has. The section is produced by marching
+tetrahedra, and 48 is what that algorithm emits. Reporting 12 would describe a
+product nothing produced.
+
+The same rule holds everywhere: count observations are measured algorithm
+outputs, never ideal-shape counts. An `edges` count on a section is a typed
+refusal, because a triangle soup retains no edge product to count.
+
+### Records are stamped, not flagged
+
+```ts
+const record = compilation.observe('angularMomentum');
+// { value, revision, step }
+```
+
+Every value is computed fresh — nothing is memoized in this slice, so there is
+no `stale` flag to trust or mistrust. Staleness is a comparison the caller
+makes:
+
+```ts
+record.value.revision < compilation.revision // something changed since
+```
+
+The revision starts at 1 and bumps once per accepted mutation: an applied
+`setParameter`, an accepted `advance`. That is deliberately the only thing it
+counts, so a caller comparing against it is never told something changed when
+nothing did.
+
+### What refuses, and why
+
+`clock` parameters (`rate`, `running`) refuse with `capability-unavailable`:
+the headless runtime has no playback driver. `presentation` parameters refuse
+because panes are not compiled headlessly. `selection` observations refuse
+because no selection surface exists yet. Each names the seam it is waiting on
+rather than failing vaguely or, worse, silently doing nothing.
+
 ## Deliberate boundaries
 
 - There is no global kind registry. Compilation receives an explicit

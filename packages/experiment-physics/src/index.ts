@@ -20,6 +20,7 @@ import type {
   ExperimentCompiledModelV0,
   ExperimentDescriptorCompilerV0,
   ExperimentFailure,
+  ExperimentJsonValue,
   ExperimentModelDescriptorV0,
   ExperimentResult
 } from '@holotope/experiment';
@@ -126,7 +127,7 @@ function compileModel(
   }
 
   const fixedStep = descriptor.fixedStep;
-  const substeps = descriptor.substeps ?? 1;
+  let substeps = descriptor.substeps ?? 1;
   const world = new PhysicsWorld4({
     gravity: new VecN(descriptor.gravity ?? [0, 0, 0, 0])
   });
@@ -152,13 +153,17 @@ function compileModel(
   });
   world.addBody(body);
 
+  // `substeps` is the current value advanceModel consumes, so it is a getter
+  // rather than a frozen copy: a parameter changing it must be visible here.
   const runtime: ExperimentRigidModel4RuntimeV0 = Object.freeze({
     world,
     body,
     massProperties,
     referencePose,
     fixedStep,
-    substeps
+    get substeps(): number {
+      return substeps;
+    }
   });
 
   let modelStep = 0;
@@ -178,6 +183,72 @@ function compileModel(
         // cannot reach the model.
         return new TransformN(4, body.rotation, body.position)
           .compose(inverseReference);
+      },
+      applyModelField(
+        field: string,
+        value: ExperimentJsonValue
+      ): ExperimentResult<{ readonly previous: ExperimentJsonValue }> {
+        if (field === 'gravity') {
+          const components = value as readonly number[];
+          const previous = Object.freeze([...world.gravity.data]);
+          for (let axis = 0; axis < 4; axis++) {
+            world.gravity.data[axis] = components[axis]!;
+          }
+          return { ok: true, value: { previous } };
+        }
+        if (field === 'substeps') {
+          const requested = value as number;
+          if (!Number.isSafeInteger(requested) || requested < 1) {
+            return refused(failure(
+              'out-of-range',
+              'substeps must be a positive safe integer',
+              '',
+              { value: requested }
+            ));
+          }
+          const previous = substeps;
+          substeps = requested;
+          return { ok: true, value: { previous } };
+        }
+        return refused(failure(
+          'capability-unavailable',
+          `physics.model.rigid4 exposes no writable field ${JSON.stringify(field)}`,
+          '',
+          { field }
+        ));
+      },
+      observeModel(quantity: string): ExperimentResult<ExperimentJsonValue> {
+        switch (quantity) {
+          case 'angular-momentum':
+            return { ok: true, value: Object.freeze([...body.angularMomentumWorld.coeffs]) };
+          case 'kinetic-energy':
+            return { ok: true, value: body.kineticEnergy() };
+          case 'rotor-orthonormality': {
+            const left = Math.hypot(...body.rotation.left);
+            const right = Math.hypot(...body.rotation.right);
+            return {
+              ok: true,
+              value: Math.max(Math.abs(left - 1), Math.abs(right - 1))
+            };
+          }
+          case 'position':
+            // The model pose translation, not the raw body position: the two
+            // coincide only when the source is already centred and principal.
+            return {
+              ok: true,
+              value: Object.freeze([
+                ...new TransformN(4, body.rotation, body.position)
+                  .compose(inverseReference).position.data
+              ])
+            };
+          default:
+            return refused(failure(
+              'capability-unavailable',
+              `physics.model.rigid4 does not observe ${JSON.stringify(quantity)}`,
+              '',
+              { quantity }
+            ));
+        }
       },
       advanceModel(steps: number): ExperimentResult<{ readonly modelStep: number }> {
         if (typeof steps !== 'number' || !Number.isSafeInteger(steps) || steps <= 0) {

@@ -10,6 +10,8 @@ export {
   type ExperimentCompiledRepresentationV0,
   type ExperimentCompiledModelV0,
   type ExperimentCompiledPoseV0,
+  type ExperimentObservationRecordV0,
+  type ExperimentParameterApplicationV0,
   type ExperimentCompiledSourceV0,
   type ExperimentDescriptorCompilerV0
 } from './compile.js';
