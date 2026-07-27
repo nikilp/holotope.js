@@ -139,6 +139,79 @@ export type XpbdIncrementalPotentialAnalyticHessianVectorResultN =
  * The routine neither modifies definiteness nor constructs a matrix. Invalid
  * base states, malformed provider evidence, ordinary provider failures, and
  * Float64 overflow remain errors.
+ *
+ * `estimateXpbdIncrementalPotentialHessianVectorN` computes the same product
+ * by differencing the gradient, and is the oracle this path is checked
+ * against: it needs no provider capability and so is always available, while
+ * this one is exact but only when every provider can answer.
+ *
+ * @example
+ * The same product, both ways. The analytic composition and the centered
+ * difference agree to differencing accuracy, which is what makes either
+ * usable as a check on the other:
+ * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 0.3, 0]) });
+ * const barrier = new XpbdParticleHyperplaneBarrierN({
+ *   id: 'floor',
+ *   particle,
+ *   plane: new HyperplaneColliderN(new VecN([0, 1, 0]), 0),
+ *   activationDistance: 0.5,
+ *   stiffness: 1
+ * });
+ * const problem = compileXpbdIncrementalPotentialProblemN({
+ *   dimension: 3,
+ *   particles: [particle],
+ *   predictedPositions: [new VecN([0, 0.3, 0])],
+ *   deltaTime: 1 / 60,
+ *   providers: [barrier]
+ * });
+ * const coordinates = [0, 0.3, 0];
+ * const direction = [0, 1, 0];
+ *
+ * const exact = evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+ *   problem, coordinates, direction
+ * });
+ * const oracle = estimateXpbdIncrementalPotentialHessianVectorN({
+ *   problem, coordinates, direction
+ * });
+ *
+ * exact.method; // 'analytic-provider-composition'
+ * oracle.method; // 'centered-gradient-difference'
+ * // vᵀHv: 1.0011479895440676 against 1.0011479895405937 — 3.5e-12 apart
+ * ```
+ *
+ * @example
+ * The evidence separates where the curvature came from. At a sixtieth of a
+ * second the mass block dominates, and the barrier enters scaled by
+ * `deltaTime²` — which is why the total sits just above one rather than
+ * being of the barrier's own magnitude:
+ * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 0.3, 0]) });
+ * const barrier = new XpbdParticleHyperplaneBarrierN({
+ *   id: 'floor',
+ *   particle,
+ *   plane: new HyperplaneColliderN(new VecN([0, 1, 0]), 0),
+ *   activationDistance: 0.5,
+ *   stiffness: 1
+ * });
+ * const problem = compileXpbdIncrementalPotentialProblemN({
+ *   dimension: 3,
+ *   particles: [particle],
+ *   predictedPositions: [new VecN([0, 0.3, 0])],
+ *   deltaTime: 1 / 60,
+ *   providers: [barrier]
+ * });
+ *
+ * const result = evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+ *   problem, coordinates: [0, 0.3, 0], direction: [0, 1, 0]
+ * });
+ *
+ * if (result.status === 'evaluated') {
+ *   Array.from(result.inertialProduct); // [0, 1, 0] — the exact mass block
+ *   Array.from(result.scaledPotentialProduct); // [0, 1.14799e-3, 0]
+ *   Array.from(result.product); // their sum, to the last bit
+ * }
+ * ```
  */
 export function evaluateXpbdIncrementalPotentialAnalyticHessianVectorN(
   options: EvaluateXpbdIncrementalPotentialAnalyticHessianVectorNOptions

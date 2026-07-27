@@ -119,6 +119,77 @@ export type XpbdIncrementalPotentialHessianVectorResultN =
  * A typed potential-domain error from an offset probe is returned as
  * `probe-refused`. A typed refusal at the base point, an ordinary provider
  * error, or a non-finite result remains fatal.
+ *
+ * Being matrix-free is what makes it a usable oracle: it costs two gradient
+ * evaluations regardless of how many coordinates the problem has, so it can
+ * check a path that does form products analytically without needing to form
+ * the Hessian itself.
+ *
+ * @example
+ * A single particle above a barrier floor, and the curvature the packed
+ * objective presents along the vertical:
+ * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 0.3, 0]) });
+ * const barrier = new XpbdParticleHyperplaneBarrierN({
+ *   id: 'floor',
+ *   particle,
+ *   plane: new HyperplaneColliderN(new VecN([0, 1, 0]), 0),
+ *   activationDistance: 0.5,
+ *   stiffness: 1
+ * });
+ * const problem = compileXpbdIncrementalPotentialProblemN({
+ *   dimension: 3,
+ *   particles: [particle],
+ *   predictedPositions: [new VecN([0, 0.3, 0])],
+ *   deltaTime: 1 / 60,
+ *   providers: [barrier]
+ * });
+ *
+ * const estimate = estimateXpbdIncrementalPotentialHessianVectorN({
+ *   problem,
+ *   coordinates: [0, 0.3, 0],
+ *   direction: [0, 1, 0]
+ * });
+ *
+ * estimate.status; // 'evaluated'
+ * estimate.method; // 'centered-gradient-difference'
+ * if (estimate.status === 'evaluated') {
+ *   estimate.quadraticForm; // 1.00114798954… — vᵀHv along the vertical
+ * }
+ * ```
+ *
+ * @example
+ * A zero direction is answered exactly, without probing the objective at
+ * all — there is nothing to difference, so no domain error can arise from
+ * an offset that would never have been evaluated:
+ * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 0.3, 0]) });
+ * const barrier = new XpbdParticleHyperplaneBarrierN({
+ *   id: 'floor',
+ *   particle,
+ *   plane: new HyperplaneColliderN(new VecN([0, 1, 0]), 0),
+ *   activationDistance: 0.5,
+ *   stiffness: 1
+ * });
+ * const problem = compileXpbdIncrementalPotentialProblemN({
+ *   dimension: 3,
+ *   particles: [particle],
+ *   predictedPositions: [new VecN([0, 0.3, 0])],
+ *   deltaTime: 1 / 60,
+ *   providers: [barrier]
+ * });
+ *
+ * const estimate = estimateXpbdIncrementalPotentialHessianVectorN({
+ *   problem,
+ *   coordinates: [0, 0.3, 0],
+ *   direction: [0, 0, 0]
+ * });
+ *
+ * estimate.status; // 'zero-direction'
+ * if (estimate.status === 'zero-direction') {
+ *   estimate.quadraticForm; // 0, exactly
+ * }
+ * ```
  */
 export function estimateXpbdIncrementalPotentialHessianVectorN(
   options: EstimateXpbdIncrementalPotentialHessianVectorNOptions
