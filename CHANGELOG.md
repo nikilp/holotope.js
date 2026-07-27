@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### `@holotope/experiment`
+
+- Added the first inert `holotope.experiment/0` document contract for authored
+  sources, models, representations, parameters, actions, observations,
+  presentation panes, and backend requirements.
+- Added bounded raw JSON intake that retains duplicate-key evidence and rejects
+  prototype-sensitive keys, plus non-mutating structural and semantic
+  validation with typed JSON-Pointer failures.
+- Added canonical JSON preparation with stable dependency order, SHA-256
+  document identity, an independent copied value, and deep freezing. Live
+  capability compilation and execution remain a separate later slice.
+
 ### `@holotope/core`
 
 - Re-orthogonalized `CameraN.lookAt()` after near-axis cancellation and made

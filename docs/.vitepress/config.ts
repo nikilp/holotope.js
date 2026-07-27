@@ -117,6 +117,7 @@ export default defineConfig({
         activeMatch: '/api/',
         items: [
           { text: '@holotope/core', link: '/api/core/' },
+          { text: '@holotope/experiment', link: '/api/experiment/' },
           { text: '@holotope/three', link: '/api/three/' },
           { text: '@holotope/physics', link: '/api/physics/' }
         ]
@@ -132,6 +133,7 @@ export default defineConfig({
             { text: 'Overview', link: '/learn/' },
             { text: 'The mental model', link: '/learn/mental-model' },
             { text: 'Architecture', link: '/learn/architecture' },
+            { text: 'Experiment documents', link: '/learn/experiment-documents' },
             { text: 'Cookbook', link: '/learn/cookbook' },
             { text: 'Playground', link: '/learn/playground' }
           ]
@@ -183,6 +185,7 @@ export default defineConfig({
       ],
 
       ...apiSidebars('core'),
+      ...apiSidebars('experiment'),
       ...apiSidebars('three'),
       ...apiSidebars('physics')
     },

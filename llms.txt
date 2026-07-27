@@ -8,6 +8,7 @@
 
 - README.md — installation, package overview, runnable public examples.
 - docs/learn/mental-model.md — package responsibilities and the source → representation → interaction loop.
+- docs/learn/experiment-documents.md — safe declarative experiment intake and current runtime boundary.
 - docs/learn/cookbook.md — verified task-oriented snippets.
 - docs/learn/representation-provenance.md — what a pick can and cannot recover.
 - docs/learn/physics/ — rigid mechanics, contact capability boundaries, and RN XPBD
@@ -20,6 +21,9 @@
 - `@holotope/physics`: headless R4 rigid bodies and RN point/XPBD systems.
   It never renders and it does not automatically make all registered rigid
   bodies collide.
+- `@holotope/experiment`: inert, versioned experiment documents with bounded
+  JSON intake, semantic validation, canonical SHA-256 identity, and stable
+  dependency planning. It does not compile or execute documents yet.
 - `@holotope/three`: Three.js peer-dependency adapters. Products expose an
   ordinary `.object` and must be updated from authoritative source state.
 - `@holotope/three/webgpu`: optional WebGPU/TSL realization paths. Preserve
@@ -69,7 +73,20 @@ import {
   representationHitFromProjectedSurface,
   representationHitFromSlicedComplex
 } from '@holotope/three';
+
+// @holotope/experiment
+import {
+  parseExperimentJsonV0, validateExperimentDocumentV0,
+  prepareExperimentDocumentV0
+} from '@holotope/experiment';
 ```
+
+For untrusted experiment text, call `parseExperimentJsonV0()` before object
+validation; a retained JavaScript object cannot expose duplicate JSON keys
+discarded by an earlier parser. Descriptors are authored recipes, not runtime
+objects or `RepresentationLineageN`. `prepareExperimentDocumentV0()` returns a
+copied, deeply frozen, canonically hashed document; live compilation is not yet
+part of the public package.
 
 ## Core anchors
 

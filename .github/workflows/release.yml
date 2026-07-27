@@ -1,7 +1,7 @@
 name: Release
 
-# Publishes @holotope/core, @holotope/three, and @holotope/physics to npm and
-# creates the matching GitHub Release when a v* tag is pushed. Manual dispatch
+# Publishes the public @holotope packages to npm and creates the matching
+# GitHub Release when a v* tag is pushed. Manual dispatch
 # is an idempotent npm recovery path and does not manufacture an untagged
 # GitHub Release. npm authenticates through trusted publishing (OIDC): no token
 # is stored in the repository.
@@ -13,6 +13,10 @@ on:
     inputs:
       include-physics:
         description: 'Publish @holotope/physics (disable for its one-time npm bootstrap)'
+        type: boolean
+        default: true
+      include-experiment:
+        description: 'Publish @holotope/experiment (disable for its one-time npm bootstrap)'
         type: boolean
         default: true
 
@@ -42,7 +46,7 @@ jobs:
         shell: bash
         run: |
           expected="${GITHUB_REF_NAME#v}"
-          for package in core three physics; do
+          for package in core experiment three physics; do
             actual=$(node -p "require('./packages/$package/package.json').version")
             if [[ "$actual" != "$expected" ]]; then
               echo "Tag $GITHUB_REF_NAME requires @holotope/$package@$expected, found $actual" >&2
@@ -64,7 +68,11 @@ jobs:
         # packing first avoids repository-state checks on detached tag builds.
         shell: bash
         run: |
-          packages=(core three)
+          packages=(core)
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-experiment'] }}" == "true" ]]; then
+            packages+=(experiment)
+          fi
+          packages+=(three)
           if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-physics'] }}" == "true" ]]; then
             packages+=(physics)
           fi

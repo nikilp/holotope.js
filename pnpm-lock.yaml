@@ -60,6 +60,12 @@ importers:
 
   packages/core: {}
 
+  packages/experiment:
+    dependencies:
+      '@holotope/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/physics:
     dependencies:
       '@holotope/core':

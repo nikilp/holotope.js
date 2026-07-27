@@ -28,6 +28,7 @@ const OUT = path.join(DOCS, 'typedoc', 'external-links.json');
 /** Packages whose emitted pages may be linked to from another package. */
 const PRODUCERS = [
   { pkg: '@holotope/core', dir: 'core' },
+  { pkg: '@holotope/experiment', dir: 'experiment' },
   { pkg: '@holotope/three', dir: 'three' }
 ];
 

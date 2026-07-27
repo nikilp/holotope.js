@@ -1,8 +1,9 @@
 # Learn
 
 This is the guide. For per-symbol signatures see the generated reference for
-[core](/api/core/), [three](/api/three/), and [physics](/api/physics/); for
-running demos see the [showcase](https://nikilp.github.io/holotope.js/).
+[core](/api/core/), [experiment](/api/experiment/), [three](/api/three/), and
+[physics](/api/physics/); for running demos see the
+[showcase](https://nikilp.github.io/holotope.js/).
 
 ## Start here
 
@@ -13,6 +14,7 @@ documentation assumes.
 | --- | --- |
 | [The mental model](./mental-model) | How source, representation, interaction, and simulation relate — and why a projected mesh is never the source object |
 | [Architecture](./architecture) | The decisions that shape the library, with their reasoning |
+| [Experiment documents](./experiment-documents) | How authored experiences are validated and identified before runtime compilation |
 | [Cookbook](./cookbook) | Verified recipes for concrete tasks |
 | [Playground](./playground) | Run and edit the reference's examples in the browser |
 
