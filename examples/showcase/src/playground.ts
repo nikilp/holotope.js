@@ -144,6 +144,16 @@ function describeValue(value: unknown): string {
   if (typeof complex.cellsOfDim === 'function' && typeof complex.vertexCount === 'number') {
     return `CellComplex — ${complex.vertexCount} stored vertices in R${complex.ambientDim}`;
   }
+  // An array's contents are the answer; its indices never are. Falling through
+  // to the generic branch would report `Array { 0, 1, 2, 3 }`, which describes
+  // every four-element array ever produced.
+  if (Array.isArray(value)) {
+    const shown = value.slice(0, 6).map((entry) =>
+      typeof entry === 'string' ? `'${entry}'` : describeValue(entry)
+    );
+    const rest = value.length > shown.length ? `, … ${value.length} in all` : '';
+    return `[${shown.join(', ')}${rest}]`;
+  }
   // A DataView is also a view but has no length, so read the one all of them
   // carry rather than narrowing by constructor.
   if (ArrayBuffer.isView(value)) {
