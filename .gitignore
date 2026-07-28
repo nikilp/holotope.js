@@ -9,3 +9,6 @@ docs/api/
 docs/.doc-model/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# Editor/agent local state
+.claude/
