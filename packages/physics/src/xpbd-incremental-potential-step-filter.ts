@@ -50,6 +50,15 @@ export type XpbdIncrementalPotentialStepFilterEvaluationN =
  * A filter must certify the entire supplied particle-space segment, limit it
  * to a safe prefix, or explicitly refuse. An `indeterminate` result is never a
  * collision miss.
+ *
+ * How often each outcome occurs is a property of the filter, not of the
+ * interface. A filter solving its geometry in closed form — as the shipped
+ * point–plane one does — can always decide a segment whose start is
+ * admissible, so it never needs `indeterminate` during ordinary stepping. The
+ * third outcome exists for filters that cannot decide: a conservative
+ * advancement bound that runs out of iterations, or a query whose geometry is
+ * outside what the filter certifies. Callers instrumenting the three outcomes
+ * should not expect to see all three from an exact filter.
  */
 export interface XpbdIncrementalPotentialStepFilterN {
   /** Stable authored identity within one compiled problem. */
@@ -82,7 +91,15 @@ export interface XpbdParticleHyperplaneBarrierStepFilterNOptions {
   readonly conservativeScale?: number;
 }
 
-/** Why an exact point–plane filter could not certify a segment. */
+/**
+ * Why an exact point–plane filter could not certify a segment.
+ *
+ * One reason, and it is about the *start* of the segment rather than the
+ * segment itself: the affine crossing is solved in closed form, so a segment
+ * beginning inside the admissible domain is always decidable. Reaching this
+ * therefore means the caller asked about a state that was already inadmissible,
+ * which no step length can repair.
+ */
 export type XpbdParticleHyperplaneBarrierStepFilterRefusalReasonN =
   'initial-domain-violation';
 
