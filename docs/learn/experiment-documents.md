@@ -316,6 +316,75 @@ because panes are not compiled headlessly. `selection` observations refuse
 because no selection surface exists yet. Each names the seam it is waiting on
 rather than failing vaguely or, worse, silently doing nothing.
 
+## Snapshots, traces, and honest replay
+
+A compiled experiment can be captured, restored, and replayed bitwise.
+
+```ts
+const taken = compilation.snapshot();   // complete layer-2 state
+compilation.restore(taken.value);       // transactional, hash-bound
+compilation.replay(compilation.trace().value); // re-execute the recording
+```
+
+### Numbers do not go through JSON numbers
+
+A snapshot exists to reproduce a run exactly, and JSON text cannot carry that
+promise: `JSON.stringify(-0)` is `"0"`, and denormals lose their exact bit
+pattern. Buffers are therefore little-endian Float64 encoded to base64 and
+referenced by index — the same split glTF uses for vertex data, for the same
+reason.
+
+### Step is state; revision is not
+
+Restore **sets** `step` from the snapshot, along with every model's own step
+count, because simulated time is part of what was captured. It **bumps**
+`revision`, because that counter records how many mutations this process has
+accepted — restoring is one more of them, not a return to an earlier count.
+The snapshot keeps the revision it was taken at as evidence only.
+
+There is no separate reset. Restoring the trace's initial snapshot is a reset,
+and a second method would be the same operation under another name.
+
+### A continuous frame restores exactly
+
+A `continuous` section transports its display basis, so the basis depends on
+the *history* of the normal rather than its current value. Reconstructing such
+a section from the document alone cannot recover that history — which is why
+the document validator still warns `replay-limited`.
+
+A snapshot does not reconstruct it. It serializes the live basis, so a
+continuous-frame section restores **bitwise** onto a compilation that never
+saw the history. The warning remains correct about documents; it does not
+apply to snapshots.
+
+### Traces replay through the public paths
+
+Recording is always on. Every accepted `setParameter` and `advance` is
+appended, and `replay` restores the initial snapshot and re-executes them
+through those same public methods — never by writing state directly. A replay
+can therefore only reproduce what the runtime would have done anyway.
+
+A refused event aborts the replay naming its ordinal. State stays where the
+last accepted event left it: a replay is a sequence of ordinary mutations, not
+one transaction. Restore a snapshot if you need a clean state.
+
+If recording hits `maxTraceEvents` (default 1,000,000) it stops, the runtime
+keeps mutating normally, and `trace()` then **refuses**. Returning the prefix
+would offer a replay that reproduces a different run.
+
+### What the levels mean today
+
+```ts
+type ExperimentReplayLevelV0 = 'exact-cpu' | 'numeric-equivalent' | 'presentation-only';
+```
+
+This slice emits **only `exact-cpu`**. The weaker levels are the contract that
+future backend and provider-state slices will produce; nothing produces them
+yet. Passing `require` a level stronger than a snapshot carries refuses with
+`replay-level-unmet`, and a snapshot from another document refuses with
+`snapshot-incompatible` — `documentHash` equality is the only identity a
+restore accepts.
+
 ## Deliberate boundaries
 
 - There is no global kind registry. Compilation receives an explicit

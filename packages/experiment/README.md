@@ -63,3 +63,19 @@ reports a `custom-projection` lineage step.
 
 See the [experiment document guide](../../docs/learn/experiment-documents.md)
 for the contract and its current boundary.
+
+## Snapshots and replay
+
+A compilation captures its complete layer-2 state at a step boundary, restores
+it transactionally, and replays a recorded trace bitwise:
+
+```ts
+const taken = compilation.snapshot();
+compilation.restore(taken.value);              // hash-bound, level-negotiated
+compilation.replay(compilation.trace().value); // through the public paths
+```
+
+Numeric state travels as little-endian Float64 in base64 rather than JSON
+numbers, so `-0` and denormals survive. Restore sets `step` from the snapshot
+and bumps `revision`; restoring the initial snapshot is how a compilation is
+reset. This slice emits only the `exact-cpu` level.

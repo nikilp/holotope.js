@@ -10,7 +10,15 @@ export {
   type ExperimentCompiledRepresentationV0,
   type ExperimentCompiledModelV0,
   type ExperimentCompiledPoseV0,
+  type ExperimentModelStateV0,
   type ExperimentObservationRecordV0,
+  type ExperimentReplayLevelV0,
+  type ExperimentReplayOutcomeV0,
+  type ExperimentSnapshotEntryV0,
+  type ExperimentSnapshotV0,
+  type ExperimentStateFieldV0,
+  type ExperimentTraceEventV0,
+  type ExperimentTraceV0,
   type ExperimentParameterApplicationV0,
   type ExperimentCompiledSourceV0,
   type ExperimentDescriptorCompilerV0
@@ -79,3 +87,7 @@ export type {
   ExperimentVectorParameterValueV0,
   PreparedExperimentDocumentV0
 } from './types.js';
+export {
+  decodeFloat64BufferV0,
+  encodeFloat64BufferV0
+} from './binary.js';

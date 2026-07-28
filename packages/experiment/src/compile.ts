@@ -1,4 +1,8 @@
 import { VecN, sliceTetrahedra } from '@holotope/core';
+import {
+  decodeFloat64BufferV0,
+  encodeFloat64BufferV0
+} from './binary.js';
 import type {
   CellComplex,
   HyperplaneSlice4,
@@ -152,6 +156,138 @@ export interface ExperimentCompiledModelV0 {
    * rather than by returning something invented.
    */
   observeModel?(quantity: string): ExperimentResult<ExperimentJsonValue>;
+  /**
+   * Captures everything needed to reproduce this model bitwise.
+   *
+   * Optional like the other seams: a model kind that cannot capture its own
+   * state makes `snapshot()` refuse by name rather than silently producing an
+   * incomplete capture that would replay wrongly.
+   */
+  captureModelState?(): ExperimentResult<ExperimentModelStateV0>;
+  /**
+   * Writes a captured state back exactly.
+   *
+   * Values are restored as captured — a rotor pair is not renormalized on the
+   * way in, because a bitwise round trip is the contract and a correction
+   * would silently break it.
+   */
+  restoreModelState?(
+    state: ExperimentModelStateV0
+  ): ExperimentResult<{ readonly modelStep: number }>;
+}
+
+/**
+ * How faithfully a snapshot can be reproduced.
+ *
+ * Ordered `exact-cpu > numeric-equivalent > presentation-only`. This slice
+ * emits only `exact-cpu`; the weaker levels are the contract future backend
+ * and provider-state slices will produce, and are not yet reachable.
+ */
+export type ExperimentReplayLevelV0 =
+  | 'exact-cpu'
+  | 'numeric-equivalent'
+  | 'presentation-only';
+
+/** One field of a captured state: its name and how many values it occupies. */
+export interface ExperimentStateFieldV0 {
+  /** Field name, so a layout change is visible rather than silent. */
+  readonly field: string;
+  /** Number of consecutive values the field occupies. */
+  readonly length: number;
+}
+
+/** One capability-captured model state, self-describing enough to restore. */
+export interface ExperimentModelStateV0 {
+  /** Construction kind that produced the model, checked on restore. */
+  readonly kind: ExperimentDescriptorKind;
+  /** The model's own step count at capture. */
+  readonly modelStep: number;
+  /** Field names and lengths, in value order. */
+  readonly layout: readonly ExperimentStateFieldV0[];
+  /** Flat finite Float64 values matching the layout. */
+  readonly values: ArrayLike<number>;
+}
+
+/** One captured registry entry and the buffer holding its values. */
+export interface ExperimentSnapshotEntryV0 {
+  /** Registry id the state belongs to. */
+  readonly id: ExperimentId;
+  /** Which registry category was captured. */
+  readonly category: 'model' | 'representation';
+  /** Construction kind, checked on restore. */
+  readonly kind: ExperimentDescriptorKind;
+  /** Present for models only: the model's own step count. */
+  readonly modelStep?: number;
+  /** Field names and lengths, in value order. */
+  readonly layout: readonly ExperimentStateFieldV0[];
+  /** Index into the snapshot's buffers. */
+  readonly buffer: number;
+}
+
+/**
+ * A complete capture of layer-2 state at one step boundary.
+ *
+ * Numeric state never passes through JSON numbers: buffers are little-endian
+ * Float64 in base64, referenced by index, so `-0`, denormals, and exact bit
+ * patterns survive a round trip that JSON text could not promise.
+ */
+export interface ExperimentSnapshotV0 {
+  /** Snapshot schema identity. */
+  readonly schema: 'holotope.snapshot/0';
+  /** Identity of the document this state belongs to; the only restore key. */
+  readonly documentHash: `sha256:${string}`;
+  /** Document clock step at capture; restore sets the clock from it. */
+  readonly step: number;
+  /** Revision at capture, retained as evidence and never restored. */
+  readonly revision: number;
+  /** Fidelity this capture can be reproduced at. */
+  readonly level: ExperimentReplayLevelV0;
+  /** Captured entries in registry order. */
+  readonly entries: readonly ExperimentSnapshotEntryV0[];
+  /** Base64 little-endian Float64 payloads, one per referenced index. */
+  readonly buffers: readonly string[];
+}
+
+/** One recorded accepted mutation. */
+export interface ExperimentTraceEventV0 {
+  /** Monotone position in the recording. */
+  readonly ordinal: number;
+  /** Document clock step after the mutation was accepted. */
+  readonly step: number;
+  /** Which public mutation path produced it. */
+  readonly kind: 'set-parameter' | 'advance';
+  /** Parameter id; absent for an advance. */
+  readonly id?: ExperimentId;
+  /** The applied value, or the step count for an advance. */
+  readonly value: ExperimentJsonValue;
+}
+
+/**
+ * An initial snapshot and every accepted mutation since.
+ *
+ * Replay re-executes the events through the ordinary public paths rather than
+ * writing state directly, so a trace can only reproduce what the runtime
+ * would have done anyway.
+ */
+export interface ExperimentTraceV0 {
+  /** Trace schema identity. */
+  readonly schema: 'holotope.trace/0';
+  /** Identity of the document the trace belongs to. */
+  readonly documentHash: `sha256:${string}`;
+  /** State the recording began from. */
+  readonly initial: ExperimentSnapshotV0;
+  /** Accepted mutations in ordinal order. */
+  readonly events: readonly ExperimentTraceEventV0[];
+}
+
+/** What a restore or replay established. */
+export interface ExperimentReplayOutcomeV0 {
+  /** Fidelity actually achieved. */
+  readonly level: ExperimentReplayLevelV0;
+  /** Document clock step afterwards. */
+  readonly step: number;
+  /** Compilation revision afterwards. */
+  readonly revision: number;
 }
 
 /**
@@ -392,6 +528,36 @@ export interface ExperimentCompilationV0 {
   ): ExperimentParameterApplicationV0;
   /** Computes one observation freshly, stamped with revision and step. */
   observe(id: ExperimentId): ExperimentResult<ExperimentObservationRecordV0>;
+  /** Captures complete layer-2 state at the current step boundary. */
+  snapshot(): ExperimentResult<ExperimentSnapshotV0>;
+  /**
+   * Restores a snapshot of this same document, transactionally.
+   *
+   * `step` is simulated time, so it is set from the snapshot along with every
+   * model's own step. `revision` is this process's mutation counter rather
+   * than state, so it bumps once like any accepted mutation. Restoring the
+   * initial snapshot is how a compilation is reset; there is no separate
+   * reset, because one would be the same operation under another name.
+   */
+  restore(
+    snapshot: ExperimentSnapshotV0,
+    options?: { readonly require?: ExperimentReplayLevelV0 }
+  ): ExperimentResult<ExperimentReplayOutcomeV0>;
+  /** The initial snapshot and every accepted mutation since compilation. */
+  trace(): ExperimentResult<ExperimentTraceV0>;
+  /**
+   * Restores a trace's initial state and re-executes its events.
+   *
+   * Events run through the ordinary `setParameter` and `advance` paths, so a
+   * replay can only reproduce what the runtime would have done anyway. A
+   * refused event aborts and names its ordinal; state stays where the last
+   * accepted event left it, replay being a sequence of ordinary mutations
+   * rather than one transaction.
+   */
+  replay(
+    trace: ExperimentTraceV0,
+    options?: { readonly require?: ExperimentReplayLevelV0 }
+  ): ExperimentResult<ExperimentReplayOutcomeV0>;
   /** Deterministic registry lookup with typed refusal evidence. */
   get(id: ExperimentId): ExperimentResult<ExperimentCompiledEntryV0>;
   /** Releases every compiled entry exactly once; repeat calls are refused. */
@@ -402,6 +568,14 @@ export interface ExperimentCompilationV0 {
 export interface CompileExperimentDocumentV0Options {
   /** Capabilities in caller precedence order; the first claim of a kind wins. */
   readonly compilers: readonly ExperimentDescriptorCompilerV0[];
+  /**
+   * Recorded-event ceiling; default 1,000,000.
+   *
+   * Recording stops at the bound and the runtime keeps mutating normally, but
+   * `trace()` then refuses: returning a truncated trace would offer a replay
+   * that reproduces a different run.
+   */
+  readonly maxTraceEvents?: number;
 }
 
 /**
@@ -517,7 +691,8 @@ export function compileExperimentDocumentV0(
     value: new ExperimentCompilation(
       document,
       prepared.documentHash,
-      registry
+      registry,
+      options.maxTraceEvents ?? 1_000_000
     )
   };
 }
@@ -553,17 +728,31 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
   private released = false;
   private clock = 0;
   private revisionCounter = 1;
+  private readonly events: ExperimentTraceEventV0[] = [];
+  private readonly maxTraceEvents: number;
+  /** Eager capture, so a trace always has a state to replay from. */
+  private readonly initialSnapshot: ExperimentSnapshotV0 | null;
+  /** Why the eager capture failed, retained so `trace()` can say. */
+  private readonly initialFailure: ExperimentFailure | null;
+  private recordingComplete = true;
   private readonly registry: Map<ExperimentId, ExperimentCompiledEntryV0>;
 
   constructor(
     document: ExperimentDocumentV0,
     documentHash: `sha256:${string}`,
-    registry: Map<ExperimentId, ExperimentCompiledEntryV0>
+    registry: Map<ExperimentId, ExperimentCompiledEntryV0>,
+    maxTraceEvents: number
   ) {
     this.document = document;
     this.documentHash = documentHash;
     this.registry = registry;
     this.ids = Object.freeze([...registry.keys()]);
+    this.maxTraceEvents = maxTraceEvents;
+    // Taken now rather than on demand: a trace recorded from the first
+    // mutation needs the state that preceded it, which is gone by then.
+    const captured = this.capture();
+    this.initialSnapshot = captured.ok ? captured.value : null;
+    this.initialFailure = captured.ok ? null : captured.failures[0]!;
   }
 
   get disposed(): boolean {
@@ -627,6 +816,7 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
     // Only an accepted application moves the revision, so a caller comparing
     // a record against it cannot be told something changed when nothing did.
     this.revisionCounter += 1;
+    this.record({ kind: 'set-parameter', id, value: domain.value });
     return Object.freeze({
       parameter: id,
       outcome: 'applied' as const,
@@ -698,6 +888,7 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
     }
     this.clock += steps;
     this.revisionCounter += 1;
+    this.record({ kind: 'advance', value: steps });
     return { ok: true, value: { step: this.clock } };
   }
 
@@ -720,6 +911,331 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
       ));
     }
     return { ok: true, value: entry };
+  }
+
+
+  private record(
+    event: { kind: 'set-parameter' | 'advance'; id?: ExperimentId; value: ExperimentJsonValue }
+  ): void {
+    if (!this.recordingComplete) return;
+    if (this.events.length >= this.maxTraceEvents) {
+      // Stop recording but keep mutating: the run is still valid, only its
+      // trace is no longer complete, and `trace()` refuses rather than
+      // handing back a prefix that would replay a different run.
+      this.recordingComplete = false;
+      return;
+    }
+    this.events.push(Object.freeze({
+      ordinal: this.events.length,
+      step: this.clock,
+      kind: event.kind,
+      ...(event.id === undefined ? {} : { id: event.id }),
+      value: event.value
+    }));
+  }
+
+  /** Captures current state without touching the clock or revision. */
+  private capture(): ExperimentResult<ExperimentSnapshotV0> {
+    const entries: ExperimentSnapshotEntryV0[] = [];
+    const buffers: string[] = [];
+
+    for (const [id, entry] of this.registry) {
+      if (entry.category === 'model') {
+        if (entry.captureModelState === undefined) {
+          return refused(failure(
+            'capability-unavailable',
+            `the capability compiling ${JSON.stringify(entry.kind)} cannot ` +
+              `capture model state, so ${JSON.stringify(id)} has none to snapshot`,
+            '',
+            { id, kind: entry.kind }
+          ));
+        }
+        const state = entry.captureModelState();
+        if (!state.ok) return state;
+        entries.push(Object.freeze({
+          id,
+          category: 'model' as const,
+          kind: entry.kind,
+          modelStep: state.value.modelStep,
+          layout: Object.freeze(
+            state.value.layout.map((field) => Object.freeze({ ...field }))
+          ),
+          buffer: buffers.length
+        }));
+        buffers.push(encodeFloat64BufferV0(state.value.values));
+        continue;
+      }
+      if (entry.category !== 'representation') continue;
+
+      const captured = captureRepresentationState(entry);
+      entries.push(Object.freeze({
+        id,
+        category: 'representation' as const,
+        kind: entry.kind,
+        layout: Object.freeze(
+          captured.layout.map((field) => Object.freeze({ ...field }))
+        ),
+        buffer: buffers.length
+      }));
+      buffers.push(encodeFloat64BufferV0(captured.values));
+    }
+
+    return {
+      ok: true,
+      value: Object.freeze({
+        schema: 'holotope.snapshot/0' as const,
+        documentHash: this.documentHash,
+        step: this.clock,
+        revision: this.revisionCounter,
+        // Every capture in this slice is a complete CPU Float64 capture.
+        level: 'exact-cpu' as const,
+        entries: Object.freeze(entries),
+        buffers: Object.freeze(buffers)
+      })
+    };
+  }
+
+  snapshot(): ExperimentResult<ExperimentSnapshotV0> {
+    if (this.released) {
+      return refused(failure('disposed', 'this experiment compilation has been disposed'));
+    }
+    return this.capture();
+  }
+
+  restore(
+    snapshot: ExperimentSnapshotV0,
+    options: { readonly require?: ExperimentReplayLevelV0 } = {}
+  ): ExperimentResult<ExperimentReplayOutcomeV0> {
+    if (this.released) {
+      return refused(failure('disposed', 'this experiment compilation has been disposed'));
+    }
+    const checked = this.validateSnapshot(snapshot, options.require);
+    if (!checked.ok) return checked;
+
+    // A defensive capture first, so a failure part-way through can put back
+    // exactly what was there. Partial restoration is unreachable, not merely
+    // unlikely.
+    const rollback = this.capture();
+    if (!rollback.ok) return rollback;
+
+    const applied = this.applySnapshot(snapshot);
+    if (!applied.ok) {
+      const undone = this.applySnapshot(rollback.value);
+      if (!undone.ok) {
+        throw new Error(
+          'ExperimentCompilation.restore: rollback failed after a refused restore'
+        );
+      }
+      this.clock = rollback.value.step;
+      return applied;
+    }
+
+    this.clock = snapshot.step;
+    this.revisionCounter += 1;
+    return {
+      ok: true,
+      value: { level: snapshot.level, step: this.clock, revision: this.revisionCounter }
+    };
+  }
+
+  trace(): ExperimentResult<ExperimentTraceV0> {
+    if (this.released) {
+      return refused(failure('disposed', 'this experiment compilation has been disposed'));
+    }
+    if (this.initialSnapshot === null) {
+      return refused(this.initialFailure ?? failure(
+        'capability-unavailable', 'no initial snapshot was captured'
+      ));
+    }
+    if (!this.recordingComplete) {
+      return refused(failure(
+        'resource-limit',
+        `recording stopped at ${this.maxTraceEvents} events, so no complete ` +
+          'trace exists for this run',
+        '',
+        { maxTraceEvents: this.maxTraceEvents }
+      ));
+    }
+    return {
+      ok: true,
+      value: Object.freeze({
+        schema: 'holotope.trace/0' as const,
+        documentHash: this.documentHash,
+        initial: this.initialSnapshot,
+        events: Object.freeze([...this.events])
+      })
+    };
+  }
+
+  replay(
+    trace: ExperimentTraceV0,
+    options: { readonly require?: ExperimentReplayLevelV0 } = {}
+  ): ExperimentResult<ExperimentReplayOutcomeV0> {
+    if (this.released) {
+      return refused(failure('disposed', 'this experiment compilation has been disposed'));
+    }
+    if (typeof trace !== 'object' || trace === null ||
+      trace.schema !== 'holotope.trace/0') {
+      return refused(failure(
+        'schema-version-unsupported',
+        'expected a holotope.trace/0 trace', '/schema'
+      ));
+    }
+    if (trace.documentHash !== this.documentHash) {
+      return refused(failure(
+        'snapshot-incompatible',
+        'the trace belongs to a different document',
+        '/documentHash',
+        { expected: this.documentHash, received: String(trace.documentHash) }
+      ));
+    }
+    const restored = this.restore(trace.initial, options);
+    if (!restored.ok) return restored;
+
+    for (const event of trace.events) {
+      if (event.kind === 'advance') {
+        const advanced = this.advance(event.value as number);
+        if (!advanced.ok) {
+          return refused(failure(
+            'invalid-value',
+            `trace event ${event.ordinal} was refused during replay`,
+            `/events/${event.ordinal}`,
+            { ordinal: event.ordinal, reason: advanced.failures[0]!.code }
+          ));
+        }
+        continue;
+      }
+      const applied = this.setParameter(event.id!, event.value);
+      if (applied.outcome === 'refused') {
+        return refused(failure(
+          'invalid-value',
+          `trace event ${event.ordinal} was refused during replay`,
+          `/events/${event.ordinal}`,
+          { ordinal: event.ordinal, reason: applied.failure?.code ?? 'unknown' }
+        ));
+      }
+    }
+    return {
+      ok: true,
+      value: {
+        level: trace.initial.level,
+        step: this.clock,
+        revision: this.revisionCounter
+      }
+    };
+  }
+
+  /** Schema, document identity, level, and per-entry shape. */
+  private validateSnapshot(
+    snapshot: ExperimentSnapshotV0,
+    require: ExperimentReplayLevelV0 | undefined
+  ): ExperimentResult<true> {
+    if (typeof snapshot !== 'object' || snapshot === null ||
+      snapshot.schema !== 'holotope.snapshot/0') {
+      return refused(failure(
+        'schema-version-unsupported',
+        'expected a holotope.snapshot/0 snapshot', '/schema'
+      ));
+    }
+    if (snapshot.documentHash !== this.documentHash) {
+      return refused(failure(
+        'snapshot-incompatible',
+        'the snapshot belongs to a different document',
+        '/documentHash',
+        { expected: this.documentHash, received: String(snapshot.documentHash) }
+      ));
+    }
+    if (require !== undefined && LEVEL_ORDER[snapshot.level] < LEVEL_ORDER[require]) {
+      return refused(failure(
+        'replay-level-unmet',
+        `snapshot level ${snapshot.level} is weaker than the required ${require}`,
+        '/level',
+        { required: require, available: snapshot.level }
+      ));
+    }
+    if (!Number.isSafeInteger(snapshot.step) || snapshot.step < 0) {
+      return refused(failure('invalid-value', 'step must be a non-negative integer', '/step'));
+    }
+    for (let index = 0; index < snapshot.entries.length; index++) {
+      const entry = snapshot.entries[index]!;
+      const compiled = this.registry.get(entry.id);
+      if (compiled === undefined || compiled.category !== entry.category ||
+        compiled.kind !== entry.kind) {
+        return refused(failure(
+          'invalid-value',
+          `snapshot entry ${JSON.stringify(entry.id)} does not match this compilation`,
+          `/entries/${index}`,
+          { id: entry.id }
+        ));
+      }
+      const encoded = snapshot.buffers[entry.buffer];
+      if (typeof encoded !== 'string') {
+        return refused(failure(
+          'invalid-value', 'entry references a missing buffer',
+          `/entries/${index}/buffer`, { buffer: entry.buffer }
+        ));
+      }
+      let values: Float64Array;
+      try {
+        values = decodeFloat64BufferV0(encoded);
+      } catch (error) {
+        return refused(failure(
+          'invalid-value',
+          error instanceof Error ? error.message : String(error),
+          `/buffers/${entry.buffer}`
+        ));
+      }
+      const expected = entry.layout.reduce((sum, field) => sum + field.length, 0);
+      if (values.length !== expected) {
+        return refused(failure(
+          'invalid-value',
+          `entry declares ${expected} values but its buffer holds ${values.length}`,
+          `/entries/${index}/layout`
+        ));
+      }
+      for (let position = 0; position < values.length; position++) {
+        if (!Number.isFinite(values[position]!)) {
+          return refused(failure(
+            'invalid-value', `value ${position} is not finite`,
+            `/buffers/${entry.buffer}`, { index: position }
+          ));
+        }
+      }
+    }
+    return { ok: true, value: true };
+  }
+
+  /** Writes a validated snapshot into the live objects. */
+  private applySnapshot(
+    snapshot: ExperimentSnapshotV0
+  ): ExperimentResult<true> {
+    for (const entry of snapshot.entries) {
+      const compiled = this.registry.get(entry.id);
+      if (compiled === undefined) continue;
+      const values = decodeFloat64BufferV0(snapshot.buffers[entry.buffer]!);
+
+      if (entry.category === 'model') {
+        if (compiled.category !== 'model' || compiled.restoreModelState === undefined) {
+          return refused(failure(
+            'capability-unavailable',
+            `the capability compiling ${JSON.stringify(entry.kind)} cannot restore state`,
+            '', { id: entry.id, kind: entry.kind }
+          ));
+        }
+        const written = compiled.restoreModelState({
+          kind: entry.kind,
+          modelStep: entry.modelStep ?? 0,
+          layout: entry.layout,
+          values
+        });
+        if (!written.ok) return written;
+        continue;
+      }
+      if (compiled.category !== 'representation') continue;
+      const written = restoreRepresentationState(compiled, entry.layout, values);
+      if (!written.ok) return written;
+    }
+    return { ok: true, value: true };
   }
 
   dispose(): ExperimentResult<ExperimentCompilationDisposalV0> {
@@ -1292,4 +1808,105 @@ function resolvePose(
   if (pose.kind === 'static') return pose.transform;
   const model = registry.get(pose.model);
   return model !== undefined && model.category === 'model' ? model.pose() : null;
+}
+
+/** Level comparison; a higher number reproduces more faithfully. */
+const LEVEL_ORDER: Readonly<Record<ExperimentReplayLevelV0, number>> = Object.freeze({
+  'presentation-only': 0,
+  'numeric-equivalent': 1,
+  'exact-cpu': 2
+});
+
+/**
+ * The mutable state of one compiled representation.
+ *
+ * A slice carries its display basis, which for a `continuous` frame is a
+ * function of the normal's history rather than of its current value. Capturing
+ * the basis itself is what lets such a section restore bitwise instead of
+ * being reconstructed approximately from the document.
+ */
+function captureRepresentationState(
+  entry: ExperimentCompiledRepresentationV0
+): { layout: ExperimentStateFieldV0[]; values: Float64Array } {
+  if (entry.map.kind === 'slice4') {
+    const slice = entry.map.slice;
+    const values = new Float64Array(1 + 4 + 12);
+    values[0] = slice.offset;
+    values.set(slice.normal.data, 1);
+    for (let row = 0; row < 3; row++) values.set(slice.basis[row]!, 5 + row * 4);
+    return {
+      layout: [
+        { field: 'offset', length: 1 },
+        { field: 'normal', length: 4 },
+        { field: 'basis', length: 12 }
+      ],
+      values
+    };
+  }
+  const projection = entry.map.projection as {
+    viewDistance?: number;
+    epsilon?: number;
+  };
+  if (typeof projection.viewDistance !== 'number') {
+    // A coordinate projection selects axes and has nothing that changes.
+    return { layout: [], values: new Float64Array(0) };
+  }
+  return {
+    layout: [
+      { field: 'viewDistance', length: 1 },
+      { field: 'epsilon', length: 1 }
+    ],
+    values: Float64Array.from([
+      projection.viewDistance,
+      typeof projection.epsilon === 'number' ? projection.epsilon : 0
+    ])
+  };
+}
+
+/** Writes captured representation state back exactly, without renormalizing. */
+function restoreRepresentationState(
+  entry: ExperimentCompiledRepresentationV0,
+  layout: readonly ExperimentStateFieldV0[],
+  values: Float64Array
+): ExperimentResult<true> {
+  const fields = layout.map((field) => field.field).join(',');
+  if (entry.map.kind === 'slice4') {
+    if (fields !== 'offset,normal,basis') {
+      return refused(failure(
+        'invalid-value',
+        `section ${JSON.stringify(entry.id)} expects offset,normal,basis`,
+        '', { layout: fields }
+      ));
+    }
+    const slice = entry.map.slice;
+    slice.offset = values[0]!;
+    // Written in place rather than through setNormal: the captured basis is
+    // the transported one, and recomputing it would discard the history the
+    // snapshot exists to preserve.
+    for (let axis = 0; axis < 4; axis++) slice.normal.data[axis] = values[1 + axis]!;
+    for (let row = 0; row < 3; row++) {
+      for (let axis = 0; axis < 4; axis++) {
+        slice.basis[row]![axis] = values[5 + row * 4 + axis]!;
+      }
+    }
+    return { ok: true, value: true };
+  }
+  if (fields === '') return { ok: true, value: true };
+  if (fields !== 'viewDistance,epsilon') {
+    return refused(failure(
+      'invalid-value',
+      `projection ${JSON.stringify(entry.id)} expects viewDistance,epsilon`,
+      '', { layout: fields }
+    ));
+  }
+  const projection = entry.map.projection as { viewDistance?: number };
+  try {
+    projection.viewDistance = values[0]!;
+  } catch (error) {
+    return refused(failure(
+      'invalid-value',
+      error instanceof Error ? error.message : String(error), ''
+    ));
+  }
+  return { ok: true, value: true };
 }

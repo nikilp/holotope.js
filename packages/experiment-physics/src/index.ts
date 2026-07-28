@@ -22,8 +22,26 @@ import type {
   ExperimentFailure,
   ExperimentJsonValue,
   ExperimentModelDescriptorV0,
+  ExperimentModelStateV0,
   ExperimentResult
 } from '@holotope/experiment';
+
+/** Captured field order for a rigid4 model; a change here is a layout change. */
+const LAYOUT: readonly { readonly field: string; readonly length: number }[] =
+  Object.freeze([
+    Object.freeze({ field: 'position', length: 4 }),
+    Object.freeze({ field: 'rotationLeft', length: 4 }),
+    Object.freeze({ field: 'rotationRight', length: 4 }),
+    Object.freeze({ field: 'linearVelocity', length: 4 }),
+    Object.freeze({ field: 'angularMomentumWorld', length: 6 }),
+    Object.freeze({ field: 'force', length: 4 }),
+    Object.freeze({ field: 'torque', length: 6 }),
+    Object.freeze({ field: 'gravityScale', length: 1 }),
+    Object.freeze({ field: 'worldGravity', length: 4 }),
+    Object.freeze({ field: 'substeps', length: 1 })
+  ]);
+
+const LAYOUT_SHAPE = LAYOUT.map((field) => `${field.field}:${field.length}`).join(',');
 
 /** Live objects a compiled `physics.model.rigid4` owns. */
 export interface ExperimentRigidModel4RuntimeV0 {
@@ -251,6 +269,67 @@ function compileModel(
               { quantity }
             ));
         }
+      },
+      captureModelState(): ExperimentResult<ExperimentModelStateV0> {
+        const values = Float64Array.from([
+          ...body.position.data,
+          ...body.rotation.left,
+          ...body.rotation.right,
+          ...body.linearVelocity.data,
+          ...body.angularMomentumWorld.coeffs,
+          ...body.force.data,
+          ...body.torque.coeffs,
+          body.gravityScale,
+          ...world.gravity.data,
+          substeps
+        ]);
+        return {
+          ok: true,
+          value: {
+            kind: descriptor.kind,
+            modelStep,
+            layout: LAYOUT,
+            values
+          }
+        };
+      },
+      restoreModelState(
+        state: ExperimentModelStateV0
+      ): ExperimentResult<{ readonly modelStep: number }> {
+        if (state.kind !== descriptor.kind) {
+          return refused(failure(
+            'invalid-value',
+            `state was captured from ${JSON.stringify(state.kind)}`,
+            '', { expected: descriptor.kind, received: String(state.kind) }
+          ));
+        }
+        const shape = state.layout.map((field) => `${field.field}:${field.length}`).join(',');
+        if (shape !== LAYOUT_SHAPE) {
+          return refused(failure(
+            'invalid-value',
+            'state layout does not match physics.model.rigid4',
+            '', { expected: LAYOUT_SHAPE, received: shape }
+          ));
+        }
+        // Written exactly as captured. The rotor pair is not renormalized:
+        // a bitwise round trip is the contract, and a silent correction here
+        // would be indistinguishable from the snapshot having been wrong.
+        let at = 0;
+        const take = (into: { [index: number]: number }, count: number): void => {
+          for (let index = 0; index < count; index++) into[index] = state.values[at++]!;
+        };
+        take(body.position.data, 4);
+        take(body.rotation.left, 4);
+        take(body.rotation.right, 4);
+        take(body.linearVelocity.data, 4);
+        take(body.angularMomentumWorld.coeffs, 6);
+        take(body.force.data, 4);
+        take(body.torque.coeffs, 6);
+        body.gravityScale = state.values[at++]!;
+        take(world.gravity.data, 4);
+        substeps = state.values[at++]!;
+        modelStep = state.modelStep;
+        return { ok: true, value: { modelStep } };
       },
       advanceModel(steps: number): ExperimentResult<{ readonly modelStep: number }> {
         if (typeof steps !== 'number' || !Number.isSafeInteger(steps) || steps <= 0) {

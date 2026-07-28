@@ -41,6 +41,8 @@ export type ExperimentFailureCode =
   | 'replay-limited'
   | 'canonicalization-failed'
   | 'crypto-unavailable'
+  | 'snapshot-incompatible'
+  | 'replay-level-unmet'
   | 'disposed';
 
 /** JSON-compatible evidence for one refused document operation. */
