@@ -33,7 +33,9 @@ export {
 } from './coordinate-constraint-system.js';
 export {
   createSourceCellIdN,
+  createSourceCellLookupN,
   createSourceCellReferenceN,
+  findSourceCellByVerticesN,
   inspectSourceCellReferenceN,
   resolveSourceCellIdN,
   sourceCellGroupKeyN,
@@ -41,6 +43,10 @@ export {
   type SourceCellIdN,
   type SourceCellIdResolutionFailureReason,
   type SourceCellIdResolutionN,
+  type SourceCellLookupIndexN,
+  type SourceCellLookupMatchN,
+  type SourceCellLookupMissN,
+  type SourceCellLookupN,
   type SourceCellReferenceN,
   type SourceCellReferenceRetirementReason,
   type SourceCellReferenceStatusN
@@ -109,8 +115,11 @@ export {
 export {
   representationLineageCapabilitiesN,
   representationMapCapabilitiesN,
+  representationMapCapabilityVerbsN,
   type RepresentationCapabilityLevel,
+  type RepresentationCapabilityVerbN,
   type RepresentationMapCapabilitiesN,
+  type RepresentationMapCapabilityVerbsN,
   type RepresentationSourceIdentityCapability
 } from './map-capabilities.js';
 export {

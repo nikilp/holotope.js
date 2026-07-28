@@ -8,7 +8,7 @@
     "build:examples": "pnpm --filter \"./examples/*\" -r build",
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck",
-    "verify": "pnpm build && pnpm typecheck && pnpm test && pnpm build:examples && pnpm --filter @holotope/docs build && pnpm --filter @holotope/docs coverage && pnpm --filter @holotope/docs guide && pnpm --filter @holotope/docs routes"
+    "verify": "pnpm build && pnpm typecheck && pnpm test && pnpm build:examples && pnpm --filter @holotope/docs build && pnpm --filter @holotope/docs coverage && pnpm --filter @holotope/docs reachability && pnpm --filter @holotope/docs evidence && pnpm --filter @holotope/docs guide && pnpm --filter @holotope/docs routes"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

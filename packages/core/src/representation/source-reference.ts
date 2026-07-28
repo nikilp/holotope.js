@@ -300,3 +300,165 @@ function requireSourceCellId(id: SourceCellIdN): void {
     }
   }
 }
+
+/**
+ * Where a queried vertex tuple sits in a group, and how it is stored there.
+ *
+ * `orientation` is reported rather than normalised because the two producers
+ * that meet at this seam agree today by coincidence rather than by contract:
+ * `sliceTetrahedra` emits its provenance pairs ascending, and every cell group
+ * built in this package stores them ascending, so a caller who assumes the
+ * orders match is right — until a complex arrives that stores one descending.
+ *
+ * The failure that assumption produces is silent. A reversed pair turns
+ * parameter `t` into `1 - t`, and the mirrored point **stays collinear with the
+ * correct edge**, so an "is this point on the edge?" check still passes. Only a
+ * hyperplane residual catches it. Reporting the orientation makes the caller
+ * decide, which is the one thing a silent mirror never lets them do.
+ */
+export interface SourceCellLookupMatchN {
+  /** Discriminant, for narrowing against a miss. */
+  readonly kind: 'source-cell-lookup-match';
+  /** Ordinal of the matching cell within the group. */
+  readonly cellIndex: number;
+  /**
+   * How the group stores the tuple relative to the query: `aligned` for the
+   * same sequence, `reversed` for the exact reverse, `permuted` for the same
+   * vertices in some other order. A parameter along the cell must be inverted
+   * when this is `reversed`.
+   */
+  readonly orientation: 'aligned' | 'reversed' | 'permuted';
+}
+
+/** A queried vertex tuple that is not a cell of the group. */
+export interface SourceCellLookupMissN {
+  /** Discriminant, for narrowing against a match. */
+  readonly kind: 'source-cell-lookup-miss';
+  /**
+   * `not-a-cell` — these vertices bound no cell of this group. The common
+   * cause is a simplexization diagonal: a Kuhn decomposition cuts each cuboid
+   * along its main diagonal, so most tetrahedron edges are diagonals rather
+   * than 1-cells, and a point interpolated along one has no cell-level source
+   * to name. Roughly three quarters of a tesseract section's vertices are in
+   * this position. Resolve those through the parent-cell ordinal from
+   * `simplexizeCuboidGroupN` instead.
+   *
+   * `arity-mismatch` — the tuple length does not match `verticesPerCell`, so
+   * it could not name a cell of this group whatever its contents.
+   */
+  readonly reason: 'not-a-cell' | 'arity-mismatch';
+}
+
+/** The result of locating a vertex tuple in a group: found, or why not. */
+export type SourceCellLookupN = SourceCellLookupMatchN | SourceCellLookupMissN;
+
+/** Reusable vertex-tuple index over one group. */
+export interface SourceCellLookupIndexN {
+  /** The group this index was built over; lookups are only valid against it. */
+  readonly group: CellGroup;
+  /** Locate the cell whose vertex set equals `vertices`. */
+  find(vertices: ArrayLike<number>): SourceCellLookupN;
+}
+
+const lookupKey = (vertices: ArrayLike<number>): string => {
+  const sorted = Array.from(vertices as ArrayLike<number>).sort((a, b) => a - b);
+  return sorted.join(',');
+};
+
+/**
+ * Builds a reusable vertex-tuple → cell-index map over one group.
+ *
+ * This is the seam between the module that *produces* provenance and the one
+ * that *models* it. `sliceTetrahedra` reports which source vertices a section
+ * vertex was interpolated between; {@link createSourceCellReferenceN} needs the
+ * cell's ordinal. Nothing bridged them, so every caller doing this wrote the
+ * same linear scan — and wrote it without noticing the orientation question.
+ *
+ * Prefer this over {@link findSourceCellByVerticesN} when resolving more than a
+ * handful of vertices: building the map is one pass over the group, after which
+ * each lookup is constant-time rather than a scan.
+ *
+ * @example
+ * ```ts
+ * const complex = createHypercube({ dim: 4, size: 2 });
+ * const edges = complex.cellsOfDim(1)[0]!;
+ * const index = createSourceCellLookupN(edges);
+ *
+ * // A section vertex reported by `sliceTetrahedra` as lying `t` of the way
+ * // from source vertex `from` to source vertex `to`.
+ * const from = edges.indices[2]!;
+ * const to = edges.indices[3]!;
+ * const t = 0.25;
+ *
+ * const found = index.find([from, to]);
+ * if (found.kind === 'source-cell-lookup-match') {
+ *   const reference = createSourceCellReferenceN(complex, edges, found.cellIndex);
+ *   // The stored edge may run the other way, which would mirror the parameter.
+ *   const parameter = found.orientation === 'reversed' ? 1 - t : t;
+ *   const point = evaluateSourceEdgeCoordinateN(
+ *     createSourceEdgeCoordinateN(reference, parameter)
+ *   );
+ *   console.log(point.data[0]);
+ * }
+ * ```
+ */
+export function createSourceCellLookupN(group: CellGroup): SourceCellLookupIndexN {
+  if (group === null || typeof group !== 'object') {
+    throw new Error('createSourceCellLookupN: expected a CellGroup');
+  }
+  const arity = group.verticesPerCell;
+  if (!Number.isSafeInteger(arity) || arity < 1) {
+    throw new Error('createSourceCellLookupN: verticesPerCell must be a positive integer');
+  }
+  const cellCount = Math.floor(group.indices.length / arity);
+  const byVertexSet = new Map<string, number>();
+  for (let cellIndex = 0; cellIndex < cellCount; cellIndex++) {
+    const start = cellIndex * arity;
+    const key = lookupKey(group.indices.subarray(start, start + arity));
+    // First wins: a group listing the same vertex set twice is degenerate, and
+    // silently preferring the later copy would hide it.
+    if (!byVertexSet.has(key)) byVertexSet.set(key, cellIndex);
+  }
+
+  return Object.freeze({
+    group,
+    find(vertices: ArrayLike<number>): SourceCellLookupN {
+      if (vertices.length !== arity) {
+        return { kind: 'source-cell-lookup-miss', reason: 'arity-mismatch' };
+      }
+      const cellIndex = byVertexSet.get(lookupKey(vertices));
+      if (cellIndex === undefined) {
+        return { kind: 'source-cell-lookup-miss', reason: 'not-a-cell' };
+      }
+      const start = cellIndex * arity;
+      let aligned = true;
+      let reversed = true;
+      for (let offset = 0; offset < arity; offset++) {
+        const stored = group.indices[start + offset]!;
+        if (stored !== vertices[offset]!) aligned = false;
+        if (stored !== vertices[arity - 1 - offset]!) reversed = false;
+      }
+      return {
+        kind: 'source-cell-lookup-match',
+        cellIndex,
+        // A 1-cell reversed is also a 1-cell permuted; `reversed` is the more
+        // specific answer and the one that says how to fix the parameter.
+        orientation: aligned ? 'aligned' : reversed ? 'reversed' : 'permuted'
+      };
+    }
+  });
+}
+
+/**
+ * Locates a single cell by its vertex tuple.
+ *
+ * A one-shot convenience over {@link createSourceCellLookupN}; it builds the
+ * same index and discards it, so resolving many vertices through this is a
+ * full pass per lookup.
+ */
+export function findSourceCellByVerticesN(
+  group: CellGroup,
+  vertices: ArrayLike<number>
+): SourceCellLookupN {
+  return createSourceCellLookupN(group).find(vertices);
+}

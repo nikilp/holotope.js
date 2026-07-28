@@ -77,12 +77,14 @@ there is improved here.
 | [`createDuoprism`](/api/core/polytope/functions/createDuoprism) | [open](https://nikilp.github.io/holotope.js/playground.html#createDuoprism) |
 | [`createHypercube`](/api/core/polytope/functions/createHypercube) | [open](https://nikilp.github.io/holotope.js/playground.html#createHypercube) |
 | [`createSimplex`](/api/core/polytope/functions/createSimplex) | [open](https://nikilp.github.io/holotope.js/playground.html#createSimplex) |
+| [`createSourceCellLookupN`](/api/core/representation/functions/createSourceCellLookupN) | [open](https://nikilp.github.io/holotope.js/playground.html#createSourceCellLookupN) |
 | [`estimateXpbdIncrementalPotentialHessianVectorN`](/api/physics/functions/estimateXpbdIncrementalPotentialHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#estimateXpbdIncrementalPotentialHessianVectorN) |
 | [`evaluateClampedLogBarrier`](/api/physics/functions/evaluateClampedLogBarrier) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateClampedLogBarrier) |
 | [`evaluateSimplexMeasureBarrierHessianVectorN`](/api/physics/functions/evaluateSimplexMeasureBarrierHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexMeasureBarrierHessianVectorN) |
 | [`evaluateSimplexStVenantKirchhoffHessianVectorN`](/api/physics/functions/evaluateSimplexStVenantKirchhoffHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexStVenantKirchhoffHessianVectorN) |
 | [`evaluateXpbdIncrementalPotentialAnalyticHessianVectorN`](/api/physics/functions/evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) |
 | [`solveXpbdIncrementalPotentialNewtonDirectionN`](/api/physics/functions/solveXpbdIncrementalPotentialNewtonDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#solveXpbdIncrementalPotentialNewtonDirectionN) |
+| [`tetrahedralizeCuboidCells`](/api/core/geometry/functions/tetrahedralizeCuboidCells) | [open](https://nikilp.github.io/holotope.js/playground.html#tetrahedralizeCuboidCells) |
 | [`xpbdMassPreconditionedDirectionN`](/api/physics/variables/xpbdMassPreconditionedDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#xpbdMassPreconditionedDirectionN) |
 | [`xpbdNewtonDirectionPolicyN`](/api/physics/functions/xpbdNewtonDirectionPolicyN) | [open](https://nikilp.github.io/holotope.js/playground.html#xpbdNewtonDirectionPolicyN) |
 

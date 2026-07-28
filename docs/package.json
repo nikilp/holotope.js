@@ -24,7 +24,15 @@
     "api:links": "node scripts/link-packages.mjs",
     "coverage:leverage": "node scripts/report-coverage-leverage.mjs",
     "api:experiment-physics": "typedoc --options typedoc/experiment-physics.json",
-    "liveness": "node scripts/report-liveness-candidates.mjs"
+    "liveness": "node scripts/report-liveness-candidates.mjs",
+    "reachability": "node scripts/check-reachability.mjs",
+    "reachability:list": "node scripts/check-reachability.mjs --list",
+    "reachability:update": "node scripts/check-reachability.mjs --update",
+    "reachability:shrink": "node scripts/check-reachability.mjs --shrink",
+    "evidence": "node scripts/check-evidence-readership.mjs",
+    "evidence:list": "node scripts/check-evidence-readership.mjs --list",
+    "evidence:update": "node scripts/check-evidence-readership.mjs --update",
+    "evidence:shrink": "node scripts/check-evidence-readership.mjs --shrink"
   },
   "devDependencies": {
     "markdown-it-mathjax3": "^5.2.0",

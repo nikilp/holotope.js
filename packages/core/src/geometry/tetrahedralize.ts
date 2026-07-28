@@ -123,6 +123,28 @@ export function simplexizeCuboidGroupN(
  * Converts every binary-ordered cuboid 3-cell group into tetrahedra and
  * appends the generated simplex groups to the same complex. Existing cuboid
  * groups remain in place.
+ *
+ * **Mutates `complex` and returns that same object**, rather than producing a
+ * new one — the return value is a convenience, not a copy. A caller comparing
+ * the argument against the result is comparing an object with itself.
+ *
+ * **Keeps only `simplexGroup`.** {@link simplexizeCuboidGroupN} also returns
+ * `sourceCellIndices`, the parent source-cell ordinal of every generated
+ * simplex, and `permutationIndices`. Both are dropped here. Call it directly
+ * where provenance matters: a section vertex interpolated along a Kuhn diagonal
+ * has no 1-cell to reference, and the parent-cell ordinal is what lets it
+ * resolve to the 3-cell it came from instead.
+ *
+ * @example
+ * ```ts
+ * // Slicing only: the wrapper is enough.
+ * const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+ *
+ * // Provenance: go to the producer, which keeps the parent-cell map.
+ * const cuboids = complex.cellsOfDim(3)[0]!;
+ * const simplexization = simplexizeCuboidGroupN(cuboids);
+ * const parentCell = simplexization.sourceCellIndices[0];
+ * ```
  */
 export function tetrahedralizeCuboidCells(complex: CellComplex): CellComplex {
   const cuboidGroups = complex.groups.filter(

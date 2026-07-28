@@ -56,6 +56,104 @@ export function representationMapCapabilitiesN(
   }
 }
 
+/**
+ * The exported symbol that performs a capability, and where it is exported from.
+ *
+ * `symbol` is a bare function name, or `Class.method` for a method verb.
+ */
+export interface RepresentationCapabilityVerbN {
+  /** Exported name, or `Class.method` where the verb is a method. */
+  readonly symbol: string;
+  /** Package the symbol is exported from, as an import specifier. */
+  readonly module: string;
+}
+
+/**
+ * Which symbol performs each capability, or `undefined` where none is named.
+ *
+ * A capability level says an operation is possible; it does not say what
+ * performs it, and the two are not the same fact. `pointLift: 'exact'` on an
+ * affine slice chart is satisfied by `HyperplaneSlice4.embedPoint`, which lives
+ * in another module under a name sharing no vocabulary with the capability — so
+ * a caller who reads this module end to end learns that the lift exists and not
+ * that it ships. Naming the verb here closes the distance, and a test asserts
+ * every name below still resolves on the public surface, so the pointer cannot
+ * rot into a lie the way a comment would.
+ *
+ * `undefined` means either that the capability is `unavailable` for the recipe,
+ * or that no single exported symbol has been identified as performing it. The
+ * second case is deliberately not hidden: `attributeTransport` is declared at
+ * `exact` for several recipes and no verb anywhere in the package is named for
+ * it, which is a real gap rather than an omission in this table.
+ */
+export interface RepresentationMapCapabilityVerbsN {
+  /** Takes a source point to its representation. */
+  readonly pointForward: RepresentationCapabilityVerbN | undefined;
+  /** Takes a representation point back to a source point. */
+  readonly pointLift: RepresentationCapabilityVerbN | undefined;
+  /** Enumerates the source set collapsing onto one representation point. */
+  readonly inverseFibre: RepresentationCapabilityVerbN | undefined;
+  /** Carries per-vertex attributes across the map. No verb ships for this. */
+  readonly attributeTransport: RepresentationCapabilityVerbN | undefined;
+  /** Names the source cell a representation element came from. */
+  readonly sourceIdentity: RepresentationCapabilityVerbN | undefined;
+}
+
+const CORE = '@holotope/core';
+const FORWARD: RepresentationCapabilityVerbN = {
+  symbol: 'evaluateRepresentationLineagePointN', module: CORE
+};
+const SLICE_LIFT: RepresentationCapabilityVerbN = {
+  symbol: 'HyperplaneSlice4.embedPoint', module: CORE
+};
+const PERSPECTIVE_LIFT: RepresentationCapabilityVerbN = {
+  symbol: 'liftHomogeneousSimplexPointN', module: CORE
+};
+const FIBRE: RepresentationCapabilityVerbN = {
+  symbol: 'evaluateProjectionFibre', module: CORE
+};
+const SOURCE_REFERENCE: RepresentationCapabilityVerbN = {
+  symbol: 'createSourceCellReferenceN', module: CORE
+};
+
+/** The symbol performing each capability of one recipe kind. */
+export function representationMapCapabilityVerbsN(
+  recipe: RepresentationMapRecipeN
+): RepresentationMapCapabilityVerbsN {
+  switch (recipe.kind) {
+    case 'affine-section':
+    case 'affine-slice-chart':
+      return verbs(FORWARD, SLICE_LIFT, undefined, undefined, SOURCE_REFERENCE);
+    case 'orthographic-projection':
+    case 'coordinate-subspace-projection':
+      return verbs(FORWARD, undefined, FIBRE, undefined, SOURCE_REFERENCE);
+    case 'iterated-perspective-projection':
+      return verbs(FORWARD, PERSPECTIVE_LIFT, FIBRE, undefined, SOURCE_REFERENCE);
+    case 'custom-projection':
+      return verbs(undefined, undefined, undefined, undefined, SOURCE_REFERENCE);
+    case 'field-restriction':
+    case 'sampled-isosurface':
+    case 'ray-realization':
+      return verbs(FORWARD, undefined, undefined, undefined, SOURCE_REFERENCE);
+  }
+}
+
+function verbs(
+  pointForward: RepresentationCapabilityVerbN | undefined,
+  pointLift: RepresentationCapabilityVerbN | undefined,
+  inverseFibre: RepresentationCapabilityVerbN | undefined,
+  attributeTransport: RepresentationCapabilityVerbN | undefined,
+  sourceIdentity: RepresentationCapabilityVerbN | undefined
+): RepresentationMapCapabilityVerbsN {
+  return Object.freeze({
+    pointForward,
+    pointLift,
+    inverseFibre,
+    attributeTransport,
+    sourceIdentity
+  });
+}
+
 /** Compose quality monotonically across an ordered lineage. */
 export function representationLineageCapabilitiesN(
   lineage: RepresentationLineageN
