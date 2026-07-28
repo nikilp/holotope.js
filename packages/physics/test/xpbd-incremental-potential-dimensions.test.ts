@@ -154,19 +154,94 @@ describe('the incremental-potential step across dimensions', () => {
   });
 
   /**
-   * Resting contact does not converge at this tolerance, which is the
-   * matrix-free solver's known limitation rather than a defect in the scene:
-   * the barrier Hessian conditions like 1/d² as the gap closes, and a
-   * Jacobi-preconditioned conjugate gradient stalls there. The state is stable
-   * even so, which is why this is worth pinning rather than hiding.
+   * What actually happens once the solve stops converging.
+   *
+   * The application boundary refuses any non-converged minimization, and the
+   * step policy exposes no override, so from the first `iteration-limit`
+   * onward every step is refused wholesale. The scene does not come to rest —
+   * it halts mid-fall, carrying an unresolved downward velocity forever.
+   *
+   * An earlier version of this test asserted that heights stayed above the
+   * floor and called that stability. That assertion cannot fail once nothing
+   * is being applied, so it certified a frozen simulation as a working one.
+   * The lesson generalizes: in a library whose guarantees are refusals, "the
+   * bad thing did not happen" is satisfied by a refusal that stopped the test
+   * from doing anything, so a guarantee needs a liveness companion.
    */
-  it('reaches its iteration budget in resting contact while staying stable', () => {
-    const result = run(4, 90, { fromCurrentState: true });
-    expect(result.terminals['converged']).toBeGreaterThan(0);
-    expect(result.terminals['iteration-limit']).toBeGreaterThan(0);
+  it('halts rather than resting once the solve stops converging', () => {
+    const scene = cornerScene(4);
+    const gravity = gravityFor(4);
+    const applications: Record<string, number> = {};
+    let firstLimit = -1;
+    let movedAfterLimit = 0;
+    let previous = '';
 
-    const settled = run(4, 120, { fromCurrentState: true });
-    // Stable: more stepping does not push the particles through the floor.
-    for (const height of settled.heights) expect(height).toBeGreaterThan(0);
+    for (let step = 0; step < 120; step++) {
+      const result = stepXpbdIncrementalPotentialN({
+        dimension: 4,
+        particles: scene.particles,
+        providers: scene.providers,
+        stepFilters: scene.stepFilters,
+        deltaTime: 1 / 120,
+        gravity,
+        initialPositions: scene.particles.map((p) => p.position.clone())
+      });
+      applications[result.status] = (applications[result.status] ?? 0) + 1;
+      if (firstLimit < 0 && result.minimization.status === 'iteration-limit') {
+        firstLimit = step;
+      }
+      const heights = scene.particles.map((p) => p.position.data[1]!).join(',');
+      if (firstLimit >= 0 && previous !== '' && heights !== previous) movedAfterLimit++;
+      previous = heights;
+    }
+
+    // Liveness first: the scene really did fall before it stopped.
+    expect(applications['applied']).toBeGreaterThan(0);
+    expect(firstLimit).toBeGreaterThan(0);
+
+    // Then the guarantee, stated as what it is rather than as stability.
+    expect(applications['refused']).toBeGreaterThan(0);
+    expect(movedAfterLimit).toBe(0);
+    // Halted mid-fall: the velocity it had is still there, unresolved.
+    expect(scene.particles[0]!.velocity.data[1]!).toBeLessThan(-1);
+  });
+
+  /**
+   * The escape a caller reaches for first, and why it is worse.
+   *
+   * Loosening the gradient tolerance past the objective's gradient norm at the
+   * current state makes every solve converge at `initial` in zero iterations.
+   * Every step then reports `applied` and nothing moves at all — a loud
+   * failure traded for a silent one. `convergencePoint` already distinguishes
+   * the two cases; nothing currently acts on it.
+   */
+  it('reports success while moving nothing when the tolerance is loosened', () => {
+    const scene = cornerScene(3);
+    const gravity = gravityFor(3);
+    const before = scene.particles.map((p) => p.position.data[1]!);
+    const applications: Record<string, number> = {};
+
+    for (let step = 0; step < 120; step++) {
+      const result = stepXpbdIncrementalPotentialN({
+        dimension: 3,
+        particles: scene.particles,
+        providers: scene.providers,
+        stepFilters: scene.stepFilters,
+        deltaTime: 1 / 120,
+        gravity,
+        initialPositions: scene.particles.map((p) => p.position.clone()),
+        minimization: { gradientTolerance: 1e-2 }
+      });
+      applications[result.status] = (applications[result.status] ?? 0) + 1;
+      if (step === 0 && result.minimization.status === 'converged') {
+        expect(result.minimization.convergencePoint).toBe('initial');
+        expect(result.minimization.iterations).toHaveLength(0);
+      }
+    }
+
+    expect(applications['applied']).toBe(120);
+    expect(applications['refused']).toBeUndefined();
+    // Every step succeeded and the scene never moved.
+    expect(scene.particles.map((p) => p.position.data[1]!)).toEqual(before);
   });
 });
