@@ -156,6 +156,8 @@ describe('momentum-primary ballistic dynamics', () => {
     for (let step = 0; step < 10_000; step++) world.step(0.0001);
 
     expect(body.angularMomentumWorld.coeffs).toEqual(initialMomentum);
+    // liveness: the rotor is asserted equal to a specific 1.25 rad rotation,
+    // not merely valid, so a world that never integrated leaves identity here.
     expectMatrixClose(
       body.rotation.toMatrix(),
       Rotor4.fromPlane(0, 1, 1.25).toMatrix(),
@@ -187,13 +189,41 @@ describe('momentum-primary ballistic dynamics', () => {
     const initialMomentum = body.angularMomentumWorld.coeffs.slice();
     const world = new PhysicsWorld4({ gravity: [0, 0, 0, 0] }).addBody(body);
 
+    const initialRotation = body.rotation.toMatrix();
+
     for (let step = 0; step < 2000; step++) world.step(1 / 240);
 
     expect(body.angularMomentumWorld.coeffs).toEqual(initialMomentum);
     const velocity = body.angularVelocityWorld().coeffs;
+    // Planes touching the fourth axis: (0,3), (1,3), (2,3) in the coefficient
+    // ordering. Confinement means these stay empty.
     for (const component of [2, 4, 5]) {
       expect(Math.abs(velocity[component]!)).toBeLessThan(1e-12);
     }
+    // liveness: in-subalgebra angular velocity ~0.34 and a rotor that turns
+    // nearly maximally, against out-of-subalgebra components below 1e-12.
+    //
+    // Confinement is a claim about where motion is *absent*, and a
+    // body that never moved satisfies it everywhere — as would an inert
+    // `step`, since the momentum this state is derived from is unchanged by
+    // construction and the identity rotation has an empty fourth row. The
+    // motion inside the subalgebra has to be witnessed for the absence outside
+    // it to carry any weight: the planes that should be turning are turning,
+    // eleven orders of magnitude above the ones that should not.
+    expect(Math.max(...[0, 1, 3].map((c) => Math.abs(velocity[c]!)))).toBeGreaterThan(0.1);
+    let rotationChange = 0;
+    const finalRotation = body.rotation.toMatrix();
+    for (let row = 0; row < 4; row++) {
+      for (let column = 0; column < 4; column++) {
+        rotationChange = Math.max(
+          rotationChange,
+          Math.abs(finalRotation.get(row, column) - initialRotation.get(row, column))
+        );
+      }
+    }
+    // Measured ~1.99 against a maximum of 2 for an orthogonal matrix entry, so
+    // the body genuinely tumbles over the 8.3 s rather than drifting.
+    expect(rotationChange).toBeGreaterThan(1);
     const rotation = body.rotation.toMatrix();
     for (let axis = 0; axis < 3; axis++) {
       expect(Math.abs(rotation.get(axis, 3))).toBeLessThan(1e-12);
@@ -220,6 +250,8 @@ describe('momentum-primary ballistic dynamics', () => {
       return (Math.max(...energies) - Math.min(...energies)) / energies[0]!;
     };
 
+    // liveness: the order ratio is the witness — a scene that stopped moving
+    // has zero span at both timesteps, making coarse/fine NaN, which fails.
     const coarse = energySpan(1 / 60);
     const fine = energySpan(1 / 120);
     expect(coarse).toBeLessThan(1e-6);

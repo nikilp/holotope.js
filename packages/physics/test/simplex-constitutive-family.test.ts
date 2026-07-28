@@ -361,6 +361,8 @@ describe('SimplexConstitutiveFamilyN', () => {
       world.step(fixedStep);
     }
 
+    // liveness: the final w-displacement assertion below requires the driving
+    // force to have actually moved material out of the authored 3-plane.
     const evaluated = family.evaluate();
     expect(evaluated.potentialEnergy).toBeGreaterThan(0);
     expect(evaluated.minimumMeasureRatio).toBeGreaterThan(0.4);

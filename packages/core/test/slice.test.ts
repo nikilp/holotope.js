@@ -133,6 +133,14 @@ describe('HyperplaneSlice4', () => {
       return coordinate;
     });
 
+    // Liveness witnesses. Every bound below is an upper bound on how much the
+    // frame moved, so a `setNormal` that did nothing at all would satisfy the
+    // whole loop: alignment would be exactly 1 and every coordinate delta
+    // exactly 0. Continuity is only meaningful about a frame that is moving,
+    // and only interesting across the axis switch, so both are witnessed.
+    const dominantAxes = new Set<number>();
+    let accumulatedRotation = 0;
+
     for (let step = 1; step <= 80; step++) {
       const blend = step / 80;
       slice.setNormal([
@@ -141,6 +149,17 @@ describe('HyperplaneSlice4', () => {
         0.02 * Math.sin(blend * Math.PI),
         0.05
       ]);
+
+      // Which normal component is largest is what a basis construction keys its
+      // reference axis on, so this crossing is the discontinuity under test.
+      let dominant = 0;
+      for (let component = 1; component < 4; component++) {
+        if (Math.abs(slice.normal.data[component]!) > Math.abs(slice.normal.data[dominant]!)) {
+          dominant = component;
+        }
+      }
+      dominantAxes.add(dominant);
+
       for (let axis = 0; axis < 3; axis++) {
         let alignment = 0;
         let coordinate = 0;
@@ -151,9 +170,21 @@ describe('HyperplaneSlice4', () => {
         expect(alignment).toBeGreaterThan(0.999);
         expect(Math.abs(coordinate - previousCoordinates[axis]!)).toBeLessThan(0.002);
         previousCoordinates[axis] = coordinate;
+        accumulatedRotation += Math.acos(Math.min(1, Math.abs(alignment)));
       }
       previousBasis = slice.basis.map((axis) => Float64Array.from(axis));
     }
+
+    // liveness: the sweep crosses the dominant-axis switch and turns the frame
+    // ~0.129 rad; an inert setNormal satisfies every continuity bound above.
+    //
+    // The sweep really did cross the switch: the largest normal component is
+    // axis 0 at the start and axis 1 at the end. Without this the sweep could
+    // be narrowed to one side of the crossing and still pass, testing nothing.
+    expect([...dominantAxes].sort()).toEqual([0, 1]);
+    // And the frame really did turn while staying continuous. Measured at
+    // ~0.129 rad total; the bound only has to exclude an inert implementation.
+    expect(accumulatedRotation).toBeGreaterThan(0.1);
 
     const vectors = [slice.normal.data, ...slice.basis];
     for (let left = 0; left < 4; left++) {

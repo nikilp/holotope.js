@@ -119,6 +119,8 @@ describe('XpbdWorldN', () => {
     }
     expectArrayClose(particle.position.data, [0, -1, 0, 0], 12);
     expectArrayClose(particle.velocity.data, [0, 0, 0, 0], 12);
+    // liveness: the support force is the witness — holding station is what an
+    // inert world does too, but only a solved constraint carries the weight.
     expect(supportForce).toBeCloseTo(-9.81, 10);
   });
 
@@ -181,6 +183,8 @@ describe('XpbdWorldN', () => {
         compliance
       }));
 
+    // liveness: the recurrence below is an independent oracle that evolves away
+    // from the initial state, so a world that stood still diverges from it.
     let displacement = 0.5;
     let velocity = 0;
     const scaledCompliance = compliance / (deltaTime * deltaTime);

@@ -168,12 +168,23 @@ describe('physicsExperimentCompilerV0', () => {
     const runtime = entry<ExperimentCompiledModelV0>(compilation, 'tumble')
       .runtime as ExperimentRigidModel4RuntimeV0;
     const before = Array.from(runtime.body.angularMomentumWorld.coeffs);
+    const rotationBefore = Array.from(runtime.body.rotation.left);
 
-    compilation.value.advance(120);
+    // liveness: the advance is asserted accepted for all 120 steps, and the
+    // rotor is asserted to have changed.
+    //
+    // Both claims are about quantities that a refused advance leaves untouched:
+    // conserved momentum stays conserved and an unturned rotor stays
+    // orthonormal. The advance has to be witnessed as accepted, and as having
+    // moved the body, before either assertion means anything.
+    const advanced = compilation.value.advance(120);
+    expect(advanced.ok).toBe(true);
+    if (advanced.ok) expect(advanced.value.step).toBe(120);
 
     expect(Array.from(runtime.body.angularMomentumWorld.coeffs)).toEqual(before);
     expect(runtime.body.rotation.toMatrix().orthogonalityError())
       .toBeLessThanOrEqual(1e-12);
+    expect(Array.from(runtime.body.rotation.left)).not.toEqual(rotationBefore);
   });
 
   it('binds representations to the model rather than copying its pose', async () => {

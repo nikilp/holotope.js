@@ -17,6 +17,23 @@
  * test of a pure function has nothing to be live about. The point is to make
  * the population visible and finite.
  *
+ * ## Why reviewed tests must say so explicitly
+ *
+ * Syntax cannot classify these. `expect(height).toBeGreaterThan(0)` is the
+ * vacuous absence assertion that prompted the whole report;
+ * `expect(rotation).toBeGreaterThan(1)` is a liveness witness. They are the same
+ * matcher, and only the meaning of the quantity separates them — which is why
+ * adding a proper witness to a flagged test used to make its score go *up*.
+ *
+ * So a reviewed test declares its witness in a comment:
+ *
+ *     // liveness: the rotor turned ~1.99 of a possible 2, so the body moved
+ *
+ * Declared tests leave the queue and are counted separately. The declaration is
+ * a claim by a reviewer, not a proof — but it is greppable, reviewable in a
+ * diff, and turns a one-time triage list into something that can be re-run and
+ * shrunk.
+ *
  *   node scripts/report-liveness-candidates.mjs          ranked report
  *   node scripts/report-liveness-candidates.mjs --json   machine-readable
  */
@@ -98,30 +115,59 @@ const testsIn = (text) => {
   return found;
 };
 
+/**
+ * A reviewer's declaration of where this test's liveness witness is.
+ *
+ * Continuation lines are joined, so a declaration may wrap to the column limit
+ * like any other comment. A bare `//` ends it, which is how a declaration is
+ * separated from the explanatory comment that usually follows.
+ */
+const declarationIn = (body) => {
+  const lines = body.split('\n');
+  const start = lines.findIndex((line) => /^\s*\/\/\s*liveness:/.test(line));
+  if (start === -1) return undefined;
+  const parts = [lines[start].replace(/^\s*\/\/\s*liveness:\s*/, '').trim()];
+  for (let index = start + 1; index < lines.length; index++) {
+    const continuation = lines[index].match(/^\s*\/\/\s?(.*)$/);
+    if (!continuation || continuation[1].trim() === '') break;
+    parts.push(continuation[1].trim());
+  }
+  return parts.join(' ');
+};
+
 const candidates = [];
+const declared = [];
 for (const file of testFiles) {
   const text = fs.readFileSync(file, 'utf8');
   for (const { name, body } of testsIn(text)) {
     const absences = ABSENCE.filter((probe) => probe.test(body)).length;
     if (absences === 0) continue;
-    if (LIVENESS.some((probe) => probe.test(body))) continue;
     // Only a refusable driver can leave an absence assertion vacuous.
     if (!REFUSABLE.some((probe) => probe.test(body))) continue;
+    const declaration = declarationIn(body);
+    if (declaration) {
+      declared.push({ file: path.relative(REPO, file), name, witness: declaration });
+      continue;
+    }
+    if (LIVENESS.some((probe) => probe.test(body))) continue;
     candidates.push({ file: path.relative(REPO, file), name, absenceAssertions: absences });
   }
 }
 candidates.sort((a, b) => b.absenceAssertions - a.absenceAssertions);
+declared.sort((a, b) => a.file.localeCompare(b.file));
 
 if (AS_JSON) {
-  console.log(JSON.stringify({ scanned: testFiles.length, candidates }, null, 2));
+  console.log(JSON.stringify({ scanned: testFiles.length, candidates, declared }, null, 2));
   process.exit(0);
 }
 
 console.log(
-  `liveness: ${candidates.length} candidate(s) across ${testFiles.length} test files.\n` +
-    'Each drives a refusable path and asserts a bad state is absent, without\n' +
-    'witnessing that anything ran — so a refusal that halted the test would\n' +
-    'satisfy it. Review rather than assume: some are legitimately fine.\n'
+  `liveness: ${candidates.length} candidate(s) across ${testFiles.length} test files, ` +
+    `${declared.length} declared.\n` +
+    'Each candidate drives a refusable path and asserts a bad state is absent,\n' +
+    'without witnessing that anything ran — so a refusal that halted the test\n' +
+    'would satisfy it. Review rather than assume: some are legitimately fine,\n' +
+    'and a reviewed test records its witness in a `// liveness:` comment.\n'
 );
 for (const candidate of candidates.slice(0, 20)) {
   console.log(`  ${String(candidate.absenceAssertions).padStart(2)}  ${candidate.file}`);
@@ -129,4 +175,12 @@ for (const candidate of candidates.slice(0, 20)) {
 }
 if (candidates.length > 20) {
   console.log(`\n  … and ${candidates.length - 20} more (use --json for all).`);
+}
+if (declared.length > 0) {
+  console.log('\ndeclared witnesses:');
+  for (const entry of declared) {
+    console.log(`  ${entry.file}`);
+    console.log(`      ${entry.name}`);
+    console.log(`      → ${entry.witness}`);
+  }
 }
