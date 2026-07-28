@@ -441,6 +441,8 @@
       "DEFAULT_EXPERIMENT_VALIDATION_LIMITS_V0": "/api/experiment/variables/DEFAULT_EXPERIMENT_VALIDATION_LIMITS_V0",
       "encodeFloat64BufferV0": "/api/experiment/functions/encodeFloat64BufferV0",
       "ExperimentActionDeclarationV0": "/api/experiment/interfaces/ExperimentActionDeclarationV0",
+      "ExperimentActionOperationV0": "/api/experiment/type-aliases/ExperimentActionOperationV0",
+      "ExperimentActionResultV0": "/api/experiment/interfaces/ExperimentActionResultV0",
       "ExperimentBackendRequirementV0": "/api/experiment/interfaces/ExperimentBackendRequirementV0",
       "ExperimentBooleanParameterValueV0": "/api/experiment/interfaces/ExperimentBooleanParameterValueV0",
       "ExperimentChoiceParameterValueV0": "/api/experiment/interfaces/ExperimentChoiceParameterValueV0",
@@ -511,6 +513,7 @@
       "prepareExperimentDocumentV0": "/api/experiment/functions/prepareExperimentDocumentV0",
       "validateExperimentDocumentV0": "/api/experiment/functions/validateExperimentDocumentV0",
       "ValidateExperimentDocumentV0Options": "/api/experiment/interfaces/ValidateExperimentDocumentV0Options",
+      "validateExperimentJsonAgainstSchemaV0": "/api/experiment/functions/validateExperimentJsonAgainstSchemaV0",
       "validationLimitsV0": "/api/experiment/functions/validationLimitsV0"
     },
     "@holotope/physics": {

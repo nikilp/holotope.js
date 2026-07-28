@@ -3,6 +3,9 @@ import {
   decodeFloat64BufferV0,
   encodeFloat64BufferV0
 } from './binary.js';
+import {
+  validateExperimentJsonAgainstSchemaV0
+} from './schema-instance.js';
 import type {
   CellComplex,
   HyperplaneSlice4,
@@ -18,6 +21,8 @@ import type {
   ExperimentDescriptorKind,
   ExperimentDocumentV0,
   ExperimentFailure,
+  ExperimentActionDeclarationV0,
+  ExperimentActionOperationV0,
   ExperimentId,
   ExperimentJsonValue,
   ExperimentModelDescriptorV0,
@@ -254,11 +259,21 @@ export interface ExperimentTraceEventV0 {
   readonly ordinal: number;
   /** Document clock step after the mutation was accepted. */
   readonly step: number;
-  /** Which public mutation path produced it. */
-  readonly kind: 'set-parameter' | 'advance';
-  /** Parameter id; absent for an advance. */
+  /**
+   * Which public mutation path produced it.
+   *
+   * `restore` is recorded because a restore moves state as decisively as any
+   * other mutation: a trace that omitted it would replay a different run
+   * while claiming to reproduce this one.
+   */
+  readonly kind: 'set-parameter' | 'advance' | 'restore';
+  /** Parameter id; absent for an advance or a restore. */
   readonly id?: ExperimentId;
-  /** The applied value, or the step count for an advance. */
+  /**
+   * The applied value, the step count for an advance, or the complete
+   * snapshot for a restore — snapshots being JSON-compatible by
+   * construction, which is what keeps a trace self-contained.
+   */
   readonly value: ExperimentJsonValue;
 }
 
@@ -278,6 +293,28 @@ export interface ExperimentTraceV0 {
   readonly initial: ExperimentSnapshotV0;
   /** Accepted mutations in ordinal order. */
   readonly events: readonly ExperimentTraceEventV0[];
+}
+
+/** Evidence from exactly one action invocation. */
+export interface ExperimentActionResultV0 {
+  /** Document key of the invoked action. */
+  readonly action: ExperimentId;
+  /**
+   * What the invocation did.
+   *
+   * There is no rolled-back outcome: every operation is exactly one atomic
+   * primitive, so there is no partial state for a rollback to undo. It
+   * becomes reachable only if composite actions ever exist.
+   */
+  readonly outcome: 'applied' | 'previewed' | 'refused';
+  /** Result value conforming to the declared output schema. */
+  readonly output?: ExperimentJsonValue;
+  /** Compilation revision after the call; unchanged on preview and refusal. */
+  readonly revision: number;
+  /** Document clock step after the call. */
+  readonly step: number;
+  /** Typed reason the invocation was refused. */
+  readonly failure?: ExperimentFailure;
 }
 
 /** What a restore or replay established. */
@@ -558,6 +595,19 @@ export interface ExperimentCompilationV0 {
     trace: ExperimentTraceV0,
     options?: { readonly require?: ExperimentReplayLevelV0 }
   ): ExperimentResult<ExperimentReplayOutcomeV0>;
+  /**
+   * Validates and runs one declared action.
+   *
+   * `preview` evaluates the operation and puts everything back, so a preview
+   * is unobservable: state, revision, and trace are what they were. It
+   * requires the declaration to say `supportsPreview`, since only the author
+   * knows whether evaluating is meaningful without committing.
+   */
+  invoke(
+    id: ExperimentId,
+    args?: ExperimentJsonValue,
+    options?: { readonly mode?: 'preview' | 'commit' }
+  ): ExperimentActionResultV0;
   /** Deterministic registry lookup with typed refusal evidence. */
   get(id: ExperimentId): ExperimentResult<ExperimentCompiledEntryV0>;
   /** Releases every compiled entry exactly once; repeat calls are refused. */
@@ -735,6 +785,14 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
   /** Why the eager capture failed, retained so `trace()` can say. */
   private readonly initialFailure: ExperimentFailure | null;
   private recordingComplete = true;
+  /**
+   * Whether a restore should be recorded.
+   *
+   * Cleared while replay restores the trace's own initial snapshot, and while
+   * a preview restores its capture: neither is a mutation the caller made, and
+   * recording them would grow the trace on every replay.
+   */
+  private recordRestores = true;
   private readonly registry: Map<ExperimentId, ExperimentCompiledEntryV0>;
 
   constructor(
@@ -915,7 +973,11 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
 
 
   private record(
-    event: { kind: 'set-parameter' | 'advance'; id?: ExperimentId; value: ExperimentJsonValue }
+    event: {
+      kind: ExperimentTraceEventV0['kind'];
+      id?: ExperimentId;
+      value: ExperimentJsonValue;
+    }
   ): void {
     if (!this.recordingComplete) return;
     if (this.events.length >= this.maxTraceEvents) {
@@ -1032,6 +1094,12 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
 
     this.clock = snapshot.step;
     this.revisionCounter += 1;
+    if (this.recordRestores) {
+      this.record({
+        kind: 'restore',
+        value: snapshot as unknown as ExperimentJsonValue
+      });
+    }
     return {
       ok: true,
       value: { level: snapshot.level, step: this.clock, revision: this.revisionCounter }
@@ -1089,7 +1157,9 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
         { expected: this.documentHash, received: String(trace.documentHash) }
       ));
     }
+    this.recordRestores = false;
     const restored = this.restore(trace.initial, options);
+    this.recordRestores = true;
     if (!restored.ok) return restored;
 
     for (const event of trace.events) {
@@ -1101,6 +1171,18 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
             `trace event ${event.ordinal} was refused during replay`,
             `/events/${event.ordinal}`,
             { ordinal: event.ordinal, reason: advanced.failures[0]!.code }
+          ));
+        }
+        continue;
+      }
+      if (event.kind === 'restore') {
+        const back = this.restore(event.value as unknown as ExperimentSnapshotV0);
+        if (!back.ok) {
+          return refused(failure(
+            'invalid-value',
+            `trace event ${event.ordinal} was refused during replay`,
+            `/events/${event.ordinal}`,
+            { ordinal: event.ordinal, reason: back.failures[0]!.code }
           ));
         }
         continue;
@@ -1236,6 +1318,277 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
       if (!written.ok) return written;
     }
     return { ok: true, value: true };
+  }
+
+
+  invoke(
+    id: ExperimentId,
+    args: ExperimentJsonValue = {},
+    options: { readonly mode?: 'preview' | 'commit' } = {}
+  ): ExperimentActionResultV0 {
+    const refuse = (failed: ExperimentFailure): ExperimentActionResultV0 =>
+      Object.freeze({
+        action: id,
+        outcome: 'refused' as const,
+        revision: this.revisionCounter,
+        step: this.clock,
+        failure: failed
+      });
+
+    if (this.released) {
+      return refuse(failure('disposed', 'this experiment compilation has been disposed'));
+    }
+    const declarations = this.document.actions ?? [];
+    const index = declarations.findIndex((candidate) => candidate.id === id);
+    const declaration = declarations[index];
+    if (declaration === undefined) {
+      return refuse(failure(
+        'missing-reference',
+        `action ${JSON.stringify(id)} is not declared by this document`,
+        '', { id }
+      ));
+    }
+    const pointer = `/actions/${index}`;
+    const operation = declaration.operation;
+    if (operation === undefined) {
+      return refuse(failure(
+        'capability-unavailable',
+        `action ${JSON.stringify(id)} declares no operation, so it is ` +
+          'discoverable metadata rather than something that can run',
+        `${pointer}/operation`, { id }
+      ));
+    }
+
+    const validated = validateExperimentJsonAgainstSchemaV0(
+      args, declaration.inputSchema, '/arguments'
+    );
+    if (!validated.ok) return refuse(validated.failures[0]!);
+
+    const mode = options.mode ?? 'commit';
+    if (mode === 'preview' && !declaration.supportsPreview) {
+      return refuse(failure(
+        'capability-unavailable',
+        `action ${JSON.stringify(id)} does not support preview`,
+        `${pointer}/supportsPreview`, { id }
+      ));
+    }
+
+    // Budget is checked before anything executes, so an over-budget request
+    // costs nothing rather than being stopped part-way.
+    if (operation.kind === 'advance-clock') {
+      const steps = readSteps(args);
+      if (steps === null) {
+        return refuse(failure(
+          'invalid-value', 'advance-clock requires a positive integer steps argument',
+          '/arguments/steps'
+        ));
+      }
+      const limit = declaration.budget.maxSteps;
+      if (limit !== undefined && steps > limit) {
+        return refuse(failure(
+          'budget-exceeded',
+          `requested ${steps} steps against a declared maximum of ${limit}`,
+          '/arguments/steps', { requested: steps, maxSteps: limit }
+        ));
+      }
+    }
+
+    if (mode === 'preview') {
+      const capture = this.capture();
+      if (!capture.ok) return refuse(capture.failures[0]!);
+      const before = this.revisionCounter;
+      const recorded = this.events.length;
+      // The operation runs for real and is then put back, so a preview is
+      // exactly as accurate as a commit and leaves nothing behind.
+      const executed = this.execute(declaration, operation, args, pointer);
+      this.recordRestores = false;
+      const undone = this.restore(capture.value);
+      this.recordRestores = true;
+      if (!undone.ok) {
+        throw new Error('ExperimentCompilation.invoke: preview could not be undone');
+      }
+      this.revisionCounter = before;
+      this.events.length = recorded;
+      if (!executed.ok) return refuse(executed.failures[0]!);
+      return Object.freeze({
+        action: id,
+        outcome: 'previewed' as const,
+        ...(executed.value === undefined ? {} : { output: executed.value }),
+        revision: this.revisionCounter,
+        step: this.clock
+      });
+    }
+
+    const executed = this.execute(declaration, operation, args, pointer);
+    if (!executed.ok) return refuse(executed.failures[0]!);
+    return Object.freeze({
+      action: id,
+      outcome: 'applied' as const,
+      ...(executed.value === undefined ? {} : { output: executed.value }),
+      revision: this.revisionCounter,
+      step: this.clock
+    });
+  }
+
+  /** Runs one operation as its single underlying primitive. */
+  private execute(
+    declaration: ExperimentActionDeclarationV0,
+    operation: ExperimentActionOperationV0,
+    args: ExperimentJsonValue,
+    pointer: string
+  ): ExperimentResult<ExperimentJsonValue | undefined> {
+    switch (operation.kind) {
+      case 'advance-clock': {
+        const advanced = this.advance(readSteps(args)!);
+        if (!advanced.ok) return advanced;
+        return { ok: true, value: { step: this.clock } };
+      }
+      case 'set-parameter': {
+        const value = isRecord(args) ? args['value'] : undefined;
+        const applied = this.setParameter(operation.parameter, value as ExperimentJsonValue);
+        if (applied.outcome === 'refused') {
+          return refused(applied.failure ?? failure(
+            'invalid-value', 'the parameter application was refused', pointer
+          ));
+        }
+        return {
+          ok: true,
+          value: applied.previous === undefined ? {} : { previous: applied.previous }
+        };
+      }
+      case 'reset': {
+        if (this.initialSnapshot === null) {
+          return refused(this.initialFailure ?? failure(
+            'capability-unavailable', 'no initial snapshot was captured', pointer
+          ));
+        }
+        const back = this.restore(this.initialSnapshot);
+        if (!back.ok) return back;
+        return { ok: true, value: { step: this.clock } };
+      }
+      case 'probe':
+        return this.probe(args, pointer);
+    }
+  }
+
+  /**
+   * Headless evidence for a point in a representation's own chart.
+   *
+   * Pure: it reads live objects and stores nothing. A probe deliberately does
+   * not establish a selection, because hidden state changing without a
+   * revision bump would break the staleness contract observations rely on.
+   */
+  private probe(
+    args: ExperimentJsonValue,
+    pointer: string
+  ): ExperimentResult<ExperimentJsonValue> {
+    const record = isRecord(args) ? args : {};
+    const target = record['representation'];
+    const point = record['point'];
+    if (typeof target !== 'string') {
+      return refused(failure(
+        'invalid-value', 'probe requires a representation id',
+        '/arguments/representation'
+      ));
+    }
+    if (!Array.isArray(point) || point.length !== 3 ||
+      point.some((c) => typeof c !== 'number' || !Number.isFinite(c))) {
+      return refused(failure(
+        'invalid-value', 'probe requires a finite 3-point in the chart',
+        '/arguments/point'
+      ));
+    }
+    const entry = this.registry.get(target);
+    if (entry === undefined || entry.category !== 'representation') {
+      return refused(failure(
+        'missing-reference',
+        `representation ${JSON.stringify(target)} is not compiled`,
+        '/arguments/representation', { id: target }
+      ));
+    }
+    const lineageKind = String(
+      (entry.lineage as unknown as { steps?: readonly { kind?: string }[] })
+        .steps?.[0]?.kind ?? 'unknown'
+    );
+
+    if (entry.map.kind !== 'slice4') {
+      // A projection is many-to-one, and headlessly there is no ray and no hit
+      // record to disambiguate it. Reporting a point here would upgrade a
+      // capability the lineage does not certify.
+      return {
+        ok: true,
+        value: { ambientPointStatus: 'unavailable', lineageKind }
+      };
+    }
+
+    const chart = point as readonly number[];
+    const ambient = entry.map.slice.embedPoint(
+      [chart[0]!, chart[1]!, chart[2]!]
+    );
+    const located = this.locateSectionCell(entry, chart);
+    return {
+      ok: true,
+      value: {
+        ambientPointStatus: 'exact',
+        ambientPoint: [ambient[0], ambient[1], ambient[2], ambient[3]],
+        ...(located === null ? {} : { sourceCell: located }),
+        lineageKind
+      }
+    };
+  }
+
+  /** The emitted section triangle containing a chart point, if any. */
+  private locateSectionCell(
+    entry: ExperimentCompiledRepresentationV0,
+    chart: readonly number[]
+  ): { readonly groupKey: string; readonly ordinal: number } | null {
+    const sourceEntry = this.registry.get(entry.source);
+    if (sourceEntry === undefined || sourceEntry.category !== 'source') return null;
+    if (entry.map.kind !== 'slice4') return null;
+    const complex = sourceEntry.complex;
+
+    const groups = complex.cellsOfDim(3)
+      .filter((group) => group.kind === 'simplex' && group.verticesPerCell === 4);
+    let length = 0;
+    for (const group of groups) length += group.indices.length;
+    if (length === 0) return null;
+    const tets = new Uint32Array(length);
+    let at = 0;
+    for (const group of groups) {
+      tets.set(group.indices, at);
+      at += group.indices.length;
+    }
+
+    const world = new Float64Array(complex.positions.length);
+    const pose = resolvePose(entry.pose, this.registry);
+    if (pose === null) world.set(complex.positions);
+    else pose.applyToPositions(complex.positions, world, complex.vertexCount);
+
+    const out = new Float32Array((tets.length / 4) * 18);
+    const provenance = new Uint32Array((tets.length / 4) * 6);
+    const emitted = sliceTetrahedra(
+      world, tets, entry.map.slice, out, undefined, provenance
+    );
+
+    for (let triangle = 0; triangle < emitted / 3; triangle++) {
+      const base = triangle * 9;
+      if (containsPoint(out, base, chart)) {
+        const tet = provenance[triangle]!;
+        let seen = 0;
+        for (const group of groups) {
+          const count = group.indices.length / group.verticesPerCell;
+          if (tet < seen + count) {
+            return Object.freeze({
+              groupKey: group.key ?? `dim3/${group.kind}`,
+              ordinal: tet - seen
+            });
+          }
+          seen += count;
+        }
+        return null;
+      }
+    }
+    return null;
   }
 
   dispose(): ExperimentResult<ExperimentCompilationDisposalV0> {
@@ -1909,4 +2262,59 @@ function restoreRepresentationState(
     ));
   }
   return { ok: true, value: true };
+}
+
+/** A record value, or nothing when the argument is not an object. */
+const isRecord = (
+  value: ExperimentJsonValue
+): value is { readonly [key: string]: ExperimentJsonValue } =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** The positive integer step count an advance argument carries, or null. */
+function readSteps(args: ExperimentJsonValue): number | null {
+  if (!isRecord(args)) return null;
+  const steps = args['steps'];
+  return typeof steps === 'number' && Number.isSafeInteger(steps) && steps > 0
+    ? steps
+    : null;
+}
+
+/**
+ * Whether a chart point lies in one emitted section triangle.
+ *
+ * Barycentric, in the slice's own 3D display frame. Emitted triangles are
+ * planar in that frame by construction, so the third coordinate is compared
+ * against the plane rather than ignored.
+ */
+function containsPoint(
+  out: Float32Array,
+  base: number,
+  chart: readonly number[]
+): boolean {
+  const ax = out[base]!, ay = out[base + 1]!, az = out[base + 2]!;
+  const bx = out[base + 3]!, by = out[base + 4]!, bz = out[base + 5]!;
+  const cx = out[base + 6]!, cy = out[base + 7]!, cz = out[base + 8]!;
+  const v0x = bx - ax, v0y = by - ay, v0z = bz - az;
+  const v1x = cx - ax, v1y = cy - ay, v1z = cz - az;
+  const v2x = chart[0]! - ax, v2y = chart[1]! - ay, v2z = chart[2]! - az;
+
+  const d00 = v0x * v0x + v0y * v0y + v0z * v0z;
+  const d01 = v0x * v1x + v0y * v1y + v0z * v1z;
+  const d11 = v1x * v1x + v1y * v1y + v1z * v1z;
+  const d20 = v2x * v0x + v2y * v0y + v2z * v0z;
+  const d21 = v2x * v1x + v2y * v1y + v2z * v1z;
+  const denominator = d00 * d11 - d01 * d01;
+  if (!(Math.abs(denominator) > 0)) return false;
+
+  const v = (d11 * d20 - d01 * d21) / denominator;
+  const w = (d00 * d21 - d01 * d20) / denominator;
+  const u = 1 - v - w;
+  const tolerance = 1e-9;
+  if (u < -tolerance || v < -tolerance || w < -tolerance) return false;
+
+  // Reject a point that projects inside but sits off the triangle's plane.
+  const px = ax + v * v0x + w * v1x;
+  const py = ay + v * v0y + w * v1y;
+  const pz = az + v * v0z + w * v1z;
+  return Math.hypot(px - chart[0]!, py - chart[1]!, pz - chart[2]!) <= 1e-6;
 }

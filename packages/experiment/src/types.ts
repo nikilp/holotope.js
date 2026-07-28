@@ -41,6 +41,7 @@ export type ExperimentFailureCode =
   | 'replay-limited'
   | 'canonicalization-failed'
   | 'crypto-unavailable'
+  | 'budget-exceeded'
   | 'snapshot-incompatible'
   | 'replay-level-unmet'
   | 'disposed';
@@ -436,7 +437,44 @@ export interface ExperimentActionDeclarationV0 {
   };
   /** Optional execution capability needed by the action. */
   readonly requiresBackend?: ExperimentBackendRequirementV0;
+  /**
+   * What invoking this action does.
+   *
+   * Optional so that every document valid against an earlier validator stays
+   * valid — vocabulary grows inside `holotope.experiment/0` by optional
+   * additive fields, and anything required would force a new schema version.
+   * A declaration without one is discoverable metadata that cannot run.
+   */
+  readonly operation?: ExperimentActionOperationV0;
 }
+
+/**
+ * What a declared action actually does.
+ *
+ * A closed vocabulary, exactly parallel to an observation's `source`: a
+ * document names an effect it wants, never code to run. Each operation maps
+ * onto one existing atomic primitive, so an invocation is that primitive and
+ * nothing more.
+ */
+export type ExperimentActionOperationV0 =
+  | {
+      /** Advances the document clock by an argument step count. */
+      readonly kind: 'advance-clock';
+    }
+  | {
+      /** Applies an argument value to one declared parameter. */
+      readonly kind: 'set-parameter';
+      /** Document-global id of the parameter this action writes. */
+      readonly parameter: ExperimentId;
+    }
+  | {
+      /** Reports headless evidence for a point in a representation. */
+      readonly kind: 'probe';
+    }
+  | {
+      /** Restores the compilation's initial snapshot. */
+      readonly kind: 'reset';
+    };
 
 /** Model-derived observation source. */
 export interface ExperimentModelObservationSourceV0 {

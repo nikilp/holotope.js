@@ -1041,7 +1041,8 @@ class ExperimentDocumentValidator {
         'deterministic',
         'supportsPreview',
         'budget',
-        'requiresBackend'
+        'requiresBackend',
+        'operation'
       ],
       [
         'id',
@@ -1104,6 +1105,58 @@ class ExperimentDocumentValidator {
       this.validateBackend(
         object.requiresBackend,
         `${pointer}/requiresBackend`
+      );
+    }
+    if (object.operation !== undefined) {
+      this.validateActionOperation(object.operation, `${pointer}/operation`);
+    }
+  }
+
+  /**
+   * Checks the closed operation vocabulary.
+   *
+   * The field is optional, so a document written against an earlier validator
+   * stays valid; what is not optional is the vocabulary, because an operation
+   * naming something the runtime cannot do would fail at invocation rather
+   * than at authoring.
+   */
+  private validateActionOperation(value: unknown, pointer: string): void {
+    const object = this.object(value, pointer, ['kind', 'parameter'], ['kind']);
+    if (object === null) return;
+    const kind = object.kind;
+    if (kind !== 'advance-clock' && kind !== 'set-parameter' &&
+      kind !== 'probe' && kind !== 'reset') {
+      this.add(
+        'unknown-kind',
+        'action operation kind is outside the closed vocabulary',
+        `${pointer}/kind`,
+        { kind: typeof kind === 'string' ? kind : String(kind) }
+      );
+      return;
+    }
+    if (kind === 'set-parameter') {
+      if (typeof object.parameter !== 'string') {
+        this.add(
+          'missing-field',
+          'a set-parameter operation must name a parameter',
+          `${pointer}/parameter`
+        );
+        return;
+      }
+      // Cross-referenced now rather than at invocation, so a document naming a
+      // parameter that does not exist is refused where it was authored.
+      // Parameters are validated before actions, so their ids are registered.
+      const declared = this.globalIds.get(object.parameter);
+      if (declared === undefined || !declared.startsWith('/parameters/')) {
+        this.missingReference(
+          `${pointer}/parameter`, object.parameter, 'parameter'
+        );
+      }
+    } else if (object.parameter !== undefined) {
+      this.add(
+        'unknown-field',
+        `a ${kind} operation takes no parameter`,
+        `${pointer}/parameter`
       );
     }
   }

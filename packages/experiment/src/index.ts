@@ -10,6 +10,7 @@ export {
   type ExperimentCompiledRepresentationV0,
   type ExperimentCompiledModelV0,
   type ExperimentCompiledPoseV0,
+  type ExperimentActionResultV0,
   type ExperimentModelStateV0,
   type ExperimentObservationRecordV0,
   type ExperimentReplayLevelV0,
@@ -42,6 +43,7 @@ export {
 } from './validation.js';
 export type {
   ExperimentActionDeclarationV0,
+  ExperimentActionOperationV0,
   ExperimentBackendRequirementV0,
   ExperimentBooleanParameterValueV0,
   ExperimentChoiceParameterValueV0,
@@ -91,3 +93,6 @@ export {
   decodeFloat64BufferV0,
   encodeFloat64BufferV0
 } from './binary.js';
+export {
+  validateExperimentJsonAgainstSchemaV0
+} from './schema-instance.js';

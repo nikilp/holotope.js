@@ -313,7 +313,7 @@ nothing did.
 `clock` parameters (`rate`, `running`) refuse with `capability-unavailable`:
 the headless runtime has no playback driver. `presentation` parameters refuse
 because panes are not compiled headlessly. `selection` observations refuse
-because no selection surface exists yet. Each names the seam it is waiting on
+because a probe deliberately establishes no selection — see below. Each names the seam it is waiting on
 rather than failing vaguely or, worse, silently doing nothing.
 
 ## Snapshots, traces, and honest replay
@@ -384,6 +384,88 @@ yet. Passing `require` a level stronger than a snapshot carries refuses with
 `replay-level-unmet`, and a snapshot from another document refuses with
 `snapshot-incompatible` — `documentHash` equality is the only identity a
 restore accepts.
+
+## Actions and the probe
+
+An action declaration says what it *is*; an `operation` says what it **does**:
+
+```ts
+operation: { kind: 'advance-clock' }
+operation: { kind: 'set-parameter', parameter: 'sliceOffset' }
+operation: { kind: 'probe' }
+operation: { kind: 'reset' }
+```
+
+A closed vocabulary, exactly like an observation's `source`. Documents name an
+effect, never code to run. The field is **optional**, so a document written
+against an earlier validator stays valid — vocabulary grows here by optional
+additive fields, and anything required would force a new schema version. An
+action without one is discoverable metadata that cannot run, and `invoke`
+says so rather than doing nothing quietly.
+
+```ts
+const result = compilation.invoke('step', { steps: 120 });
+result.outcome;  // 'applied' | 'previewed' | 'refused'
+```
+
+There is no `rolled-back` outcome. Every operation is exactly one atomic
+primitive, so there is no partial state for a rollback to undo. It becomes
+reachable only if composite actions ever exist.
+
+### Budgets are checked before anything runs
+
+```ts
+compilation.invoke('step', { steps: 241 });
+// refused, budget-exceeded, { requested: 241, maxSteps: 240 }
+```
+
+Nothing executed: step, revision, and trace are untouched. `maxMillis` stays
+declared-advisory — there is no wall-clock enforcement and no cancellation
+here, because both trade determinism for a capability nothing headless needs
+yet.
+
+### Preview is unobservable by construction
+
+`mode: 'preview'` captures state, runs the operation *for real*, collects the
+output, and puts everything back. So a preview is exactly as accurate as a
+commit, and afterwards state, revision, and `trace()` are byte-identical to
+before. That is proven by test rather than asserted.
+
+It requires `supportsPreview` on the declaration, since only the author knows
+whether evaluating without committing is meaningful.
+
+### What the probe can and cannot claim
+
+For a **section**, the chart lift is exact. `embedPoint` returns the ambient
+point on the cutting hyperplane whether or not geometry passes through it, so
+`ambientPointStatus` is `'exact'` and the point satisfies the plane equation.
+If the point lands on an emitted triangle, `sourceCell` names the **cut
+tetrahedron** by structural identity.
+
+Two things worth knowing there. A marched section is the cross-section's
+*surface*, so a point "in the cut" means on a triangle, not at the solid's
+centre. And the identity is the tetrahedron rather than the parent cube: the
+compatibility tetrahedralization discards Kuhn parent provenance, so the
+tetrahedron is the honest headless answer. Parent-cell enrichment is a named
+seam if the tetrahedralizer ever retains that record.
+
+For a **perspective or coordinate** representation, `ambientPointStatus` is
+`'unavailable'` and there is no source cell. A projection is many-to-one, and
+headlessly there is no ray and no hit record to disambiguate it — reporting a
+point would upgrade a capability the lineage does not certify. Renderer-ray
+hits belong to the workbench, through the existing `@holotope/three` machinery.
+
+A probe returns evidence and **stores nothing**. It establishes no selection,
+because hidden state changing without a revision bump would break the
+staleness contract observations depend on.
+
+### A restore is recorded
+
+`restore()` appends a `restore` trace event carrying the complete snapshot —
+snapshots being JSON-compatible by construction, which is what keeps a trace
+self-contained. Without it, a manual restore silently made every later
+`trace()` unfaithful: a replay would have reproduced a different run while
+claiming to reproduce this one.
 
 ## Deliberate boundaries
 

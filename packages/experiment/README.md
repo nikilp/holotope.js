@@ -79,3 +79,19 @@ Numeric state travels as little-endian Float64 in base64 rather than JSON
 numbers, so `-0` and denormals survive. Restore sets `step` from the snapshot
 and bumps `revision`; restoring the initial snapshot is how a compilation is
 reset. This slice emits only the `exact-cpu` level.
+
+## Actions and the probe
+
+An action declaration gains an optional `operation` naming what it does, from
+a closed vocabulary — documents name effects, never code:
+
+```ts
+compilation.invoke('step', { steps: 120 });                    // applied
+compilation.invoke('step', { steps: 999 });                    // budget-exceeded
+compilation.invoke('step', { steps: 40 }, { mode: 'preview' }); // unobservable
+```
+
+Budgets are checked before anything runs. A preview runs the operation for
+real and puts everything back, so state, revision, and trace are byte-identical
+afterwards. The probe reports exact evidence for a section and refuses to
+invent a point for a projection, which is many-to-one without a ray.
