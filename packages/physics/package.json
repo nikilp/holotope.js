@@ -1,6 +1,6 @@
 {
   "name": "@holotope/physics",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Dimension-aware rigid-body mechanics and convex collision queries for Holotope.",
   "license": "MIT",
   "repository": {
@@ -15,7 +15,9 @@
   },
   "type": "module",
   "sideEffects": false,
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -29,5 +31,16 @@
   "dependencies": {
     "@holotope/core": "workspace:*"
   },
-  "keywords": ["physics", "rigid-body", "collision", "ccd", "gjk", "xpbd", "4d", "nd", "bivector", "momentum"]
+  "keywords": [
+    "physics",
+    "rigid-body",
+    "collision",
+    "ccd",
+    "gjk",
+    "xpbd",
+    "4d",
+    "nd",
+    "bivector",
+    "momentum"
+  ]
 }

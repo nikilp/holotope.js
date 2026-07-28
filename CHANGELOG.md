@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.0.8
 
-### `@holotope/physics`
+### `@holotope/physics@0.0.8`
 
 **Breaking.** `XpbdIncrementalPotentialDirectionPolicyN.evaluate()` now returns
 a discriminated outcome — a packed direction, a proposal carrying evidence, or
@@ -64,7 +64,7 @@ directly and using the result as an array must narrow first.
 - Exported the value-policy type and other types that public signatures already
   named.
 
-### `@holotope/core`
+### `@holotope/core@0.0.8`
 
 - Added exact window-pruned model-set enumeration. Choosing the strategy
   changes the work and never the answer: pruning rejects only coefficient
@@ -75,13 +75,13 @@ directly and using the result as an array must narrow first.
   its strict frame proof deterministic across local and release runners.
 - Exported types that public signatures already named.
 
-### `@holotope/three`
+### `@holotope/three@0.0.8`
 
 - `SlicedComplex3D.update()` now rejects a transform whose dimension does not
   match its source complex, instead of producing a silently wrong section.
 - Exported types that public signatures already named.
 
-### `@holotope/experiment`
+### `@holotope/experiment@0.0.8`
 
 - Added the first inert `holotope.experiment/0` document contract for authored
   sources, models, representations, parameters, actions, observations,
@@ -112,7 +112,7 @@ directly and using the result as an array must narrow first.
   events through the public mutation paths. Only the `exact-cpu` replay level
   is emitted; the weaker levels are declared but not yet produced.
 
-### `@holotope/experiment-physics`
+### `@holotope/experiment-physics@0.0.8`
 
 - New package. Compiles `physics.model.rigid4` descriptors into live R4 rigid
   bodies driven by the document clock, and implements the model capability

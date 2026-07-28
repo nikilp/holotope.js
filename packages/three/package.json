@@ -1,6 +1,6 @@
 {
   "name": "@holotope/three",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "three.js adapter for Holotope: renders projected N-dimensional geometry as three.js objects.",
   "license": "MIT",
   "repository": {
@@ -15,7 +15,9 @@
   },
   "type": "module",
   "sideEffects": false,
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -40,5 +42,12 @@
     "three": "0.185.1",
     "@types/three": "^0.185.0"
   },
-  "keywords": ["three", "threejs", "4d", "nd", "tesseract", "projection"]
+  "keywords": [
+    "three",
+    "threejs",
+    "4d",
+    "nd",
+    "tesseract",
+    "projection"
+  ]
 }
