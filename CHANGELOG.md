@@ -2,24 +2,13 @@
 
 ## Unreleased
 
-### `@holotope/experiment`
-
-- Added the first inert `holotope.experiment/0` document contract for authored
-  sources, models, representations, parameters, actions, observations,
-  presentation panes, and backend requirements.
-- Added bounded raw JSON intake that retains duplicate-key evidence and rejects
-  prototype-sensitive keys, plus non-mutating structural and semantic
-  validation with typed JSON-Pointer failures.
-- Added canonical JSON preparation with stable dependency order, SHA-256
-  document identity, an independent copied value, and deep freezing. Live
-  capability compilation and execution remain a separate later slice.
-
-### `@holotope/core`
-
-- Re-orthogonalized `CameraN.lookAt()` after near-axis cancellation and made
-  its strict frame proof deterministic across local and release runners.
-
 ### `@holotope/physics`
+
+**Breaking.** `XpbdIncrementalPotentialDirectionPolicyN.evaluate()` now returns
+a discriminated outcome — a packed direction, a proposal carrying evidence, or
+an explicit refusal — instead of `ArrayLike<number>` alone. Implementations
+returning a bare packed direction are unaffected. Callers invoking `evaluate()`
+directly and using the result as an array must narrow first.
 
 - Added pure candidate-state evaluation for conservative RN force providers,
   including non-mutating simplex-family `evaluateAt()` and identity-based
@@ -37,6 +26,119 @@
   added atomic converged-result application with defensive live-state
   snapshots, fresh evidence verification, explicit velocity/force policy,
   typed expected refusals, and rollback around final provider failures.
+- Added a transactional one-step wrapper that compiles, minimizes, and applies
+  within a single boundary, refusing stale particle state without mutation.
+- Added the compactly supported C2-clamped log barrier and an RN
+  particle–hyperplane barrier potential over an open admissible domain, where
+  contact is a typed range refusal rather than a large number.
+- Added collision-free incremental-potential step filters that certify a
+  requested particle-space segment, limit it to a strict prefix, or refuse —
+  an indeterminate result being a refusal, never a missed collision.
+- Added source-indexed particle–hyperplane barrier families that compile one
+  barrier and one admissible-step filter per source vertex, so the two cannot
+  drift apart, with per-vertex scalar policies.
+- Added a matrix-free incremental-potential curvature reference: a centered
+  gradient difference costing two evaluations regardless of coordinate count,
+  usable as a differential oracle for the analytic path.
+- Added exact analytic Hessian-vector composition over compiled providers,
+  preflighting the complete authored provider list and naming every
+  incapable provider before requesting any partial product.
+- Added exact analytic curvature for the St. Venant–Kirchhoff, compressible
+  Neo-Hookean, and C2-clamped lower-measure-barrier simplex laws. Products are
+  translation invariant exactly, and the measure barrier contributes exactly
+  zero outside its compact activation support.
+- Added incremental-potential direction policies, including a mass-diagonal
+  preconditioner. It turns the search direction only when free particles differ
+  in mass; under uniform mass it rescales, and the line search owns step length.
+- Added a bounded matrix-free Newton-direction reference: preconditioned
+  conjugate gradients over the analytic objective product, refusing incomplete
+  provider mixtures and non-positive curvature rather than returning a falsely
+  certified direction.
+- Added the Newton direction as a composable direction policy. A rejected
+  curvature ray stays rejected and the minimization terminates as
+  `direction-refused` with the rejected ray, product, quadratic form, and
+  threshold retained. Continuing first-order past a refusal is authored, never
+  inferred. Steepest descent remains the default everywhere.
+- Fixed `EstimateEpaResult4` collapsing an absent error bound into zero, which
+  reported an unbounded result as exact.
+- Exported the value-policy type and other types that public signatures already
+  named.
+
+### `@holotope/core`
+
+- Added exact window-pruned model-set enumeration. Choosing the strategy
+  changes the work and never the answer: pruning rejects only coefficient
+  prefixes whose every completion already lies outside a window halfspace, and
+  equality is never pruned, so both strategies return identical points, order,
+  and boundary classification.
+- Re-orthogonalized `CameraN.lookAt()` after near-axis cancellation and made
+  its strict frame proof deterministic across local and release runners.
+- Exported types that public signatures already named.
+
+### `@holotope/three`
+
+- `SlicedComplex3D.update()` now rejects a transform whose dimension does not
+  match its source complex, instead of producing a silently wrong section.
+- Exported types that public signatures already named.
+
+### `@holotope/experiment`
+
+- Added the first inert `holotope.experiment/0` document contract for authored
+  sources, models, representations, parameters, actions, observations,
+  presentation panes, and backend requirements.
+- Added bounded raw JSON intake that retains duplicate-key evidence and rejects
+  prototype-sensitive keys, plus non-mutating structural and semantic
+  validation with typed JSON-Pointer failures.
+- Added canonical JSON preparation with stable dependency order, SHA-256
+  document identity, an independent copied value, and deep freezing.
+- Added headless compilation through explicit caller-supplied capabilities into
+  a registry of live core objects. Documents can never name, request, or load a
+  capability, and lineage is derived from the constructed object rather than
+  from the descriptor.
+- Added a document-level integer clock and an abstract compiled-model contract
+  expressible in core types alone, so the registry can drive a model whose
+  mathematics it does not depend on. A representation following a model
+  compiles to a pose *binding* rather than a copied transform.
+- Added the parameter and observation surface. Parameter state is read-through
+  — the compiled object is the state — and a monotone revision counter bumps
+  once per accepted mutation. Observation records are freshly computed and
+  stamped with the revision and step they were computed at; staleness is a
+  caller-side comparison, not a flag. Count observations report what a product
+  actually emits, never an ideal-shape count.
+- Added snapshots, traces, and replay. Numeric state travels as little-endian
+  Float64 in base64 rather than JSON numbers, so signed zero and denormals
+  survive. Restore is transactional and bound to `documentHash`; it sets the
+  clock from the snapshot and bumps the revision. Replay re-executes recorded
+  events through the public mutation paths. Only the `exact-cpu` replay level
+  is emitted; the weaker levels are declared but not yet produced.
+
+### `@holotope/experiment-physics`
+
+- New package. Compiles `physics.model.rigid4` descriptors into live R4 rigid
+  bodies driven by the document clock, and implements the model capability
+  seams for field application, observation, and state capture/restore.
+- The pose a representation reads is motion relative to where the source
+  geometry was authored, not the body's principal frame, so it is exactly
+  identity at rest and the source complex is never rebased.
+- Kept as its own package so `@holotope/experiment` stays core-only and no
+  physics consumer inherits an experiment dependency.
+
+### Showcase
+
+- Added a live code playground that runs each documented example beside its
+  result, with alternative examples reachable and the viewport dropped when an
+  example computes rather than draws.
+- Fixed the section viewer reporting a bare zero for a cut lying outside the
+  solid, a slider readout that changed width while dragging, and an embedded
+  panel that clipped its last reading.
+
+### Documentation
+
+- Linked types borrowed across package boundaries, which previously rendered as
+  plain text; an unresolvable link is now a build failure rather than a silently
+  degraded name.
+- Added a coverage-leverage report and per-package documented/total figures
+  beside the regression gate.
 
 ## v0.0.7
 
