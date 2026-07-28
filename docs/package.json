@@ -23,7 +23,8 @@
     "preview": "vitepress preview",
     "api:links": "node scripts/link-packages.mjs",
     "coverage:leverage": "node scripts/report-coverage-leverage.mjs",
-    "api:experiment-physics": "typedoc --options typedoc/experiment-physics.json"
+    "api:experiment-physics": "typedoc --options typedoc/experiment-physics.json",
+    "liveness": "node scripts/report-liveness-candidates.mjs"
   },
   "devDependencies": {
     "markdown-it-mathjax3": "^5.2.0",
