@@ -235,6 +235,50 @@ export interface ExperimentSnapshotEntryV0 {
  * Numeric state never passes through JSON numbers: buffers are little-endian
  * Float64 in base64, referenced by index, so `-0`, denormals, and exact bit
  * patterns survive a round trip that JSON text could not promise.
+ *
+ * @example
+ * A snapshot is plain JSON, so it can be written to a file or sent over a
+ * wire and restored later — the numeric fidelity travels in the buffers
+ * rather than in JSON numbers:
+ * ```ts
+ * const prepared = await prepareExperimentDocumentV0({
+ *   schema: 'holotope.experiment/0',
+ *   title: 'Section control',
+ *   ambientDim: 4,
+ *   sources: { tesseract: { kind: 'core.source.hypercube', dim: 4, size: 2 } },
+ *   representations: {
+ *     section: {
+ *       kind: 'core.representation.section4',
+ *       source: 'tesseract',
+ *       normal: [0, 0, 0, 1],
+ *       offset: 0.12,
+ *       frame: 'canonical'
+ *     }
+ *   },
+ *   parameters: [{
+ *     id: 'sliceOffset',
+ *     label: 'Slice offset',
+ *     value: { type: 'number', default: 0.12, min: -1, max: 1 },
+ *     dimension: 'length',
+ *     frame: { space: 'ambient', dim: 4 },
+ *     unit: 'm',
+ *     target: { kind: 'representation-field', ref: 'section', field: 'offset' }
+ *   }]
+ * });
+ * if (!prepared.ok) return;
+ * const compiled = compileExperimentDocumentV0(prepared.value, {
+ *   compilers: [coreExperimentCompilerV0()]
+ * });
+ * if (!compiled.ok) return;
+ * const compilation = compiled.value;
+ *
+ * const taken = compilation.snapshot();
+ * if (taken.ok) {
+ *   taken.value.schema; // 'holotope.snapshot/0'
+ *   taken.value.level; // 'exact-cpu'
+ *   JSON.parse(JSON.stringify(taken.value)); // survives a text round trip
+ * }
+ * ```
  */
 export interface ExperimentSnapshotV0 {
   /** Snapshot schema identity. */
@@ -295,7 +339,90 @@ export interface ExperimentTraceV0 {
   readonly events: readonly ExperimentTraceEventV0[];
 }
 
-/** Evidence from exactly one action invocation. */
+/**
+ * Evidence from exactly one action invocation.
+ *
+ * @example
+ * A budget is checked before anything runs, so an over-budget request costs
+ * nothing rather than being stopped part-way:
+ * ```ts
+ * const prepared = await prepareExperimentDocumentV0({
+ *   schema: 'holotope.experiment/0',
+ *   title: 'Section control',
+ *   ambientDim: 4,
+ *   sources: { tesseract: { kind: 'core.source.hypercube', dim: 4, size: 2 } },
+ *   representations: {
+ *     section: {
+ *       kind: 'core.representation.section4',
+ *       source: 'tesseract',
+ *       normal: [0, 0, 0, 1],
+ *       offset: 0.12,
+ *       frame: 'canonical'
+ *     }
+ *   },
+ *   parameters: [{
+ *     id: 'sliceOffset',
+ *     label: 'Slice offset',
+ *     value: { type: 'number', default: 0.12, min: -1, max: 1 },
+ *     dimension: 'length',
+ *     frame: { space: 'ambient', dim: 4 },
+ *     unit: 'm',
+ *     target: { kind: 'representation-field', ref: 'section', field: 'offset' }
+ *   }]
+ * });
+ * if (!prepared.ok) return;
+ * const compiled = compileExperimentDocumentV0(prepared.value, {
+ *   compilers: [coreExperimentCompilerV0()]
+ * });
+ * if (!compiled.ok) return;
+ * const compilation = compiled.value;
+ *
+ * const refused = compilation.invoke('step', { steps: 10_000 });
+ * refused.outcome; // 'refused'
+ * refused.failure?.code; // 'budget-exceeded'
+ * refused.step; // unchanged
+ * ```
+ *
+ * @example
+ * A preview runs the operation for real and puts everything back, so it is
+ * exactly as accurate as a commit while leaving nothing behind:
+ * ```ts
+ * const prepared = await prepareExperimentDocumentV0({
+ *   schema: 'holotope.experiment/0',
+ *   title: 'Section control',
+ *   ambientDim: 4,
+ *   sources: { tesseract: { kind: 'core.source.hypercube', dim: 4, size: 2 } },
+ *   representations: {
+ *     section: {
+ *       kind: 'core.representation.section4',
+ *       source: 'tesseract',
+ *       normal: [0, 0, 0, 1],
+ *       offset: 0.12,
+ *       frame: 'canonical'
+ *     }
+ *   },
+ *   parameters: [{
+ *     id: 'sliceOffset',
+ *     label: 'Slice offset',
+ *     value: { type: 'number', default: 0.12, min: -1, max: 1 },
+ *     dimension: 'length',
+ *     frame: { space: 'ambient', dim: 4 },
+ *     unit: 'm',
+ *     target: { kind: 'representation-field', ref: 'section', field: 'offset' }
+ *   }]
+ * });
+ * if (!prepared.ok) return;
+ * const compiled = compileExperimentDocumentV0(prepared.value, {
+ *   compilers: [coreExperimentCompilerV0()]
+ * });
+ * if (!compiled.ok) return;
+ * const compilation = compiled.value;
+ *
+ * const previewed = compilation.invoke('step', { steps: 40 }, { mode: 'preview' });
+ * previewed.outcome; // 'previewed'
+ * previewed.revision === compilation.revision; // true — nothing moved
+ * ```
+ */
 export interface ExperimentActionResultV0 {
   /** Document key of the invoked action. */
   readonly action: ExperimentId;
@@ -643,6 +770,67 @@ export interface CompileExperimentDocumentV0Options {
  * The prepared `documentHash` is carried as the identity established by
  * `prepareExperimentDocumentV0()`; compilation verifies its shape but does
  * not re-hash, because hashing is preparation's asynchronous contract.
+  *
+ * @example
+ * The caller states what the environment can build; the document can never
+ * name, request, or load a capability:
+ * ```ts
+ * const prepared = await prepareExperimentDocumentV0({
+ *   schema: 'holotope.experiment/0',
+ *   title: 'Bridge',
+ *   ambientDim: 4,
+ *   sources: { tesseract: { kind: 'core.source.hypercube', dim: 4, size: 2 } },
+ *   representations: {
+ *     view: {
+ *       kind: 'core.representation.perspective',
+ *       source: 'tesseract',
+ *       fromDim: 4,
+ *       viewDistance: 5.4,
+ *       product: 'both'
+ *     }
+ *   }
+ * });
+ * if (!prepared.ok) return;
+ *
+ * const compiled = compileExperimentDocumentV0(prepared.value, {
+ *   compilers: [coreExperimentCompilerV0()]
+ * });
+ *
+ * if (compiled.ok) {
+ *   compiled.value.ids; // registry ids in dependency order
+ *   compiled.value.dispose(); // releases the registry exactly once
+ * }
+ * ```
+ *
+ * @example
+ * Compilation is all-or-nothing. A kind no supplied capability claims refuses
+ * the whole document with pointer-addressed evidence, before any object
+ * exists — so there is never a half-built registry to reason about:
+ * ```ts
+ * const prepared = await prepareExperimentDocumentV0({
+ *   schema: 'holotope.experiment/0',
+ *   title: 'Bridge',
+ *   ambientDim: 4,
+ *   sources: { tesseract: { kind: 'core.source.hypercube', dim: 4, size: 2 } },
+ *   representations: {
+ *     view: {
+ *       kind: 'core.representation.perspective',
+ *       source: 'tesseract',
+ *       fromDim: 4,
+ *       viewDistance: 5.4,
+ *       product: 'both'
+ *     }
+ *   }
+ * });
+ * if (!prepared.ok) return;
+ *
+ * const refused = compileExperimentDocumentV0(prepared.value, { compilers: [] });
+ *
+ * refused.ok; // false
+ * if (!refused.ok) {
+ *   refused.failures[0]?.code; // 'capability-unavailable'
+ * }
+ * ```
  */
 export function compileExperimentDocumentV0(
   prepared: PreparedExperimentDocumentV0,

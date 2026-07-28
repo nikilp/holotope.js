@@ -156,6 +156,52 @@ export type XpbdIncrementalPotentialNewtonDirectionResultN =
  *
  * This result is only a direction diagnostic. It does not choose an admissible
  * nonlinear step, modify definiteness, invoke Armijo, or apply state.
+ *
+ * @example
+ * On a problem whose only curvature is the mass block, the linearized Newton
+ * equation is diagonal and converges immediately:
+ * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 0.3, 0]) });
+ * const problem = compileXpbdIncrementalPotentialProblemN({
+ *   dimension: 3,
+ *   particles: [particle],
+ *   predictedPositions: [new VecN([0, 0.9, 0])],
+ *   deltaTime: 1 / 60,
+ *   providers: []
+ * });
+ *
+ * const solved = solveXpbdIncrementalPotentialNewtonDirectionN({
+ *   problem,
+ *   coordinates: [0, 0.3, 0]
+ * });
+ *
+ * solved.status; // 'converged'
+ * solved.preconditioner; // 'mass-diagonal', the default
+ * ```
+ *
+ * @example
+ * A refusal is not a failure to compute — it is the solve declining to
+ * certify a direction it cannot stand behind. An incomplete provider mixture
+ * names every incapable provider before any partial product is requested:
+ * ```ts
+ * const particle = new XpbdParticleN({ id: 'p', position: new VecN([0, 0.3, 0]) });
+ * const problem = compileXpbdIncrementalPotentialProblemN({
+ *   dimension: 3,
+ *   particles: [particle],
+ *   predictedPositions: [new VecN([0, 0.9, 0])],
+ *   deltaTime: 1 / 60,
+ *   providers: []
+ * });
+ *
+ * const solved = solveXpbdIncrementalPotentialNewtonDirectionN({
+ *   problem,
+ *   coordinates: [0, 0.3, 0],
+ *   maximumIterations: 0
+ * });
+ *
+ * solved.status; // 'iteration-limit' — a bounded solve, not a broken one
+ * solved.iterations.length; // 0
+ * ```
  */
 export function solveXpbdIncrementalPotentialNewtonDirectionN(
   options: SolveXpbdIncrementalPotentialNewtonDirectionNOptions

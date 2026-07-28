@@ -82,6 +82,7 @@ there is improved here.
 | [`evaluateSimplexMeasureBarrierHessianVectorN`](/api/physics/functions/evaluateSimplexMeasureBarrierHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexMeasureBarrierHessianVectorN) |
 | [`evaluateSimplexStVenantKirchhoffHessianVectorN`](/api/physics/functions/evaluateSimplexStVenantKirchhoffHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexStVenantKirchhoffHessianVectorN) |
 | [`evaluateXpbdIncrementalPotentialAnalyticHessianVectorN`](/api/physics/functions/evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) |
+| [`solveXpbdIncrementalPotentialNewtonDirectionN`](/api/physics/functions/solveXpbdIncrementalPotentialNewtonDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#solveXpbdIncrementalPotentialNewtonDirectionN) |
 | [`xpbdMassPreconditionedDirectionN`](/api/physics/variables/xpbdMassPreconditionedDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#xpbdMassPreconditionedDirectionN) |
 | [`xpbdNewtonDirectionPolicyN`](/api/physics/functions/xpbdNewtonDirectionPolicyN) | [open](https://nikilp.github.io/holotope.js/playground.html#xpbdNewtonDirectionPolicyN) |
 

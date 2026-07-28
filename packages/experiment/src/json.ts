@@ -20,6 +20,28 @@ Readonly<ExperimentValidationLimitsV0> = Object.freeze({
  * Duplicate object keys are compared after JSON escape decoding, so `"a"`
  * and `"\u0061"` are the same key. The function executes no reviver and
  * rejects prototype-sensitive keys before returning a value.
+  *
+ * @example
+ * Duplicate keys are the reason to parse rather than accept an object: by the
+ * time `JSON.parse` has run, the loser is gone and no later check can see it.
+ * ```ts
+ * const parsed = parseExperimentJsonV0('{"a": 1, "a": 2}');
+ * parsed.ok; // false
+ * if (!parsed.ok) {
+ *   parsed.failures[0]?.code; // 'duplicate-key'
+ * }
+ * ```
+ *
+ * @example
+ * Budgets bound the work before any structure is built, which is what makes
+ * the intake safe for text that crossed a trust boundary:
+ * ```ts
+ * const parsed = parseExperimentJsonV0('[[[[[[1]]]]]]', { maxDepth: 3 });
+ * parsed.ok; // false
+ * if (!parsed.ok) {
+ *   parsed.failures[0]?.code; // 'resource-limit'
+ * }
+ * ```
  */
 export function parseExperimentJsonV0(
   source: string,
