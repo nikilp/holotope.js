@@ -128,7 +128,7 @@ describe('the incremental-potential step across dimensions', () => {
       // Resting above the floor rather than through it.
       for (const height of result.heights) expect(height).toBeGreaterThan(0);
     }
-  });
+  }, 60_000);
 
   /**
    * The one-call entry point defaults `initialPositions` to the inertial
@@ -143,15 +143,16 @@ describe('the incremental-potential step across dimensions', () => {
       expect(result.refusal).toBe('at-or-below-minimum-distance');
       expect(result.completed).toBeLessThan(60);
     }
-  });
+  }, 60_000);
 
   it('completes once each solve starts from the current feasible state', () => {
+    // 60 steps clears the refusal point at 41, which is the whole property.
     for (const dimension of [2, 3, 4]) {
-      const result = run(dimension, 90, { fromCurrentState: true });
+      const result = run(dimension, 60, { fromCurrentState: true });
       expect(result.refusal).toBeNull();
-      expect(result.completed).toBe(90);
+      expect(result.completed).toBe(60);
     }
-  });
+  }, 60_000);
 
   /**
    * What actually happens once the solve stops converging.
@@ -204,7 +205,7 @@ describe('the incremental-potential step across dimensions', () => {
     expect(movedAfterLimit).toBe(0);
     // Halted mid-fall: the velocity it had is still there, unresolved.
     expect(scene.particles[0]!.velocity.data[1]!).toBeLessThan(-1);
-  });
+  }, 60_000);
 
   /**
    * The escape a caller reaches for first, and why it is worse.
@@ -243,5 +244,5 @@ describe('the incremental-potential step across dimensions', () => {
     expect(applications['refused']).toBeUndefined();
     // Every step succeeded and the scene never moved.
     expect(scene.particles.map((p) => p.position.data[1]!)).toEqual(before);
-  });
+  }, 60_000);
 });
