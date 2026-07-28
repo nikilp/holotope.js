@@ -29,6 +29,7 @@ export default defineConfig({
         productBrowser: local('./product-browser.html'),
         provenanceBrowser: local('./provenance-browser.html'),
         physicsBrowser: local('./physics-browser.html'),
+        ndContact: local('./nd-contact.html'),
         playground: local('./playground.html'),
         dimensionBridge: local('./dimension-bridge.html'),
         mechanicsWorkbench: local('./mechanics-workbench.html'),

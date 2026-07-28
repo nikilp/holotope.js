@@ -88,6 +88,20 @@ export interface XpbdIncrementalPotentialDirectionPolicyN {
 }
 
 /**
+ * A shipped direction policy, nameable without constructing it.
+ *
+ * A policy needing the compiled objective — Newton is the one that does —
+ * cannot be written as a value a caller passes in, because the caller does not
+ * hold the problem. Naming it lets the minimizer build it where the problem is
+ * in scope, which is the difference between a working configuration a reader
+ * can find in the options type and one they can only find by being told.
+ */
+export type XpbdIncrementalPotentialDirectionPolicyNameN =
+  | 'steepest-descent'
+  | 'mass-diagonal'
+  | 'newton-cg';
+
+/**
  * A policy that always proposes a packed direction and never refuses.
  *
  * The built-in first-order policies are of this kind, and so is anything

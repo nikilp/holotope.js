@@ -14,7 +14,8 @@ import {
   type XpbdIncrementalPotentialMinimizationResultN
 } from './xpbd-incremental-potential-minimizer.js';
 import {
-  type XpbdIncrementalPotentialDirectionPolicyN
+  type XpbdIncrementalPotentialDirectionPolicyN,
+  type XpbdIncrementalPotentialDirectionPolicyNameN
 } from './xpbd-incremental-potential-direction.js';
 import {
   compileXpbdIncrementalPotentialProblemN,
@@ -42,7 +43,16 @@ export interface XpbdIncrementalPotentialMinimizationPolicyN {
   /** Trial budget for each Armijo search; default 32. */
   readonly maximumLineSearchTrials?: number;
   /** Packed search-direction policy; defaults to steepest descent. */
-  readonly directionPolicy?: XpbdIncrementalPotentialDirectionPolicyN;
+  /**
+   * Packed search-direction policy, or the name of a shipped one.
+   *
+   * `'newton-cg'` is the configuration that sustains resting contact; it needs
+   * the compiled objective, which this wrapper owns, so naming it here is the
+   * only way a caller reading these options can reach it.
+   */
+  readonly directionPolicy?:
+    | XpbdIncrementalPotentialDirectionPolicyN
+    | XpbdIncrementalPotentialDirectionPolicyNameN;
   /**
    * Builds the direction policy from the problem this step compiles.
    *

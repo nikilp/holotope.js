@@ -208,6 +208,52 @@ describe('the incremental-potential step across dimensions', () => {
   }, 60_000);
 
   /**
+   * The configuration a caller can actually find, and that it works.
+   *
+   * Naming the policy is the point. The Newton direction needs the compiled
+   * objective, so before it could be named it was reachable only by supplying
+   * a factory — invisible to anyone reading the options type, who would find
+   * the one policy that *is* a value, watch it change nothing, and conclude
+   * direction policies do not help. That is what happened to the first caller
+   * from outside this package.
+   */
+  it('sustains resting contact when the shipped policy is named', () => {
+    const scene = cornerScene(3);
+    const gravity = gravityFor(3);
+    const applications: Record<string, number> = {};
+    let moved = false;
+
+    for (let step = 0; step < 200; step++) {
+      const before = scene.particles.map((p) => p.position.data[1]!).join(',');
+      const result = stepXpbdIncrementalPotentialN({
+        dimension: 3,
+        particles: scene.particles,
+        providers: scene.providers,
+        stepFilters: scene.stepFilters,
+        deltaTime: 1 / 120,
+        gravity,
+        initialPositions: scene.particles.map((p) => p.position.clone()),
+        minimization: { directionPolicy: 'newton-cg' }
+      });
+      applications[result.status] = (applications[result.status] ?? 0) + 1;
+      if (scene.particles.map((p) => p.position.data[1]!).join(',') !== before) {
+        moved = true;
+      }
+    }
+
+    // Liveness first: it fell, rather than never starting.
+    expect(moved).toBe(true);
+    // Then rest, which the default policy cannot reach on this scene.
+    expect(applications['applied']).toBe(200);
+    expect(applications['refused']).toBeUndefined();
+    for (const particle of scene.particles) {
+      expect(Math.abs(particle.velocity.data[1]!)).toBeLessThan(0.05);
+      expect(particle.position.data[1]!).toBeGreaterThan(0);
+    }
+  }, 60_000);
+
+
+  /**
    * The escape a caller reaches for first, and why it is worse.
    *
    * Loosening the gradient tolerance past the objective's gradient norm at the

@@ -250,6 +250,7 @@ export {
   type XpbdIncrementalPotentialDirectionEvidenceN,
   type XpbdIncrementalPotentialDirectionOutcomeN,
   type XpbdIncrementalPotentialDirectionPolicyN,
+  type XpbdIncrementalPotentialDirectionPolicyNameN,
   type XpbdIncrementalPotentialDirectionProposalN,
   type XpbdIncrementalPotentialDirectionRefusalN,
   type XpbdIncrementalPotentialDirectionValuePolicyN

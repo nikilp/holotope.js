@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — One contact step, three dimensions</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: #0a0a12;
+        color: #8fa3c8;
+        font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      #page { display: flex; flex-direction: column; height: 100vh; }
+      header {
+        padding: 14px 20px 10px;
+        border-bottom: 1px solid #1b2136;
+      }
+      header h1 { margin: 0 0 3px; color: #d7e3ff; font-size: 17px; }
+      header p { margin: 0; font-size: 12px; color: #6f83a9; }
+      header a { color: #7fd4ff; text-decoration: none; }
+
+      #controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        align-items: center;
+        padding: 10px 20px;
+        border-bottom: 1px solid #1b2136;
+        background: #0c0e18;
+      }
+      .ctl { display: flex; align-items: center; gap: 7px; }
+      .ctl label { color: #6f83a9; }
+      select, button {
+        background: #17203a;
+        border: 1px solid #26304a;
+        border-radius: 6px;
+        color: #d7e3ff;
+        font: inherit;
+        padding: 4px 9px;
+        cursor: pointer;
+      }
+      button:hover, select:hover { border-color: #7fd4ff; }
+      button.primary { background: #7fd4ff; color: #0a0a12; border-color: #7fd4ff; }
+      input[type='range'] { width: 118px; accent-color: #7fd4ff; }
+      .val { color: #d7e3ff; min-width: 58px; display: inline-block; }
+
+      #panes { flex: 1; display: flex; min-height: 0; }
+      .pane {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        border-right: 1px solid #1b2136;
+      }
+      .pane:last-child { border-right: none; }
+      .pane h2 {
+        margin: 0;
+        padding: 8px 14px;
+        font-size: 12px;
+        color: #7fd4ff;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        border-bottom: 1px solid #1b2136;
+      }
+      .view { flex: 1; min-height: 0; position: relative; background: #080a11; }
+      .view canvas { display: block; width: 100%; height: 100%; }
+      .view.split { display: flex; }
+      .half { flex: 1; min-width: 0; position: relative; border-left: 1px solid #1b2136; }
+      .half:first-child { border-left: none; }
+      .tag {
+        position: absolute;
+        top: 5px;
+        left: 7px;
+        z-index: 2;
+        color: #56658a;
+        font-size: 10px;
+        letter-spacing: 0.05em;
+        pointer-events: none;
+      }
+      .tag b { color: #ffd479; font-weight: 400; }
+      .prov { margin-top: 6px; padding: 6px 8px; border: 1px solid #26304a; border-radius: 6px; background: #0e1526; }
+      .prov .row span:last-child { color: #ffd479; }
+
+      .readout {
+        border-top: 1px solid #1b2136;
+        flex: 0 0 auto;
+        padding: 9px 14px 11px;
+        background: #0c0e18;
+        font-size: 12px;
+        max-height: 46%;
+        overflow-y: auto;
+        padding-bottom: 44px;
+      }
+      .row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
+      .row span:first-child { color: #6f83a9; }
+      .row span:last-child { color: #d7e3ff; text-align: right; }
+      .cond {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        border: 1px solid;
+      }
+      .cond.progressed { color: #79e6a8; border-color: #2c6647; background: #10251b; }
+      .cond.frozen { color: #ff9a7f; border-color: #6b3626; background: #26130d; }
+      .cond.silent { color: #ffd479; border-color: #6b5626; background: #241d0d; }
+      .levers { margin-top: 5px; color: #ffd479; font-size: 11px; }
+      .levers b { color: #6f83a9; font-weight: 400; }
+      .summary { margin-top: 5px; color: #7f8db0; font-size: 11px; line-height: 1.5; }
+      .sect {
+        margin: 8px 0 3px;
+        color: #56658a;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+      }
+      #barrier { height: 96px; border-bottom: 1px solid #1b2136; background: #0c0e18; }
+      #barrier canvas { display: block; width: 100%; height: 96px; }
+      @media (max-width: 860px) {
+        #panes { flex-direction: column; }
+        .pane { border-right: none; border-bottom: 1px solid #1b2136; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="page">
+      <header>
+        <h1>One contact step, three dimensions</h1>
+        <p>
+          The same incremental-potential solve drives both panes — same barrier, same
+          filtered line search, same packed problem. <code>dimension</code> is data, not a branch.
+          <a href="./index.html">← showcase</a>
+        </p>
+      </header>
+      <div id="controls"></div>
+      <div id="barrier"></div>
+      <div id="panes">
+        <section class="pane">
+          <h2>R² — plane</h2>
+          <div class="view" id="view2"></div>
+          <div class="readout" id="readout2"></div>
+        </section>
+        <section class="pane">
+          <h2>R³ — space</h2>
+          <div class="view" id="view3"></div>
+          <div class="readout" id="readout3"></div>
+        </section>
+        <section class="pane">
+          <h2>R⁴ — source, two representations</h2>
+          <div class="view split">
+            <div class="half" id="view4p"><span class="tag">projection → R³</span></div>
+            <div class="half" id="view4s"><span class="tag">section w = <b id="offsetLabel">0.00</b></span></div>
+          </div>
+          <div class="readout" id="readout4"></div>
+        </section>
+      </div>
+    </div>
+
+    <template id="explainer">
+      <h2>One contact step, three dimensions</h2>
+      <p>
+        Both panes run the <strong>same function</strong> on the same solver. The only
+        difference between them is the number the scene was built with. Trajectories in
+        the shared coordinates are bitwise identical — the same doubles, because the same
+        code ran on them.
+      </p>
+      <h3>Why it freezes</h3>
+      <p>
+        On the <strong>default</strong> direction the scene falls, reaches the floor at
+        about 0.34 s, and then stops. Every later step is refused: the solve hits its
+        iteration budget, and a non-converged result is never applied. Nothing moves and
+        nothing tunnels — because nothing is integrating at all.
+      </p>
+      <h3>Why Newton fixes it</h3>
+      <p>
+        Switch the direction to <strong>Newton</strong> and the identical scene settles.
+        No tolerance change, no extra iterations. The remedy already shipped; it is
+        reachable only through a factory, so a caller reading the options type never
+        finds it. <strong>mass-diagonal</strong> is the rung they do find, and it changes
+        nothing here.
+      </p>
+      <h3>The trap</h3>
+      <p>
+        Loosen the tolerance past the gradient norm and every step reports success while
+        the scene never moves at all. That is why the diagnosis names the tolerance as a
+        lever in exactly one condition, and tells you to <em>lower</em> it.
+      </p>
+    </template>
+
+    <script type="module" src="/src/nd-contact/index.ts"></script>
+  </body>
+</html>

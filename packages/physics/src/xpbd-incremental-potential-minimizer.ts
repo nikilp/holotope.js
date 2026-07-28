@@ -10,11 +10,16 @@ import {
 import {
   xpbdSteepestDescentDirectionN,
   type XpbdIncrementalPotentialDirectionContextN,
+  xpbdMassPreconditionedDirectionN,
   type XpbdIncrementalPotentialDirectionEvidenceN,
+  type XpbdIncrementalPotentialDirectionPolicyNameN,
   type XpbdIncrementalPotentialDirectionPolicyN,
   type XpbdIncrementalPotentialDirectionProposalN,
   type XpbdIncrementalPotentialDirectionRefusalN
 } from './xpbd-incremental-potential-direction.js';
+import {
+  xpbdNewtonDirectionPolicyN
+} from './xpbd-incremental-potential-newton-policy.js';
 
 export interface MinimizeXpbdIncrementalPotentialNOptions {
   readonly problem: XpbdIncrementalPotentialProblemN;
@@ -31,8 +36,16 @@ export interface MinimizeXpbdIncrementalPotentialNOptions {
   readonly sufficientDecrease?: number;
   /** Trial budget for each Armijo search; default 32. */
   readonly maximumLineSearchTrials?: number;
-  /** Packed search-direction policy; defaults to steepest descent. */
-  readonly directionPolicy?: XpbdIncrementalPotentialDirectionPolicyN;
+  /**
+   * Packed search-direction policy; defaults to steepest descent.
+   *
+   * A name selects a shipped policy and is resolved against this problem, so
+   * `'newton-cg'` is reachable here rather than only through a factory the
+   * caller has to know exists.
+   */
+  readonly directionPolicy?:
+    | XpbdIncrementalPotentialDirectionPolicyN
+    | XpbdIncrementalPotentialDirectionPolicyNameN;
 }
 
 /** Complete evidence for one Armijo-accepted search-direction attempt. */
@@ -185,9 +198,11 @@ export function minimizeXpbdIncrementalPotentialN(
   const contractionFactor = options.contractionFactor ?? 0.5;
   const sufficientDecrease = options.sufficientDecrease ?? 1e-4;
   const maximumLineSearchTrials = options.maximumLineSearchTrials ?? 32;
-  const directionPolicy = options.directionPolicy === undefined
-    ? xpbdSteepestDescentDirectionN
-    : options.directionPolicy;
+  const directionPolicy = resolveDirectionPolicy(
+    options.directionPolicy,
+    options.problem,
+    caller
+  );
   if (!Number.isFinite(gradientTolerance) || gradientTolerance < 0) {
     throw new Error(
       `${caller}: gradientTolerance must be finite and non-negative`
@@ -417,6 +432,36 @@ export function minimizeXpbdIncrementalPotentialN(
     gradientTolerance,
     maximumIterations
   });
+}
+
+/**
+ * Turns an authored policy or policy name into a policy.
+ *
+ * Named policies are built here rather than by the caller because the Newton
+ * policy closes over the compiled problem, which only this side holds.
+ */
+function resolveDirectionPolicy(
+  authored:
+    | XpbdIncrementalPotentialDirectionPolicyN
+    | XpbdIncrementalPotentialDirectionPolicyNameN
+    | undefined,
+  problem: XpbdIncrementalPotentialProblemN,
+  caller: string
+): XpbdIncrementalPotentialDirectionPolicyN {
+  if (authored === undefined) return xpbdSteepestDescentDirectionN;
+  if (typeof authored !== 'string') return authored;
+  switch (authored) {
+    case 'steepest-descent':
+      return xpbdSteepestDescentDirectionN;
+    case 'mass-diagonal':
+      return xpbdMassPreconditionedDirectionN;
+    case 'newton-cg':
+      return xpbdNewtonDirectionPolicyN({ problem });
+    default:
+      throw new Error(
+        `${caller}: unknown direction policy ${JSON.stringify(authored)}`
+      );
+  }
 }
 
 function validateDirectionPolicy(
