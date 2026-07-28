@@ -110,8 +110,14 @@ jobs:
             npm publish "$tarball" --access public --provenance
           done
 
+      # Keyed on the ref being a tag, not on how the run started. The intent
+      # was never to create a Release for an untagged state; it was not to
+      # leave a tagged one without a Release because a later step failed.
+      # A publish failure once did exactly that, and nothing could then create
+      # it: dispatch was excluded, and the tag already existed so it could not
+      # be pushed again. Dispatching on the tag ref now recovers it.
       - name: Create GitHub Release
-        if: github.event_name == 'push'
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
