@@ -5,6 +5,13 @@ name: Release
 # is an idempotent npm recovery path and does not manufacture an untagged
 # GitHub Release. npm authenticates through trusted publishing (OIDC): no token
 # is stored in the repository.
+#
+# A package that has never been published cannot be published from here.
+# Trusted publishing attaches to an existing package, so the registry answers
+# 404 for a name it has never seen. Bootstrapping is a one-time manual act:
+# publish the first version locally with an npm account that may create the
+# name, then configure this workflow as its trusted publisher on npmjs.com.
+# Until then, dispatch with that package's include-* input set to false.
 
 on:
   push:
@@ -72,13 +79,19 @@ jobs:
         # packing first avoids repository-state checks on detached tag builds.
         shell: bash
         run: |
-          packages=(core)
-          if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-experiment'] }}" == "true" ]]; then
-            packages+=(experiment)
-          fi
-          packages+=(three)
+          # Established packages first. A package that has never been published
+          # cannot be published by trusted publishing at all — there is no
+          # package for the trusted publisher to attach to, so the registry
+          # answers 404 until someone bootstraps it once by hand. Ordering a
+          # never-published package early once cost an otherwise good release:
+          # its bootstrap failure aborted the loop before two ready packages
+          # were reached.
+          packages=(core three)
           if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-physics'] }}" == "true" ]]; then
             packages+=(physics)
+          fi
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-experiment'] }}" == "true" ]]; then
+            packages+=(experiment)
           fi
           # Depends on core, experiment, and physics, so it publishes last.
           if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-experiment-physics'] }}" == "true" ]]; then
