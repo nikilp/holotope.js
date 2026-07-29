@@ -1,7 +1,6 @@
 import { CellComplex, VecN, type CellGroup } from '@holotope/core';
 import { describe, expect, it } from 'vitest';
 import {
-  SimplexConstitutiveDomainErrorN,
   XpbdParticleN,
   compileSimplexConstitutiveFamilyN,
   compileXpbdIncrementalPotentialProblemN,
@@ -317,7 +316,7 @@ describe('bounded XPBD incremental-potential minimizer', () => {
     expect(particleSnapshot([particle])).toEqual(before);
   });
 
-  it('rethrows invalid bases, stale maps, provider bugs, and bad policies', () => {
+  it('types open-domain bases and rethrows stale maps, provider bugs, and bad policies', () => {
     const particle = new XpbdParticleN({
       id: 'p',
       position: [1],
@@ -413,9 +412,13 @@ describe('bounded XPBD incremental-potential minimizer', () => {
       deltaTime: 0.1,
       providers: [barrier]
     });
-    expect(() => minimizeXpbdIncrementalPotentialN({
+    expect(minimizeXpbdIncrementalPotentialN({
       problem: invalidBase,
       initialCoordinates: [0]
-    })).toThrow(SimplexConstitutiveDomainErrorN);
+    })).toMatchObject({
+      status: 'initial-state-refused',
+      lawId: 'simplex-measure-barrier',
+      iterations: []
+    });
   });
 });

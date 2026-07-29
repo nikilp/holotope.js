@@ -285,7 +285,8 @@ function isNonConvergedStatus(
   XpbdIncrementalPotentialMinimizationResultN['status'],
   'converged'
 > {
-  return status === 'direction-refused' ||
+  return status === 'initial-state-refused' ||
+    status === 'direction-refused' ||
     status === 'iteration-limit' ||
     status === 'line-search-exhausted' ||
     status === 'line-search-refused' ||

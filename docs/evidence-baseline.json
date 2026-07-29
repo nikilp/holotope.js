@@ -70,7 +70,6 @@
   "LinearCoordinateConstraintFitN.maxNormalizedResidual",
   "LinearCoordinateConstraintFitN.totalRows",
   "MassProperties4.principalSecondMoments",
-  "NdContactDiagnosis.facts",
   "NdContactRunSummary.conditions",
   "NdContactScene.extraAxisSpread",
   "NdContactScene.planes",

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { diagnoseNdContactStep } from '../src/nd-contact/diagnose.js';
 import { sampleBarrierCurve, summarizeNdContactRun } from '../src/nd-contact/instruments.js';
 import { buildNdContactScene } from '../src/nd-contact/scene.js';
 import { advanceNdContact, type NdContactDirection, type NdContactStepRecord } from '../src/nd-contact/step.js';
@@ -135,7 +134,7 @@ describe('the diagnosis seam names legitimate levers', () => {
     const refused = records.find((record) => !record.applied);
     expect(refused).toBeDefined();
 
-    const diagnosis = diagnoseNdContactStep(refused!);
+    const diagnosis = refused!.diagnosis;
     expect(diagnosis.condition).toBe('iteration-limit');
     expect(diagnosis.levers[0]).toBe('newton-direction-policy');
     expect(diagnosis.levers).not.toContain('lower-gradient-tolerance');
@@ -158,7 +157,7 @@ describe('the diagnosis seam names legitimate levers', () => {
     expect(summary.moved).toBe(false);
     expect(summary.reachedRest).toBe(false);
 
-    const diagnosis = diagnoseNdContactStep(records[0]!);
+    const diagnosis = records[0]!.diagnosis;
     expect(diagnosis.condition).toBe('converged-without-iteration');
     expect(diagnosis.levers).toEqual(['lower-gradient-tolerance']);
     expect(records[0]!.convergencePoint).toBe('initial');
@@ -170,7 +169,7 @@ describe('the diagnosis seam names legitimate levers', () => {
     const progressing = records.find((record) => record.applied && record.displacement > 0);
     expect(progressing).toBeDefined();
 
-    const diagnosis = diagnoseNdContactStep(progressing!);
+    const diagnosis = progressing!.diagnosis;
     expect(diagnosis.condition).toBe('progressed');
     expect(diagnosis.levers).toEqual([]);
   }, 120_000);

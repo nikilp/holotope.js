@@ -5,7 +5,6 @@ import {
   XpbdParticleHyperplaneBarrierN,
   XpbdParticleHyperplaneBarrierStepFilterN,
   XpbdParticleN,
-  XpbdPotentialDomainErrorN,
   stepXpbdIncrementalPotentialN
 } from '../src/index.js';
 
@@ -77,27 +76,26 @@ function run(
   const terminals: Record<string, number> = {};
 
   for (let step = 0; step < steps; step++) {
-    try {
-      // One call site; `dimension` is data, never a branch.
-      const result = stepXpbdIncrementalPotentialN({
-        dimension,
-        particles: scene.particles,
-        providers: scene.providers,
-        stepFilters: scene.stepFilters,
-        deltaTime: 1 / 120,
-        gravity,
-        ...(options.fromCurrentState
-          ? { initialPositions: scene.particles.map((p) => p.position.clone()) }
-          : {})
-      });
-      const status = result.minimization.status;
-      terminals[status] = (terminals[status] ?? 0) + 1;
-    } catch (error) {
+    // One call site; `dimension` is data, never a branch.
+    const result = stepXpbdIncrementalPotentialN({
+      dimension,
+      particles: scene.particles,
+      providers: scene.providers,
+      stepFilters: scene.stepFilters,
+      deltaTime: 1 / 120,
+      gravity,
+      ...(options.fromCurrentState
+        ? { warmStart: 'previous-positions' as const }
+        : {})
+    });
+    const status = result.minimization.status;
+    terminals[status] = (terminals[status] ?? 0) + 1;
+    if (status === 'initial-state-refused') {
       return {
         completed: step,
         terminals,
         heights: scene.particles.map((p) => p.position.data[1]!),
-        refusal: error instanceof XpbdPotentialDomainErrorN ? error.reason : null
+        refusal: result.minimization.reason
       };
     }
   }
@@ -131,13 +129,13 @@ describe('the incremental-potential step across dimensions', () => {
   }, 60_000);
 
   /**
-   * The one-call entry point defaults `initialPositions` to the inertial
+   * The one-call entry point defaults the minimizer base to the inertial
    * prediction, which for a particle already resting near a barrier lands
    * outside the barrier's open domain. Armijo recovers a domain refusal at a
-   * *trial* point; one at the base point is fatal by design, so the step
-   * throws rather than silently accepting an infeasible state.
+   * *trial* point; one at the base point is now a typed terminal rather than a
+   * thrown expected state.
    */
-  it('refuses when the inertial prediction leaves the admissible domain', () => {
+  it('returns typed refusal when the inertial prediction leaves the admissible domain', () => {
     for (const dimension of [2, 3, 4]) {
       const result = run(dimension, 60, { fromCurrentState: false });
       expect(result.refusal).toBe('at-or-below-minimum-distance');
@@ -185,7 +183,7 @@ describe('the incremental-potential step across dimensions', () => {
         stepFilters: scene.stepFilters,
         deltaTime: 1 / 120,
         gravity,
-        initialPositions: scene.particles.map((p) => p.position.clone())
+        warmStart: 'previous-positions'
       });
       applications[result.status] = (applications[result.status] ?? 0) + 1;
       if (firstLimit < 0 && result.minimization.status === 'iteration-limit') {
@@ -232,7 +230,7 @@ describe('the incremental-potential step across dimensions', () => {
         stepFilters: scene.stepFilters,
         deltaTime: 1 / 120,
         gravity,
-        initialPositions: scene.particles.map((p) => p.position.clone()),
+        warmStart: 'previous-positions',
         minimization: { directionPolicy: 'newton-cg' }
       });
       applications[result.status] = (applications[result.status] ?? 0) + 1;
@@ -276,7 +274,7 @@ describe('the incremental-potential step across dimensions', () => {
         stepFilters: scene.stepFilters,
         deltaTime: 1 / 120,
         gravity,
-        initialPositions: scene.particles.map((p) => p.position.clone()),
+        warmStart: 'previous-positions',
         minimization: { gradientTolerance: 1e-2 }
       });
       applications[result.status] = (applications[result.status] ?? 0) + 1;

@@ -308,6 +308,7 @@ export {
   type XpbdIncrementalPotentialIterationN,
   type XpbdIncrementalPotentialMinimizationResultN,
   type XpbdIncrementalPotentialDirectionRefusedN,
+  type XpbdIncrementalPotentialInitialStateRefusedN,
   type XpbdIncrementalPotentialStalledN,
   type XpbdIncrementalPotentialStallReasonN,
   type XpbdSteepestDescentIterationN
@@ -329,6 +330,12 @@ export {
   type XpbdIncrementalPotentialVelocityUpdateN
 } from './xpbd-incremental-potential-application.js';
 export {
+  diagnoseXpbdIncrementalPotentialStepN,
+  type XpbdIncrementalPotentialDiagnosisConditionN,
+  type XpbdIncrementalPotentialDiagnosisLeverN,
+  type XpbdIncrementalPotentialDiagnosisN
+} from './xpbd-incremental-potential-diagnosis.js';
+export {
   stepXpbdIncrementalPotentialN,
   type StepXpbdIncrementalPotentialNOptions,
   type XpbdIncrementalPotentialApplicationPolicyN,
@@ -336,6 +343,7 @@ export {
   type XpbdIncrementalPotentialStepApplicationRefusedN,
   type XpbdIncrementalPotentialStepAppliedN,
   type XpbdIncrementalPotentialStepMinimizationRefusedN,
+  type XpbdIncrementalPotentialStepProgressN,
   type XpbdIncrementalPotentialStepRefusedN,
   type XpbdIncrementalPotentialStepResultN
 } from './xpbd-incremental-potential-step.js';

@@ -20,6 +20,7 @@ import {
 import {
   xpbdNewtonDirectionPolicyN
 } from './xpbd-incremental-potential-newton-policy.js';
+import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
 
 export interface MinimizeXpbdIncrementalPotentialNOptions {
   readonly problem: XpbdIncrementalPotentialProblemN;
@@ -164,8 +165,39 @@ export interface XpbdIncrementalPotentialDirectionRefusedN
   readonly reason: string;
 }
 
+/**
+ * The authored base point lies outside one potential law's open domain.
+ *
+ * No objective evaluation was accepted and no coordinate moved. This is an
+ * expected mathematical refusal for contact barriers, distinct from malformed
+ * input or an ordinary provider failure, which still throws.
+ */
+export interface XpbdIncrementalPotentialInitialStateRefusedN {
+  /** Distinguishes an inadmissible base from a refused trial step. */
+  readonly status: 'initial-state-refused';
+  /** Exact compiled objective and identity context. */
+  readonly problem: XpbdIncrementalPotentialProblemN;
+  /** Defensive copy of the packed coordinates that could not be evaluated. */
+  readonly initialCoordinates: Float64Array;
+  /** Stable identifier of the law whose open domain excluded the base. */
+  readonly lawId: string;
+  /** Machine-facing reason supplied by that law. */
+  readonly reason: string;
+  /** Human-facing explanation supplied by that law. */
+  readonly message: string;
+  /** Empty because no accepted iterate exists before the base evaluation. */
+  readonly iterations: readonly [];
+  /** Stable identity of the direction policy that would have been used. */
+  readonly directionPolicyId: string;
+  /** Authored gradient tolerance, retained for diagnosis. */
+  readonly gradientTolerance: number;
+  /** Authored iteration budget, retained for diagnosis. */
+  readonly maximumIterations: number;
+}
+
 export type XpbdIncrementalPotentialMinimizationResultN =
   | XpbdIncrementalPotentialConvergedN
+  | XpbdIncrementalPotentialInitialStateRefusedN
   | XpbdIncrementalPotentialDirectionRefusedN
   | XpbdIncrementalPotentialIterationLimitN
   | XpbdIncrementalPotentialLineSearchExhaustedN
@@ -235,7 +267,24 @@ export function minimizeXpbdIncrementalPotentialN(
   validateDirectionPolicy(directionPolicy, caller);
   const directionPolicyId = directionPolicy.id;
 
-  const initial = options.problem.evaluate(options.initialCoordinates);
+  let initial: XpbdPackedIncrementalPotentialEvaluationN;
+  try {
+    initial = options.problem.evaluate(options.initialCoordinates);
+  } catch (error) {
+    if (!(error instanceof XpbdPotentialDomainErrorN)) throw error;
+    return Object.freeze({
+      status: 'initial-state-refused',
+      problem: options.problem,
+      initialCoordinates: Float64Array.from(options.initialCoordinates),
+      lawId: error.lawId,
+      reason: error.reason,
+      message: error.message,
+      iterations: Object.freeze([]) as readonly [],
+      directionPolicyId,
+      gradientTolerance,
+      maximumIterations
+    });
+  }
   let current = initial;
   const iterations: XpbdIncrementalPotentialIterationN[] = [];
   if (current.gradientNorm <= gradientTolerance) {
@@ -573,7 +622,7 @@ function packedDirection(
   return direction;
 }
 
-function resultBase<T extends XpbdIncrementalPotentialMinimizationBaseN>(
+function resultBase<const T extends XpbdIncrementalPotentialMinimizationBaseN>(
   result: T
 ): T {
   return Object.freeze({

@@ -110,6 +110,13 @@
       .levers { margin-top: 5px; color: #ffd479; font-size: 11px; }
       .levers b { color: #6f83a9; font-weight: 400; }
       .summary { margin-top: 5px; color: #7f8db0; font-size: 11px; line-height: 1.5; }
+      .facts {
+        margin-top: 4px;
+        color: #56658a;
+        font-size: 10px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+      }
       .sect {
         margin: 8px 0 3px;
         color: #56658a;
@@ -130,7 +137,7 @@
       <header>
         <h1>One contact step, three dimensions</h1>
         <p>
-          The same incremental-potential solve drives both panes — same barrier, same
+          The same incremental-potential solve drives every pane — same barrier, same
           filtered line search, same packed problem. <code>dimension</code> is data, not a branch.
           <a href="./index.html">← showcase</a>
         </p>
@@ -162,7 +169,7 @@
     <template id="explainer">
       <h2>One contact step, three dimensions</h2>
       <p>
-        Both panes run the <strong>same function</strong> on the same solver. The only
+        Every pane runs the <strong>same function</strong> on the same solver. The only
         difference between them is the number the scene was built with. Trajectories in
         the shared coordinates are bitwise identical — the same doubles, because the same
         code ran on them.
@@ -178,9 +185,9 @@
       <p>
         Switch the direction to <strong>Newton</strong> and the identical scene settles.
         No tolerance change, no extra iterations. The remedy already shipped; it is
-        reachable only through a factory, so a caller reading the options type never
-        finds it. <strong>mass-diagonal</strong> is the rung they do find, and it changes
-        nothing here.
+        now selectable by the named <code>newton-cg</code> policy.
+        <strong>mass-diagonal</strong> is another named rung, but it changes nothing
+        for this uniform-mass scene.
       </p>
       <h3>The trap</h3>
       <p>

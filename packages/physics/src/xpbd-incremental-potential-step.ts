@@ -11,6 +11,7 @@ import {
 } from './xpbd-incremental-potential.js';
 import {
   minimizeXpbdIncrementalPotentialN,
+  type XpbdIncrementalPotentialConvergedN,
   type XpbdIncrementalPotentialMinimizationResultN
 } from './xpbd-incremental-potential-minimizer.js';
 import {
@@ -24,6 +25,9 @@ import {
 import {
   type XpbdIncrementalPotentialStepFilterN
 } from './xpbd-incremental-potential-step-filter.js';
+import {
+  resolveXpbdIncrementalPotentialStepDirectionN
+} from './xpbd-incremental-potential-step-direction.js';
 import {
   XpbdParticleN,
   type XpbdConservativeForceProviderN
@@ -86,33 +90,68 @@ export interface StepXpbdIncrementalPotentialNOptions {
   /**
    * Optional warm start in particle order. Fixed entries must equal their
    * inertial prediction. The default is the complete inertial prediction.
+   * Explicit `initialPositions` takes precedence over `warmStart`.
    */
   readonly initialPositions?: readonly VecN[];
+  /**
+   * Selects the minimizer base when `initialPositions` is absent.
+   *
+   * `inertial-prediction` preserves the historical default.
+   * `previous-positions` keeps the base at the last admissible live state while
+   * the inertial prediction still defines the objective's inertia term.
+   */
+  readonly warmStart?: 'inertial-prediction' | 'previous-positions';
   readonly minimization?: XpbdIncrementalPotentialMinimizationPolicyN;
   readonly application?: XpbdIncrementalPotentialApplicationPolicyN;
 }
 
-interface XpbdIncrementalPotentialStepBaseN {
+/** Solver progress retained by every integrated step outcome. */
+export interface XpbdIncrementalPotentialStepProgressN {
+  /** Accepted minimizer iterations, whether or not the result was applied. */
+  readonly acceptedIterations: number;
+  /** Norm of accepted packed movement from minimizer base to final iterate. */
+  readonly displacementNorm: number;
+  /** Objective at the minimizer base minus objective at its final iterate. */
+  readonly objectiveDecrease: number;
+  /** Where convergence was declared, when the terminal is converged. */
+  readonly convergencePoint?: 'initial' | 'accepted-iterate';
+}
+
+interface XpbdIncrementalPotentialStepBaseN<
+  Minimization extends XpbdIncrementalPotentialMinimizationResultN =
+    XpbdIncrementalPotentialMinimizationResultN
+> {
   readonly prediction: XpbdInertialPredictionN;
   readonly problem: XpbdIncrementalPotentialProblemN;
-  readonly minimization: XpbdIncrementalPotentialMinimizationResultN;
+  readonly minimization: Minimization;
+  /** One decision-ready summary of whether the minimizer made progress. */
+  readonly progress: XpbdIncrementalPotentialStepProgressN;
 }
 
 export interface XpbdIncrementalPotentialStepAppliedN
-  extends XpbdIncrementalPotentialStepBaseN {
+  extends XpbdIncrementalPotentialStepBaseN<
+    XpbdIncrementalPotentialConvergedN
+  > {
   readonly status: 'applied';
   readonly application: XpbdIncrementalPotentialAppliedN;
 }
 
 export interface XpbdIncrementalPotentialStepMinimizationRefusedN
-  extends XpbdIncrementalPotentialStepBaseN {
+  extends XpbdIncrementalPotentialStepBaseN<
+    Exclude<
+      XpbdIncrementalPotentialMinimizationResultN,
+      XpbdIncrementalPotentialConvergedN
+    >
+  > {
   readonly status: 'refused';
   readonly stage: 'minimization';
   readonly reason: 'not-converged';
 }
 
 export interface XpbdIncrementalPotentialStepApplicationRefusedN
-  extends XpbdIncrementalPotentialStepBaseN {
+  extends XpbdIncrementalPotentialStepBaseN<
+    XpbdIncrementalPotentialConvergedN
+  > {
   readonly status: 'refused';
   readonly stage: 'application';
   readonly reason: Exclude<
@@ -171,6 +210,15 @@ export function stepXpbdIncrementalPotentialN(
   }
   validatePolicyObject(options.minimization, 'minimization', caller);
   validatePolicyObject(options.application, 'application', caller);
+  if (
+    options.warmStart !== undefined &&
+    options.warmStart !== 'inertial-prediction' &&
+    options.warmStart !== 'previous-positions'
+  ) {
+    throw new Error(
+      `${caller}: warmStart must be "inertial-prediction" or "previous-positions"`
+    );
+  }
 
   const rollback = options.particles.map(snapshotRuntimeParticle);
   try {
@@ -190,20 +238,18 @@ export function stepXpbdIncrementalPotentialN(
         ? {}
         : { stepFilters: options.stepFilters })
     });
+    const warmStartPositions = options.warmStart === 'previous-positions'
+      ? rollback.map((snapshot) => new VecN(snapshot.positionCoordinates))
+      : prediction.positions;
     const initialCoordinates = problem.packPositions(
-      options.initialPositions ?? prediction.positions
+      options.initialPositions ?? warmStartPositions
     );
     const policy = options.minimization;
-    if (policy?.directionPolicy !== undefined &&
-      policy.directionPolicyFactory !== undefined) {
-      throw new Error(
-        `${caller}: minimization.directionPolicy and directionPolicyFactory ` +
-          'are mutually exclusive'
-      );
-    }
-    const directionPolicy = policy?.directionPolicyFactory === undefined
-      ? policy?.directionPolicy
-      : policy.directionPolicyFactory(problem);
+    const directionPolicy = resolveXpbdIncrementalPotentialStepDirectionN(
+      policy,
+      problem,
+      caller
+    );
     const minimization = minimizeXpbdIncrementalPotentialN({
       problem,
       initialCoordinates,
@@ -227,12 +273,14 @@ export function stepXpbdIncrementalPotentialN(
         : { maximumLineSearchTrials: policy.maximumLineSearchTrials }),
       ...(directionPolicy === undefined ? {} : { directionPolicy })
     });
-    const base = { prediction, problem, minimization } as const;
+    const progress = summarizeStepProgress(minimization);
+    const base = { prediction, problem, progress } as const;
 
     if (minimization.status !== 'converged') {
       restoreRuntimeParticles(rollback);
       return Object.freeze({
         ...base,
+        minimization,
         status: 'refused',
         stage: 'minimization',
         reason: 'not-converged'
@@ -258,6 +306,7 @@ export function stepXpbdIncrementalPotentialN(
       restoreRuntimeParticles(rollback);
       return Object.freeze({
         ...base,
+        minimization,
         status: 'refused',
         stage: 'application',
         reason: application.reason,
@@ -267,6 +316,7 @@ export function stepXpbdIncrementalPotentialN(
 
     return Object.freeze({
       ...base,
+      minimization,
       status: 'applied',
       application
     });
@@ -274,6 +324,36 @@ export function stepXpbdIncrementalPotentialN(
     restoreRuntimeParticles(rollback);
     throw error;
   }
+}
+
+/** Computes accepted minimizer progress without interpreting whether it is enough. */
+function summarizeStepProgress(
+  minimization: XpbdIncrementalPotentialMinimizationResultN
+): XpbdIncrementalPotentialStepProgressN {
+  if (minimization.status === 'initial-state-refused') {
+    return Object.freeze({
+      acceptedIterations: 0,
+      displacementNorm: 0,
+      objectiveDecrease: 0
+    });
+  }
+  let displacementNorm = 0;
+  for (let coordinate = 0; coordinate < minimization.initial.coordinates.length; coordinate++) {
+    displacementNorm = Math.hypot(
+      displacementNorm,
+      minimization.final.coordinates[coordinate]! -
+        minimization.initial.coordinates[coordinate]!
+    );
+  }
+  return Object.freeze({
+    acceptedIterations: minimization.iterations.length,
+    displacementNorm,
+    objectiveDecrease:
+      minimization.initial.objective - minimization.final.objective,
+    ...(minimization.status === 'converged'
+      ? { convergencePoint: minimization.convergencePoint }
+      : {})
+  });
 }
 
 function validatePolicyObject(

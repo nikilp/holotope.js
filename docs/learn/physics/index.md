@@ -20,6 +20,7 @@ It is two separate simulation layers that do not share semantics:
 | [Joints, constraints, and motors](./constraints) | Scalar Jacobian rows and coupled blocks, distance and orientation coordinates, and the stabilizer-classified rotation policies. |
 | [Deformable materials and XPBD](./deformable) | Dimension-independent simplex constitutive laws, intrinsic mass, and the RN compliant-constraint kernel that runs on point coordinates rather than rigid bodies. |
 | [The ND contact demo](./nd-contact-demo) | One incremental-potential contact step driving R2, R3, and R4 from a single code path — the escalation ladder from a frozen scene to a resting one, and a plain account of how narrow the demonstration is. |
+| [Incremental-potential troubleshooting](./incremental-potential-troubleshooting) | Typed initial-state refusal, explicit warm starts, solver progress, and decision-ready diagnosis without automatic policy changes. |
 | [Correctness boundaries](./boundaries) | What is verified, what is approximate, and what is deliberately not implemented yet. Read this before trusting a result. |
 
 ## Implemented scope

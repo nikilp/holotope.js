@@ -1,5 +1,8 @@
-import { evaluateClampedLogBarrier } from '@holotope/physics';
-import { diagnoseNdContactStep, type NdContactCondition } from './diagnose.js';
+import {
+  evaluateClampedLogBarrier,
+  type XpbdIncrementalPotentialDiagnosisConditionN,
+  type XpbdIncrementalPotentialDiagnosisLeverN
+} from '@holotope/physics';
 import type { NdContactStepRecord } from './step.js';
 
 /** One sample of the barrier law, for plotting. */
@@ -62,7 +65,11 @@ export interface NdContactRunSummary {
   /** Minimizer terminals, tallied. */
   readonly terminals: Readonly<Record<string, number>>;
   /** Diagnosis conditions, tallied. */
-  readonly conditions: Readonly<Record<NdContactCondition, number>>;
+  readonly conditions: Readonly<
+    Record<XpbdIncrementalPotentialDiagnosisConditionN, number>
+  >;
+  /** Suggested caller-controlled levers, tallied without applying any. */
+  readonly levers: Readonly<Record<XpbdIncrementalPotentialDiagnosisLeverN, number>>;
   /** Step filter verdicts, tallied across every line-search trial. */
   readonly filterVerdicts: Readonly<Record<string, number>>;
   /** First step that was refused, or `null` if none was. */
@@ -107,7 +114,11 @@ export function createNdContactRunAccumulator(
 ): NdContactRunAccumulator {
   const restSpeed = options.restSpeed ?? 1e-6;
   const terminals: Record<string, number> = {};
-  const conditions = {} as Record<NdContactCondition, number>;
+  const conditions = {} as Record<
+    XpbdIncrementalPotentialDiagnosisConditionN,
+    number
+  >;
+  const levers = {} as Record<XpbdIncrementalPotentialDiagnosisLeverN, number>;
   const filterVerdicts: Record<string, number> = {};
   let steps = 0;
   let applied = 0;
@@ -120,8 +131,11 @@ export function createNdContactRunAccumulator(
     add(record: NdContactStepRecord): void {
       steps++;
       terminals[record.terminal] = (terminals[record.terminal] ?? 0) + 1;
-      const { condition } = diagnoseNdContactStep(record);
+      const { condition } = record.diagnosis;
       conditions[condition] = (conditions[condition] ?? 0) + 1;
+      for (const lever of record.diagnosis.levers) {
+        levers[lever] = (levers[lever] ?? 0) + 1;
+      }
       for (const verdict of record.filterVerdicts) {
         filterVerdicts[verdict.status] = (filterVerdicts[verdict.status] ?? 0) + 1;
       }
@@ -140,6 +154,7 @@ export function createNdContactRunAccumulator(
         refused: steps - applied,
         terminals: Object.freeze({ ...terminals }),
         conditions: Object.freeze({ ...conditions }),
+        levers: Object.freeze({ ...levers }),
         filterVerdicts: Object.freeze({ ...filterVerdicts }),
         firstRefusedStep,
         settledStep,

@@ -1,8 +1,9 @@
 import { VecN } from '@holotope/core';
 import {
+  diagnoseXpbdIncrementalPotentialStepN,
   stepXpbdIncrementalPotentialN,
-  xpbdMassPreconditionedDirectionN,
-  xpbdNewtonDirectionPolicyN
+  type XpbdIncrementalPotentialDiagnosisN,
+  type XpbdIncrementalPotentialMinimizationPolicyN
 } from '@holotope/physics';
 import { FLOOR_AXIS, type NdContactScene } from './scene.js';
 
@@ -56,6 +57,8 @@ export interface NdContactStepRecord {
   readonly terminal: string;
   /** Present when the terminal is `converged`. */
   readonly convergencePoint?: 'initial' | 'accepted-iterate';
+  /** Shared library diagnosis over the retained solver evidence. */
+  readonly diagnosis: XpbdIncrementalPotentialDiagnosisN;
   /** Accepted Newton/descent iterates — zero means the solver did nothing. */
   readonly acceptedIterations: number;
   /** Euclidean norm of the position change actually applied this step. */
@@ -76,8 +79,12 @@ export interface NdContactStepRecord {
 
 const minimizationFor = (
   options: AdvanceNdContactOptions
-): Record<string, unknown> | undefined => {
-  const policy: Record<string, unknown> = {};
+): XpbdIncrementalPotentialMinimizationPolicyN | undefined => {
+  const policy: {
+    gradientTolerance?: number;
+    maximumIterations?: number;
+    directionPolicy?: 'mass-diagonal' | 'newton-cg';
+  } = {};
   if (options.gradientTolerance !== undefined) {
     policy['gradientTolerance'] = options.gradientTolerance;
   }
@@ -86,14 +93,10 @@ const minimizationFor = (
   }
   switch (options.direction ?? 'default') {
     case 'mass-diagonal':
-      policy['directionPolicy'] = xpbdMassPreconditionedDirectionN;
+      policy.directionPolicy = 'mass-diagonal';
       break;
     case 'newton':
-      // The Newton policy needs the compiled problem, so it is reachable only
-      // through the factory — which is precisely why a caller enumerating the
-      // options type never finds it. See findings.md.
-      policy['directionPolicyFactory'] = (problem: never) =>
-        xpbdNewtonDirectionPolicyN({ problem });
+      policy.directionPolicy = 'newton-cg';
       break;
     default:
       break;
@@ -121,12 +124,9 @@ const distance = (before: readonly VecN[], after: readonly VecN[]): number => {
  * does not need to be: the same call drives R², R³ and R⁴ to bitwise identical
  * trajectories on the coordinates they share.
  *
- * `initialPositions` is passed explicitly rather than defaulted. The default is
- * the inertial prediction, which for a particle already resting near a barrier
- * lies outside the barrier's open domain, and a domain refusal at the base
- * point is fatal by design — so the obvious call throws after about forty steps.
- * P39 proposes `warmStart: 'previous-positions'` for exactly this; when it
- * lands, this is the line that changes.
+ * The previous admissible state is selected as the minimizer base while the
+ * inertial prediction remains the objective's target. This prevents a predicted
+ * point beyond an open contact barrier from becoming an unhandled base point.
  */
 export function advanceNdContact(options: AdvanceNdContactOptions): NdContactStepRecord {
   const { scene, stepIndex } = options;
@@ -141,49 +141,33 @@ export function advanceNdContact(options: AdvanceNdContactOptions): NdContactSte
     stepFilters: scene.stepFilters,
     deltaTime,
     gravity: scene.gravity,
-    initialPositions: before.map((position) => position.clone()),
-    ...(minimization ? { minimization: minimization as never } : {})
+    warmStart: 'previous-positions',
+    ...(minimization ? { minimization } : {})
   });
 
-  const minimization_ = result.minimization as unknown as {
-    readonly status: string;
-    readonly convergencePoint?: 'initial' | 'accepted-iterate';
-    readonly initial: { readonly gradientNorm: number };
-    readonly final: { readonly gradientNorm: number };
-    readonly gradientTolerance: number;
-    readonly iterations: readonly {
-      readonly directionEvidence?: { readonly outcome?: string };
-      readonly search?: {
-        readonly trials?: readonly { readonly stepLength: number; readonly status: string }[];
-        readonly stepFilters?: readonly {
-          readonly filterId: string;
-          readonly evaluation: {
-            readonly status: 'safe' | 'limited' | 'indeterminate';
-            readonly maximumStepLength?: number;
-            readonly reason?: string;
-          };
-        }[];
-      };
-    }[];
-  };
+  const minimization_ = result.minimization;
+  const diagnosis = diagnoseXpbdIncrementalPotentialStepN(result);
 
   const filterVerdicts: NdContactFilterVerdict[] = [];
   const armijoTrials: { stepLength: number; status: string }[] = [];
   const directionOutcomes: Record<string, number> = {};
   for (const iteration of minimization_.iterations) {
-    const outcome = iteration.directionEvidence?.outcome;
-    if (outcome) directionOutcomes[outcome] = (directionOutcomes[outcome] ?? 0) + 1;
+    const evidenceKind = iteration.directionEvidence?.kind;
+    if (evidenceKind) {
+      directionOutcomes[evidenceKind] =
+        (directionOutcomes[evidenceKind] ?? 0) + 1;
+    }
     for (const trial of iteration.search?.trials ?? []) {
       armijoTrials.push({ stepLength: trial.stepLength, status: trial.status });
     }
     for (const filter of iteration.search?.stepFilters ?? []) {
+      const evaluation = filter.evaluation;
       filterVerdicts.push({
         filterId: filter.filterId,
-        status: filter.evaluation.status,
-        ...(filter.evaluation.maximumStepLength !== undefined
-          ? { maximumStepLength: filter.evaluation.maximumStepLength }
-          : {}),
-        ...(filter.evaluation.reason !== undefined ? { reason: filter.evaluation.reason } : {})
+        status: evaluation.status,
+        ...(evaluation.status === 'indeterminate'
+          ? { reason: evaluation.reason }
+          : { maximumStepLength: evaluation.maximumStepLength })
       });
     }
   }
@@ -195,13 +179,20 @@ export function advanceNdContact(options: AdvanceNdContactOptions): NdContactSte
     time: stepIndex * deltaTime,
     applied: result.status === 'applied',
     terminal: minimization_.status,
-    ...(minimization_.convergencePoint !== undefined
+    ...(minimization_.status === 'converged'
       ? { convergencePoint: minimization_.convergencePoint }
       : {}),
-    acceptedIterations: minimization_.iterations.length,
+    diagnosis,
+    acceptedIterations: result.progress.acceptedIterations,
     displacement: distance(before, after),
-    gradientNormInitial: minimization_.initial.gradientNorm,
-    gradientNormFinal: minimization_.final.gradientNorm,
+    gradientNormInitial:
+      minimization_.status === 'initial-state-refused'
+        ? Number.NaN
+        : minimization_.initial.gradientNorm,
+    gradientNormFinal:
+      minimization_.status === 'initial-state-refused'
+        ? Number.NaN
+        : minimization_.final.gradientNorm,
     gradientTolerance: minimization_.gradientTolerance,
     filterVerdicts,
     armijoTrials,

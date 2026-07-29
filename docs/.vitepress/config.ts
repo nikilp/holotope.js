@@ -156,6 +156,10 @@ export default defineConfig({
             { text: 'Collision queries', link: '/learn/physics/collision' },
             { text: 'Contact', link: '/learn/physics/contact' },
             { text: 'The ND contact demo', link: '/learn/physics/nd-contact-demo' },
+            {
+              text: 'Incremental-potential troubleshooting',
+              link: '/learn/physics/incremental-potential-troubleshooting'
+            },
             { text: 'Joints and constraints', link: '/learn/physics/constraints' },
             { text: 'Deformable and XPBD', link: '/learn/physics/deformable' },
             { text: 'Correctness boundaries', link: '/learn/physics/boundaries' }

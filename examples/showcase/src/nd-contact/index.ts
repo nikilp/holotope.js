@@ -1,4 +1,3 @@
-import { diagnoseNdContactStep, type NdContactDiagnosis } from './diagnose.js';
 import { createNdContactRunAccumulator, type NdContactRunAccumulator } from './instruments.js';
 import {
   createBarrierPlot,
@@ -10,6 +9,7 @@ import {
   type SectionView
 } from './panes.js';
 import { PerspectiveProjection } from '@holotope/core';
+import type { XpbdIncrementalPotentialDiagnosisN } from '@holotope/physics';
 import { FLOOR_AXIS, buildNdContactScene, type NdContactScene } from './scene.js';
 import { advanceNdContact, type NdContactDirection, type NdContactStepRecord } from './step.js';
 import { setupShowcaseUI } from '../ui.js';
@@ -251,7 +251,7 @@ control('slice w', sliceInput).appendChild(sliceValue);
 /* Readouts — built as DOM nodes; every value here is solver-derived            */
 /* -------------------------------------------------------------------------- */
 
-const conditionClass = (diagnosis: NdContactDiagnosis): string =>
+const conditionClass = (diagnosis: XpbdIncrementalPotentialDiagnosisN): string =>
   diagnosis.condition === 'progressed'
     ? 'progressed'
     : diagnosis.condition === 'converged-without-iteration'
@@ -296,7 +296,7 @@ const renderReadout = (panel: Panel): void => {
     return;
   }
 
-  const diagnosis = diagnoseNdContactStep(latest);
+  const diagnosis = latest.diagnosis;
   const { summary } = panel.accumulator;
 
   const head = document.createElement('div');
@@ -313,6 +313,13 @@ const renderReadout = (panel: Panel): void => {
     appendNote(panel.readout, 'levers', `levers: ${diagnosis.levers.join(', ')}`);
   }
   appendNote(panel.readout, 'summary', diagnosis.summary);
+  appendNote(
+    panel.readout,
+    'facts',
+    Object.entries(diagnosis.facts)
+      .map(([key, value]) => `${key} ${String(value)}`)
+      .join(' · ')
+  );
 
   appendSection(panel.readout, `step ${latest.stepIndex} · t = ${latest.time.toFixed(3)} s`);
   appendRow(
@@ -331,6 +338,7 @@ const renderReadout = (panel: Panel): void => {
   appendRow(panel.readout, 'applied / refused', `${summary.applied} / ${summary.refused}`);
   appendRow(panel.readout, 'moved', String(summary.moved));
   appendRow(panel.readout, 'reached rest', String(summary.reachedRest));
+  appendRow(panel.readout, 'suggested levers', tally(summary.levers));
 
   appendSection(panel.readout, 'step filter verdicts');
   appendNote(panel.readout, 'summary', tally(summary.filterVerdicts));

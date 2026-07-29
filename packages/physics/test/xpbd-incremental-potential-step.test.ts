@@ -59,22 +59,30 @@ function expectArrayClose(
 function resultSummary(
   result: XpbdIncrementalPotentialStepResultN
 ): unknown {
+  const minimization = result.minimization;
   return {
     status: result.status,
     stage: result.status === 'refused' ? result.stage : undefined,
     reason: result.status === 'refused' ? result.reason : undefined,
     prediction: result.prediction.positions.map((value) => value.toArray()),
-    minimization: {
-      status: result.minimization.status,
-      objective: result.minimization.final.objective,
-      gradientNorm: result.minimization.final.gradientNorm,
-      coordinates: Array.from(result.minimization.final.coordinates),
-      steps: result.minimization.iterations.map((iteration) => ({
-        stepLength: iteration.search.stepLength,
-        stepNorm: iteration.stepNorm,
-        objectiveDecrease: iteration.objectiveDecrease
-      }))
-    },
+    progress: result.progress,
+    minimization: minimization.status === 'initial-state-refused'
+      ? {
+          status: minimization.status,
+          lawId: minimization.lawId,
+          reason: minimization.reason
+        }
+      : {
+          status: minimization.status,
+          objective: minimization.final.objective,
+          gradientNorm: minimization.final.gradientNorm,
+          coordinates: Array.from(minimization.final.coordinates),
+          steps: minimization.iterations.map((iteration) => ({
+            stepLength: iteration.search.stepLength,
+            stepNorm: iteration.stepNorm,
+            objectiveDecrease: iteration.objectiveDecrease
+          }))
+        },
     application: result.status === 'applied'
       ? {
           objective: result.application.verifiedFinal.objective,
@@ -134,6 +142,12 @@ describe('integrated XPBD incremental-potential step', () => {
       expect(result.status).toBe('applied');
       expect(result.minimization).toMatchObject({
         status: 'converged',
+        convergencePoint: 'initial'
+      });
+      expect(result.progress).toEqual({
+        acceptedIterations: 0,
+        displacementNorm: 0,
+        objectiveDecrease: 0,
         convergencePoint: 'initial'
       });
       expectArrayClose(particle.position.data, expectedPosition);
@@ -222,6 +236,7 @@ describe('integrated XPBD incremental-potential step', () => {
       particles: [particle],
       providers: [],
       deltaTime: 0.5,
+      warmStart: 'inertial-prediction',
       initialPositions: [new VecN([-1])],
       minimization: { initialStep: 1, gradientTolerance: 1e-14 },
       application: { velocityUpdate: 'preserve', clearForces: false }
@@ -229,9 +244,29 @@ describe('integrated XPBD incremental-potential step', () => {
 
     expect(result.status).toBe('applied');
     expect(result.minimization.initial.coordinates[0]).toBe(-1);
+    expect(result.progress.acceptedIterations).toBeGreaterThan(0);
     expect(particle.position.data[0]).toBeCloseTo(1.625, 14);
     expect(particle.velocity.data[0]).toBe(0.25);
     expect(particle.force.data[0]).toBe(2);
+  });
+
+  it('rejects unknown warm-start policy names before changing particle state', () => {
+    const particle = new XpbdParticleN({
+      id: 'invalid-warm-start',
+      position: [1],
+      velocity: [0.25],
+      inverseMass: 1
+    });
+    const before = snapshot([particle]);
+
+    expect(() => stepXpbdIncrementalPotentialN({
+      dimension: 1,
+      particles: [particle],
+      providers: [],
+      deltaTime: 0.5,
+      warmStart: 'current' as never
+    })).toThrow(/warmStart must be "inertial-prediction" or "previous-positions"/);
+    expect(snapshot([particle])).toEqual(before);
   });
 
   it('returns bounded non-convergence without changing any particle state', () => {
@@ -257,6 +292,11 @@ describe('integrated XPBD incremental-potential step', () => {
       stage: 'minimization',
       reason: 'not-converged',
       minimization: { status: 'iteration-limit' }
+    });
+    expect(result.progress).toEqual({
+      acceptedIterations: 0,
+      displacementNorm: 0,
+      objectiveDecrease: 0
     });
     expect(snapshot([particle])).toEqual(before);
   });

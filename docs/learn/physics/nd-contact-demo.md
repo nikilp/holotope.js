@@ -40,8 +40,8 @@ onto a floor barrier, each solve warm-started from the current state:
 | Direction | Steps applied | Terminal speed | Outcome |
 | --- | --- | --- | --- |
 | default (steepest descent) | 41 of 200 | 3.3517 | freezes at first contact |
-| `xpbdMassPreconditionedDirectionN` | 41 of 200 | 3.3517 | identical to default |
-| `xpbdNewtonDirectionPolicyN` | 200 of 200 | 0.0000 | settles |
+| `mass-diagonal` | 41 of 200 | 3.3517 | identical to default |
+| `newton-cg` | 200 of 200 | 0.0000 | settles |
 
 Two things follow, and both matter more than the numbers.
 
@@ -54,11 +54,23 @@ the demo's suite is liveness-first: it proves the scene moved before it claims
 anything about where it stopped.
 
 **Newton is the remedy, at default settings** — no tolerance change, no raised
-iteration budget. `xpbdMassPreconditionedDirectionN` is not an intermediate rung;
-on this problem it is a no-op, producing numbers identical to the default. It is
-also the rung a caller finds first, because `directionPolicy` takes a value and is
-therefore visible in the options type, while the Newton policy needs the compiled
-problem and is reachable only through `directionPolicyFactory`.
+iteration budget. The `mass-diagonal` policy is not an intermediate rung; on
+this problem it is a no-op, producing numbers identical to the default.
+Both policies are named directly through `minimization.directionPolicy`, so a
+caller need not construct a policy around the internally compiled problem.
+
+## The admissible warm start
+
+The inertial prediction remains the default minimizer base for backward
+compatibility. Near an open contact barrier that prediction can already be
+inadmissible. Such a base now returns the typed
+`initial-state-refused` terminal rather than throwing through the integrated
+step.
+
+This demo selects `warmStart: 'previous-positions'`. The last live positions
+remain the minimizer base while the inertial prediction still defines the
+objective's inertial target. Explicit `initialPositions`, when supplied, remain
+authoritative over either warm-start policy.
 
 ## The trap the demo also shows
 
@@ -68,10 +80,13 @@ point in zero iterations. Every step then reports `applied` and the scene never
 moves at all.
 
 That is the worst available debugging gradient: the knob that silences the
-refusals also stops the physics. `XpbdIncrementalPotentialConvergedN` carries
-`convergencePoint`, which distinguishes converging at the initial point from
-converging at an accepted iterate, so the demo's readout names the condition
-explicitly and offers *lowering* the tolerance as the only legitimate response.
+refusals also stops the physics. Every integrated result now carries `progress`,
+including accepted iterations, minimizer displacement, objective decrease, and
+the convergence point. The demo passes that evidence to
+`diagnoseXpbdIncrementalPotentialStepN`; its readout names the
+`converged-without-iteration` condition and offers *lowering* the tolerance as
+the only legitimate response. The helper does not decide whether zero-iteration
+convergence means genuine rest or an unexpectedly frozen scene.
 
 ## The R4 pane, and one representation choice
 
@@ -131,6 +146,8 @@ dimension-independent, and here that is demonstrable rather than asserted.
 
 - [Deformable materials and XPBD](./deformable) — the constitutive laws and the
   RN compliant-constraint kernel the incremental potential is built on.
+- [Troubleshooting incremental-potential steps](./incremental-potential-troubleshooting)
+  — warm starts, progress evidence, and the diagnosis vocabulary.
 - [Correctness boundaries](./boundaries) — what the package verifies, what it
   approximates, and what it does not implement.
 - [Contact generation and response](./contact) — the separate rigid-body contact

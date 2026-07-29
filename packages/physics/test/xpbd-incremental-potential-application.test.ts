@@ -2,6 +2,7 @@ import { VecN } from '@holotope/core';
 import { describe, expect, it } from 'vitest';
 import {
   XpbdParticleN,
+  XpbdPotentialDomainErrorN,
   applyXpbdIncrementalPotentialResultN,
   compileXpbdIncrementalPotentialProblemN,
   minimizeXpbdIncrementalPotentialN,
@@ -235,6 +236,28 @@ describe('atomic incremental-potential result application', () => {
       initialStep: 10,
       maximumLineSearchTrials: 1
     });
+    const initialStateRefused = minimizeXpbdIncrementalPotentialN({
+      problem: compileXpbdIncrementalPotentialProblemN({
+        dimension: 1,
+        particles: [particle],
+        predictedPositions: [new VecN([0])],
+        deltaTime: 0.1,
+        providers: [{
+          id: 'open-domain',
+          dimension: 1,
+          particles: [particle],
+          evaluate: () => ({ potentialEnergy: 0, forces: [new VecN([0])] }),
+          evaluateAt: () => {
+            throw new XpbdPotentialDomainErrorN(
+              'open-domain',
+              'inadmissible-base',
+              'base lies outside the open domain'
+            );
+          }
+        }]
+      }),
+      initialCoordinates: [1]
+    });
     const huge = new XpbdParticleN({
       id: 'huge',
       position: [1e16],
@@ -265,7 +288,14 @@ describe('atomic incremental-potential result application', () => {
       gradientTolerance: 0
     });
 
-    for (const result of [iterationLimit, lineSearchExhausted, stalled]) {
+    for (
+      const result of [
+        initialStateRefused,
+        iterationLimit,
+        lineSearchExhausted,
+        stalled
+      ]
+    ) {
       const before = snapshot(result.problem.particles);
       const application = applyXpbdIncrementalPotentialResultN({ result });
       expect(application).toMatchObject({
