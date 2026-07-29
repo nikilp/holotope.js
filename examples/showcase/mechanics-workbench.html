@@ -39,8 +39,8 @@
         pointer-events: none;
       }
       #perspectiveLabel { left: 20%; border-color: #315c8d; }
-      #coordinateLabel { left: 50%; border-color: #347a68; }
-      #sectionLabel { left: 64%; border-color: #855a44; }
+      #coordinateLabel { left: 49%; border-color: #347a68; }
+      #sectionLabel { left: 67%; border-color: #855a44; }
       .divider {
         position: fixed;
         top: 112px;
@@ -94,7 +94,7 @@
         bottom: 16px;
         z-index: 5;
         width: min(920px, calc(100vw - 370px));
-        min-height: 142px;
+        min-height: 160px;
         padding: 12px 14px;
         border: 1px solid #30405f;
         border-radius: 10px;
@@ -110,6 +110,7 @@
       #edgeDynamics { color: #ffd27e; }
       #materialEvidence { color: #d7b0ff; }
       #sectionEvidence { color: #f1a886; }
+      #pickEvidence { color: #ff82df; }
       #stateEvidence { color: #79e7bd; }
       #legend {
         position: fixed;
@@ -146,12 +147,12 @@
     <div id="heading">
       <strong>Dimensional mechanics workbench</strong> — one ambient source, three simultaneous observations.<br />
       <span class="flow">CellComplex → copied RN particles → XPBD → explicit source write-back → perspective + coordinate view + exact section</span><br />
-      <span class="detail">The highlighted physical edge keeps one structural identity through every view; compare a familiar R3 control with signed material coordinates available only to the full R4 source.</span><br />
+      <span class="detail">Click any surface to retain its source cell across all three views; the lime physical edge independently exposes live constraint evidence.</span><br />
       <a href="./index.html">← all examples</a>
     </div>
     <div id="perspectiveLabel" class="view-label">R4 perspective · ambiguous shadow</div>
     <div id="coordinateLabel" class="view-label">XYW · exact axes · z fibre</div>
-    <div id="sectionLabel" class="view-label">(z+w)/√2 section · exact crossing</div>
+    <div id="sectionLabel" class="view-label">exact (z+w)/√2 section</div>
     <div id="controls">
       <label class="select">
         source mode
@@ -205,6 +206,7 @@
       <span id="edgeDynamics">constraint evidence pending</span>
       <span id="materialEvidence">material-family evidence pending</span>
       <span id="sectionEvidence">section incidence pending</span>
+      <span id="pickEvidence">click a rendered surface to inspect its source</span>
       <span id="stateEvidence">source/simulation state boundary pending</span>
     </div>
     <div id="legend">
@@ -212,6 +214,7 @@
       <span>blue / cyan = two maps of the same current source</span>
       <span class="amber">amber = exact affine section of its tetrahedral cells</span>
       <span class="lime">lime = one source-backed physical edge in both maps</span>
+      <span style="color:#ff82df">magenta = one picked source simplex across all observations</span>
       <span>yellow points = fixed source vertices</span>
       <span>boundary = unsigned 3-measure; interior = signed 4-measure</span>
       <span>signed equality reports inversion; it is not a no-tunnelling barrier</span>
@@ -222,7 +225,8 @@
       <h3>Source and simulation</h3>
       <p>The particles and constraints live in ambient R4. After every fixed step their positions are explicitly written to one topology-bearing <strong>CellComplex</strong>; the visible products read that source and never become physical state.</p>
       <h3>Observe</h3>
-      <p>Blue is a many-to-one perspective projection, cyan retains the x, y, and w axes, and amber is an exact affine section through tetrahedral cells. The lime edge has one persistent source identity in both projections; its exact section crossing appears only when incidence exists.</p>
+      <p>Blue is a many-to-one perspective projection, cyan retains the x, y, and w axes, and amber is an exact affine section through tetrahedral cells. Click a rendered triangle: the magenta overlay follows its retained source simplex into both projections and highlights only the incident tetrahedra present in the current section. This is a topological relation, not a nearest-point guess.</p>
+      <p>The lime edge is a separate physical diagnostic with one persistent source identity in both projections; its exact section crossing appears only when incidence exists.</p>
       <h3>Compare dimensions</h3>
       <p>The embedded R3 control travels through the same R4 pipeline while its hidden coordinate remains exactly zero. The full R4 source can respond to the hidden-axis drive and can carry an oriented 4-measure.</p>
       <h3>Material coordinates</h3>

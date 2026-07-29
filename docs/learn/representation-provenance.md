@@ -113,6 +113,14 @@ both mappings needed for inspection:
 - `sourceTetOfFace(faceIndex)` returns the source tetrahedron;
 - `sourceTetVertices(tetIndex)` returns its four source vertex indices.
 
+Retained vertex ids also let separate observations meet again in source
+topology. `findIncidentCellsN(group, vertices)` returns every cell in a
+homogeneous group whose vertex tuple contains the complete query. A projected
+triangle can therefore identify its incident source tetrahedra, and an exact
+section can highlight only the section triangles produced by those tetrahedra.
+This is combinatorial containment, not geometric proximity and not inferred
+refinement ancestry.
+
 It also retains the construction of every section vertex:
 
 - `sourceCrossingOfFaceVertex(faceIndex, corner)` returns the source edge and

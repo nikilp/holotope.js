@@ -1,4 +1,5 @@
 export { CellComplex, type CellGroup, type CellKind } from './cell-complex.js';
+export { findIncidentCellsN } from './cell-incidence.js';
 export {
   simplexizeCuboidGroupN,
   tetrahedralizeCuboidCells,

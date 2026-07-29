@@ -208,6 +208,7 @@
       "FieldSliceRayResult3": "/api/core/field/type-aliases/FieldSliceRayResult3",
       "FieldSliceTheorem4": "/api/core/field/interfaces/FieldSliceTheorem4",
       "FieldSymmetry4": "/api/core/field/interfaces/FieldSymmetry4",
+      "findIncidentCellsN": "/api/core/geometry/functions/findIncidentCellsN",
       "findSourceCellByVerticesN": "/api/core/representation/functions/findSourceCellByVerticesN",
       "fitSourceEdgeCoordinateToObservationsN": "/api/core/representation/functions/fitSourceEdgeCoordinateToObservationsN",
       "fitSourceEdgeCoordinateToProjectionN": "/api/core/representation/functions/fitSourceEdgeCoordinateToProjectionN",

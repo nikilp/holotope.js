@@ -10,7 +10,7 @@ segment/triangle lifting, and exact hyperplane slicing via marching
 tetrahedra with source-edge interpolation provenance. A renderer-independent
 representation layer adds dimension-checked map lineage, capability-sensitive
 hit results, auditable in-memory source-cell references, and explicit
-dimension-independent source-edge coordinates plus multi-view source-parameter
+dimension-independent cell-incidence queries and source-edge coordinates plus multi-view source-parameter
 consensus for constrained interaction. A deterministic linear coordinate-
 constraint solver gives edge and barycentric source-simplex coordinates one
 shared vocabulary for compatibility, rank, unresolved degrees, conditioning,

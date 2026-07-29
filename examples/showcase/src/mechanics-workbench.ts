@@ -13,8 +13,10 @@ import {
   PerspectiveCamera,
   Points,
   PointsMaterial,
+  Raycaster,
   Scene,
   SphereGeometry,
+  Vector2,
   WebGLRenderer
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -26,12 +28,15 @@ import {
   createHypercube,
   resolveSourceCellIdN,
   tetrahedralizeCuboidCells,
+  type CellGroup,
   type Projection
 } from '@holotope/core';
 import {
   ProjectedEdges3D,
   ProjectedSurface3D,
-  SlicedComplex3D
+  SlicedComplex3D,
+  representationHitFromProjectedSurface,
+  representationHitFromSlicedComplex
 } from '@holotope/three';
 import {
   XpbdWorldN,
@@ -44,6 +49,10 @@ import {
   type XpbdSimplexMeasureFamilyN,
   type XpbdWorldStepResultN
 } from '@holotope/physics';
+import {
+  resolveMechanicsWorkbenchSourceSelection,
+  type MechanicsWorkbenchSourceSelection
+} from './mechanics-workbench-selection.js';
 import { setupShowcaseUI } from './ui';
 
 type SourceMode = 'r4' | 'r3';
@@ -52,6 +61,7 @@ type MaterialMode = 'interior' | 'boundary' | 'edge';
 interface LabState {
   readonly mode: SourceMode;
   readonly source: CellComplex;
+  readonly tetrahedronGroup: CellGroup;
   readonly network: XpbdDistanceNetworkN;
   readonly measureFamily: XpbdSimplexMeasureFamilyN | null;
   readonly orientedFamily: XpbdOrientedCuboidFamilyN | null;
@@ -66,6 +76,9 @@ interface LabState {
   readonly section: SlicedComplex3D;
   readonly perspectivePins: Points;
   readonly coordinatePins: Points;
+  readonly perspectivePickedCell: LineSegments;
+  readonly coordinatePickedCell: LineSegments;
+  readonly sectionPickedCell: LineSegments;
   readonly pinnedVertices: readonly number[];
   readonly positionsAreDisjoint: boolean;
   elapsed: number;
@@ -94,6 +107,9 @@ controls.enableDamping = true;
 controls.minDistance = 10;
 controls.maxDistance = 28;
 controls.target.set(0, 0.15, 0);
+
+const raycaster = new Raycaster();
+const pointer = new Vector2();
 
 scene.add(new AmbientLight(0x8fa7d6, 1.45));
 const key = new DirectionalLight(0xffffff, 3.1);
@@ -139,6 +155,9 @@ crossingMarker.visible = false;
 scene.add(crossingMarker);
 
 let state: LabState | null = null;
+let pickedSelection: MechanicsWorkbenchSourceSelection | null = null;
+let selectionNotice =
+  'click any blue, cyan, or amber surface to retain its source cell';
 let paused = false;
 let accumulator = 0;
 let previousTime = performance.now();
@@ -180,6 +199,9 @@ function createSource(mode: SourceMode): CellComplex {
 
 function rebuildState(): void {
   disposeState();
+  pickedSelection = null;
+  selectionNotice =
+    'click any blue, cyan, or amber surface to retain its source cell';
   const mode = modeInput.value as SourceMode;
   if (mode === 'r3' && materialModeInput.value === 'interior') {
     materialModeInput.value = 'boundary';
@@ -298,6 +320,13 @@ function rebuildState(): void {
     .filter((vertex) => vertex >= 0);
   const perspectivePins = pinCloud(pinnedVertices.length, PERSPECTIVE_X);
   const coordinatePins = pinCloud(pinnedVertices.length, COORDINATE_X);
+  const perspectivePickedCell = pickedCellLine(PERSPECTIVE_X, 12);
+  const coordinatePickedCell = pickedCellLine(COORDINATE_X, 12);
+  const sectionPosition = section.geometry.getAttribute('position');
+  const sectionPickedCell = pickedCellLine(
+    SECTION_X,
+    sectionPosition.count * 2
+  );
   scene.add(
     perspectiveSurface.object,
     coordinateSurface.object,
@@ -305,11 +334,15 @@ function rebuildState(): void {
     coordinateEdges.object,
     section.object,
     perspectivePins,
-    coordinatePins
+    coordinatePins,
+    perspectivePickedCell,
+    coordinatePickedCell,
+    sectionPickedCell
   );
   state = {
     mode,
     source,
+    tetrahedronGroup,
     network,
     measureFamily,
     orientedFamily,
@@ -324,6 +357,9 @@ function rebuildState(): void {
     section,
     perspectivePins,
     coordinatePins,
+    perspectivePickedCell,
+    coordinatePickedCell,
+    sectionPickedCell,
     pinnedVertices,
     positionsAreDisjoint: network.particles.every(
       (particle) => particle.position.data.buffer !== source.positions.buffer
@@ -356,7 +392,10 @@ function disposeState(): void {
     state.coordinateEdges.object,
     state.section.object,
     state.perspectivePins,
-    state.coordinatePins
+    state.coordinatePins,
+    state.perspectivePickedCell,
+    state.coordinatePickedCell,
+    state.sectionPickedCell
   );
   state.perspectiveSurface.dispose();
   state.coordinateSurface.dispose();
@@ -365,6 +404,9 @@ function disposeState(): void {
   state.section.dispose();
   disposePoints(state.perspectivePins);
   disposePoints(state.coordinatePins);
+  disposeLine(state.perspectivePickedCell);
+  disposeLine(state.coordinatePickedCell);
+  disposeLine(state.sectionPickedCell);
   state = null;
 }
 
@@ -395,6 +437,7 @@ function updateRepresentations(): void {
   updatePins(state.perspectivePins, state.pinnedVertices, state.perspective);
   updatePins(state.coordinatePins, state.pinnedVertices, state.coordinate);
   updateSelectedEdge();
+  updatePickedSelection();
   updateEvidence();
 }
 
@@ -423,6 +466,31 @@ function updateSelectedEdge(): void {
   const chart = sectionChart(ambient);
   crossingMarker.position.set(chart[0] + SECTION_X, chart[1], chart[2]);
   crossingMarker.visible = true;
+}
+
+function updatePickedSelection(): void {
+  if (state === null) return;
+  if (pickedSelection === null) {
+    clearLine(state.perspectivePickedCell);
+    clearLine(state.coordinatePickedCell);
+    clearLine(state.sectionPickedCell);
+    return;
+  }
+  updateProjectedPickedCell(
+    state.perspectivePickedCell,
+    pickedSelection.vertexIndices,
+    state.perspective
+  );
+  updateProjectedPickedCell(
+    state.coordinatePickedCell,
+    pickedSelection.vertexIndices,
+    state.coordinate
+  );
+  updateSectionPickedCell(
+    state.sectionPickedCell,
+    state.section,
+    pickedSelection.tetrahedronIndices
+  );
 }
 
 function updateEvidence(): void {
@@ -534,6 +602,9 @@ function updateEvidence(): void {
     sectionText = `section: no incidence · endpoint distances [${signedA.toFixed(4)}, ${signedB.toFixed(4)}] · ${state.section.triangleCount} rendered triangles`;
   }
   document.getElementById('sectionEvidence')!.textContent = sectionText;
+  document.getElementById('pickEvidence')!.textContent = pickedSelection === null
+    ? selectionNotice
+    : pickedSelectionEvidence(pickedSelection);
 
   let writeAgreement = 0;
   let hiddenDrift = 0;
@@ -550,6 +621,29 @@ function updateEvidence(): void {
   const residual = state.lastStep?.maxAbsCompliantResidual ?? 0;
   document.getElementById('stateEvidence')!.textContent =
     `copied buffers ${state.positionsAreDisjoint ? 'disjoint' : 'ALIASED'} · explicit write max Δ ${scientific(writeAgreement)} · max |w| ${scientific(hiddenDrift)}${state.mode === 'r3' && hiddenDrift === 0 ? ' exact-zero' : ''} · mixed-coordinate max residual ${scientific(residual)}`;
+}
+
+function pickedSelectionEvidence(
+  selection: MechanicsWorkbenchSourceSelection
+): string {
+  const hit = selection.hit;
+  if (state === null || hit.source.kind !== 'cell') {
+    return 'selection unavailable';
+  }
+  const source = hit.source;
+  const id = source.id === undefined
+    ? `cell ${source.cellIndex}`
+    : `${source.id.groupKeyKind}:${source.id.groupKey}/${source.id.cellIndex}`;
+  let sectionTriangles = 0;
+  for (let face = 0; face < state.section.triangleCount; face++) {
+    if (selection.tetrahedronIndices.includes(state.section.sourceTetOfFace(face))) {
+      sectionTriangles++;
+    }
+  }
+  const representation = hit.representation === 'sliced-complex'
+    ? 'section'
+    : 'projection';
+  return `picked ${representation} → ${id} · simplex [${selection.vertexIndices.join(', ')}] · incident tets ${selection.tetrahedronIndices.length} · section faces ${sectionTriangles} · point ${hit.ambientPointStatus} at pick · ${hit.ambiguity}`;
 }
 
 function selectedConstraintResult(id: string): XpbdConstraintResultN | undefined {
@@ -604,6 +698,99 @@ function selectedEdgeLine(offsetX: number): LineSegments {
   line.renderOrder = 19;
   line.frustumCulled = false;
   return line;
+}
+
+function pickedCellLine(offsetX: number, capacity: number): LineSegments {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new BufferAttribute(new Float32Array(capacity * 3), 3)
+  );
+  geometry.setDrawRange(0, 0);
+  const line = new LineSegments(
+    geometry,
+    new LineBasicMaterial({
+      color: 0xff63d8,
+      transparent: true,
+      opacity: 1,
+      depthTest: false
+    })
+  );
+  line.position.x = offsetX;
+  line.renderOrder = 22;
+  line.frustumCulled = false;
+  return line;
+}
+
+function updateProjectedPickedCell(
+  line: LineSegments,
+  vertices: readonly number[],
+  projection: Projection
+): void {
+  const attribute = line.geometry.getAttribute('position') as BufferAttribute;
+  let output = 0;
+  for (let from = 0; from < vertices.length; from++) {
+    const projectedFrom = projection.projectPoint(sourcePoint(vertices[from]!));
+    for (let to = from + 1; to < vertices.length; to++) {
+      const projectedTo = projection.projectPoint(sourcePoint(vertices[to]!));
+      if (output + 2 > attribute.count) {
+        throw new Error('mechanics workbench: picked-cell overlay capacity exceeded');
+      }
+      attribute.setXYZ(
+        output++,
+        projectedFrom[0],
+        projectedFrom[1],
+        projectedFrom[2]
+      );
+      attribute.setXYZ(
+        output++,
+        projectedTo[0],
+        projectedTo[1],
+        projectedTo[2]
+      );
+    }
+  }
+  line.geometry.setDrawRange(0, output);
+  attribute.needsUpdate = true;
+}
+
+function updateSectionPickedCell(
+  line: LineSegments,
+  section: SlicedComplex3D,
+  tetrahedronIndices: Uint32Array
+): void {
+  const source = section.geometry.getAttribute('position') as BufferAttribute;
+  const target = line.geometry.getAttribute('position') as BufferAttribute;
+  let output = 0;
+  for (let face = 0; face < section.triangleCount; face++) {
+    if (!tetrahedronIndices.includes(section.sourceTetOfFace(face))) continue;
+    const corners = [face * 3, face * 3 + 1, face * 3 + 2] as const;
+    for (const [from, to] of [[0, 1], [1, 2], [2, 0]] as const) {
+      if (output + 2 > target.count) {
+        throw new Error('mechanics workbench: section overlay capacity exceeded');
+      }
+      const sourceFrom = corners[from]!;
+      const sourceTo = corners[to]!;
+      target.setXYZ(
+        output++,
+        source.getX(sourceFrom),
+        source.getY(sourceFrom),
+        source.getZ(sourceFrom)
+      );
+      target.setXYZ(
+        output++,
+        source.getX(sourceTo),
+        source.getY(sourceTo),
+        source.getZ(sourceTo)
+      );
+    }
+  }
+  line.geometry.setDrawRange(0, output);
+  target.needsUpdate = true;
+}
+
+function clearLine(line: LineSegments): void {
+  line.geometry.setDrawRange(0, 0);
 }
 
 function selectedEdgePoints(geometry: BufferGeometry, offsetX: number): Points {
@@ -671,6 +858,13 @@ function disposePoints(points: Points): void {
   else material.dispose();
 }
 
+function disposeLine(line: LineSegments): void {
+  line.geometry.dispose();
+  const material = line.material;
+  if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
+  else material.dispose();
+}
+
 function scientific(value: number): string {
   return value === 0 ? '0.000e+0' : value.toExponential(3);
 }
@@ -720,6 +914,75 @@ pauseButton.addEventListener('click', () => {
   pauseButton.textContent = paused ? 'resume' : 'pause';
 });
 resetButton.addEventListener('click', rebuildState);
+
+let pointerStart: { readonly id: number; readonly x: number; readonly y: number } | null =
+  null;
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return;
+  pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+});
+renderer.domElement.addEventListener('pointerup', (event) => {
+  if (pointerStart === null || pointerStart.id !== event.pointerId) return;
+  const movement = Math.hypot(
+    event.clientX - pointerStart.x,
+    event.clientY - pointerStart.y
+  );
+  pointerStart = null;
+  if (movement <= 4) selectRepresentationAt(event.clientX, event.clientY);
+});
+renderer.domElement.addEventListener('pointercancel', () => {
+  pointerStart = null;
+});
+
+function selectRepresentationAt(clientX: number, clientY: number): void {
+  if (state === null) return;
+  const bounds = renderer.domElement.getBoundingClientRect();
+  pointer.set(
+    ((clientX - bounds.left) / bounds.width) * 2 - 1,
+    -((clientY - bounds.top) / bounds.height) * 2 + 1
+  );
+  raycaster.setFromCamera(pointer, camera);
+  const intersections = raycaster.intersectObjects([
+    state.perspectiveSurface.object,
+    state.coordinateSurface.object,
+    state.section.object
+  ]);
+  const intersection = intersections[0];
+  if (intersection === undefined) {
+    pickedSelection = null;
+    selectionNotice = 'selection cleared · click a rendered surface to inspect its source';
+    updatePickedSelection();
+    updateEvidence();
+    return;
+  }
+
+  try {
+    if (intersection.faceIndex === undefined || intersection.faceIndex === null) {
+      throw new Error('rendered surface did not report a triangle index');
+    }
+    const input = {
+      point: intersection.point,
+      faceIndex: intersection.faceIndex
+    };
+    const hit = intersection.object === state.perspectiveSurface.object
+      ? representationHitFromProjectedSurface(state.perspectiveSurface, input)
+      : intersection.object === state.coordinateSurface.object
+        ? representationHitFromProjectedSurface(state.coordinateSurface, input)
+        : representationHitFromSlicedComplex(state.section, input);
+    pickedSelection = resolveMechanicsWorkbenchSourceSelection(
+      hit,
+      state.tetrahedronGroup
+    );
+    selectionNotice = '';
+  } catch (error) {
+    pickedSelection = null;
+    selectionNotice = `selection refused · ${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  }
+  updatePickedSelection();
+  updateEvidence();
+}
 
 window.addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
