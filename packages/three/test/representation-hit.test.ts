@@ -384,8 +384,15 @@ describe('unified representation provenance', () => {
     const product = new SlicedComplex3D(complex, slice);
     product.object.position.set(3, -2, 1);
     product.object.updateWorldMatrix(true, false);
+    const positions = product.geometry.getAttribute('position');
+    const local = new Vector3(
+      (positions.getX(0) + positions.getX(1) + positions.getX(2)) / 3,
+      (positions.getY(0) + positions.getY(1) + positions.getY(2)) / 3,
+      (positions.getZ(0) + positions.getZ(1) + positions.getZ(2)) / 3
+    );
+    const world = product.object.localToWorld(local.clone());
     const hit = representationHitFromSlicedComplex(product, {
-      point: new Vector3(3.2, -2.3, 1.4),
+      point: world,
       faceIndex: 0
     });
 
@@ -398,7 +405,7 @@ describe('unified representation provenance', () => {
     expect(hit.details?.sliceConstruction).toBe('edge-interpolation');
     expect((hit.details?.crossingEdgeVertices as readonly number[]).length).toBe(6);
     expect((hit.details?.crossingParameters as readonly number[]).length).toBe(3);
-    expectCoordinatesClose(hit.ambientPoint!.data, [0.2, -0.3, 0.4, 0.25]);
+    expectCoordinatesClose(hit.ambientPoint!.data, slice.embedPoint(local.toArray()));
     expect(hit.source.kind).toBe('cell');
     if (hit.source.kind === 'cell') {
       expect(hit.source.intrinsicDim).toBe(3);
@@ -415,8 +422,13 @@ describe('unified representation provenance', () => {
       HyperplaneSlice4.axisAligned(3, 0.25),
       { projection: new PerspectiveProjection({ fromDim: 4, viewDistance: 4 }) }
     );
+    const positions = product.geometry.getAttribute('position');
     const hit = representationHitFromSlicedComplex(product, {
-      point: new Vector3(0.2, -0.3, 0.4),
+      point: new Vector3(
+        (positions.getX(0) + positions.getX(1) + positions.getX(2)) / 3,
+        (positions.getY(0) + positions.getY(1) + positions.getY(2)) / 3,
+        (positions.getZ(0) + positions.getZ(1) + positions.getZ(2)) / 3
+      ),
       faceIndex: 0
     });
 

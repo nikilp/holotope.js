@@ -97,18 +97,10 @@ describe('capability verbs', () => {
       }
     }
 
-    // Every one of these is `attributeTransport`, plus the lift and forward
-    // evaluation on the record-dependent recipes. The table declares transport
-    // at `exact` for six recipe kinds and no exported symbol in the package is
-    // named for it, so a caller cannot act on the declaration at all. Pinned
-    // rather than hidden: shrinking this list is the work, and growing it
-    // without noticing is what the pin prevents.
+    // Attribute transport is no longer advertised for geometric recipes that
+    // have no performing verb. The remaining gaps are explicitly
+    // record-dependent or approximate operations.
     expect(unnamed).toEqual([
-      'affine-section.attributeTransport',
-      'affine-slice-chart.attributeTransport',
-      'orthographic-projection.attributeTransport',
-      'coordinate-subspace-projection.attributeTransport',
-      'iterated-perspective-projection.attributeTransport',
       'field-restriction.pointLift',
       'field-restriction.attributeTransport',
       'sampled-isosurface.pointLift',

@@ -123,6 +123,12 @@ export {
   type RepresentationSourceIdentityCapability
 } from './map-capabilities.js';
 export {
+  createAffineSectionCellChart4N,
+  resolveRepresentationChartPointToSourceCellN,
+  type RepresentationCellChartN,
+  type RepresentationChartSourceCellResolutionN
+} from './chart-source-cell.js';
+export {
   evaluateRepresentationLineagePointN,
   type ExactRepresentationLineagePointN,
   type RepresentationLineageEvidenceValue,

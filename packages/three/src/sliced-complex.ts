@@ -8,12 +8,18 @@ import {
   type Material
 } from 'three';
 import {
+  VecN,
+  affineSectionMapRecipe4,
+  affineSliceChartMapRecipe4,
+  createRepresentationLineageN,
   createSourceCellReferenceN,
+  projectionMapRecipeN,
   sliceTetrahedra,
   sliceTetrahedraAmbient,
   type CellComplex,
   type HyperplaneSlice4,
   type Projection,
+  type RepresentationCellChartN,
   type SliceVertexProvenanceBuffers,
   type SourceCellReferenceN,
   type TransformN
@@ -75,6 +81,7 @@ export class SlicedComplex3D {
   private readonly crossingProvenance: SliceVertexProvenanceBuffers;
   private readonly colorAttribute: BufferAttribute | undefined;
   private readonly tetColors: Float32Array | undefined;
+  private sourceTransform: TransformN | undefined;
 
   /**
    * Builds the section product and allocates for the largest section the
@@ -205,8 +212,10 @@ export class SlicedComplex3D {
     const count = this.complex.vertexCount;
     if (transform) {
       transform.applyToPositions(this.complex.positions, this.worldPositions, count);
+      this.sourceTransform = transform.clone();
     } else {
       this.worldPositions.set(this.complex.positions);
+      this.sourceTransform = undefined;
     }
     let vertexCount: number;
     if (this.projection && this.ambientSection) {
@@ -322,6 +331,40 @@ export class SlicedComplex3D {
   /** Lifecycle-aware reference to the source tetrahedron of a rendered face. */
   sourceReferenceOfFace(faceIndex: number): SourceCellReferenceN {
     return this.sourceReferenceOfTet(this.sourceTetOfFace(faceIndex));
+  }
+
+  /**
+   * Renderer-independent chart record used to resolve visible points back to
+   * retained source cells. A projected section preserves the triangle-to-cell
+   * record but honestly marks its point lift unavailable.
+   */
+  sourceCellChart(): RepresentationCellChartN {
+    const pointLift = this.projection === undefined
+      ? {
+          kind: 'exact' as const,
+          lift: (point: ArrayLike<number>) => new VecN(this.slice.embedPoint(point))
+        }
+      : {
+          kind: 'unavailable' as const,
+          reason: 'projection-ambiguous' as const
+        };
+    return {
+      kind: 'representation-cell-chart',
+      lineage: createRepresentationLineageN(4, [
+        affineSectionMapRecipe4(this.slice),
+        this.projection === undefined
+          ? affineSliceChartMapRecipe4(this.slice)
+          : projectionMapRecipeN(this.projection)
+      ]),
+      trianglePositions: this.positionAttribute.array as Float32Array,
+      triangleCount: this.triangleCount,
+      sourceCellIndices: this.provenance,
+      sourceCells: this.tetReferences,
+      pointLift,
+      ...(this.sourceTransform === undefined
+        ? {}
+        : { sourceTransform: this.sourceTransform.clone() })
+    };
   }
 
   /** Source edge and exact interpolation parameter of one rendered corner. */

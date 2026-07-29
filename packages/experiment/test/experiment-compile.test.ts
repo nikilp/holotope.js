@@ -146,7 +146,7 @@ describe('@holotope/experiment compilation registry', () => {
       pointForward: 'conditional',
       pointLift: 'conditional',
       inverseFibre: 'exact',
-      attributeTransport: 'conditional',
+      attributeTransport: 'unavailable',
       sourceIdentity: 'preserved'
     });
 
@@ -192,7 +192,7 @@ describe('@holotope/experiment compilation registry', () => {
       pointForward: 'conditional',
       pointLift: 'exact',
       inverseFibre: 'unavailable',
-      attributeTransport: 'exact',
+      attributeTransport: 'unavailable',
       sourceIdentity: 'preserved'
     });
     if (section.map.kind !== 'slice4') throw new Error('expected slice map');

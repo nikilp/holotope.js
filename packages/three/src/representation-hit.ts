@@ -5,11 +5,13 @@ import {
   createRepresentationLineageN,
   createSourceCellIdN,
   fieldRestrictionMapRecipe4,
-  projectionMapRecipeN
+  projectionMapRecipeN,
+  resolveRepresentationChartPointToSourceCellN
 } from '@holotope/core';
 import type {
   FieldEvaluation4,
   RepresentationDetailValue,
+  RepresentationChartSourceCellResolutionN,
   RepresentationHitN,
   SampledIsosurfaceMapRecipe3
 } from '@holotope/core';
@@ -114,11 +116,33 @@ export function representationHitFromSlicedComplex(
     intersection,
     'representationHitFromSlicedComplex'
   );
-  const tetIndex = product.sourceTetOfFace(faceIndex);
+  const pointLocal = representationPointLocal(product.object, intersection.point);
+  const chart = product.sourceCellChart();
+  const chartTolerance = chart.trianglePositions instanceof Float32Array
+    ? 1e-6
+    : 1e-9;
+  const resolved: RepresentationChartSourceCellResolutionN =
+    resolveRepresentationChartPointToSourceCellN(
+      chart,
+      pointLocal.toArray(),
+      {
+        triangleIndex: faceIndex,
+        // Three.js geometry stores chart vertices as Float32 today; retaining
+        // the check keeps a future Float64 adapter on the tighter path.
+        chartTolerance,
+        sourceTolerance: chartTolerance
+      }
+    );
+  if (resolved.kind !== 'resolved') {
+    throw new Error(
+      `representationHitFromSlicedComplex: source cell ${resolved.reason}`
+    );
+  }
+  const tetIndex = product.sourceTetOfFace(resolved.triangleIndex);
   const crossings = product.sourceCrossingsOfFace(faceIndex);
-  const sourceReference = product.sourceReferenceOfTet(tetIndex);
-  const ambientPoint = product.projection === undefined
-    ? embedLocalSlicePoint(product.object, product.slice, intersection.point)
+  const sourceReference = resolved.reference;
+  const ambientPoint = resolved.sourceCoordinate.kind === 'exact'
+    ? resolved.sourceCoordinate.ambientPoint
     : undefined;
   return {
     representation: 'sliced-complex',

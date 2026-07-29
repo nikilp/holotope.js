@@ -60,23 +60,23 @@ describe('representation map capabilities', () => {
     expect(recipes.map((recipe) => representationMapCapabilitiesN(recipe))).toEqual([
       {
         pointForward: 'conditional', pointLift: 'exact', inverseFibre: 'unavailable',
-        attributeTransport: 'exact', sourceIdentity: 'preserved'
+        attributeTransport: 'unavailable', sourceIdentity: 'preserved'
       },
       {
         pointForward: 'conditional', pointLift: 'exact', inverseFibre: 'unavailable',
-        attributeTransport: 'exact', sourceIdentity: 'preserved'
+        attributeTransport: 'unavailable', sourceIdentity: 'preserved'
       },
       {
         pointForward: 'exact', pointLift: 'unavailable', inverseFibre: 'exact',
-        attributeTransport: 'exact', sourceIdentity: 'preserved'
+        attributeTransport: 'unavailable', sourceIdentity: 'preserved'
       },
       {
         pointForward: 'exact', pointLift: 'unavailable', inverseFibre: 'exact',
-        attributeTransport: 'exact', sourceIdentity: 'preserved'
+        attributeTransport: 'unavailable', sourceIdentity: 'preserved'
       },
       {
         pointForward: 'conditional', pointLift: 'conditional', inverseFibre: 'exact',
-        attributeTransport: 'conditional', sourceIdentity: 'preserved'
+        attributeTransport: 'unavailable', sourceIdentity: 'preserved'
       },
       {
         pointForward: 'unavailable', pointLift: 'unavailable', inverseFibre: 'unavailable',
@@ -107,7 +107,7 @@ describe('representation map capabilities', () => {
       pointForward: 'conditional',
       pointLift: 'exact',
       inverseFibre: 'unavailable',
-      attributeTransport: 'exact',
+      attributeTransport: 'unavailable',
       sourceIdentity: 'preserved'
     });
 
@@ -118,7 +118,7 @@ describe('representation map capabilities', () => {
       pointForward: 'conditional',
       pointLift: 'conditional',
       inverseFibre: 'exact',
-      attributeTransport: 'conditional',
+      attributeTransport: 'unavailable',
       sourceIdentity: 'preserved'
     });
   });

@@ -39,12 +39,12 @@ export function representationMapCapabilitiesN(
   switch (recipe.kind) {
     case 'affine-section':
     case 'affine-slice-chart':
-      return capabilities('conditional', 'exact', 'unavailable', 'exact', 'preserved');
+      return capabilities('conditional', 'exact', 'unavailable', 'unavailable', 'preserved');
     case 'orthographic-projection':
     case 'coordinate-subspace-projection':
-      return capabilities('exact', 'unavailable', 'exact', 'exact', 'preserved');
+      return capabilities('exact', 'unavailable', 'exact', 'unavailable', 'preserved');
     case 'iterated-perspective-projection':
-      return capabilities('conditional', 'conditional', 'exact', 'conditional', 'preserved');
+      return capabilities('conditional', 'conditional', 'exact', 'unavailable', 'preserved');
     case 'custom-projection':
       return capabilities('unavailable', 'unavailable', 'unavailable', 'unavailable', 'preserved');
     case 'field-restriction':

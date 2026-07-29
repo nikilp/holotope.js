@@ -1,4 +1,9 @@
-import { VecN, sliceTetrahedra } from '@holotope/core';
+import {
+  VecN,
+  createAffineSectionCellChart4N,
+  resolveRepresentationChartPointToSourceCellN,
+  sliceTetrahedra
+} from '@holotope/core';
 import {
   decodeFloat64BufferV0,
   encodeFloat64BufferV0
@@ -1713,70 +1718,38 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
     const ambient = entry.map.slice.embedPoint(
       [chart[0]!, chart[1]!, chart[2]!]
     );
-    const located = this.locateSectionCell(entry, chart);
+    const sourceEntry = this.registry.get(entry.source);
+    const pose = resolvePose(entry.pose, this.registry);
+    const located = sourceEntry !== undefined && sourceEntry.category === 'source'
+      ? resolveRepresentationChartPointToSourceCellN(
+          createAffineSectionCellChart4N(
+            sourceEntry.complex,
+            entry.map.slice,
+            pose === null ? {} : { transform: pose }
+          ),
+          chart
+        )
+      : null;
     return {
       ok: true,
       value: {
         ambientPointStatus: 'exact',
         ambientPoint: [ambient[0], ambient[1], ambient[2], ambient[3]],
-        ...(located === null ? {} : { sourceCell: located }),
+        ...(
+          located !== null && located.kind === 'resolved'
+            ? {
+                sourceCell: {
+                  groupKey:
+                    located.reference.group.key ??
+                    `dim3/${located.reference.group.kind}`,
+                  ordinal: located.reference.cellIndex
+                }
+              }
+            : {}
+        ),
         lineageKind
       }
     };
-  }
-
-  /** The emitted section triangle containing a chart point, if any. */
-  private locateSectionCell(
-    entry: ExperimentCompiledRepresentationV0,
-    chart: readonly number[]
-  ): { readonly groupKey: string; readonly ordinal: number } | null {
-    const sourceEntry = this.registry.get(entry.source);
-    if (sourceEntry === undefined || sourceEntry.category !== 'source') return null;
-    if (entry.map.kind !== 'slice4') return null;
-    const complex = sourceEntry.complex;
-
-    const groups = complex.cellsOfDim(3)
-      .filter((group) => group.kind === 'simplex' && group.verticesPerCell === 4);
-    let length = 0;
-    for (const group of groups) length += group.indices.length;
-    if (length === 0) return null;
-    const tets = new Uint32Array(length);
-    let at = 0;
-    for (const group of groups) {
-      tets.set(group.indices, at);
-      at += group.indices.length;
-    }
-
-    const world = new Float64Array(complex.positions.length);
-    const pose = resolvePose(entry.pose, this.registry);
-    if (pose === null) world.set(complex.positions);
-    else pose.applyToPositions(complex.positions, world, complex.vertexCount);
-
-    const out = new Float32Array((tets.length / 4) * 18);
-    const provenance = new Uint32Array((tets.length / 4) * 6);
-    const emitted = sliceTetrahedra(
-      world, tets, entry.map.slice, out, undefined, provenance
-    );
-
-    for (let triangle = 0; triangle < emitted / 3; triangle++) {
-      const base = triangle * 9;
-      if (containsPoint(out, base, chart)) {
-        const tet = provenance[triangle]!;
-        let seen = 0;
-        for (const group of groups) {
-          const count = group.indices.length / group.verticesPerCell;
-          if (tet < seen + count) {
-            return Object.freeze({
-              groupKey: group.key ?? `dim3/${group.kind}`,
-              ordinal: tet - seen
-            });
-          }
-          seen += count;
-        }
-        return null;
-      }
-    }
-    return null;
   }
 
   dispose(): ExperimentResult<ExperimentCompilationDisposalV0> {
@@ -2465,44 +2438,4 @@ function readSteps(args: ExperimentJsonValue): number | null {
   return typeof steps === 'number' && Number.isSafeInteger(steps) && steps > 0
     ? steps
     : null;
-}
-
-/**
- * Whether a chart point lies in one emitted section triangle.
- *
- * Barycentric, in the slice's own 3D display frame. Emitted triangles are
- * planar in that frame by construction, so the third coordinate is compared
- * against the plane rather than ignored.
- */
-function containsPoint(
-  out: Float32Array,
-  base: number,
-  chart: readonly number[]
-): boolean {
-  const ax = out[base]!, ay = out[base + 1]!, az = out[base + 2]!;
-  const bx = out[base + 3]!, by = out[base + 4]!, bz = out[base + 5]!;
-  const cx = out[base + 6]!, cy = out[base + 7]!, cz = out[base + 8]!;
-  const v0x = bx - ax, v0y = by - ay, v0z = bz - az;
-  const v1x = cx - ax, v1y = cy - ay, v1z = cz - az;
-  const v2x = chart[0]! - ax, v2y = chart[1]! - ay, v2z = chart[2]! - az;
-
-  const d00 = v0x * v0x + v0y * v0y + v0z * v0z;
-  const d01 = v0x * v1x + v0y * v1y + v0z * v1z;
-  const d11 = v1x * v1x + v1y * v1y + v1z * v1z;
-  const d20 = v2x * v0x + v2y * v0y + v2z * v0z;
-  const d21 = v2x * v1x + v2y * v1y + v2z * v1z;
-  const denominator = d00 * d11 - d01 * d01;
-  if (!(Math.abs(denominator) > 0)) return false;
-
-  const v = (d11 * d20 - d01 * d21) / denominator;
-  const w = (d00 * d21 - d01 * d20) / denominator;
-  const u = 1 - v - w;
-  const tolerance = 1e-9;
-  if (u < -tolerance || v < -tolerance || w < -tolerance) return false;
-
-  // Reject a point that projects inside but sits off the triangle's plane.
-  const px = ax + v * v0x + w * v1x;
-  const py = ay + v * v0y + w * v1y;
-  const pz = az + v * v0z + w * v1z;
-  return Math.hypot(px - chart[0]!, py - chart[1]!, pz - chart[2]!) <= 1e-6;
 }

@@ -141,7 +141,6 @@
   "core:SourceEdgeProjectionFitOptions",
   "core:SourceEdgeProjectionN",
   "core:SourceEdgeProjectionObservationN",
-  "core:SourceSimplexCoordinateN",
   "core:SourceSimplexCoordinateOptions",
   "core:SourceSimplexObservationDiagnosticN",
   "core:SourceSimplexObservationFitFailureReason",
