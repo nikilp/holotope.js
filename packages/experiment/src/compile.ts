@@ -3,6 +3,7 @@ import {
   createAffineSectionCellChart4N,
   resolveRepresentationChartPointToSourceCellN,
   sliceTetrahedra,
+  type RepresentationCellChartN,
   type RepresentationChartSourceCellResolutionN
 } from '@holotope/core';
 import {
@@ -1797,7 +1798,7 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
     const sourceEntry = this.registry.get(entry.source);
     const pose = resolvePose(entry.pose, this.registry);
     const located = sourceEntry !== undefined && sourceEntry.category === 'source'
-      ? resolveRepresentationChartPointToSourceCellN(
+      ? resolveSourceCellForChartPoint(
           createAffineSectionCellChart4N(
             sourceEntry.complex,
             entry.map.slice,
@@ -1954,6 +1955,60 @@ function sourceCellStatusForReason(
 }
 
 /**
+ * Bound for a chart point that reached the runtime through a renderer.
+ *
+ * Three.js stores chart vertices as Float32, so a ray hit lies on a triangle
+ * whose plane is displaced from the exact one by roughly 1e-7 — the point is
+ * on the drawn surface and slightly off the true one. This is the same bound
+ * `representationHitFromSlicedComplex` already applies for the same reason.
+ */
+const RENDERER_SOURCE_TOLERANCE = 1e-6;
+
+/** A resolution together with the bound that produced it. */
+interface LocatedSourceCellV0 {
+  readonly resolution: RepresentationChartSourceCellResolutionN;
+  readonly precision: 'exact' | 'renderer';
+}
+
+/**
+ * Resolves a chart point, retrying once at renderer precision when — and only
+ * when — the resolver has already established a single candidate.
+ *
+ * The tight source tolerance exists to stop a point near a shared edge being
+ * attributed to the wrong cell. That risk is real: 60 of the 72 edges of a
+ * tesseract's section join triangles from different source cells. It is also
+ * confined to a ribbon one containment tolerance wide, about 5.4e-6 of the
+ * pickable surface, and inside it `matchingSourceCells` is greater than one.
+ *
+ * So the tolerance is doing two different jobs. Where several cells match it
+ * disambiguates, and must stay tight. Where exactly one matches there is
+ * nothing to disambiguate and it is only a plausibility bound, which can be
+ * evaluated at the precision the caller's coordinate actually carries. Widening
+ * on that condition cannot move a point to a neighbouring cell, because there
+ * is no neighbouring candidate to move it to.
+ *
+ * The retry is bounded, not unlimited: a point further off the surface than a
+ * renderer could put it stays refused.
+ */
+function resolveSourceCellForChartPoint(
+  chart: RepresentationCellChartN,
+  point: readonly number[]
+): LocatedSourceCellV0 {
+  const exact = resolveRepresentationChartPointToSourceCellN(chart, point);
+  if (exact.kind === 'resolved'
+    || exact.reason !== 'source-coordinate-mismatch'
+    || exact.matchingSourceCells !== 1) {
+    return { resolution: exact, precision: 'exact' };
+  }
+  const widened = resolveRepresentationChartPointToSourceCellN(chart, point, {
+    sourceTolerance: RENDERER_SOURCE_TOLERANCE
+  });
+  return widened.kind === 'resolved'
+    ? { resolution: widened, precision: 'renderer' }
+    : { resolution: exact, precision: 'exact' };
+}
+
+/**
  * Reports the resolver's decision instead of discarding it.
  *
  * A probe used to answer with `sourceCell` present or simply absent, so a
@@ -1962,11 +2017,12 @@ function sourceCellStatusForReason(
  * already carries a typed reason and its match counts.
  */
 function describeSourceCellResolution(
-  located: RepresentationChartSourceCellResolutionN | null
+  found: LocatedSourceCellV0 | null
 ): Record<string, ExperimentJsonValue> {
-  if (located === null) {
+  if (found === null) {
     return { sourceCellStatus: 'source-not-compiled' };
   }
+  const located = found.resolution;
   if (located.kind === 'resolved') {
     const coordinate = located.sourceCoordinate;
     return {
@@ -1978,6 +2034,7 @@ function describeSourceCellResolution(
         ordinal: located.reference.cellIndex
       },
       triangleIndex: located.triangleIndex,
+      sourceCellPrecision: found.precision,
       sourceCoordinateStatus:
         coordinate.kind === 'exact' ? 'exact' : coordinate.reason,
       ...(coordinate.kind === 'exact'

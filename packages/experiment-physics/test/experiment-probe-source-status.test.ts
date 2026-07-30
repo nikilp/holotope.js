@@ -1,4 +1,8 @@
-import { sliceTetrahedra, type CellComplex } from '@holotope/core';
+import {
+  createAffineSectionCellChart4N,
+  sliceTetrahedra,
+  type CellComplex
+} from '@holotope/core';
 import {
   coreExperimentCompilerV0,
   compileExperimentDocumentV0,
@@ -20,6 +24,11 @@ import { physicsExperimentCompilerV0 } from '../src/index.js';
  * caller could not tell a miss from a refusal, and a renderer-derived point
  * looked like a successful probe of nothing. The second case is the one a
  * caller can act on.
+ *
+ * It is also the case the runtime can now settle itself. Where exactly one
+ * source cell matches, the residual bound is evaluated at renderer precision
+ * and the answer resolves, reporting which bound produced it. These tests pin
+ * both halves: what the widening rescues, and what it must still refuse.
  */
 
 const PROBE_ARGS = {
@@ -170,9 +179,51 @@ function emittedTriangleCentroid(compilation: ExperimentCompilationV0): number[]
   );
 }
 
+/**
+ * Midpoint of a section edge shared by triangles from different source cells.
+ *
+ * These are not rare — most of a tesseract section's edges are cross-cell — but
+ * the neighbourhood where the resolver cannot choose between them is only a
+ * containment tolerance wide, so it has to be constructed rather than stumbled
+ * upon.
+ */
+function crossCellEdgeMidpoint(compilation: ExperimentCompilationV0): number[] {
+  const section = unwrap<ExperimentCompiledRepresentationV0>(
+    compilation.get('section')
+  );
+  if (section.map.kind !== 'slice4') throw new Error('unreachable');
+  const complex = unwrap<{ complex: CellComplex }>(
+    compilation.get('tesseract')
+  ).complex;
+  const chart = createAffineSectionCellChart4N(complex, section.map.slice);
+  const positions = chart.trianglePositions;
+  const corner = (triangle: number, index: number): number[] =>
+    [0, 1, 2].map((axis) => positions[triangle * 9 + index * 3 + axis]!);
+  const label = (triangle: number, index: number): string =>
+    corner(triangle, index).map((value) => value.toFixed(9)).join(',');
+
+  const edges = new Map<string, { a: number[]; b: number[]; cells: Set<number> }>();
+  for (let triangle = 0; triangle < chart.triangleCount; triangle += 1) {
+    for (const [from, to] of [[0, 1], [1, 2], [2, 0]]) {
+      const key = [label(triangle, from), label(triangle, to)].sort().join('|');
+      const entry = edges.get(key)
+        ?? { a: corner(triangle, from), b: corner(triangle, to), cells: new Set<number>() };
+      entry.cells.add(chart.sourceCellIndices[triangle]!);
+      edges.set(key, entry);
+    }
+  }
+  for (const entry of edges.values()) {
+    if (entry.cells.size > 1) {
+      return [0, 1, 2].map((axis) => (entry.a[axis]! + entry.b[axis]!) / 2);
+    }
+  }
+  throw new Error('no section edge joins two source cells');
+}
+
 type ProbeOutput = {
   readonly ambientPointStatus: string;
   readonly sourceCellStatus: string;
+  readonly sourceCellPrecision?: string;
   readonly sourceCell?: { groupKey: string; ordinal: number };
   readonly triangleIndex?: number;
   readonly sourceCoordinateStatus?: string;
@@ -214,27 +265,64 @@ describe('probe source-cell status', () => {
     expect(output.matchingSourceCells).toBe(0);
   });
 
-  it('separates precision refusal from a miss, just outside a section face', async () => {
+  it('resolves a renderer-precision point and says which bound did it', async () => {
     const compilation = await compiled();
     const { centroid, normal } = emittedTriangle(compilation);
 
-    // Lift the triangle's own interior point off the plane of that triangle,
-    // staying inside the chart. The source tetrahedron meets the cutting
-    // hyperplane in exactly this polygon, so a point 3e-7 off its plane is
-    // outside the tetrahedron by far more than the 1e-9 source tolerance while
-    // remaining well inside the 1e-6 containment tolerance. An interior point
-    // keeps the pick unambiguous, which a polygon corner would not.
-    const outside = [0, 1, 2].map(
+    // A ray hit lands on the Float32 triangle, whose plane is about 1e-7 off
+    // the exact one, so the point is slightly off the true surface. Exactly one
+    // source cell contains it, so there is nothing it could be misattributed to.
+    const rendererPoint = [0, 1, 2].map(
       (axis) => centroid[axis]! + normal[axis]! * 3e-7
     );
+    const output = probe(compilation, 'section', rendererPoint);
 
-    const output = probe(compilation, 'section', outside);
+    expect(output.sourceCellStatus).toBe('resolved');
+    expect(output.sourceCell?.ordinal).toBeGreaterThanOrEqual(0);
+    expect(output.sourceCellPrecision).toBe('renderer');
+    // The widened bound is reported, not hidden: the residual is well above the
+    // exact tolerance and well below the renderer one.
+    expect(output.sourceResidual).toBeGreaterThan(1e-9);
+    expect(output.sourceResidual).toBeLessThan(1e-6);
+  });
 
-    expect(output.ambientPointStatus).toBe('exact');
-    expect(output.sourceCellStatus).toBe('precision-insufficient');
+  it('says when a resolution needed no widening at all', async () => {
+    const compilation = await compiled();
+    const output = probe(compilation, 'section', emittedTriangleCentroid(compilation));
+
+    expect(output.sourceCellStatus).toBe('resolved');
+    expect(output.sourceCellPrecision).toBe('exact');
+  });
+
+  it('is bounded by the section surface itself', async () => {
+    const compilation = await compiled();
+    const { centroid, normal } = emittedTriangle(compilation);
+    const off = (distance: number): ProbeOutput => probe(
+      compilation,
+      'section',
+      [0, 1, 2].map((axis) => centroid[axis]! + normal[axis]! * distance)
+    );
+
+    // The renderer bound is the containment bound, so a point the resolver
+    // still considers to be on a triangle reconciles once there is a single
+    // candidate, and a point past that is simply not on the section any more.
+    // The widening cannot reach it: nothing attaches a distant point to a cell.
+    expect(off(3e-7).sourceCellStatus).toBe('resolved');
+    expect(off(1e-3).sourceCellStatus).toBe('not-on-emitted-cell');
+    expect(off(1e-3).sourceCell).toBeUndefined();
+    expect(off(50).sourceCellStatus).toBe('not-on-emitted-cell');
+  });
+
+  it('refuses to widen where more than one source cell matches', async () => {
+    const compilation = await compiled();
+
+    // A point on an edge shared by triangles from different source cells. The
+    // tight tolerance is doing real work here, so the retry must not fire.
+    const output = probe(compilation, 'section', crossCellEdgeMidpoint(compilation));
+
+    expect(output.sourceCellStatus).toBe('ambiguous-primitive');
     expect(output.sourceCell).toBeUndefined();
-    // It reached a triangle; it was refused on reconciliation, not containment.
-    expect(output.matchingTriangles).toBeGreaterThan(0);
+    expect(output.matchingSourceCells).toBeGreaterThan(1);
   });
 
   it('still resolves a chart point that survived a Float32 buffer', async () => {
