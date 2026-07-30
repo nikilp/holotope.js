@@ -107,10 +107,8 @@ const intersections = raycaster.intersectObject(surface.object, false);
 const intersection = intersections.find((value) => value.faceIndex !== undefined);
 
 if (intersection?.faceIndex !== undefined) {
-  const hit = representationHitFromProjectedSurface(surface, {
-    point: intersection.point,
-    faceIndex: intersection.faceIndex
-  });
+  // A Three Intersection is structurally accepted as-is.
+  const hit = representationHitFromProjectedSurface(surface, intersection);
 
   console.log(hit.source.id); // stable source-cell identity
 
@@ -118,7 +116,14 @@ if (intersection?.faceIndex !== undefined) {
     const pointInUpdatedR4Frame = hit.ambientPoint;
     const pointInBodyLocalR4 = bodyTransform.inverse()
       .applyToPoint(pointInUpdatedR4Frame);
-    console.log(pointInBodyLocalR4.data);
+
+    if (hit.ambiguity === 'none') {
+      console.log(pointInBodyLocalR4.data); // the source point
+    } else {
+      // Exact on the triangle the ray selected, not unique under the
+      // projection. Report it against that primitive or not at all.
+      console.log(pointInBodyLocalR4.data, hit.ambiguity, hit.source.id);
+    }
   }
 }
 ```

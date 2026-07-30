@@ -21,11 +21,18 @@ import type { ProjectedSurface3D } from './projected-surface.js';
 import type { SampledSlicedField3D } from './sampled-sliced-field.js';
 import type { SlicedComplex3D } from './sliced-complex.js';
 
-/** Minimal Three.js intersection surface consumed by provenance adapters. */
+/**
+ * Minimal Three.js intersection surface consumed by provenance adapters.
+ *
+ * The optional members admit `undefined` explicitly so a Three `Intersection`
+ * is structurally assignable under `exactOptionalPropertyTypes`. Three declares
+ * `faceIndex?: number`, this adapter distinguishes an absent index from a null
+ * one, and without the explicit `| undefined` the two are not compatible.
+ */
 export interface RepresentationIntersection3D {
   readonly point: Vector3;
-  readonly faceIndex?: number | null;
-  readonly index?: number;
+  readonly faceIndex?: number | null | undefined;
+  readonly index?: number | undefined;
 }
 
 /** Map a picked projected line segment to its exact source edge vertices. */

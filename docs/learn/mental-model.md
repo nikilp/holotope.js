@@ -69,10 +69,21 @@ APIs. This keeps capability and approximation boundaries visible.
 ### Pick → source evidence → controlled edit
 
 Use a Three `Raycaster` against a Holotope render product, then call its
-matching `representationHitFrom…` function. The result identifies the source
-cell and reports whether an exact ambient point is available. Treat the source
-cell reference as the stable identity; use an ambient point only when
-`ambientPointStatus === 'exact'`.
+matching `representationHitFrom…` function. The result answers three
+independent questions, and reading only one of them is the usual mistake:
+
+| Question | Field |
+| --- | --- |
+| which source primitive produced this? | `source` |
+| is the lifted point exact on that primitive? | `ambientPointStatus` |
+| is that point unique under the map? | `ambiguity` |
+
+Treat the source cell reference as the stable identity. `ambientPointStatus:
+'exact'` is exact *relative to the primitive the ray selected* — a projected
+triangle routinely reports it while `ambiguity` is `'projection-overlap'`,
+because the complete projection is many-to-one. Present a point as **the**
+source point only when `ambiguity === 'none'`; otherwise say which primitive it
+is conditional on.
 
 When a product was updated with a transform, a lifted ambient point is in that
 transformed R4 frame. Apply the same transform's inverse only if the next

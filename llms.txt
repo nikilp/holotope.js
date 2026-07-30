@@ -42,8 +42,11 @@
 1. Keep the source in R^N. Do not simulate or edit the projected Three mesh as
    though it were the source object.
 2. Projection can be ambiguous; an exact slice is a different observation.
-3. A `RepresentationHitN` always identifies a source record when supported;
-   use `ambientPoint` only when `ambientPointStatus === 'exact'`.
+3. A `RepresentationHitN` reports three independent things: `source` identity,
+   point precision (`ambientPointStatus`), and uniqueness (`ambiguity`).
+   `ambientPointStatus: 'exact'` means exact on the selected source primitive,
+   not unique under the map. Claim **the** source point only when
+   `ambiguity === 'none'`.
 4. `RigidBody4` / `PhysicsWorld4` and `XpbdParticleN` / `XpbdWorldN` are
    separate simulation layers.
 5. All R4 vectors use `[x, y, z, w]`. R4 bivectors use
@@ -247,6 +250,9 @@ Incremental objective guide: `docs/learn/theory/incremental-potentials.md`.
 - `ProjectedEdges3D`: projected 1-skeleton render product.
 - `ProjectedSurface3D`: projected 2-face mesh with source-triangle picking.
 - `SlicedComplex3D`: exact 4D section from tetrahedral 3-cells.
+- `SlicedComplex3D.sourceCrossingsOfFace`: the retained source edge and
+  parameter behind each corner of a section face. This is the crossing
+  evidence, not a parent-cuboid reconstruction.
 - `SampledSlicedField3D`, `FieldRelief3D`: field visualization products.
 - `DragRotation4D`: pointer deltas → visual `Rotor4`, default Alt drag in xw/yw.
 - `representationHitFrom…`: map a Three ray intersection to source-aware
@@ -257,7 +263,10 @@ Canonical complete Three export barrel: `packages/three/src/index.ts`.
 ## Minimal, accurate patterns
 
 ```ts
-// Project and slice the same R4 geometry.
+// Project and slice the same R4 geometry. tetrahedralizeCuboidCells is the
+// rendering-only path: it supplies the tetrahedral 3-cells a section needs and
+// drops sourceCellIndices/permutationIndices. If a pick must name the parent
+// cuboid, build the simplices with simplexizeCuboidGroupN and keep that map.
 const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
 const pose = TransformN.identity(4);
 const shadow = new ProjectedEdges3D(
@@ -327,10 +336,20 @@ if (step.status === 'applied') {
 ```
 
 ```ts
-// Pick a projected triangle. Exact ambient lift depends on projection and hit.
+// Pick a projected triangle. Identity, precision, and uniqueness are separate
+// questions; a Three intersection is passed straight through.
 const hit = representationHitFromProjectedSurface(surface, intersection);
+
+useSourceCell(hit.source); // structural identity of the selected primitive
+
 if (hit.ambientPointStatus === 'exact') {
-  useSourcePoint(hit.ambientPoint);
+  if (hit.ambiguity === 'none') {
+    useUniqueAmbientPoint(hit.ambientPoint);
+  } else {
+    // Exact on the source triangle the ray named; the whole projection is
+    // many-to-one, so this is not the pixel's source point.
+    useSelectedPrimitivePoint(hit.ambientPoint, hit.ambiguity);
+  }
 }
 ```
 
