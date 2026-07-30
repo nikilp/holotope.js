@@ -237,6 +237,26 @@ function compileModel(
           { field }
         ));
       },
+      readModelField(
+        field: string
+      ): ExperimentResult<ExperimentJsonValue> {
+        if (field === 'gravity') {
+          return {
+            ok: true,
+            value: Object.freeze([...world.gravity.data])
+          };
+        }
+        if (field === 'substeps') {
+          return { ok: true, value: substeps };
+        }
+        return refused(failure(
+          'capability-unavailable',
+          `physics.model.rigid4 exposes no readable field ` +
+            `${JSON.stringify(field)}`,
+          '',
+          { field }
+        ));
+      },
       observeModel(quantity: string): ExperimentResult<ExperimentJsonValue> {
         switch (quantity) {
           case 'angular-momentum':

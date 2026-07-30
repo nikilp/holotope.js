@@ -21,6 +21,7 @@ export {
   type ExperimentTraceEventV0,
   type ExperimentTraceV0,
   type ExperimentParameterApplicationV0,
+  type ExperimentParameterRecordV0,
   type ExperimentCompiledSourceV0,
   type ExperimentDescriptorCompilerV0
 } from './compile.js';

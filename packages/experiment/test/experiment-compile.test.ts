@@ -120,6 +120,49 @@ describe('@holotope/experiment compilation registry', () => {
     expect(first.ok && second.ok && first.value === second.value).toBe(true);
   });
 
+  it('defers valid presentation panes to a renderer without polluting the registry', async () => {
+    const document: ExperimentDocumentV0 = {
+      ...headlessBridgeDocument(),
+      presentation: {
+        panes: [
+          {
+            kind: 'three.pane.representation',
+            id: 'rightPane',
+            representation: 'section',
+            title: 'Exact section',
+            column: 1
+          },
+          {
+            kind: 'three.pane.representation',
+            id: 'leftPane',
+            representation: 'perspective',
+            title: 'Perspective',
+            column: 0
+          }
+        ]
+      }
+    };
+    const compilation = compileExperimentDocumentV0(
+      await prepared(document),
+      { compilers: [coreExperimentCompilerV0()] }
+    );
+
+    expect(compilation.ok).toBe(true);
+    if (!compilation.ok) return;
+    expect(compilation.value.ids).toEqual([
+      'tesseract',
+      'perspective',
+      'section',
+      'xyw'
+    ]);
+    expect(compilation.value.document.presentation?.panes.map((pane) => pane.id))
+      .toEqual(['rightPane', 'leftPane']);
+    expect(compilation.value.get('leftPane')).toMatchObject({
+      ok: false,
+      failures: [{ code: 'missing-reference' }]
+    });
+  });
+
   it('derives lineage witnesses from the constructed objects, never the descriptor', async () => {
     const compilation = compileExperimentDocumentV0(
       await prepared(headlessBridgeDocument()),
@@ -466,14 +509,6 @@ describe('@holotope/experiment compilation registry', () => {
       expect.objectContaining({
         code: 'capability-unavailable',
         pointer: '/models/tumble/kind'
-      }),
-      expect.objectContaining({
-        code: 'capability-unavailable',
-        pointer: '/presentation/panes/0/kind'
-      }),
-      expect.objectContaining({
-        code: 'capability-unavailable',
-        pointer: '/presentation/panes/1/kind'
       })
     ]);
 

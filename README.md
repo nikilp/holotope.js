@@ -163,7 +163,7 @@ explains why a projected mesh is never the source object — then work from
 - ✅ Spectral foundation: deterministic symmetric eigensystems and dimension-independent CellComplex graph-Laplacian modes
 - ✅ Source-coordinate constraints: deterministic weighted Float64 solving with shared compatibility, rank, null-space, conditioning, and residual diagnostics
 - ✅ Immutable named constraint composition with stable evidence replacement, removal, snapshots, and keyed diagnostics
-- ◐ Versioned experiment documents: bounded intake, validation, canonical identity, dependency planning, and headless explicit-capability compilation of core hypercube sources and coordinate/perspective/section representations with registry-owned ids and derived lineage witnesses shipped; model compilation, runtime actions, observations, and replay pending
+- ◐ Versioned experiment documents: bounded intake, validation, canonical identity, dependency planning, explicit-capability source/model/representation compilation, live parameter reads and writes, bounded actions, stamped observations, exact CPU snapshots, traces, replay, and renderer-deferred presentation panes shipped; a reusable presentation workbench and broader descriptor vocabularies remain
 - GPU surface/section rendering and the materials/transparency phase
 - `.hyper.json` container format and OFF import/export
 - ◐ `@holotope/physics`. **Contact is point–hyperplane only**: barriers and

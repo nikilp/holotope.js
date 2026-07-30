@@ -7,7 +7,7 @@ which lower-dimensional representations should be produced, and which
 parameters, actions, and observations are available.
 
 The current `holotope.experiment/0` pipeline covers the document boundary and
-the first headless compilation stage:
+a complete headless source–model–representation runtime:
 
 ```text
 untrusted JSON
@@ -16,29 +16,32 @@ untrusted JSON
   → canonical JSON + SHA-256 identity + stable dependency order
   → immutable prepared document
   → explicit caller-supplied compiler capabilities
-  → registry-owned experiment ids over live core objects
+  → registry-owned experiment ids over live core and model objects
   → derived RepresentationLineageN evidence
-
-  [models, actions, observations, and replay come next]
+  → live parameters + bounded actions + stamped observations
+  → exact CPU snapshots + traces + replay
 ```
 
-It does not create a scene, a physics world, DOM controls, or a Three.js
-renderer. That separation lets the authored contract be reviewed and tested
-without hiding construction choices in a convenient demo wrapper.
+The base package does not create a scene, DOM controls, a playback driver, or
+a Three.js renderer. A caller-supplied physics capability may construct a
+headless model, while presentation panes remain validated document metadata.
+That separation lets the authored contract be reviewed and tested without
+hiding construction choices in a convenient demo wrapper.
 
 ## Three identities that must not be conflated
 
 | Identity | Owned by | Meaning |
 | --- | --- | --- |
-| Experiment id | The compilation registry | The authored name of a source, model, representation, or pane |
+| Experiment id | The prepared document; the registry for runtime entries | The authored name of a source, model, representation, or pane |
 | Runtime object identity | Core, physics, or adapter package | The actual compiled object and its lifetime |
 | `RepresentationLineageN` | A constructed representation | Evidence describing how a visible result was derived from its source |
 
 A descriptor is a construction recipe, not provenance. Lineage only exists
-after construction and must describe what actually happened. Experiment ids
-therefore do not become fields on `ObjectN`; the compilation registry owns
-the association externally, and compiled core objects stay anonymous
-mathematical values.
+after construction and must describe what actually happened. Runtime
+experiment ids therefore do not become fields on `ObjectN`; the compilation
+registry owns those associations externally, and compiled core objects stay
+anonymous mathematical values. Pane ids remain document-level presentation
+ids and intentionally do not enter that headless registry.
 
 ## Safe intake
 
@@ -124,15 +127,17 @@ if (section.ok && section.value.category === 'representation') {
 compiled.value.dispose();           // releases the registry exactly once
 ```
 
-The core capability constructs `core.source.hypercube` (optionally
-tetrahedralized) and the three closed representation kinds —
+The core capability constructs supported source geometry and the three closed
+representation kinds —
 `core.representation.coordinate`, `core.representation.perspective`, and
 `core.representation.section4` — plus literal transforms. Compilation is
 all-or-nothing: every descriptor in the dependency order is planned against
 the supplied capabilities first, and an unclaimed kind, a kind-version
-mismatch, a physics model, a pane, or a model-owned transform refuses the
-whole compilation with typed evidence before any object exists. Nothing is
-partially or optimistically compiled.
+mismatch, or a model without a supplied capability refuses the whole
+compilation with typed evidence before any object exists. Nothing is partially
+or optimistically compiled. Valid presentation panes are retained on
+`compilation.document` and skipped by the headless registry; their ids are not
+runtime-object ids.
 
 Lineage is where the one-way arrow becomes visible. The compiler derives each
 representation's `RepresentationLineageN` from the projection or slice it
@@ -160,15 +165,15 @@ Schema v0 can describe one source-first R4 bridge:
   geometry;
 - a mandatory CPU reference backend when backend requirements are declared.
 
-The document can be validated, identified, and — for its core source and
-representation path — compiled today. Model stepping, bounded action
-execution, observation reads, and replay evidence are subsequent runtime
-slices, so a document that declares a `physics.model.rigid4` or presentation
-panes is refused by a core-only compilation with `capability-unavailable`
-evidence instead of being partially constructed. A `continuous` section frame
-is already accepted with a `replay-limited` warning because its transported
-display frame depends on history; a canonical section frame is the
-deterministic default.
+The complete bridge can be validated, identified, and compiled today when the
+caller supplies both the core and physics capabilities. Model stepping,
+bounded action execution, fresh observation reads, live parameter reads and
+writes, snapshots, trace recording, and exact CPU replay are implemented.
+Presentation panes validate and survive preparation but stay outside the
+headless object registry. A `continuous` section frame is accepted with a
+`replay-limited` warning because reconstructing its transported display frame
+from the document alone depends on history; snapshots capture that live frame
+exactly.
 
 ## Models, and the clock they run on
 
@@ -243,6 +248,7 @@ A compiled document exposes what it can be told and what it can be asked:
 
 ```ts
 compilation.listParameters();   // declared controls
+compilation.listActions();      // declared bounded operations
 compilation.listObservations(); // declared readouts
 ```
 
@@ -253,8 +259,16 @@ surface without being told it out of band.
 ### Parameter state is read-through
 
 There is no shadow parameter store. The compiled object's field *is* the
-state, so `previous` is read from the live object at application time and is
-exactly what a read would have returned:
+state. `readParameter()` reads through to that live target without mutation,
+and `previous` is read from the same object at application time:
+
+```ts
+const current = compilation.readParameter('sliceOffset');
+// { id: 'sliceOffset', value: 0.12, revision: 1 }
+```
+
+The returned value is current after direct mutation, restore, or replay; it is
+never the declaration default remembered separately.
 
 ```ts
 const applied = compilation.setParameter('sliceOffset', 0.62);
@@ -478,7 +492,8 @@ claiming to reproduce this one.
 - A prepared hash identifies the authored document, not hidden runtime state.
   Compilation carries that identity; it does not re-hash or certify it.
 - Presentation metadata cannot make a renderer authoritative over source or
-  simulation state; a headless compilation constructs no panes.
+  simulation state. Pane descriptors stay on the document for a renderer
+  adapter, while a headless compilation constructs no pane objects.
 - Validation does not promise that every accepted descriptor can be
   compiled; capability coverage is judged per compilation, and refusal
   evidence names the exact kind and location.

@@ -1,14 +1,15 @@
 # @holotope/experiment
 
-Versioned, inert experiment documents for Holotope, plus the first headless
-compilation stage.
+Versioned, inert experiment documents for Holotope, plus a headless,
+explicit-capability runtime.
 
 The package defines and validates authored descriptions of sources, models,
 representations, parameters, actions, observations, panes, and backend
 requirements; produces a canonical JSON form and SHA-256 identity; and can
-compile the prepared document's core hypercube sources and
-coordinate/perspective/section representations into live `@holotope/core`
-objects behind a registry.
+compile the prepared document's sources, models, and
+coordinate/perspective/section representations into live objects behind a
+registry. Parameters, bounded actions, observations, exact CPU snapshots, and
+trace replay are runtime contracts rather than demo-specific state.
 
 ```ts
 import {
@@ -53,13 +54,14 @@ deeply frozen document.
 Compilation is synchronous, all-or-nothing, and driven by explicit
 caller-supplied capabilities — there is no global kind registry and a
 document can never name or load code. A kind without a supplied capability,
-a version mismatch, or a category this slice cannot construct (physics
-models, panes, and model-owned transforms) is a typed refusal that constructs
-nothing. The registry alone owns experiment ids; compiled core objects stay
-anonymous mathematical values, and `RepresentationLineageN` is derived from
-the projection or slice actually constructed, never from the descriptor.
-Because the compiled vocabulary is closed, a compiled representation never
-reports a `custom-projection` lineage step.
+a version mismatch, or an unsupported construction is a typed refusal that
+constructs nothing. Presentation panes are validated and retained on the
+document but deliberately omitted from the headless registry: a renderer
+adapter consumes them later. The registry alone owns experiment ids; compiled
+objects stay anonymous mathematical values, and `RepresentationLineageN` is
+derived from the projection or slice actually constructed, never from the
+descriptor. Because the compiled vocabulary is closed, a compiled
+representation never reports a `custom-projection` lineage step.
 
 See the [experiment document guide](../../docs/learn/experiment-documents.md)
 for the contract and its current boundary.
@@ -95,3 +97,22 @@ Budgets are checked before anything runs. A preview runs the operation for
 real and puts everything back, so state, revision, and trace are byte-identical
 afterwards. The probe reports exact evidence for a section and refuses to
 invent a point for a projection, which is many-to-one without a ray.
+
+## Runtime discovery
+
+Tools can discover the authored surface and read live parameter state without
+maintaining a shadow store:
+
+```ts
+compilation.listParameters();
+compilation.listActions();
+compilation.listObservations();
+
+const offset = compilation.readParameter('sliceOffset');
+// { id: 'sliceOffset', value: 0.12, revision: 1 }
+```
+
+`readParameter()` reads through to the compiled target. Restore and replay are
+therefore reflected immediately. A headless-unowned target such as playback
+state or presentation metadata returns a typed `capability-unavailable`
+refusal rather than a descriptor default mistaken for live state.

@@ -160,6 +160,14 @@ export interface ExperimentCompiledModelV0 {
     value: ExperimentJsonValue
   ): ExperimentResult<{ readonly previous: ExperimentJsonValue }>;
   /**
+   * Reads one live model field without changing model or compilation state.
+   *
+   * Optional for model kinds that expose no parameter-readable fields.
+   */
+  readModelField?(
+    field: string
+  ): ExperimentResult<ExperimentJsonValue>;
+  /**
    * Evaluates one model quantity as a JSON-compatible value.
    *
    * Optional for the same reason: an unobservable model refuses by absence
@@ -528,6 +536,16 @@ export interface ExperimentParameterApplicationV0 {
   readonly failure?: ExperimentFailure;
 }
 
+/** One live parameter value read without changing experiment state. */
+export interface ExperimentParameterRecordV0 {
+  /** Document key of the parameter that was read. */
+  readonly id: ExperimentId;
+  /** Current value read through to the compiled target. */
+  readonly value: ExperimentJsonValue;
+  /** Compilation revision at which the value was read. */
+  readonly revision: number;
+}
+
 /**
  * One freshly computed observation value with the state it was computed at.
  *
@@ -688,8 +706,14 @@ export interface ExperimentCompilationV0 {
   readonly revision: number;
   /** Frozen view of the document's parameter declarations, for discovery. */
   listParameters(): readonly ExperimentParameterDeclarationV0[];
+  /** Frozen view of the document's action declarations, for discovery. */
+  listActions(): readonly ExperimentActionDeclarationV0[];
   /** Frozen view of the document's observation declarations, for discovery. */
   listObservations(): readonly ExperimentObservationDeclarationV0[];
+  /** Reads one current parameter value without mutation or a revision bump. */
+  readParameter(
+    id: ExperimentId
+  ): ExperimentResult<ExperimentParameterRecordV0>;
   /** Validates a value against its declared domain and applies it. */
   setParameter(
     id: ExperimentId,
@@ -766,11 +790,12 @@ export interface CompileExperimentDocumentV0Options {
  * Compilation is synchronous, all-or-nothing, and non-mutating: the document
  * is revalidated defensively, every descriptor in the derived dependency
  * order is planned against the supplied capabilities first, and any typed
- * failure — unknown kind, unclaimed kind, version mismatch, or a category
- * this slice cannot construct — refuses the whole compilation before any
- * object exists. Capabilities are copied, so caller mutation after the call
- * cannot reach an existing compilation, and separate compilations share no
- * state.
+ * failure — unknown kind, unclaimed kind, version mismatch, or an unsupported
+ * runtime category — refuses the whole compilation before any object exists.
+ * Valid presentation panes are retained on `document` and deliberately
+ * deferred to a renderer adapter; they are not registry entries. Capabilities
+ * are copied, so caller mutation after the call cannot reach an existing
+ * compilation, and separate compilations share no state.
  *
  * The prepared `documentHash` is carried as the identity established by
  * `prepareExperimentDocumentV0()`; compilation verifies its shape but does
@@ -869,6 +894,10 @@ export function compileExperimentDocumentV0(
   for (const id of report.compileOrder) {
     const located = locateDescriptor(document, id);
     if (located === null) continue;
+    // Presentation belongs to a renderer/workbench layer. The complete
+    // descriptor stays on `compilation.document`, while the headless registry
+    // owns only source, model, and representation objects.
+    if (located.category === 'pane') continue;
     const plan = planDescriptor(located, compilers);
     if (plan.ok) {
       planned.push(plan.value);
@@ -1022,8 +1051,50 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
     return Object.freeze([...(this.document.parameters ?? [])]);
   }
 
+  listActions(): readonly ExperimentActionDeclarationV0[] {
+    return Object.freeze([...(this.document.actions ?? [])]);
+  }
+
   listObservations(): readonly ExperimentObservationDeclarationV0[] {
     return Object.freeze([...(this.document.observations ?? [])]);
+  }
+
+  readParameter(
+    id: ExperimentId
+  ): ExperimentResult<ExperimentParameterRecordV0> {
+    if (this.released) {
+      return refused(failure(
+        'disposed',
+        'this experiment compilation has been disposed',
+        '',
+        { id }
+      ));
+    }
+    const declarations = this.document.parameters ?? [];
+    const index = declarations.findIndex((candidate) => candidate.id === id);
+    const declaration = declarations[index];
+    if (declaration === undefined) {
+      return refused(failure(
+        'missing-reference',
+        `parameter ${JSON.stringify(id)} is not declared by this document`,
+        '',
+        { id }
+      ));
+    }
+    const read = readParameterTarget(
+      declaration.target,
+      this.registry,
+      `/parameters/${index}`
+    );
+    if (!read.ok) return read;
+    return {
+      ok: true,
+      value: Object.freeze({
+        id,
+        value: read.value,
+        revision: this.revisionCounter
+      })
+    };
   }
 
   setParameter(
@@ -2026,6 +2097,107 @@ function validateParameterValue(
       return { ok: true, value: Object.freeze(components) };
     }
   }
+}
+
+/** Reads one validated target through to its live compiled object. */
+function readParameterTarget(
+  target: ExperimentParameterTargetV0,
+  registry: Map<ExperimentId, ExperimentCompiledEntryV0>,
+  pointer: string
+): ExperimentResult<ExperimentJsonValue> {
+  if (target.kind === 'clock') {
+    return refused(failure(
+      'capability-unavailable',
+      'the headless runtime has no playback driver; clock parameters await ' +
+        'the workbench layer',
+      `${pointer}/target`,
+      { field: target.field }
+    ));
+  }
+  if (target.kind === 'presentation') {
+    return refused(failure(
+      'capability-unavailable',
+      'presentation parameters belong to the workbench layer and have no ' +
+        'headless target',
+      `${pointer}/target`,
+      { ref: target.ref, field: target.field }
+    ));
+  }
+
+  const entry = registry.get(target.ref);
+  if (entry === undefined) {
+    return refused(failure(
+      'missing-reference',
+      `target ${JSON.stringify(target.ref)} is not a compiled entry`,
+      `${pointer}/target/ref`,
+      { ref: target.ref }
+    ));
+  }
+
+  if (target.kind === 'model-field') {
+    if (entry.category !== 'model') {
+      return refused(failure(
+        'invalid-value',
+        `target ${JSON.stringify(target.ref)} is not a model`,
+        `${pointer}/target/ref`,
+        { ref: target.ref, category: entry.category }
+      ));
+    }
+    if (entry.readModelField === undefined) {
+      return refused(failure(
+        'capability-unavailable',
+        `the capability compiling ${JSON.stringify(entry.kind)} exposes no ` +
+          'readable model fields',
+        `${pointer}/target`,
+        { ref: target.ref, kind: entry.kind, field: target.field }
+      ));
+    }
+    return entry.readModelField(target.field);
+  }
+
+  if (entry.category !== 'representation') {
+    return refused(failure(
+      'invalid-value',
+      `target ${JSON.stringify(target.ref)} is not a representation`,
+      `${pointer}/target/ref`,
+      { ref: target.ref, category: entry.category }
+    ));
+  }
+  const map = entry.map;
+  if (target.field === 'viewDistance') {
+    if (map.kind !== 'projection') {
+      return refused(failure(
+        'invalid-value', 'viewDistance applies to a projection only',
+        `${pointer}/target/field`, { ref: entry.id, kind: map.kind }
+      ));
+    }
+    const viewDistance = (
+      map.projection as { readonly viewDistance?: number }
+    ).viewDistance;
+    if (typeof viewDistance !== 'number' || !Number.isFinite(viewDistance)) {
+      return refused(failure(
+        'capability-unavailable',
+        'this projection exposes no finite view distance',
+        `${pointer}/target/field`,
+        { ref: entry.id }
+      ));
+    }
+    return { ok: true, value: viewDistance };
+  }
+
+  if (map.kind !== 'slice4') {
+    return refused(failure(
+      'invalid-value', `${target.field} applies to a section only`,
+      `${pointer}/target/field`, { ref: entry.id, kind: map.kind }
+    ));
+  }
+  if (target.field === 'offset') {
+    return { ok: true, value: map.slice.offset };
+  }
+  return {
+    ok: true,
+    value: Object.freeze([...map.slice.normal.data])
+  };
 }
 
 /** Writes one validated value into the live compiled object it targets. */

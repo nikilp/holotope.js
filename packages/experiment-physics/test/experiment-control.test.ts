@@ -209,7 +209,77 @@ describe('parameters, observations, and the revision counter', () => {
     const { compilation } = await control();
     expect(compilation.listParameters().map((p) => p.id))
       .toEqual(['sliceOffset', 'sliceNormal', 'substeps', 'gravity', 'playing']);
+    expect(compilation.listActions()).toEqual([]);
     expect(compilation.listObservations().map((o) => o.id)).toContain('angularMomentum');
+  });
+
+  it('reads live parameter targets without mutating state', async () => {
+    const { compilation } = await control();
+
+    expect(got<{ value: unknown; revision: number }>(
+      compilation.readParameter('sliceOffset')
+    )).toEqual({ id: 'sliceOffset', value: 0.12, revision: 1 });
+    expect(got<{ value: unknown; revision: number }>(
+      compilation.readParameter('sliceNormal')
+    ).value).toEqual([0, 0, 0, 1]);
+    expect(got<{ value: unknown; revision: number }>(
+      compilation.readParameter('substeps')
+    ).value).toBe(2);
+    expect(got<{ value: unknown; revision: number }>(
+      compilation.readParameter('gravity')
+    ).value).toEqual([0, 0, 0, 0]);
+    expect(compilation.revision).toBe(1);
+
+    compilation.setParameter('sliceOffset', 0.62);
+    compilation.setParameter('sliceNormal', [0, 2, 0, 0]);
+    compilation.setParameter('substeps', 4);
+    compilation.setParameter('gravity', [0, -9.81, 0, 0]);
+
+    expect(got<{ value: unknown; revision: number }>(
+      compilation.readParameter('sliceOffset')
+    )).toEqual({ id: 'sliceOffset', value: 0.62, revision: 5 });
+    expect(got<{ value: unknown }>(
+      compilation.readParameter('sliceNormal')
+    ).value).toEqual([0, 1, 0, 0]);
+    expect(got<{ value: unknown }>(
+      compilation.readParameter('substeps')
+    ).value).toBe(4);
+    expect(got<{ value: unknown }>(
+      compilation.readParameter('gravity')
+    ).value).toEqual([0, -9.81, 0, 0]);
+    expect(compilation.revision).toBe(5);
+  });
+
+  it('reads restored and replayed parameter state rather than remembered defaults', async () => {
+    const { compilation } = await control();
+    const initial = got<any>(compilation.snapshot());
+
+    compilation.setParameter('sliceOffset', 0.62);
+    compilation.setParameter('substeps', 4);
+    const trace = got<any>(compilation.trace());
+
+    expect(got<{ value: unknown }>(
+      compilation.readParameter('sliceOffset')
+    ).value).toBe(0.62);
+    expect(got<{ value: unknown }>(
+      compilation.readParameter('substeps')
+    ).value).toBe(4);
+
+    got(compilation.restore(initial));
+    expect(got<{ value: unknown }>(
+      compilation.readParameter('sliceOffset')
+    ).value).toBe(0.12);
+    expect(got<{ value: unknown }>(
+      compilation.readParameter('substeps')
+    ).value).toBe(2);
+
+    got(compilation.replay(trace));
+    expect(got<{ value: unknown }>(
+      compilation.readParameter('sliceOffset')
+    ).value).toBe(0.62);
+    expect(got<{ value: unknown }>(
+      compilation.readParameter('substeps')
+    ).value).toBe(4);
   });
 
   it('stamps observations with the state they were computed at', async () => {
@@ -300,6 +370,9 @@ describe('parameters, observations, and the revision counter', () => {
 
   it('refuses unimplemented surfaces by naming the seam', async () => {
     const { compilation } = await control();
+    expect(compilation.readParameter('playing')).toMatchObject({
+      ok: false, failures: [{ code: 'capability-unavailable' }]
+    });
     const clock = compilation.setParameter('playing', true);
     expect(clock.outcome).toBe('refused');
     expect(clock.failure?.code).toBe('capability-unavailable');
@@ -312,12 +385,18 @@ describe('parameters, observations, and the revision counter', () => {
 
   it('refuses unknown ids and everything after disposal', async () => {
     const { compilation } = await control();
+    expect(compilation.readParameter('nope')).toMatchObject({
+      ok: false, failures: [{ code: 'missing-reference' }]
+    });
     expect(compilation.setParameter('nope', 1).failure?.code).toBe('missing-reference');
     expect(compilation.observe('nope')).toMatchObject({
       ok: false, failures: [{ code: 'missing-reference' }]
     });
 
     compilation.dispose();
+    expect(compilation.readParameter('sliceOffset')).toMatchObject({
+      ok: false, failures: [{ code: 'disposed' }]
+    });
     expect(compilation.setParameter('sliceOffset', 0.3).failure?.code).toBe('disposed');
     expect(compilation.observe('angularMomentum')).toMatchObject({
       ok: false, failures: [{ code: 'disposed' }]

@@ -30,6 +30,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as holotopeCore from '@holotope/core';
 import * as holotopeThree from '@holotope/three';
 import * as holotopePhysics from '@holotope/physics';
+import * as holotopeExperiment from '@holotope/experiment';
+import * as holotopeExperimentPhysics from '@holotope/experiment-physics';
+import type {
+  ExperimentActionDeclarationV0,
+  ExperimentParameterRecordV0
+} from '@holotope/experiment';
 import examples from './generated-examples.json';
 import './viewer-chrome.css';
 import './playground.css';
@@ -117,7 +123,13 @@ orbit.enableDamping = true;
 // once; earlier entries win, matching the order the compile check declares
 // them in, so a snippet resolves the same name in both places.
 const scope = new Map<string, unknown>();
-for (const module of [holotopeCore, holotopeThree, holotopePhysics]) {
+for (const module of [
+  holotopeCore,
+  holotopeThree,
+  holotopePhysics,
+  holotopeExperiment,
+  holotopeExperimentPhysics
+]) {
   for (const [name, value] of Object.entries(module)) {
     if (!scope.has(name)) scope.set(name, value);
   }
@@ -139,6 +151,19 @@ function report(message: string, kind: 'error' | 'note'): void {
 function describeValue(value: unknown): string {
   if (value === null) return 'null';
   if (typeof value !== 'object') return String(value);
+  if (isExperimentParameterRecord(value)) {
+    return `ExperimentParameterRecord — ${value.id} at revision ${value.revision}: ` +
+      describeValue(value.value);
+  }
+  if (isExperimentActionDeclaration(value)) {
+    const semantics = [
+      value.readOnly ? 'read-only' : 'mutating',
+      value.destructive ? 'destructive' : 'non-destructive',
+      value.idempotent ? 'idempotent' : 'non-idempotent',
+      value.deterministic ? 'deterministic' : 'backend-dependent'
+    ];
+    return `Experiment action ${value.id} — ${semantics.join(', ')}`;
+  }
 
   const complex = value as { ambientDim?: number; vertexCount?: number; cellsOfDim?: unknown };
   if (typeof complex.cellsOfDim === 'function' && typeof complex.vertexCount === 'number') {
@@ -162,6 +187,27 @@ function describeValue(value: unknown): string {
   const name = value.constructor?.name ?? 'object';
   const own = Object.keys(value).slice(0, 4).join(', ');
   return own ? `${name} { ${own}${Object.keys(value).length > 4 ? ', …' : ''} }` : name;
+}
+
+function isExperimentParameterRecord(
+  value: object
+): value is ExperimentParameterRecordV0 {
+  const record = value as Partial<ExperimentParameterRecordV0>;
+  return typeof record.id === 'string' &&
+    Number.isSafeInteger(record.revision) &&
+    'value' in record;
+}
+
+function isExperimentActionDeclaration(
+  value: object
+): value is ExperimentActionDeclarationV0 {
+  const declaration = value as Partial<ExperimentActionDeclarationV0>;
+  return typeof declaration.id === 'string' &&
+    typeof declaration.title === 'string' &&
+    typeof declaration.readOnly === 'boolean' &&
+    typeof declaration.destructive === 'boolean' &&
+    typeof declaration.idempotent === 'boolean' &&
+    typeof declaration.deterministic === 'boolean';
 }
 
 function run(): void {

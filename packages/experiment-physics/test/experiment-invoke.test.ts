@@ -164,6 +164,20 @@ const unwrap = <T>(result: { ok: boolean }): T => {
 };
 
 describe('actions, budgets, and the headless probe', () => {
+  it('lists frozen action declarations in authored order', async () => {
+    const compilation = await bridge();
+    const actions = compilation.listActions();
+    expect(actions.map((action) => action.id)).toEqual([
+      'step',
+      'setOffset',
+      'probe',
+      'reset',
+      'documented'
+    ]);
+    expect(Object.isFrozen(actions)).toBe(true);
+    expect(compilation.revision).toBe(1);
+  });
+
   it('dispatches each operation to exactly its primitive', async () => {
     const viaAction = await bridge();
     const direct = await bridge();
