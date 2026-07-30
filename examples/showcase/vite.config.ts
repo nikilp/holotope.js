@@ -14,6 +14,8 @@ export default defineConfig({
       { find: '@holotope/three/webgpu', replacement: local('../../packages/three/src/webgpu/index.ts') },
       { find: '@holotope/three', replacement: local('../../packages/three/src/index.ts') },
       { find: '@holotope/physics', replacement: local('../../packages/physics/src/index.ts') },
+      { find: '@holotope/experiment-physics', replacement: local('../../packages/experiment-physics/src/index.ts') },
+      { find: '@holotope/experiment', replacement: local('../../packages/experiment/src/index.ts') },
       { find: '@holotope/core', replacement: local('../../packages/core/src/index.ts') }
     ]
   },
