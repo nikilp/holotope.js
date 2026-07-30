@@ -21,6 +21,10 @@ import {
   SlicedComplex3D
 } from '@holotope/three';
 
+// Rendering-only path: this supplies the tetrahedral 3-cells a section needs
+// and drops `sourceCellIndices`, so a pick can name the cut tetrahedron but not
+// the cuboid it came from. If the application must report the parent cell,
+// build the simplices with `simplexizeCuboidGroupN` and keep that map.
 const complex = tetrahedralizeCuboidCells(
   createHypercube({ dim: 4, size: 2 })
 );
