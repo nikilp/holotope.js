@@ -501,6 +501,7 @@
       "ExperimentParameterValueDeclarationV0": "/api/experiment/type-aliases/ExperimentParameterValueDeclarationV0",
       "ExperimentPerspectiveRepresentationV0": "/api/experiment/interfaces/ExperimentPerspectiveRepresentationV0",
       "ExperimentPolychoronSourceV0": "/api/experiment/interfaces/ExperimentPolychoronSourceV0",
+      "ExperimentProbeSourceCellStatusV0": "/api/experiment/type-aliases/ExperimentProbeSourceCellStatusV0",
       "ExperimentQuantityDimensionV0": "/api/experiment/type-aliases/ExperimentQuantityDimensionV0",
       "ExperimentReplayLevelV0": "/api/experiment/type-aliases/ExperimentReplayLevelV0",
       "ExperimentReplayOutcomeV0": "/api/experiment/interfaces/ExperimentReplayOutcomeV0",

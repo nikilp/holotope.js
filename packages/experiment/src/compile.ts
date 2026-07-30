@@ -2,7 +2,8 @@ import {
   VecN,
   createAffineSectionCellChart4N,
   resolveRepresentationChartPointToSourceCellN,
-  sliceTetrahedra
+  sliceTetrahedra,
+  type RepresentationChartSourceCellResolutionN
 } from '@holotope/core';
 import {
   decodeFloat64BufferV0,
@@ -1781,7 +1782,11 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
       // capability the lineage does not certify.
       return {
         ok: true,
-        value: { ambientPointStatus: 'unavailable', lineageKind }
+        value: {
+          ambientPointStatus: 'unavailable',
+          sourceCellStatus: 'unavailable-for-representation',
+          lineageKind
+        }
       };
     }
 
@@ -1806,18 +1811,7 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
       value: {
         ambientPointStatus: 'exact',
         ambientPoint: [ambient[0], ambient[1], ambient[2], ambient[3]],
-        ...(
-          located !== null && located.kind === 'resolved'
-            ? {
-                sourceCell: {
-                  groupKey:
-                    located.reference.group.key ??
-                    `dim3/${located.reference.group.kind}`,
-                  ordinal: located.reference.cellIndex
-                }
-              }
-            : {}
-        ),
+        ...describeSourceCellResolution(located),
         lineageKind
       }
     };
@@ -1836,6 +1830,166 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
     this.released = true;
     return { ok: true, value: Object.freeze({ released }) };
   }
+}
+
+/**
+ * Why a probe could or could not name the source cell behind a chart point.
+ *
+ * Each state is one resolver outcome, not a summary of several. The difference
+ * a caller most needs is between `not-on-emitted-cell` and
+ * `precision-insufficient`: the first means the point misses the section, and
+ * the second means it lands on an emitted cell whose source coordinate does not
+ * reconcile at the tolerance this evidence supports. Only the second is
+ * recoverable, by naming the primitive the point came from.
+ *
+ * @example
+ * A probe answers with a status whether or not it found a cell, so a caller
+ * distinguishes a miss from a refusal instead of reading an absent field:
+ * ```ts
+ * const prepared = await prepareExperimentDocumentV0({
+ *   schema: 'holotope.experiment/0',
+ *   title: 'Probe status',
+ *   ambientDim: 4,
+ *   sources: {
+ *     tesseract: {
+ *       kind: 'core.source.hypercube', dim: 4, size: 2, tetrahedralize: true
+ *     }
+ *   },
+ *   representations: {
+ *     section: {
+ *       kind: 'core.representation.section4',
+ *       source: 'tesseract',
+ *       normal: [0, 0, 0, 1],
+ *       offset: 0,
+ *       frame: 'canonical'
+ *     }
+ *   },
+ *   actions: [{
+ *     id: 'probe',
+ *     title: 'Probe',
+ *     description: 'Reports headless evidence for a chart point.',
+ *     inputSchema: {
+ *       type: 'object',
+ *       properties: {
+ *         representation: { type: 'string' },
+ *         point: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 }
+ *       },
+ *       required: ['representation', 'point'],
+ *       additionalProperties: false
+ *     },
+ *     outputSchema: { type: 'object' },
+ *     readOnly: true,
+ *     destructive: false,
+ *     idempotent: true,
+ *     deterministic: true,
+ *     supportsPreview: false,
+ *     budget: { maxMillis: 20 },
+ *     operation: { kind: 'probe' }
+ *   }]
+ * });
+ * if (!prepared.ok) return;
+ * const compiled = compileExperimentDocumentV0(prepared.value, {
+ *   compilers: [coreExperimentCompilerV0()]
+ * });
+ * if (!compiled.ok) return;
+ *
+ * const answered = compiled.value.invoke('probe', {
+ *   representation: 'section', point: [50, 50, 50]
+ * });
+ * const output = answered.output as {
+ *   readonly sourceCellStatus: experiment.ExperimentProbeSourceCellStatusV0;
+ *   readonly sourceCell?: { readonly groupKey: string; readonly ordinal: number };
+ * };
+ *
+ * if (output.sourceCellStatus === 'resolved') {
+ *   log(output.sourceCell?.ordinal);
+ * } else if (output.sourceCellStatus === 'precision-insufficient') {
+ *   // The point is on the section, but its source coordinate does not
+ *   // reconcile at this evidence. A renderer adapter that names the triangle
+ *   // it picked can still resolve it.
+ *   log('re-pick through representationHitFromSlicedComplex');
+ * } else {
+ *   log(output.sourceCellStatus); // 'not-on-emitted-cell' here
+ * }
+ * ```
+ */
+export type ExperimentProbeSourceCellStatusV0 =
+  | 'resolved'
+  | 'not-on-emitted-cell'
+  | 'ambiguous-primitive'
+  | 'precision-insufficient'
+  | 'source-record-missing'
+  | 'source-record-retired'
+  | 'source-not-simplex'
+  | 'source-not-compiled'
+  | 'unavailable-for-representation';
+
+type SourceCellResolutionRefusal =
+  Extract<RepresentationChartSourceCellResolutionN, { kind: 'unavailable' }>;
+
+/**
+ * Maps one resolver refusal to one probe status.
+ *
+ * The mapping is exhaustive on purpose: a reason added to the resolver becomes
+ * a compile error here rather than silently collapsing into a neighbouring
+ * state.
+ */
+function sourceCellStatusForReason(
+  reason: SourceCellResolutionRefusal['reason']
+): ExperimentProbeSourceCellStatusV0 {
+  switch (reason) {
+    case 'outside-representation': return 'not-on-emitted-cell';
+    case 'ambiguous-source-cell': return 'ambiguous-primitive';
+    case 'source-coordinate-mismatch': return 'precision-insufficient';
+    case 'source-cell-record-missing': return 'source-record-missing';
+    case 'source-cell-retired': return 'source-record-retired';
+    case 'source-cell-not-simplex': return 'source-not-simplex';
+    default: {
+      const unmapped: never = reason;
+      throw new Error(
+        `probe: unmapped source-cell resolution reason ${JSON.stringify(unmapped)}`
+      );
+    }
+  }
+}
+
+/**
+ * Reports the resolver's decision instead of discarding it.
+ *
+ * A probe used to answer with `sourceCell` present or simply absent, so a
+ * caller could not tell a point that missed the section from one the resolver
+ * declined to attribute. Absence is not a diagnosis, and every refusal here
+ * already carries a typed reason and its match counts.
+ */
+function describeSourceCellResolution(
+  located: RepresentationChartSourceCellResolutionN | null
+): Record<string, ExperimentJsonValue> {
+  if (located === null) {
+    return { sourceCellStatus: 'source-not-compiled' };
+  }
+  if (located.kind === 'resolved') {
+    const coordinate = located.sourceCoordinate;
+    return {
+      sourceCellStatus: 'resolved',
+      sourceCell: {
+        groupKey:
+          located.reference.group.key ??
+          `dim3/${located.reference.group.kind}`,
+        ordinal: located.reference.cellIndex
+      },
+      triangleIndex: located.triangleIndex,
+      sourceCoordinateStatus:
+        coordinate.kind === 'exact' ? 'exact' : coordinate.reason,
+      ...(coordinate.kind === 'exact'
+        ? { sourceResidual: coordinate.sourceResidual }
+        : {})
+    };
+  }
+  return {
+    sourceCellStatus: sourceCellStatusForReason(located.reason),
+    matchingTriangles: located.matchingTriangles,
+    matchingSourceCells: located.matchingSourceCells
+  };
 }
 
 function copyCompilers(

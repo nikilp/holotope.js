@@ -11,6 +11,7 @@ export {
   type ExperimentCompiledModelV0,
   type ExperimentCompiledPoseV0,
   type ExperimentActionResultV0,
+  type ExperimentProbeSourceCellStatusV0,
   type ExperimentModelStateV0,
   type ExperimentObservationRecordV0,
   type ExperimentReplayLevelV0,
