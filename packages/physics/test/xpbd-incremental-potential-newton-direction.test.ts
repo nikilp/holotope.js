@@ -287,11 +287,18 @@ describe('XPBD matrix-free Newton-direction reference', () => {
       coordinates: [1],
       curvaturePolicy: { kind: 'provider-local-psd' }
     });
+    const blockProjected = solveXpbdIncrementalPotentialNewtonDirectionN({
+      problem,
+      coordinates: [1],
+      curvaturePolicy: { kind: 'provider-block-psd' }
+    });
 
     expect(exact.status).toBe('non-positive-curvature');
     expect(exact.curvaturePolicy).toBe('exact');
     expect(projected.status).toBe('converged');
     expect(projected.curvaturePolicy).toBe('provider-local-psd');
+    expect(blockProjected.status).toBe('converged');
+    expect(blockProjected.curvaturePolicy).toBe('provider-block-psd');
     if (projected.status !== 'converged') return;
     expect(Array.from(projected.direction)).toEqual([1]);
     expect(projected.iterations).toHaveLength(1);
@@ -307,6 +314,15 @@ describe('XPBD matrix-free Newton-direction reference', () => {
       expect(providerCurvature.curvature.clippedEigenvalueCount).toBe(1);
       expect(Array.from(providerCurvature.curvature.rawEigenvalues))
         .toEqual([-2]);
+    }
+    const blockCurvature =
+      blockProjected.iterations[0]!.providerCurvatures[0]!.curvature;
+    expect(blockCurvature.kind).toBe('provider-block-psd');
+    if (blockCurvature.kind === 'provider-block-psd') {
+      expect(blockCurvature.decomposition).toBe('implicit-provider');
+      expect(blockCurvature.blockCount).toBe(1);
+      expect(blockCurvature.blocks[0]!.clippedEigenvalueCount).toBe(1);
+      expect(blockCurvature.rawAssemblyRelativeError).toBe(0);
     }
     expect(projected.base.gradient[0]! * projected.direction[0]!)
       .toBeLessThan(0);
@@ -518,6 +534,12 @@ describe('XPBD matrix-free Newton-direction reference', () => {
         eigensolverMaximumSweeps: 1.5
       }
     })).toThrow(/eigensolverMaximumSweeps/);
+    expect(() => solve({
+      curvaturePolicy: {
+        kind: 'provider-block-psd',
+        decompositionTolerance: 0
+      }
+    })).toThrow(/decompositionTolerance/);
     expect(() => solveXpbdIncrementalPotentialNewtonDirectionN({
       problem,
       coordinates: []

@@ -6,6 +6,7 @@ import {
   type SimplexConstitutiveFamilyElementEvaluationN,
   type SimplexConstitutiveFamilyElementN,
   type SimplexConstitutiveFamilyEvaluationN,
+  type SimplexConstitutiveFamilyHessianBlockN,
   type SimplexConstitutiveFamilyHessianVectorEvaluationN,
   type SimplexConstitutiveFamilyMaterialN
 } from './simplex-constitutive-family.js';
@@ -15,6 +16,9 @@ import {
   type SimplexStVenantKirchhoffMaterialN
 } from './simplex-stvk-material.js';
 import {
+  type XpbdConservativeHessianBlockN,
+  type XpbdConservativeHessianBlockProviderN,
+  type XpbdConservativeHessianVectorEvaluationN,
   type XpbdConservativeHessianVectorProviderN,
   type XpbdParticleDirectionQueryN
 } from './xpbd-incremental-potential-analytic-curvature.js';
@@ -69,7 +73,8 @@ export interface SimplexStVenantKirchhoffFamilyHessianVectorEvaluationN
 export class SimplexStVenantKirchhoffFamilyN
 implements
   XpbdConservativeForceProviderN,
-  XpbdConservativeHessianVectorProviderN {
+  XpbdConservativeHessianVectorProviderN,
+  XpbdConservativeHessianBlockProviderN {
   readonly constitutiveFamily: SimplexConstitutiveFamilyN<
     SimplexStVenantKirchhoffMaterialN,
     SimplexStVenantKirchhoffEvaluationN
@@ -80,6 +85,10 @@ implements
   readonly sourceSimplexGroup: CellGroup;
   readonly particles: readonly XpbdParticleN[];
   readonly elements: readonly SimplexStVenantKirchhoffFamilyElementN[];
+  readonly potentialHessianBlocks:
+    readonly SimplexConstitutiveFamilyHessianBlockN<
+      SimplexStVenantKirchhoffMaterialN
+    >[];
   private attachedWorld: XpbdWorldN | null = null;
 
   private constructor(
@@ -95,6 +104,13 @@ implements
     this.sourceSimplexGroup = family.sourceSimplexGroup;
     this.particles = family.particles;
     this.elements = family.elements;
+    const blocks = family.potentialHessianBlocks;
+    if (blocks === undefined) {
+      throw new Error(
+        'SimplexStVenantKirchhoffFamilyN: built-in law lost curvature blocks'
+      );
+    }
+    this.potentialHessianBlocks = blocks;
   }
 
   static compile(
@@ -131,6 +147,22 @@ implements
       );
     }
     return evaluate(positionOf, directionOf);
+  }
+
+  /** Evaluates one exact source-simplex StVK Hessian block. */
+  evaluatePotentialHessianBlockVectorAt(
+    block: XpbdConservativeHessianBlockN,
+    positionOf: XpbdParticlePositionQueryN,
+    directionOf: XpbdParticleDirectionQueryN
+  ): XpbdConservativeHessianVectorEvaluationN {
+    const evaluate =
+      this.constitutiveFamily.evaluatePotentialHessianBlockVectorAt;
+    if (evaluate === undefined) {
+      throw new Error(
+        'SimplexStVenantKirchhoffFamilyN: built-in law lost curvature blocks'
+      );
+    }
+    return evaluate(block, positionOf, directionOf);
   }
 
   /** Registers this compatibility provider; particles must already belong to the world. */

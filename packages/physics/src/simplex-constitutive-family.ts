@@ -14,6 +14,7 @@ import type { SimplexConstitutiveEvaluationN } from './simplex-constitutive.js';
 import type { SimplexConstitutiveHessianVectorEvaluationN } from './simplex-constitutive-curvature.js';
 import { evaluateSimplexSquaredMeasureN } from './xpbd-simplex-measure.js';
 import type {
+  XpbdConservativeHessianBlockN,
   XpbdConservativeHessianVectorEvaluationN,
   XpbdParticleDirectionQueryN
 } from './xpbd-incremental-potential-analytic-curvature.js';
@@ -131,6 +132,13 @@ export interface SimplexConstitutiveFamilyElementHessianVectorEvaluationN<
   readonly evaluation: SimplexConstitutiveHessianVectorEvaluationN<TEvaluation>;
 }
 
+/** One source-simplex block in an exact constitutive Hessian decomposition. */
+export interface SimplexConstitutiveFamilyHessianBlockN<TMaterial>
+  extends XpbdConservativeHessianBlockN {
+  /** Compiled source element whose law contributes this block. */
+  readonly element: SimplexConstitutiveFamilyElementN<TMaterial>;
+}
+
 /** Exact assembled potential curvature for one constitutive family. */
 export interface SimplexConstitutiveFamilyHessianVectorEvaluationN<
   TMaterial,
@@ -174,6 +182,19 @@ export class SimplexConstitutiveFamilyN<
       TEvaluation
     >)
     | undefined;
+  /**
+   * One exact additive Hessian block per source simplex when curvature exists.
+   */
+  readonly potentialHessianBlocks:
+    readonly SimplexConstitutiveFamilyHessianBlockN<TMaterial>[] | undefined;
+  /** Exact source-simplex block evaluation, absent for first-order-only laws. */
+  readonly evaluatePotentialHessianBlockVectorAt:
+    | ((
+      block: XpbdConservativeHessianBlockN,
+      positionOf: XpbdParticlePositionQueryN,
+      directionOf: XpbdParticleDirectionQueryN
+    ) => SimplexConstitutiveHessianVectorEvaluationN<TEvaluation>)
+    | undefined;
   private readonly restPositions: readonly (readonly VecN[])[];
   private attachedWorld: XpbdWorldN | null = null;
 
@@ -190,11 +211,34 @@ export class SimplexConstitutiveFamilyN<
     this.law = options.law;
     this.elements = Object.freeze([...elements]);
     this.restPositions = Object.freeze([...restPositions]);
-    this.evaluatePotentialHessianVectorAt =
-      options.law.evaluateHessianVector === undefined
-        ? undefined
-        : (positionOf, directionOf) =>
-          this.evaluateHessianVectorAt(positionOf, directionOf);
+    if (options.law.evaluateHessianVector === undefined) {
+      this.evaluatePotentialHessianVectorAt = undefined;
+      this.potentialHessianBlocks = undefined;
+      this.evaluatePotentialHessianBlockVectorAt = undefined;
+    } else {
+      this.evaluatePotentialHessianVectorAt = (positionOf, directionOf) =>
+        this.evaluateHessianVectorAt(positionOf, directionOf);
+      this.potentialHessianBlocks = Object.freeze(
+        this.elements.map((element) => Object.freeze({
+          id: `element/${element.sourceCellIndex}`,
+          particles: Object.freeze(
+            element.sourceVertexIndices.map(
+              (vertex) => this.particles[vertex]!
+            )
+          ),
+          element
+        }))
+      );
+      this.evaluatePotentialHessianBlockVectorAt = (
+        block,
+        positionOf,
+        directionOf
+      ) => this.evaluateHessianBlockVectorAt(
+        block,
+        positionOf,
+        directionOf
+      );
+    }
   }
 
   static compile<
@@ -409,6 +453,61 @@ export class SimplexConstitutiveFamilyN<
     });
   }
 
+  private evaluateHessianBlockVectorAt(
+    block: XpbdConservativeHessianBlockN,
+    positionOf: XpbdParticlePositionQueryN,
+    directionOf: XpbdParticleDirectionQueryN
+  ): SimplexConstitutiveHessianVectorEvaluationN<TEvaluation> {
+    const caller =
+      'SimplexConstitutiveFamilyN.evaluatePotentialHessianBlockVectorAt';
+    if (typeof positionOf !== 'function') {
+      throw new Error(`${caller}: positionOf must be a function`);
+    }
+    if (typeof directionOf !== 'function') {
+      throw new Error(`${caller}: directionOf must be a function`);
+    }
+    const lawEvaluator = this.law.evaluateHessianVector;
+    const blocks = this.potentialHessianBlocks;
+    if (lawEvaluator === undefined || blocks === undefined) {
+      throw new Error(`${caller}: law "${this.law.id}" has no exact curvature`);
+    }
+    const elementIndex = blocks.indexOf(
+      block as SimplexConstitutiveFamilyHessianBlockN<TMaterial>
+    );
+    if (elementIndex < 0) {
+      throw new Error(`${caller}: block does not belong to this family`);
+    }
+    this.assertCurrentLineage('evaluatePotentialHessianBlockVectorAt');
+    const selected = blocks[elementIndex]!;
+    const currentPositions = selected.particles.map((particle, local) =>
+      finiteParticleVector(
+        positionOf(particle),
+        this.dimension,
+        `${caller}: particle ${local} position`
+      )
+    );
+    const directions = selected.particles.map((particle, local) =>
+      finiteParticleVector(
+        directionOf(particle),
+        this.dimension,
+        `${caller}: particle ${local} direction`
+      )
+    );
+    const evaluation = lawEvaluator(
+      this.restPositions[elementIndex]!,
+      currentPositions,
+      directions,
+      selected.element.material
+    );
+    validateHessianVectorEvaluation(
+      evaluation,
+      this.dimension,
+      selected.element.simplexDimension,
+      `${caller}: law "${this.law.id}" element ${elementIndex}`
+    );
+    return evaluation;
+  }
+
   /** Defensive copy of the compiled material rest simplex in source-cell order. */
   restPositionsOfElement(elementIndex: number): readonly VecN[] {
     if (!Number.isSafeInteger(elementIndex) ||
@@ -428,6 +527,7 @@ export class SimplexConstitutiveFamilyN<
       | 'evaluate'
       | 'evaluateAt'
       | 'evaluatePotentialHessianVectorAt'
+      | 'evaluatePotentialHessianBlockVectorAt'
       | 'addToWorld'
   ): void {
     validateCurrentLineage(this.elements, operation);
@@ -742,6 +842,7 @@ function validateCurrentLineage<TMaterial>(
     | 'evaluate'
     | 'evaluateAt'
     | 'evaluatePotentialHessianVectorAt'
+    | 'evaluatePotentialHessianBlockVectorAt'
     | 'addToWorld'
 ): void {
   for (const element of elements) {

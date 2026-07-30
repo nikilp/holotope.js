@@ -570,6 +570,63 @@ the eventual per-element sparse implementation. The option is explicit on
 `xpbdNewtonDirectionPolicyN()` so applications cannot confuse exact and
 modified curvature.
 
+### Exact provider-block PSD curvature
+
+Whole-provider projection can erase useful locality. Providers may therefore
+expose an optional exact additive seam:
+
+```ts
+interface XpbdConservativeHessianBlockProviderN {
+  readonly potentialHessianBlocks:
+    readonly XpbdConservativeHessianBlockN[];
+
+  evaluatePotentialHessianBlockVectorAt(
+    block,
+    positionOf,
+    directionOf
+  ): XpbdConservativeHessianVectorEvaluationN;
+}
+```
+
+For declared blocks \(H_{ib}\), the provider contract is
+
+$$
+H_i d=\sum_b A_{ib}^T H_{ib}A_{ib}d.
+$$
+
+Blocks may overlap in particle support. Their stable ids and particle order
+define the local coordinate maps; the provider's aggregate HVP remains
+authoritative. The block policy can then project the smaller matrices:
+
+```ts
+const linear = solveXpbdIncrementalPotentialNewtonDirectionN({
+  problem,
+  coordinates: packed.coordinates,
+  curvaturePolicy: { kind: 'provider-block-psd' }
+});
+```
+
+Each dense block is reconstructed from exact basis HVPs, symmetry-audited,
+diagonalized, and clamped independently. Before the projected product is
+accepted, the unmodified block products are summed by particle identity and
+compared with one exact aggregate provider HVP at the requested direction.
+A mismatch is a contract error rather than an approximate result.
+
+The returned provider evidence states whether the decomposition was
+`declared` or an `implicit-provider` fallback, the raw assembly error, total
+operator count, and the full spectrum and eigensystem diagnostics for every
+block. Providers without a declared decomposition remain compatible by
+forming one visible whole-provider block.
+
+`SimplexConstitutiveFamilyN` specializes this seam naturally: each source
+simplex is one block, in source-cell order, and its retained block record
+points back to the compiled source element. Thus a family with local scalar
+counts \(k_b\) changes the dense spectral work from
+\(O((\sum_b k_b)^3)\) to \(\sum_b O(k_b^3)\). This is the exact Float64
+golden path for element-local modified curvature. It deliberately does not
+cache block matrices, assemble a global sparse Hessian, construct a scalable
+preconditioner, or claim a production large-mesh solve.
+
 ### Bounded matrix-free Newton direction
 
 `solveXpbdIncrementalPotentialNewtonDirectionN()` is the first bounded linear
@@ -614,11 +671,11 @@ separate statuses.
 
 This function solves only the linearized equation at one fixed coordinate.
 Its default exact policy does not modify definiteness; the explicit
-provider-local PSD option is the bounded reference above. Neither policy
-selects an admissible nonlinear step, invokes Armijo backtracking, mutates
-particles, or claims a globally convergent Newton method. Those remain
-separate policies so callers cannot mistake a locally valid direction for an
-accepted simulation state.
+provider-local and provider-block PSD options are the bounded references
+above. None selects an admissible nonlinear step, invokes Armijo
+backtracking, mutates particles, or claims a globally convergent Newton
+method. Those remain separate policies so callers cannot mistake a locally
+valid direction for an accepted simulation state.
 
 ## Globalizing the Newton direction
 
@@ -798,11 +855,13 @@ direction-policy golden path with steepest and inertial-mass specializations,
 an independently auditable matrix-free curvature estimate, exact analytic
 composition for completely capable provider mixtures, bounded
 preconditioned-CG Newton directions, explicit direction-policy globalization,
-an opt-in dense provider-local PSD reference, an explicit atomic state
-transition, and a single-call transactional reference step. They do not:
+opt-in dense provider-local and exact provider-block PSD references, an
+explicit atomic state transition, and a single-call transactional reference
+step. They do not:
 
 - assemble a sparse/global Hessian or direct linear factorization;
-- provide a scalable per-element PSD or large-mesh modified-Newton backend;
+- cache local projected blocks or provide a scalable sparse large-mesh
+  modified-Newton backend;
 - provide quasi-Newton or trust-region directions;
 - apply `XpbdWorldN` velocity responses or state guards to the optimization
   path;

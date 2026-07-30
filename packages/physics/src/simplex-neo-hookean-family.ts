@@ -6,6 +6,7 @@ import {
   type SimplexConstitutiveFamilyElementEvaluationN,
   type SimplexConstitutiveFamilyElementN,
   type SimplexConstitutiveFamilyEvaluationN,
+  type SimplexConstitutiveFamilyHessianBlockN,
   type SimplexConstitutiveFamilyHessianVectorEvaluationN,
   type SimplexConstitutiveFamilyMaterialN
 } from './simplex-constitutive-family.js';
@@ -15,6 +16,9 @@ import {
   type SimplexCompressibleNeoHookeanMaterialN
 } from './simplex-neo-hookean-material.js';
 import {
+  type XpbdConservativeHessianBlockN,
+  type XpbdConservativeHessianBlockProviderN,
+  type XpbdConservativeHessianVectorEvaluationN,
   type XpbdConservativeHessianVectorProviderN,
   type XpbdParticleDirectionQueryN
 } from './xpbd-incremental-potential-analytic-curvature.js';
@@ -71,7 +75,8 @@ export interface SimplexCompressibleNeoHookeanFamilyHessianVectorEvaluationN
 export class SimplexCompressibleNeoHookeanFamilyN
 implements
   XpbdConservativeForceProviderN,
-  XpbdConservativeHessianVectorProviderN {
+  XpbdConservativeHessianVectorProviderN,
+  XpbdConservativeHessianBlockProviderN {
   readonly constitutiveFamily: SimplexConstitutiveFamilyN<
     SimplexCompressibleNeoHookeanMaterialN,
     SimplexCompressibleNeoHookeanEvaluationN
@@ -82,6 +87,10 @@ implements
   readonly sourceSimplexGroup: CellGroup;
   readonly particles: readonly XpbdParticleN[];
   readonly elements: readonly SimplexCompressibleNeoHookeanFamilyElementN[];
+  readonly potentialHessianBlocks:
+    readonly SimplexConstitutiveFamilyHessianBlockN<
+      SimplexCompressibleNeoHookeanMaterialN
+    >[];
   private attachedWorld: XpbdWorldN | null = null;
 
   private constructor(
@@ -97,6 +106,13 @@ implements
     this.sourceSimplexGroup = family.sourceSimplexGroup;
     this.particles = family.particles;
     this.elements = family.elements;
+    const blocks = family.potentialHessianBlocks;
+    if (blocks === undefined) {
+      throw new Error(
+        'SimplexCompressibleNeoHookeanFamilyN: built-in law lost curvature blocks'
+      );
+    }
+    this.potentialHessianBlocks = blocks;
   }
 
   static compile(
@@ -133,6 +149,22 @@ implements
       );
     }
     return evaluate(positionOf, directionOf);
+  }
+
+  /** Evaluates one exact source-simplex Neo-Hookean Hessian block. */
+  evaluatePotentialHessianBlockVectorAt(
+    block: XpbdConservativeHessianBlockN,
+    positionOf: XpbdParticlePositionQueryN,
+    directionOf: XpbdParticleDirectionQueryN
+  ): XpbdConservativeHessianVectorEvaluationN {
+    const evaluate =
+      this.constitutiveFamily.evaluatePotentialHessianBlockVectorAt;
+    if (evaluate === undefined) {
+      throw new Error(
+        'SimplexCompressibleNeoHookeanFamilyN: built-in law lost curvature blocks'
+      );
+    }
+    return evaluate(block, positionOf, directionOf);
   }
 
   /** Registers this provider; particles must already belong to the world. */

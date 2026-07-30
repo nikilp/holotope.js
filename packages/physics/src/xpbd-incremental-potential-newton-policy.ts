@@ -46,7 +46,7 @@ export interface XpbdNewtonDirectionPolicyNOptions {
   readonly problem: XpbdIncrementalPotentialProblemN;
   /** Forwarded to the P37 solve; default `mass-diagonal`. */
   readonly preconditioner?: XpbdIncrementalPotentialNewtonPreconditionerN;
-  /** Exact provider Hessians by default, or explicit provider-local PSD. */
+  /** Exact provider Hessians by default, or an explicit PSD block policy. */
   readonly curvaturePolicy?: XpbdIncrementalPotentialCurvaturePolicyN;
   /** Residual tolerance relative to the initial gradient norm. */
   readonly relativeResidualTolerance?: number;

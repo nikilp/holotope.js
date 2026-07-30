@@ -28,7 +28,7 @@ export interface SolveXpbdIncrementalPotentialNewtonDirectionNOptions {
   /** Positive preconditioner policy; default `mass-diagonal`. */
   readonly preconditioner?: XpbdIncrementalPotentialNewtonPreconditionerN;
   /**
-   * Exact provider Hessians by default, or explicit dense provider-local PSD.
+   * Exact provider Hessians by default, or explicit dense PSD block policy.
    */
   readonly curvaturePolicy?: XpbdIncrementalPotentialCurvaturePolicyN;
   /** Residual tolerance relative to the initial gradient norm; default `1e-8`. */

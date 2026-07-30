@@ -8,6 +8,8 @@ import {
   compileXpbdIncrementalPotentialProblemN,
   estimateXpbdIncrementalPotentialHessianVectorN,
   evaluateXpbdIncrementalPotentialAnalyticHessianVectorN,
+  type XpbdConservativeHessianBlockN,
+  type XpbdConservativeHessianBlockProviderN,
   type XpbdConservativeForceProviderN,
   type XpbdConservativeHessianVectorProviderN,
   type XpbdIncrementalPotentialProblemN
@@ -121,6 +123,69 @@ function analyticDenseQuadraticProvider(
     evaluatePotentialHessianVectorAt: (_positionOf, directionOf) => ({
       products: [apply(directionOf(particle))]
     })
+  };
+}
+
+function analyticBlockQuadraticProvider(
+  id: string,
+  particle: XpbdParticleN,
+  matrices: readonly (readonly (readonly number[])[])[]
+): XpbdConservativeHessianBlockProviderN {
+  const dimension = particle.dimension;
+  for (const matrix of matrices) {
+    if (matrix.length !== dimension ||
+      matrix.some((row) => row.length !== dimension)) {
+      throw new Error('test block matrix dimension mismatch');
+    }
+  }
+  const blocks = Object.freeze(matrices.map((_, index) => Object.freeze({
+    id: `block/${index}`,
+    particles: Object.freeze([particle])
+  })));
+  const apply = (
+    matrix: readonly (readonly number[])[],
+    vector: VecN
+  ): VecN => new VecN(matrix.map((row) =>
+    row.reduce(
+      (sum, coefficient, axis) =>
+        sum + coefficient * vector.data[axis]!,
+      0
+    )
+  ));
+  const sumProducts = (direction: VecN): VecN => {
+    const product = new VecN(dimension);
+    for (const matrix of matrices) product.add(apply(matrix, direction));
+    return product;
+  };
+  const evaluateAt: XpbdConservativeForceProviderN['evaluateAt'] = (
+    positionOf
+  ) => {
+    const position = positionOf(particle);
+    const gradient = sumProducts(position);
+    return {
+      potentialEnergy: 0.5 * position.dot(gradient),
+      forces: [gradient.multiplyScalar(-1)]
+    };
+  };
+  return {
+    id,
+    dimension,
+    particles: [particle],
+    potentialHessianBlocks: blocks,
+    evaluate: () => evaluateAt(() => particle.position.clone()),
+    evaluateAt,
+    evaluatePotentialHessianVectorAt: (_positionOf, directionOf) => ({
+      products: [sumProducts(directionOf(particle))]
+    }),
+    evaluatePotentialHessianBlockVectorAt: (
+      block,
+      _positionOf,
+      directionOf
+    ) => {
+      const index = blocks.indexOf(block);
+      if (index < 0) throw new Error('test provider received foreign block');
+      return { products: [apply(matrices[index]!, directionOf(particle))] };
+    }
   };
 }
 
@@ -296,6 +361,218 @@ describe('XPBD incremental-potential analytic curvature', () => {
     expect(evidence.relativeSymmetryError).toBe(0);
     expect(evidence.eigensystemMaxResidual).toBeLessThan(1e-12);
     expect(evidence.eigensystemOrthogonalityError).toBeLessThan(1e-12);
+  });
+
+  it('keeps provider-local and provider-block PSD as distinct policies', () => {
+    const particle = new XpbdParticleN({
+      id: 'two-blocks',
+      position: [0],
+      inverseMass: 1
+    });
+    const provider = analyticBlockQuadraticProvider(
+      'two-block-law',
+      particle,
+      [[[-2]], [[3]]]
+    );
+    const problem = compile(
+      [particle],
+      [new VecN([0])],
+      1,
+      [provider]
+    );
+    const evaluate = (
+      curvaturePolicy:
+        | 'exact'
+        | { readonly kind: 'provider-local-psd' }
+        | { readonly kind: 'provider-block-psd' }
+    ) => evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+      problem,
+      coordinates: [1],
+      direction: [1],
+      curvaturePolicy
+    });
+    const exact = evaluate('exact');
+    const providerLocal = evaluate({ kind: 'provider-local-psd' });
+    const blockLocal = evaluate({ kind: 'provider-block-psd' });
+
+    expect(exact.status).toBe('evaluated');
+    expect(providerLocal.status).toBe('evaluated');
+    expect(blockLocal.status).toBe('evaluated');
+    if (exact.status !== 'evaluated' ||
+      providerLocal.status !== 'evaluated' ||
+      blockLocal.status !== 'evaluated') return;
+    expectArrayClose(exact.potentialProducts[0]!.data, [1], 14);
+    expectArrayClose(providerLocal.potentialProducts[0]!.data, [1], 14);
+    expectArrayClose(blockLocal.potentialProducts[0]!.data, [3], 14);
+    expectArrayClose(exact.product, [2], 14);
+    expectArrayClose(providerLocal.product, [2], 14);
+    expectArrayClose(blockLocal.product, [4], 14);
+
+    const evidence = blockLocal.providers[0]!.curvature;
+    expect(evidence.kind).toBe('provider-block-psd');
+    if (evidence.kind !== 'provider-block-psd') return;
+    expect(evidence.decomposition).toBe('declared');
+    expect(evidence.blockCount).toBe(2);
+    expect(evidence.operatorEvaluations).toBe(3);
+    expect(evidence.rawAssemblyRelativeError).toBe(0);
+    expect(evidence.blocks.map((block) => block.blockId))
+      .toEqual(['block/0', 'block/1']);
+    expect(evidence.blocks.map((block) => block.clippedEigenvalueCount))
+      .toEqual([1, 0]);
+    expect(evidence.blocks.map((block) =>
+      Array.from(block.rawEigenvalues)
+    )).toEqual([[-2], [3]]);
+  });
+
+  it('uses one audited implicit block for undecomposed analytic providers', () => {
+    for (const dimension of [1, 2, 4, 7]) {
+      const particle = new XpbdParticleN({
+        id: `implicit-r${dimension}`,
+        position: new Float64Array(dimension),
+        inverseMass: 1
+      });
+      const diagonal = Array.from(
+        { length: dimension },
+        (_, row) => Array.from(
+          { length: dimension },
+          (_, column) => row === column ? row + 1 : 0
+        )
+      );
+      const direction = Float64Array.from(
+        { length: dimension },
+        (_, axis) => 0.13 * (axis + 1)
+      );
+      const result =
+        evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+          problem: compile(
+            [particle],
+            [new VecN(dimension)],
+            0.1,
+            [analyticDenseQuadraticProvider(
+              `implicit-law-r${dimension}`,
+              particle,
+              diagonal
+            )]
+          ),
+          coordinates: new Float64Array(dimension),
+          direction,
+          curvaturePolicy: { kind: 'provider-block-psd' }
+        });
+
+      expect(result.status).toBe('evaluated');
+      if (result.status !== 'evaluated') continue;
+      const evidence = result.providers[0]!.curvature;
+      expect(evidence.kind).toBe('provider-block-psd');
+      if (evidence.kind !== 'provider-block-psd') continue;
+      expect(evidence.decomposition).toBe('implicit-provider');
+      expect(evidence.blockCount).toBe(1);
+      expect(evidence.operatorEvaluations).toBe(dimension + 1);
+      expect(evidence.rawAssemblyRelativeError).toBeLessThan(1e-14);
+      expect(evidence.blocks[0]!.particleIds)
+        .toEqual([particle.id]);
+    }
+  });
+
+  it('rejects a declared block sum that contradicts the aggregate HVP', () => {
+    const particle = new XpbdParticleN({
+      id: 'bad-decomposition',
+      position: [0],
+      inverseMass: 1
+    });
+    const valid = analyticBlockQuadraticProvider(
+      'bad-decomposition-law',
+      particle,
+      [[[1]], [[2]]]
+    );
+    const mismatched: XpbdConservativeHessianBlockProviderN = {
+      ...valid,
+      evaluatePotentialHessianVectorAt: (_positionOf, directionOf) => ({
+        products: [directionOf(particle).multiplyScalar(4)]
+      })
+    };
+    expect(() =>
+      evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+        problem: compile(
+          [particle],
+          [new VecN([0])],
+          0.1,
+          [mismatched]
+        ),
+        coordinates: [0],
+        direction: [1],
+        curvaturePolicy: { kind: 'provider-block-psd' }
+      })
+    ).toThrow(/block assembly does not match/);
+  });
+
+  it('validates declared block identity, ownership, and product shape', () => {
+    const particle = new XpbdParticleN({
+      id: 'block-owner',
+      position: [0],
+      inverseMass: 1
+    });
+    const foreign = new XpbdParticleN({
+      id: 'block-foreign',
+      position: [0],
+      inverseMass: 1
+    });
+    const valid = analyticBlockQuadraticProvider(
+      'block-contract',
+      particle,
+      [[[1]]]
+    );
+    const runProvider = (
+      provider: XpbdConservativeHessianVectorProviderN
+    ) => evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+      problem: compile(
+        [particle],
+        [new VecN([0])],
+        0.1,
+        [provider]
+      ),
+      coordinates: [0],
+      direction: [1],
+      curvaturePolicy: { kind: 'provider-block-psd' }
+    });
+    const run = (
+      blocks: readonly XpbdConservativeHessianBlockN[],
+      evaluateBlock = valid.evaluatePotentialHessianBlockVectorAt
+    ) => runProvider({
+      ...valid,
+      potentialHessianBlocks: blocks,
+      evaluatePotentialHessianBlockVectorAt: evaluateBlock
+    });
+    const block = valid.potentialHessianBlocks[0]!;
+    const aggregate = analyticQuadraticProvider(
+      'partial-block-contract',
+      [particle],
+      1
+    );
+
+    expect(() => run([])).toThrow(/at least one Hessian block/);
+    expect(() => run([block, { ...block }]))
+      .toThrow(/repeats Hessian block id/);
+    expect(() => run([{
+      id: 'foreign',
+      particles: [foreign]
+    }])).toThrow(/contains a foreign particle/);
+    expect(() => run([{
+      id: 'repeated',
+      particles: [particle, particle]
+    }])).toThrow(/repeats a particle/);
+    expect(() => run([block], () => ({ products: [] })))
+      .toThrow(/product count mismatch/);
+    expect(() => runProvider({
+      ...aggregate,
+      potentialHessianBlocks: [block]
+    } as XpbdConservativeHessianVectorProviderN))
+      .toThrow(/must expose potentialHessianBlocks and/);
+    expect(() => runProvider({
+      ...aggregate,
+      evaluatePotentialHessianBlockVectorAt:
+        valid.evaluatePotentialHessianBlockVectorAt
+    } as XpbdConservativeHessianVectorProviderN))
+      .toThrow(/must expose potentialHessianBlocks and/);
   });
 
   it('is dimension-independent and leaves positive provider spectra unchanged', () => {

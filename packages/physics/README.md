@@ -261,13 +261,26 @@ Newton/Krylov solver is implied by the provider capability itself.
 Analytic composition and the Newton APIs default to the providers' exact
 curvature. Authors may instead select
 `curvaturePolicy: { kind: 'provider-local-psd' }`. That explicit
-modified-Newton reference reconstructs each provider-local dense Hessian from
+modified-Newton reference reconstructs each complete provider Hessian from
 basis HVPs, audits symmetry, diagonalizes it with the deterministic Float64
 eigensolver, and clamps negative eigenvalues to zero. Results retain raw and
 projected spectra, clipped counts, symmetry error, eigensystem residuals, and
-operator cost. This is a cubic-cost CPU golden path for small providers. An
-assembled material family is one provider, so this is not yet the scalable
-per-element or sparse PSD path for a large deformable mesh.
+operator cost.
+
+Providers may expose a finer exact additive decomposition through
+`XpbdConservativeHessianBlockProviderN`. Selecting
+`curvaturePolicy: { kind: 'provider-block-psd' }` reconstructs and projects
+each declared block independently, then audits the raw block sum against the
+provider's authoritative aggregate HVP. Providers without that capability
+remain valid and visibly use one `implicit-provider` block. Constitutive
+families declare one source-ordered block per simplex, retaining element
+lineage in `SimplexConstitutiveFamilyHessianBlockN`.
+
+Both modes are deterministic cubic-cost CPU golden paths. Provider-local cost
+is cubic in the whole provider variable count; block-local cost is the sum of
+the dense block costs. The latter supplies an auditable element-local
+reference for simplex materials, not a cached sparse matrix, production
+preconditioner, or large-mesh factorization.
 
 `solveXpbdIncrementalPotentialNewtonDirectionN()` composes the complete
 analytic objective product into a bounded, non-mutating preconditioned-CG
@@ -276,9 +289,9 @@ mass-diagonal preconditioners are available. Results retain per-iteration
 residual and curvature evidence and distinguish convergence, an exact zero
 gradient, budget exhaustion, unsupported providers, and non-positive or
 numerically unresolved curvature. In exact mode the function assembles no
-matrix and does not modify definiteness. Provider-local PSD is the explicit
-exception described above. Neither mode chooses a nonlinear step, runs Armijo,
-or applies state.
+matrix and does not modify definiteness. Provider-local and provider-block PSD
+are the explicit exceptions described above. No mode chooses a nonlinear
+step, runs Armijo, or applies state.
 
 `compileSimplexConstitutiveFamilyStateGuardN()` is an optional post-substep
 policy over that generic family. It rejects typed law-domain refusal,

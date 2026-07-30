@@ -115,6 +115,48 @@ describe('SimplexConstitutiveFamilyN', () => {
     }
     expect(generic.elements.map((element) => element.sourceId))
       .toEqual(compatibility.elements.map((element) => element.sourceId));
+    expect(generic.potentialHessianBlocks?.map((block) => block.id))
+      .toEqual(['element/0', 'element/1']);
+    expect(compatibility.potentialHessianBlocks.map((block) => block.id))
+      .toEqual(['element/0', 'element/1']);
+    const genericBlock = generic.potentialHessianBlocks?.[0];
+    const evaluateGenericBlock =
+      generic.evaluatePotentialHessianBlockVectorAt;
+    if (genericBlock === undefined || evaluateGenericBlock === undefined) {
+      throw new Error('built-in generic law lost curvature blocks');
+    }
+    const compatibilityBlock = compatibility.potentialHessianBlocks[0]!;
+    const directionOf = (particle: XpbdParticleN) =>
+      new VecN([
+        0.03 * (particles.indexOf(particle) + 1),
+        -0.02 * (particles.indexOf(particle) + 1)
+      ]);
+    const genericCurvature = evaluateGenericBlock(
+      genericBlock,
+      (particle) => particle.position,
+      directionOf
+    );
+    const compatibilityCurvature =
+      compatibility.evaluatePotentialHessianBlockVectorAt(
+        compatibilityBlock,
+        (particle) => particle.position,
+        directionOf
+      );
+    for (let local = 0; local < genericCurvature.products.length; local++) {
+      expectArrayClose(
+        genericCurvature.products[local]!.data,
+        compatibilityCurvature.products[local]!.data,
+        14
+      );
+    }
+    expect(() => compatibility.evaluatePotentialHessianBlockVectorAt(
+      {
+        id: compatibilityBlock.id,
+        particles: compatibilityBlock.particles
+      },
+      (particle) => particle.position,
+      directionOf
+    )).toThrow(/does not belong to this family/);
   });
 
   it('assembles a source-indexed Neo-Hookean family as independent elements', () => {

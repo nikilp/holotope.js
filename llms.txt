@@ -157,12 +157,16 @@ windows.
   step.
 - Modified-Newton curvature:
   analytic composition, the Newton solve, and `xpbdNewtonDirectionPolicyN`
-  accept `curvaturePolicy: { kind: 'provider-local-psd' }`. This explicit
-  CPU reference reconstructs each provider-local dense Hessian, audits
-  symmetry, clamps negative eigenvalues, and retains both spectra and
-  eigensystem diagnostics. It is cubic in each provider's scalar-variable
-  count; use it for small providers and differential checks, not as a sparse
-  large-mesh backend. Omission preserves exact curvature and typed refusal.
+  accept `curvaturePolicy: { kind: 'provider-local-psd' }` or
+  `{ kind: 'provider-block-psd' }`. The first reconstructs one dense Hessian
+  per provider. The second uses an exact provider-authored additive block
+  decomposition, or reports one `implicit-provider` fallback, and audits the
+  raw block sum against the aggregate HVP. Simplex constitutive families
+  declare one source-retained block per element. Both explicit CPU references
+  audit symmetry, clamp negative eigenvalues, and retain spectra plus
+  eigensystem diagnostics. Their cost is cubic in the complete provider or
+  each declared block respectively; neither is a cached sparse large-mesh
+  backend. Omission preserves exact curvature and typed refusal.
 - Candidate objectives: `XpbdConservativeForceProviderN`, family
   `evaluateAt(positionOf)`, and `evaluateXpbdPotentialStateN` evaluate and
   assemble trial-state energy plus `dU/dx` without mutating live particles.

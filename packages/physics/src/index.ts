@@ -276,14 +276,19 @@ export {
 export {
   type XpbdConservativeCurvatureApplicationN,
   type XpbdConservativeExactCurvatureApplicationN,
+  type XpbdConservativePsdBlockApplicationN,
+  type XpbdConservativeProviderBlockPsdApplicationN,
   type XpbdConservativeProviderLocalPsdApplicationN,
   type XpbdIncrementalPotentialCurvaturePolicyKindN,
   type XpbdIncrementalPotentialCurvaturePolicyN,
+  type XpbdProviderBlockPsdCurvaturePolicyN,
   type XpbdProviderLocalPsdCurvaturePolicyN
 } from './xpbd-incremental-potential-curvature-policy.js';
 export {
   evaluateXpbdIncrementalPotentialAnalyticHessianVectorN,
   type EvaluateXpbdIncrementalPotentialAnalyticHessianVectorNOptions,
+  type XpbdConservativeHessianBlockN,
+  type XpbdConservativeHessianBlockProviderN,
   type XpbdConservativeHessianVectorEvaluationN,
   type XpbdConservativeHessianVectorProviderN,
   type XpbdConservativeHessianVectorProviderResultN,
@@ -473,6 +478,7 @@ export {
   type SimplexConstitutiveFamilyElementHessianVectorEvaluationN,
   type SimplexConstitutiveFamilyElementN,
   type SimplexConstitutiveFamilyEvaluationN,
+  type SimplexConstitutiveFamilyHessianBlockN,
   type SimplexConstitutiveFamilyHessianVectorEvaluationN,
   type SimplexConstitutiveFamilyMaterialN,
   type SimplexConstitutiveLawN

@@ -457,6 +457,16 @@ describe('simplex constitutive analytic curvature', () => {
       }
     });
     expect(barrier.evaluatePotentialHessianVectorAt).toBeTypeOf('function');
+    expect(elastic.potentialHessianBlocks.map((block) => block.id))
+      .toEqual(['element/0', 'element/1']);
+    expect(barrier.potentialHessianBlocks?.map((block) => block.id))
+      .toEqual(['element/0', 'element/1']);
+    expect(elastic.potentialHessianBlocks.map((block) =>
+      block.particles.map((particle) => particle.id)
+    )).toEqual([
+      ['curvature/0', 'curvature/1', 'curvature/2'],
+      ['curvature/1', 'curvature/3', 'curvature/2']
+    ]);
     const problem = compileXpbdIncrementalPotentialProblemN({
       dimension: 2,
       particles,
@@ -472,9 +482,17 @@ describe('simplex constitutive analytic curvature', () => {
     const analytic =
       evaluateXpbdIncrementalPotentialAnalyticHessianVectorN(options);
     const numeric = estimateXpbdIncrementalPotentialHessianVectorN(options);
+    const blockLocal =
+      evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+        ...options,
+        curvaturePolicy: { kind: 'provider-block-psd' }
+      });
     expect(analytic.status).toBe('evaluated');
     expect(numeric.status).toBe('evaluated');
-    if (analytic.status !== 'evaluated' || numeric.status !== 'evaluated') {
+    expect(blockLocal.status).toBe('evaluated');
+    if (analytic.status !== 'evaluated' ||
+      numeric.status !== 'evaluated' ||
+      blockLocal.status !== 'evaluated') {
       return;
     }
     for (let index = 0; index < analytic.product.length; index++) {
@@ -486,6 +504,17 @@ describe('simplex constitutive analytic curvature', () => {
     }
     expect(analytic.providers.map((entry) => entry.provider.id))
       .toEqual(['elastic-sheet', 'measure-barrier']);
+    for (const provider of blockLocal.providers) {
+      expect(provider.curvature.kind).toBe('provider-block-psd');
+      if (provider.curvature.kind !== 'provider-block-psd') continue;
+      expect(provider.curvature.decomposition).toBe('declared');
+      expect(provider.curvature.blockCount).toBe(2);
+      expect(provider.curvature.operatorEvaluations).toBe(13);
+      expect(provider.curvature.rawAssemblyRelativeError).toBeLessThan(1e-12);
+      expect(provider.curvature.blocks.map(
+        (block) => block.localVariableCount
+      )).toEqual([6, 6]);
+    }
   });
 
   it('keeps a custom first-order-only family explicitly unsupported', () => {
@@ -515,6 +544,8 @@ describe('simplex constitutive analytic curvature', () => {
       material: { firstLameParameter: 2, shearModulus: 1 }
     });
     expect(firstOrder.evaluatePotentialHessianVectorAt).toBeUndefined();
+    expect(firstOrder.potentialHessianBlocks).toBeUndefined();
+    expect(firstOrder.evaluatePotentialHessianBlockVectorAt).toBeUndefined();
     const result =
       evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
         problem: compileXpbdIncrementalPotentialProblemN({

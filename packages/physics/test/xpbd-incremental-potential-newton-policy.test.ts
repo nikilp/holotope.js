@@ -281,6 +281,34 @@ describe('xpbdNewtonDirectionPolicyN', () => {
     expect(gradientDotDirection).toBeLessThan(0);
   });
 
+  it('forwards provider-block PSD through the minimizer policy seam', () => {
+    const { problem } = scene(2, INDEFINITE_2D);
+    const result = minimizeXpbdIncrementalPotentialN({
+      problem,
+      initialCoordinates: [0.5, 0.5],
+      directionPolicy: xpbdNewtonDirectionPolicyN({
+        problem,
+        curvaturePolicy: { kind: 'provider-block-psd' }
+      }),
+      maximumIterations: 1
+    });
+
+    expect(result.iterations).toHaveLength(1);
+    const evidence = evidenceOf(
+      result.iterations[0]!.directionEvidence
+    );
+    expect(evidence.outcome).toBe('newton');
+    expect(evidence.newton.status).toBe('converged');
+    expect(evidence.newton.curvaturePolicy).toBe('provider-block-psd');
+    const curvature =
+      evidence.newton.iterations[0]!.providerCurvatures[0]!.curvature;
+    expect(curvature.kind).toBe('provider-block-psd');
+    if (curvature.kind === 'provider-block-psd') {
+      expect(curvature.decomposition).toBe('implicit-provider');
+      expect(curvature.rawAssemblyRelativeError).toBeLessThan(1e-14);
+    }
+  });
+
   it('is refused by the application boundary as not-converged', () => {
     const { particle, problem } = scene(2, INDEFINITE_2D);
     const before = particle.position.clone();
