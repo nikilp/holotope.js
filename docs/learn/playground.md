@@ -79,6 +79,7 @@ there is improved here.
 | [`createHypercube`](/api/core/polytope/functions/createHypercube) | [open](https://nikilp.github.io/holotope.js/playground.html#createHypercube) |
 | [`createSimplex`](/api/core/polytope/functions/createSimplex) | [open](https://nikilp.github.io/holotope.js/playground.html#createSimplex) |
 | [`createSourceCellLookupN`](/api/core/representation/functions/createSourceCellLookupN) | [open](https://nikilp.github.io/holotope.js/playground.html#createSourceCellLookupN) |
+| [`describeRepresentationHitN`](/api/core/representation/functions/describeRepresentationHitN) | [open](https://nikilp.github.io/holotope.js/playground.html#describeRepresentationHitN) |
 | [`estimateXpbdIncrementalPotentialHessianVectorN`](/api/physics/functions/estimateXpbdIncrementalPotentialHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#estimateXpbdIncrementalPotentialHessianVectorN) |
 | [`evaluateClampedLogBarrier`](/api/physics/functions/evaluateClampedLogBarrier) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateClampedLogBarrier) |
 | [`evaluateSimplexMeasureBarrierHessianVectorN`](/api/physics/functions/evaluateSimplexMeasureBarrierHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexMeasureBarrierHessianVectorN) |

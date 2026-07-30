@@ -138,3 +138,8 @@ export {
   type RepresentationLineagePointStepN,
   type UnavailableRepresentationLineagePointN
 } from './lineage-evaluation.js';
+export {
+  describeRepresentationHitN,
+  type RepresentationAmbientClaimN,
+  type RepresentationHitReportN
+} from './hit-report.js';
