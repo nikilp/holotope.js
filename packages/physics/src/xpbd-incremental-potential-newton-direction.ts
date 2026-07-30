@@ -3,8 +3,13 @@ import {
   type XpbdPackedIncrementalPotentialEvaluationN
 } from './xpbd-incremental-potential-problem.js';
 import {
-  evaluateXpbdIncrementalPotentialAnalyticHessianVectorN,
-  normalizeXpbdIncrementalPotentialCurvaturePolicyN
+  compileXpbdIncrementalPotentialAnalyticHessianOperatorFromBaseN,
+  normalizeXpbdIncrementalPotentialCurvaturePolicyN,
+  type CompileXpbdIncrementalPotentialAnalyticHessianOperatorNOptions,
+  type XpbdConservativeCurvatureOperatorProviderN,
+  type XpbdIncrementalPotentialAnalyticHessianOperatorCompilationN,
+  type XpbdIncrementalPotentialAnalyticHessianOperatorN,
+  type XpbdIncrementalPotentialAnalyticHessianOperatorUnsupportedN
 } from './xpbd-incremental-potential-analytic-curvature.js';
 import type {
   XpbdConservativeCurvatureApplicationN,
@@ -61,7 +66,12 @@ export interface XpbdIncrementalPotentialNewtonIterationN {
   readonly stepLength: number;
   /** Next-direction coefficient `beta`, or `null` on terminal convergence. */
   readonly conjugacyCoefficient: number | null;
-  /** Provider-local construction behind this iteration's operator product. */
+  /**
+   * Provider construction behind this iteration's operator product.
+   *
+   * Projected spectra may be the same immutable compilation reused by several
+   * iterations; the direction-specific block audit remains fresh.
+   */
   readonly providerCurvatures: readonly {
     /** Stable conservative-provider identity. */
     readonly providerId: string;
@@ -99,6 +109,13 @@ export interface XpbdIncrementalPotentialNewtonDirectionBaseN {
   readonly iterations: readonly XpbdIncrementalPotentialNewtonIterationN[];
   /** Number of complete analytic objective Hessian-vector evaluations. */
   readonly operatorEvaluations: number;
+  /** Provider basis HVPs paid once to compile projected curvature. */
+  readonly curvatureConstructionOperatorEvaluations: number;
+  /** Aggregate provider HVPs paid across nonzero operator applications. */
+  readonly curvatureApplicationOperatorEvaluations: number;
+  /** Fixed provider constructions reused by every Krylov iteration. */
+  readonly curvatureProviders:
+    readonly XpbdConservativeCurvatureOperatorProviderN[];
   /** Authored relative residual tolerance. */
   readonly relativeResidualTolerance: number;
   /** Authored absolute residual tolerance. */
@@ -172,6 +189,11 @@ export type XpbdIncrementalPotentialNewtonDirectionResultN =
  * mutates particles. It refuses incomplete provider mixtures and
  * non-positive curvature instead of returning a falsely certified Newton
  * direction.
+ *
+ * At the fixed linearization coordinate, explicit PSD provider/block matrices
+ * are reconstructed and diagonalized once, then reused by every Krylov
+ * iteration. Exact providers remain matrix-free. Provider-block PSD retains
+ * one aggregate decomposition audit per applied direction.
  *
  * This result is only a direction diagnostic. It does not choose an admissible
  * nonlinear step, modify definiteness, invoke Armijo, or apply state.
@@ -275,7 +297,7 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
   }
 
   const base = options.problem.evaluate(options.coordinates);
-  const coordinates = base.coordinates.slice();
+  const coordinates = Float64Array.from(base.coordinates);
   const rightHandSide = Float64Array.from(
     base.gradient,
     (component) => -component
@@ -311,7 +333,10 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
       direction,
       residualNorm: 0,
       iterations: Object.freeze(iterations),
-      operatorEvaluations: 0
+      operatorEvaluations: 0,
+      curvatureConstructionOperatorEvaluations: 0,
+      curvatureApplicationOperatorEvaluations: 0,
+      curvatureProviders: Object.freeze([])
     });
   }
   if (initialResidualNorm <= residualTolerance) {
@@ -322,7 +347,10 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
       direction,
       residualNorm: initialResidualNorm,
       iterations: Object.freeze(iterations),
-      operatorEvaluations: 0
+      operatorEvaluations: 0,
+      curvatureConstructionOperatorEvaluations: 0,
+      curvatureApplicationOperatorEvaluations: 0,
+      curvatureProviders: Object.freeze([])
     });
   }
   if (maximumIterations === 0) {
@@ -332,9 +360,54 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
       direction,
       residualNorm: initialResidualNorm,
       iterations: Object.freeze(iterations),
-      operatorEvaluations: 0
+      operatorEvaluations: 0,
+      curvatureConstructionOperatorEvaluations: 0,
+      curvatureApplicationOperatorEvaluations: 0,
+      curvatureProviders: Object.freeze([])
     });
   }
+
+  const analyticOperatorOptions:
+    CompileXpbdIncrementalPotentialAnalyticHessianOperatorNOptions = {
+      problem: options.problem,
+      coordinates,
+      ...(options.curvaturePolicy === undefined
+        ? {}
+        : { curvaturePolicy: options.curvaturePolicy })
+    };
+  const analyticOperator:
+    XpbdIncrementalPotentialAnalyticHessianOperatorCompilationN =
+    compileXpbdIncrementalPotentialAnalyticHessianOperatorFromBaseN({
+      problem: analyticOperatorOptions.problem,
+      coordinates,
+      ...(analyticOperatorOptions.curvaturePolicy === undefined
+        ? {}
+        : { curvaturePolicy: analyticOperatorOptions.curvaturePolicy }),
+      base,
+      caller
+    });
+  if (analyticOperator.status === 'unsupported-provider') {
+    const unsupportedOperator:
+      XpbdIncrementalPotentialAnalyticHessianOperatorUnsupportedN =
+        analyticOperator;
+    return Object.freeze({
+      ...common,
+      status: 'unsupported-provider',
+      providerIds: unsupportedOperator.providerIds,
+      direction,
+      residualNorm: initialResidualNorm,
+      iterations: Object.freeze(iterations),
+      operatorEvaluations: 0,
+      curvatureConstructionOperatorEvaluations: 0,
+      curvatureApplicationOperatorEvaluations: 0,
+      curvatureProviders: Object.freeze([])
+    });
+  }
+  const compiledOperator:
+    XpbdIncrementalPotentialAnalyticHessianOperatorN = analyticOperator;
+  const curvatureProviders = compiledOperator.providers;
+  const curvatureConstructionOperatorEvaluations =
+    compiledOperator.constructionOperatorEvaluations;
 
   let residual = rightHandSide.slice();
   let preconditionedResidual = applyPreconditioner(
@@ -350,32 +423,16 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
   let krylovDirection = preconditionedResidual.slice();
   let residualNorm = initialResidualNorm;
   let operatorEvaluations = 0;
+  let curvatureApplicationOperatorEvaluations = 0;
 
   for (let index = 0; index < maximumIterations; index++) {
-    const analytic =
-      evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
-        problem: options.problem,
-        coordinates,
-        direction: krylovDirection,
-        ...(options.curvaturePolicy === undefined
-          ? {}
-          : { curvaturePolicy: options.curvaturePolicy })
-      });
-    if (analytic.status === 'unsupported-provider') {
-      return Object.freeze({
-        ...common,
-        status: 'unsupported-provider',
-        providerIds: analytic.providerIds,
-        direction: direction.slice(),
-        residualNorm,
-        iterations: Object.freeze(iterations),
-        operatorEvaluations
-      });
-    }
+    const analytic = compiledOperator.apply(krylovDirection);
     if (analytic.status === 'zero-direction') {
       throw new Error(`${caller}: nonzero Krylov direction became zero`);
     }
     operatorEvaluations++;
+    curvatureApplicationOperatorEvaluations +=
+      compiledOperator.applicationOperatorEvaluationsPerNonzeroProduct;
     const product = analytic.product;
     const providerCurvatures = Object.freeze(
       analytic.providers.map(({ provider, curvature }) =>
@@ -405,7 +462,10 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
         direction: direction.slice(),
         residualNorm,
         iterations: Object.freeze(iterations),
-        operatorEvaluations
+        operatorEvaluations,
+        curvatureConstructionOperatorEvaluations,
+        curvatureApplicationOperatorEvaluations,
+        curvatureProviders
       });
     }
 
@@ -441,7 +501,10 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
         direction: direction.slice(),
         residualNorm: nextResidualNorm,
         iterations: Object.freeze(iterations),
-        operatorEvaluations
+        operatorEvaluations,
+        curvatureConstructionOperatorEvaluations,
+        curvatureApplicationOperatorEvaluations,
+        curvatureProviders
       });
     }
 
@@ -496,7 +559,10 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
     direction: direction.slice(),
     residualNorm,
     iterations: Object.freeze(iterations),
-    operatorEvaluations
+    operatorEvaluations,
+    curvatureConstructionOperatorEvaluations,
+    curvatureApplicationOperatorEvaluations,
+    curvatureProviders
   });
 }
 

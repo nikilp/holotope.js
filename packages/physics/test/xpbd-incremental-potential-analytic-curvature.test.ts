@@ -5,6 +5,7 @@ import {
   XpbdParticleHyperplaneBarrierN,
   XpbdParticleN,
   XpbdPotentialDomainErrorN,
+  compileXpbdIncrementalPotentialAnalyticHessianOperatorN,
   compileXpbdIncrementalPotentialProblemN,
   estimateXpbdIncrementalPotentialHessianVectorN,
   evaluateXpbdIncrementalPotentialAnalyticHessianVectorN,
@@ -422,6 +423,342 @@ describe('XPBD incremental-potential analytic curvature', () => {
     expect(evidence.blocks.map((block) =>
       Array.from(block.rawEigenvalues)
     )).toEqual([[-2], [3]]);
+  });
+
+  it('compiles projected curvature once and accounts for repeated products', () => {
+    const exactParticle = new XpbdParticleN({
+      id: 'compiled-exact',
+      position: [0, 0],
+      inverseMass: 1
+    });
+    let exactCalls = 0;
+    const exactProvider = analyticQuadraticProvider(
+      'compiled-exact-law',
+      [exactParticle],
+      2,
+      () => exactCalls++
+    );
+    const exact = compileXpbdIncrementalPotentialAnalyticHessianOperatorN({
+      problem: compile(
+        [exactParticle],
+        [new VecN([0, 0])],
+        0.2,
+        [exactProvider]
+      ),
+      coordinates: [0.1, -0.2]
+    });
+    expect(exact.status).toBe('compiled');
+    if (exact.status !== 'compiled') return;
+    expect(exact.constructionOperatorEvaluations).toBe(0);
+    expect(exact.applicationOperatorEvaluationsPerNonzeroProduct).toBe(1);
+    expect(exactCalls).toBe(0);
+    exact.apply([1, 0]);
+    exact.apply([0, 1]);
+    exact.apply([0, 0]);
+    expect(exactCalls).toBe(2);
+
+    const localParticle = new XpbdParticleN({
+      id: 'compiled-local',
+      position: [0, 0],
+      inverseMass: 1
+    });
+    let localCalls = 0;
+    const localBase = analyticDenseQuadraticProvider(
+      'compiled-local-law',
+      localParticle,
+      [[1, 2], [2, 1]]
+    );
+    const localProvider = {
+      ...localBase,
+      evaluatePotentialHessianVectorAt: (
+        positionOf: Parameters<
+          XpbdConservativeHessianVectorProviderN[
+            'evaluatePotentialHessianVectorAt'
+          ]
+        >[0],
+        directionOf: Parameters<
+          XpbdConservativeHessianVectorProviderN[
+            'evaluatePotentialHessianVectorAt'
+          ]
+        >[1]
+      ) => {
+        localCalls++;
+        return localBase.evaluatePotentialHessianVectorAt(
+          positionOf,
+          directionOf
+        );
+      }
+    };
+    const local = compileXpbdIncrementalPotentialAnalyticHessianOperatorN({
+      problem: compile(
+        [localParticle],
+        [new VecN([0, 0])],
+        0.2,
+        [localProvider]
+      ),
+      coordinates: [0.1, -0.2],
+      curvaturePolicy: { kind: 'provider-local-psd' }
+    });
+    expect(local.status).toBe('compiled');
+    if (local.status !== 'compiled') return;
+    expect(local.constructionOperatorEvaluations).toBe(2);
+    expect(local.applicationOperatorEvaluationsPerNonzeroProduct).toBe(0);
+    expect(localCalls).toBe(2);
+    const localFirst = local.apply([1, -2]);
+    const localSecond = local.apply([-0.5, 0.75]);
+    local.apply([0, 0]);
+    expect(localCalls).toBe(2);
+    expect(localFirst.status).toBe('evaluated');
+    expect(localSecond.status).toBe('evaluated');
+
+    const blockParticle = new XpbdParticleN({
+      id: 'compiled-block',
+      position: [0, 0],
+      inverseMass: 1
+    });
+    const blockBase = analyticBlockQuadraticProvider(
+      'compiled-block-law',
+      blockParticle,
+      [
+        [[-2, 0], [0, 1]],
+        [[3, 0], [0, 2]]
+      ]
+    );
+    let aggregateCalls = 0;
+    let blockCalls = 0;
+    const blockProvider: XpbdConservativeHessianBlockProviderN = {
+      ...blockBase,
+      evaluatePotentialHessianVectorAt: (positionOf, directionOf) => {
+        aggregateCalls++;
+        return blockBase.evaluatePotentialHessianVectorAt(
+          positionOf,
+          directionOf
+        );
+      },
+      evaluatePotentialHessianBlockVectorAt: (
+        block,
+        positionOf,
+        directionOf
+      ) => {
+        blockCalls++;
+        return blockBase.evaluatePotentialHessianBlockVectorAt(
+          block,
+          positionOf,
+          directionOf
+        );
+      }
+    };
+    const block = compileXpbdIncrementalPotentialAnalyticHessianOperatorN({
+      problem: compile(
+        [blockParticle],
+        [new VecN([0, 0])],
+        0.2,
+        [blockProvider]
+      ),
+      coordinates: [0.1, -0.2],
+      curvaturePolicy: { kind: 'provider-block-psd' }
+    });
+    expect(block.status).toBe('compiled');
+    if (block.status !== 'compiled') return;
+    expect(block.constructionOperatorEvaluations).toBe(4);
+    expect(block.applicationOperatorEvaluationsPerNonzeroProduct).toBe(1);
+    expect(blockCalls).toBe(4);
+    expect(aggregateCalls).toBe(0);
+    const blockFirst = block.apply([1, -2]);
+    const blockSecond = block.apply([-0.5, 0.75]);
+    block.apply([0, 0]);
+    expect(blockCalls).toBe(4);
+    expect(aggregateCalls).toBe(2);
+    expect(blockFirst.status).toBe('evaluated');
+    expect(blockSecond.status).toBe('evaluated');
+    if (blockFirst.status !== 'evaluated') return;
+    const curvature = blockFirst.providers[0]!.curvature;
+    expect(curvature.kind).toBe('provider-block-psd');
+    if (curvature.kind !== 'provider-block-psd') return;
+    expect(curvature.operatorEvaluations).toBe(5);
+    expect(block.providers[0]!.constructionOperatorEvaluations).toBe(4);
+    expect(block.providers[0]!
+      .applicationOperatorEvaluationsPerNonzeroProduct).toBe(1);
+  });
+
+  it('retains the fixed coordinate independently of live and evidence writes', () => {
+    const particle = new XpbdParticleN({
+      id: 'compiled-coordinate',
+      position: [2],
+      inverseMass: 1
+    });
+    const evaluateAt: XpbdConservativeForceProviderN['evaluateAt'] = (
+      positionOf
+    ) => {
+      const position = positionOf(particle);
+      return {
+        potentialEnergy: position.data[0]! ** 3 / 6,
+        forces: [new VecN([-0.5 * position.data[0]! ** 2])]
+      };
+    };
+    const provider: XpbdConservativeHessianVectorProviderN = {
+      id: 'coordinate-sensitive',
+      dimension: 1,
+      particles: [particle],
+      evaluate: () => evaluateAt(() => particle.position.clone()),
+      evaluateAt,
+      evaluatePotentialHessianVectorAt: (positionOf, directionOf) => ({
+        products: [directionOf(particle).multiplyScalar(
+          positionOf(particle).data[0]!
+        )]
+      })
+    };
+    const compiled =
+      compileXpbdIncrementalPotentialAnalyticHessianOperatorN({
+        problem: compile(
+          [particle],
+          [new VecN([2])],
+          1,
+          [provider]
+        ),
+        coordinates: [2],
+        curvaturePolicy: { kind: 'provider-local-psd' }
+      });
+    expect(compiled.status).toBe('compiled');
+    if (compiled.status !== 'compiled') return;
+    compiled.coordinates[0] = 99;
+    particle.position.data[0] = 7;
+    const result = compiled.apply([1]);
+    expect(result.status).toBe('evaluated');
+    if (result.status !== 'evaluated') return;
+    expectArrayClose(result.potentialProducts[0]!.data, [2], 14);
+    expectArrayClose(result.product, [3], 14);
+    expect(result.base.coordinates[0]).toBe(2);
+  });
+
+  it('applies compiled provider-local operators across ambient dimensions', () => {
+    for (const dimension of [1, 2, 4, 7]) {
+      const particle = new XpbdParticleN({
+        id: `compiled-r${dimension}`,
+        position: new Float64Array(dimension),
+        inverseMass: 0.5
+      });
+      const matrix = Array.from(
+        { length: dimension },
+        (_, row) => Array.from(
+          { length: dimension },
+          (_, column) => row === column ? row + 1 : 0
+        )
+      );
+      const problem = compile(
+        [particle],
+        [new VecN(dimension)],
+        0.25,
+        [analyticDenseQuadraticProvider(
+          `compiled-law-r${dimension}`,
+          particle,
+          matrix
+        )]
+      );
+      const compiled =
+        compileXpbdIncrementalPotentialAnalyticHessianOperatorN({
+          problem,
+          coordinates: new Float64Array(dimension),
+          curvaturePolicy: { kind: 'provider-local-psd' }
+        });
+      expect(compiled.status).toBe('compiled');
+      if (compiled.status !== 'compiled') continue;
+      const direction = Float64Array.from(
+        { length: dimension },
+        (_, axis) => 0.17 * (axis + 1)
+      );
+      const before = direction.slice();
+      const compiledProduct = compiled.apply(direction);
+      const oneShot =
+        evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+          problem,
+          coordinates: new Float64Array(dimension),
+          direction,
+          curvaturePolicy: { kind: 'provider-local-psd' }
+        });
+      expect(compiledProduct.status).toBe('evaluated');
+      expect(oneShot.status).toBe('evaluated');
+      if (compiledProduct.status !== 'evaluated' ||
+        oneShot.status !== 'evaluated') continue;
+      expectArrayClose(compiledProduct.product, oneShot.product, 14);
+      expect(Array.from(direction)).toEqual(Array.from(before));
+    }
+  });
+
+  it('audits a compiled block decomposition on every applied direction', () => {
+    const particle = new XpbdParticleN({
+      id: 'directional-audit',
+      position: [0, 0],
+      inverseMass: 1
+    });
+    const base = analyticBlockQuadraticProvider(
+      'directional-audit-law',
+      particle,
+      [[[1, 0], [0, 1]]]
+    );
+    const provider: XpbdConservativeHessianBlockProviderN = {
+      ...base,
+      evaluatePotentialHessianVectorAt: (_positionOf, directionOf) => {
+        const direction = directionOf(particle);
+        return {
+          products: [new VecN([
+            direction.data[0]!,
+            2 * direction.data[1]!
+          ])]
+        };
+      }
+    };
+    const compiled =
+      compileXpbdIncrementalPotentialAnalyticHessianOperatorN({
+        problem: compile(
+          [particle],
+          [new VecN([0, 0])],
+          0.1,
+          [provider]
+        ),
+        coordinates: [0, 0],
+        curvaturePolicy: { kind: 'provider-block-psd' }
+      });
+    expect(compiled.status).toBe('compiled');
+    if (compiled.status !== 'compiled') return;
+    expect(compiled.apply([1, 0]).status).toBe('evaluated');
+    expect(() => compiled.apply([0, 1]))
+      .toThrow(/block assembly does not match/);
+  });
+
+  it('refuses unsupported operator compilation before partial curvature work', () => {
+    const particle = new XpbdParticleN({
+      id: 'compiled-unsupported',
+      position: [0],
+      inverseMass: 1
+    });
+    let analyticCalls = 0;
+    const analytic = analyticQuadraticProvider(
+      'compiled-supported-law',
+      [particle],
+      1,
+      () => analyticCalls++
+    );
+    const unsupported = ordinaryQuadraticProvider(
+      'compiled-unsupported-law',
+      particle,
+      1
+    );
+    const result =
+      compileXpbdIncrementalPotentialAnalyticHessianOperatorN({
+        problem: compile(
+          [particle],
+          [new VecN([0])],
+          0.1,
+          [analytic, unsupported]
+        ),
+        coordinates: [0],
+        curvaturePolicy: { kind: 'provider-local-psd' }
+      });
+    expect(result.status).toBe('unsupported-provider');
+    if (result.status !== 'unsupported-provider') return;
+    expect(result.providerIds).toEqual(['compiled-unsupported-law']);
+    expect(analyticCalls).toBe(0);
   });
 
   it('uses one audited implicit block for undecomposed analytic providers', () => {

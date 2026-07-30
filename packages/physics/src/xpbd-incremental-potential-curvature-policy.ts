@@ -58,7 +58,12 @@ export interface XpbdConservativeProviderLocalPsdApplicationN {
   readonly kind: 'provider-local-psd';
   /** Scalar variables in provider particle-major, axis-minor order. */
   readonly localVariableCount: number;
-  /** One provider HVP per local basis vector. */
+  /**
+   * One provider HVP per local basis vector.
+   *
+   * A compiled fixed-coordinate operator may pay this construction once and
+   * reuse it across several products.
+   */
   readonly operatorEvaluations: number;
   /** Eigenvalues of the audited symmetric local Hessian, ascending. */
   readonly rawEigenvalues: Float64Array;
@@ -82,7 +87,10 @@ export interface XpbdConservativePsdBlockApplicationN {
   readonly particleIds: readonly string[];
   /** Scalar variables in block particle-major, axis-minor order. */
   readonly localVariableCount: number;
-  /** One exact block HVP per local basis vector. */
+  /**
+   * One exact block HVP per local basis vector, paid once by a compiled
+   * fixed-coordinate operator.
+   */
   readonly operatorEvaluations: number;
   /** Eigenvalues of the audited symmetric block Hessian, ascending. */
   readonly rawEigenvalues: Float64Array;
@@ -106,7 +114,12 @@ export interface XpbdConservativeProviderBlockPsdApplicationN {
   readonly decomposition: 'declared' | 'implicit-provider';
   /** Number of independently projected blocks. */
   readonly blockCount: number;
-  /** Sum of basis HVPs plus one exact aggregate audit HVP. */
+  /**
+   * Sum of block-basis HVPs plus one exact aggregate audit HVP.
+   *
+   * Compilation may reuse the basis portion; the aggregate audit remains
+   * direction-specific.
+   */
   readonly operatorEvaluations: number;
   /** Relative norm error of raw block assembly against the aggregate HVP. */
   readonly rawAssemblyRelativeError: number;

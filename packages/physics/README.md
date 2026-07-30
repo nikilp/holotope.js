@@ -279,19 +279,30 @@ lineage in `SimplexConstitutiveFamilyHessianBlockN`.
 Both modes are deterministic cubic-cost CPU golden paths. Provider-local cost
 is cubic in the whole provider variable count; block-local cost is the sum of
 the dense block costs. The latter supplies an auditable element-local
-reference for simplex materials, not a cached sparse matrix, production
+reference for simplex materials, not a sparse matrix, production
 preconditioner, or large-mesh factorization.
+
+`compileXpbdIncrementalPotentialAnalyticHessianOperatorN()` fixes one
+candidate coordinate and separates curvature construction from application.
+Exact curvature remains matrix-free. Provider-local and provider-block basis
+HVPs, symmetry audits, and eigendecompositions are paid once; subsequent
+products reuse the stored projected matrices. Block-local products still
+request one exact aggregate provider HVP per direction so the authored block
+sum remains audited rather than assumed. The compilation evidence states both
+the one-time and per-product provider costs.
 
 `solveXpbdIncrementalPotentialNewtonDirectionN()` composes the complete
 analytic objective product into a bounded, non-mutating preconditioned-CG
 reference for `H(q) p = -gradient(Phi(q))`. Identity and exact inertial
 mass-diagonal preconditioners are available. Results retain per-iteration
-residual and curvature evidence and distinguish convergence, an exact zero
-gradient, budget exhaustion, unsupported providers, and non-positive or
-numerically unresolved curvature. In exact mode the function assembles no
-matrix and does not modify definiteness. Provider-local and provider-block PSD
-are the explicit exceptions described above. No mode chooses a nonlinear
-step, runs Armijo, or applies state.
+residual and curvature evidence, plus actual construction/application provider
+HVP counts, and distinguish convergence, an exact zero gradient, budget
+exhaustion, unsupported providers, and non-positive or numerically unresolved
+curvature. The solver compiles projected curvature once at each linearization
+coordinate and reuses it throughout CG. In exact mode it assembles no matrix
+and does not modify definiteness. Provider-local and provider-block PSD are
+the explicit exceptions described above. No mode chooses a nonlinear step,
+runs Armijo, or applies state.
 
 `compileSimplexConstitutiveFamilyStateGuardN()` is an optional post-substep
 policy over that generic family. It rejects typed law-domain refusal,

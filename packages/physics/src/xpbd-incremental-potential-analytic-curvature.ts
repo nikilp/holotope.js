@@ -26,6 +26,7 @@ import type {
 } from './xpbd-incremental-potential-curvature-policy.js';
 
 const METHOD = 'analytic-provider-composition' as const;
+const COMPILED_METHOD = 'compiled-analytic-provider-composition' as const;
 const DEFAULT_SYMMETRY_TOLERANCE = 1e-12;
 const DEFAULT_DECOMPOSITION_TOLERANCE = 1e-10;
 const DEFAULT_EIGENSOLVER_TOLERANCE = 1e-12;
@@ -186,6 +187,181 @@ export type XpbdIncrementalPotentialAnalyticHessianVectorResultN =
   | XpbdIncrementalPotentialAnalyticHessianVectorZeroDirectionN
   | XpbdIncrementalPotentialAnalyticHessianVectorUnsupportedN;
 
+/** Options for compiling one fixed-coordinate analytic Hessian operator. */
+export interface CompileXpbdIncrementalPotentialAnalyticHessianOperatorNOptions {
+  /** Compiled objective whose provider set defines analytic completeness. */
+  readonly problem: XpbdIncrementalPotentialProblemN;
+  /** Packed free-particle coordinates fixed by the returned operator. */
+  readonly coordinates: ArrayLike<number>;
+  /** Exact Hessians by default, or an explicit dense PSD block policy. */
+  readonly curvaturePolicy?: XpbdIncrementalPotentialCurvaturePolicyN;
+}
+
+/**
+ * Fixed provider-curvature construction retained by a compiled operator.
+ *
+ * `constructionOperatorEvaluations` are paid once. The per-product count is
+ * zero for stored provider-local matrices, one for exact matrix-free products,
+ * and one for the authoritative audit of a stored provider-block sum.
+ */
+export interface XpbdConservativeCurvatureOperatorProviderN {
+  /** Analytic provider whose fixed-coordinate curvature was compiled. */
+  readonly provider: XpbdConservativeHessianVectorProviderN;
+  /** Normalized curvature construction selected for this provider. */
+  readonly kind: XpbdIncrementalPotentialCurvaturePolicyKindN;
+  /** Exact structural boundary of the compiled provider operator. */
+  readonly decomposition:
+    | 'exact-matrix-free'
+    | 'provider'
+    | 'declared'
+    | 'implicit-provider';
+  /** Provider or block basis HVPs paid once during compilation. */
+  readonly constructionOperatorEvaluations: number;
+  /** Aggregate provider HVPs required by each nonzero application. */
+  readonly applicationOperatorEvaluationsPerNonzeroProduct: number;
+  /** Source-ordered projected-block spectra; empty in exact mode. */
+  readonly blocks: readonly XpbdConservativePsdBlockApplicationN[];
+}
+
+interface XpbdIncrementalPotentialAnalyticHessianOperatorCompilationBaseN {
+  /** Fixed-coordinate construction attempted by this result. */
+  readonly method: typeof COMPILED_METHOD;
+  /** Valid complete objective evidence at the fixed coordinate. */
+  readonly base: XpbdPackedIncrementalPotentialEvaluationN;
+  /** Defensive packed coordinate copy retained by the operator. */
+  readonly coordinates: Float64Array;
+  /** Normalized exact or explicitly projected curvature policy. */
+  readonly curvaturePolicy: XpbdIncrementalPotentialCurvaturePolicyKindN;
+}
+
+/** Reusable analytic objective Hessian at one fixed candidate coordinate. */
+export interface XpbdIncrementalPotentialAnalyticHessianOperatorN
+  extends XpbdIncrementalPotentialAnalyticHessianOperatorCompilationBaseN {
+  /** Confirms complete analytic coverage and successful construction. */
+  readonly status: 'compiled';
+  /** Provider basis HVPs paid once to construct projected curvature. */
+  readonly constructionOperatorEvaluations: number;
+  /** Provider HVPs paid for every nonzero complete packed product. */
+  readonly applicationOperatorEvaluationsPerNonzeroProduct: number;
+  /** Fixed provider constructions in authored provider order. */
+  readonly providers: readonly XpbdConservativeCurvatureOperatorProviderN[];
+  /**
+   * Applies the fixed operator without changing its coordinate or live state.
+   */
+  apply(
+    direction: ArrayLike<number>
+  ):
+    | XpbdIncrementalPotentialAnalyticHessianVectorEvaluatedN
+    | XpbdIncrementalPotentialAnalyticHessianVectorZeroDirectionN;
+}
+
+/** Typed compilation refusal for an incomplete analytic provider mixture. */
+export interface XpbdIncrementalPotentialAnalyticHessianOperatorUnsupportedN
+  extends XpbdIncrementalPotentialAnalyticHessianOperatorCompilationBaseN {
+  /** Distinguishes absent provider capability from construction failure. */
+  readonly status: 'unsupported-provider';
+  /** Every incapable provider id in authored provider order. */
+  readonly providerIds: readonly string[];
+}
+
+/** Fixed-coordinate analytic operator or explicit capability refusal. */
+export type XpbdIncrementalPotentialAnalyticHessianOperatorCompilationN =
+  | XpbdIncrementalPotentialAnalyticHessianOperatorN
+  | XpbdIncrementalPotentialAnalyticHessianOperatorUnsupportedN;
+
+/**
+ * Compiles the analytic objective Hessian at one fixed candidate coordinate.
+ *
+ * Exact curvature remains matrix-free. Explicit PSD policies reconstruct and
+ * diagonalize their dense provider or provider-authored blocks once; repeated
+ * `apply()` calls then reuse those matrices. Provider-block products retain
+ * one aggregate HVP audit per nonzero direction.
+ *
+ * @example
+ * Compile once at a fixed coordinate, then ask several directional questions:
+ * ```ts
+ * const particle = new XpbdParticleN({
+ *   id: 'p',
+ *   position: new VecN([0.2, -0.1]),
+ *   inverseMass: 0.5
+ * });
+ * const problem = compileXpbdIncrementalPotentialProblemN({
+ *   dimension: 2,
+ *   particles: [particle],
+ *   predictedPositions: [new VecN([0, 0])],
+ *   deltaTime: 1 / 60,
+ *   providers: []
+ * });
+ * const operator =
+ *   compileXpbdIncrementalPotentialAnalyticHessianOperatorN({
+ *     problem,
+ *     coordinates: [0.2, -0.1]
+ *   });
+ *
+ * if (operator.status === 'compiled') {
+ *   const xProduct = operator.apply([1, 0]);
+ *   if (xProduct.status === 'evaluated') {
+ *     xProduct.potentialProducts[0]?.data.length; // 2, authored particle order
+ *   }
+ *   operator.apply([0, 1]).status; // 'evaluated', same fixed operator
+ * }
+ * ```
+ */
+export function compileXpbdIncrementalPotentialAnalyticHessianOperatorN(
+  options: CompileXpbdIncrementalPotentialAnalyticHessianOperatorNOptions
+): XpbdIncrementalPotentialAnalyticHessianOperatorCompilationN {
+  const caller =
+    'compileXpbdIncrementalPotentialAnalyticHessianOperatorN';
+  if (typeof options !== 'object' || options === null) {
+    throw new Error(`${caller}: options must be an object`);
+  }
+  if (!(options.problem instanceof XpbdIncrementalPotentialProblemN)) {
+    throw new Error(
+      `${caller}: problem must be an XpbdIncrementalPotentialProblemN`
+    );
+  }
+  const curvature = normalizeXpbdIncrementalPotentialCurvaturePolicyN(
+    options.curvaturePolicy,
+    caller
+  );
+  const coordinates = finiteCoordinates(
+    options.coordinates,
+    options.problem.variableCount,
+    `${caller}: coordinates`
+  );
+  const base = options.problem.evaluate(coordinates);
+  return compileAnalyticHessianOperator(
+    options.problem,
+    coordinates,
+    base,
+    curvature,
+    caller
+  );
+}
+
+/** @internal Reuses an already validated base evaluation inside the solver. */
+export function compileXpbdIncrementalPotentialAnalyticHessianOperatorFromBaseN(
+  options: {
+    readonly problem: XpbdIncrementalPotentialProblemN;
+    readonly coordinates: Float64Array;
+    readonly base: XpbdPackedIncrementalPotentialEvaluationN;
+    readonly curvaturePolicy?: XpbdIncrementalPotentialCurvaturePolicyN;
+    readonly caller: string;
+  }
+): XpbdIncrementalPotentialAnalyticHessianOperatorCompilationN {
+  const curvature = normalizeXpbdIncrementalPotentialCurvaturePolicyN(
+    options.curvaturePolicy,
+    options.caller
+  );
+  return compileAnalyticHessianOperator(
+    options.problem,
+    options.coordinates,
+    options.base,
+    curvature,
+    options.caller
+  );
+}
+
 /**
  * Composes an analytic incremental-potential Hessian-vector product.
  *
@@ -316,138 +492,24 @@ export function evaluateXpbdIncrementalPotentialAnalyticHessianVectorN(
       quadraticForm: 0
     });
   }
-
-  const unsupported = options.problem.providers
-    .filter((provider) => !isHessianVectorProvider(provider))
-    .map((provider) => provider.id);
-  if (unsupported.length > 0) {
+  const compiled = compileAnalyticHessianOperator(
+    options.problem,
+    coordinates,
+    base,
+    curvature,
+    caller
+  );
+  if (compiled.status === 'unsupported-provider') {
     return Object.freeze({
       status: 'unsupported-provider',
       method: METHOD,
       base,
       direction,
       curvaturePolicy: curvature.kind,
-      providerIds: Object.freeze(unsupported)
+      providerIds: compiled.providerIds
     });
   }
-
-  const particleIndices = new Map<XpbdParticleN, number>();
-  for (let index = 0; index < options.problem.particles.length; index++) {
-    particleIndices.set(options.problem.particles[index]!, index);
-  }
-  const particleDirections = options.problem.particles.map(
-    () => new VecN(options.problem.dimension)
-  );
-  let packedOffset = 0;
-  for (const particleIndex of options.problem.freeParticleIndices) {
-    particleDirections[particleIndex]!.data.set(
-      direction.subarray(
-        packedOffset,
-        packedOffset + options.problem.dimension
-      )
-    );
-    packedOffset += options.problem.dimension;
-  }
-  const positionOf: XpbdParticlePositionQueryN = (particle) => {
-    const index = particleIndices.get(particle);
-    if (index === undefined) {
-      throw new Error(`${caller}: provider requested a foreign particle`);
-    }
-    return base.positions[index]!.clone();
-  };
-  const directionOf: XpbdParticleDirectionQueryN = (particle) => {
-    const index = particleIndices.get(particle);
-    if (index === undefined) {
-      throw new Error(`${caller}: provider requested a foreign particle`);
-    }
-    return particleDirections[index]!.clone();
-  };
-
-  const potentialProducts = options.problem.particles.map(
-    () => new VecN(options.problem.dimension)
-  );
-  const providerResults: XpbdConservativeHessianVectorProviderResultN[] = [];
-  for (const provider of options.problem.providers) {
-    if (!isHessianVectorProvider(provider)) {
-      throw new Error(`${caller}: provider capability changed during evaluation`);
-    }
-    const selected = evaluateProviderCurvature(
-      provider,
-      positionOf,
-      directionOf,
-      options.problem.dimension,
-      curvature,
-      caller
-    );
-    const evaluation = selected.evaluation;
-    for (let local = 0; local < provider.particles.length; local++) {
-      const particleIndex = particleIndices.get(provider.particles[local]!)!;
-      const assembled = potentialProducts[particleIndex]!;
-      assembled.add(evaluation.products[local]!);
-      assertFiniteVector(
-        assembled,
-        `${caller}: assembled potential product`
-      );
-    }
-    providerResults.push(Object.freeze({
-      provider,
-      evaluation,
-      curvature: selected.curvature
-    }));
-  }
-
-  const inertialProduct = new Float64Array(options.problem.variableCount);
-  const scaledPotentialProduct =
-    new Float64Array(options.problem.variableCount);
-  const product = new Float64Array(options.problem.variableCount);
-  const deltaTimeSquared =
-    options.problem.deltaTime * options.problem.deltaTime;
-  if (!Number.isFinite(deltaTimeSquared)) {
-    throw new Error(`${caller}: squared deltaTime is outside Float64`);
-  }
-  packedOffset = 0;
-  let quadraticForm = 0;
-  for (const particleIndex of options.problem.freeParticleIndices) {
-    const mass = 1 / options.problem.particles[particleIndex]!.inverseMass;
-    if (!Number.isFinite(mass)) {
-      throw new Error(`${caller}: particle mass is outside Float64`);
-    }
-    for (let axis = 0; axis < options.problem.dimension; axis++) {
-      const directionValue = direction[packedOffset]!;
-      const inertialValue = mass * directionValue;
-      const scaledPotentialValue =
-        deltaTimeSquared *
-        potentialProducts[particleIndex]!.data[axis]!;
-      const value = inertialValue + scaledPotentialValue;
-      if (!Number.isFinite(inertialValue) ||
-        !Number.isFinite(scaledPotentialValue) ||
-        !Number.isFinite(value)) {
-        throw new Error(`${caller}: packed product is outside Float64`);
-      }
-      inertialProduct[packedOffset] = inertialValue;
-      scaledPotentialProduct[packedOffset] = scaledPotentialValue;
-      product[packedOffset] = value;
-      quadraticForm += directionValue * value;
-      if (!Number.isFinite(quadraticForm)) {
-        throw new Error(`${caller}: quadratic form is outside Float64`);
-      }
-      packedOffset++;
-    }
-  }
-
-  return Object.freeze({
-    status: 'evaluated',
-    method: METHOD,
-    base,
-    direction,
-    curvaturePolicy: curvature.kind,
-    inertialProduct,
-    potentialProducts: Object.freeze(potentialProducts),
-    scaledPotentialProduct,
-    product,
-    quadraticForm,
-    providers: Object.freeze(providerResults)
-  });
+  return compiled.apply(direction);
 }
 
 interface NormalizedExactCurvaturePolicyN {
@@ -484,6 +546,217 @@ type SelectedProviderCurvatureN =
   | SelectedExactProviderCurvatureN
   | SelectedProviderLocalPsdCurvatureN
   | SelectedProviderBlockPsdCurvatureN;
+
+interface CompiledProviderCurvatureN {
+  readonly snapshot: XpbdConservativeCurvatureOperatorProviderN;
+  apply(
+    directionOf: XpbdParticleDirectionQueryN
+  ): SelectedProviderCurvatureN;
+}
+
+function compileAnalyticHessianOperator(
+  problem: XpbdIncrementalPotentialProblemN,
+  coordinates: Float64Array,
+  base: XpbdPackedIncrementalPotentialEvaluationN,
+  curvature: NormalizedXpbdIncrementalPotentialCurvaturePolicyN,
+  caller: string
+): XpbdIncrementalPotentialAnalyticHessianOperatorCompilationN {
+  const unsupported = problem.providers
+    .filter((provider) => !isHessianVectorProvider(provider))
+    .map((provider) => provider.id);
+  const coordinateEvidence = coordinates.slice();
+  if (unsupported.length > 0) {
+    return Object.freeze({
+      status: 'unsupported-provider',
+      method: COMPILED_METHOD,
+      base,
+      coordinates: coordinateEvidence,
+      curvaturePolicy: curvature.kind,
+      providerIds: Object.freeze(unsupported)
+    });
+  }
+
+  const particleIndices = new Map<XpbdParticleN, number>();
+  for (let index = 0; index < problem.particles.length; index++) {
+    particleIndices.set(problem.particles[index]!, index);
+  }
+  const positionOf: XpbdParticlePositionQueryN = (particle) => {
+    const index = particleIndices.get(particle);
+    if (index === undefined) {
+      throw new Error(`${caller}: provider requested a foreign particle`);
+    }
+    return base.positions[index]!.clone();
+  };
+  const compiledProviders: CompiledProviderCurvatureN[] = [];
+  for (const provider of problem.providers) {
+    if (!isHessianVectorProvider(provider)) {
+      throw new Error(
+        `${caller}: provider capability changed during compilation`
+      );
+    }
+    compiledProviders.push(compileProviderCurvature(
+      provider,
+      positionOf,
+      problem.dimension,
+      curvature,
+      caller
+    ));
+  }
+  const providerSnapshots = Object.freeze(
+    compiledProviders.map((compiled) => compiled.snapshot)
+  );
+  const constructionOperatorEvaluations = providerSnapshots.reduce(
+    (sum, provider) =>
+      sum + provider.constructionOperatorEvaluations,
+    0
+  );
+  const applicationOperatorEvaluationsPerNonzeroProduct =
+    providerSnapshots.reduce(
+      (sum, provider) =>
+        sum + provider.applicationOperatorEvaluationsPerNonzeroProduct,
+      0
+    );
+
+  const apply = (
+    directionValue: ArrayLike<number>
+  ):
+    | XpbdIncrementalPotentialAnalyticHessianVectorEvaluatedN
+    | XpbdIncrementalPotentialAnalyticHessianVectorZeroDirectionN => {
+    const applyCaller = `${caller}.apply`;
+    const direction = finiteCoordinates(
+      directionValue,
+      problem.variableCount,
+      `${applyCaller}: direction`
+    );
+    if (isZero(direction)) {
+      return Object.freeze({
+        status: 'zero-direction',
+        method: METHOD,
+        base,
+        direction,
+        curvaturePolicy: curvature.kind,
+        product: new Float64Array(problem.variableCount),
+        quadraticForm: 0
+      });
+    }
+
+    const particleDirections = problem.particles.map(
+      () => new VecN(problem.dimension)
+    );
+    let packedOffset = 0;
+    for (const particleIndex of problem.freeParticleIndices) {
+      particleDirections[particleIndex]!.data.set(
+        direction.subarray(
+          packedOffset,
+          packedOffset + problem.dimension
+        )
+      );
+      packedOffset += problem.dimension;
+    }
+    const directionOf: XpbdParticleDirectionQueryN = (particle) => {
+      const index = particleIndices.get(particle);
+      if (index === undefined) {
+        throw new Error(
+          `${applyCaller}: provider requested a foreign particle`
+        );
+      }
+      return particleDirections[index]!.clone();
+    };
+
+    const potentialProducts = problem.particles.map(
+      () => new VecN(problem.dimension)
+    );
+    const providerResults:
+      XpbdConservativeHessianVectorProviderResultN[] = [];
+    for (let index = 0; index < compiledProviders.length; index++) {
+      const compiled = compiledProviders[index]!;
+      const provider = compiled.snapshot.provider;
+      const selected = compiled.apply(directionOf);
+      for (let local = 0; local < provider.particles.length; local++) {
+        const particleIndex = particleIndices.get(
+          provider.particles[local]!
+        )!;
+        const assembled = potentialProducts[particleIndex]!;
+        assembled.add(selected.evaluation.products[local]!);
+        assertFiniteVector(
+          assembled,
+          `${applyCaller}: assembled potential product`
+        );
+      }
+      providerResults.push(Object.freeze({
+        provider,
+        evaluation: selected.evaluation,
+        curvature: selected.curvature
+      }));
+    }
+
+    const inertialProduct = new Float64Array(problem.variableCount);
+    const scaledPotentialProduct =
+      new Float64Array(problem.variableCount);
+    const product = new Float64Array(problem.variableCount);
+    const deltaTimeSquared = problem.deltaTime * problem.deltaTime;
+    if (!Number.isFinite(deltaTimeSquared)) {
+      throw new Error(`${applyCaller}: squared deltaTime is outside Float64`);
+    }
+    packedOffset = 0;
+    let quadraticForm = 0;
+    for (const particleIndex of problem.freeParticleIndices) {
+      const mass = 1 / problem.particles[particleIndex]!.inverseMass;
+      if (!Number.isFinite(mass)) {
+        throw new Error(`${applyCaller}: particle mass is outside Float64`);
+      }
+      for (let axis = 0; axis < problem.dimension; axis++) {
+        const directionValue = direction[packedOffset]!;
+        const inertialValue = mass * directionValue;
+        const scaledPotentialValue =
+          deltaTimeSquared *
+          potentialProducts[particleIndex]!.data[axis]!;
+        const value = inertialValue + scaledPotentialValue;
+        if (!Number.isFinite(inertialValue) ||
+          !Number.isFinite(scaledPotentialValue) ||
+          !Number.isFinite(value)) {
+          throw new Error(`${applyCaller}: packed product is outside Float64`);
+        }
+        inertialProduct[packedOffset] = inertialValue;
+        scaledPotentialProduct[packedOffset] = scaledPotentialValue;
+        product[packedOffset] = value;
+        quadraticForm += directionValue * value;
+        if (!Number.isFinite(quadraticForm)) {
+          throw new Error(
+            `${applyCaller}: quadratic form is outside Float64`
+          );
+        }
+        packedOffset++;
+      }
+    }
+
+    return Object.freeze({
+      status: 'evaluated',
+      method: METHOD,
+      base,
+      direction,
+      curvaturePolicy: curvature.kind,
+      inertialProduct,
+      potentialProducts: Object.freeze(potentialProducts),
+      scaledPotentialProduct,
+      product,
+      quadraticForm,
+      providers: Object.freeze(providerResults)
+    });
+  };
+
+  return Object.freeze({
+    status: 'compiled',
+    method: COMPILED_METHOD,
+    base,
+    coordinates: coordinateEvidence,
+    curvaturePolicy: curvature.kind,
+    constructionOperatorEvaluations,
+    applicationOperatorEvaluationsPerNonzeroProduct,
+    providers: providerSnapshots,
+    apply
+  });
+}
 
 export function normalizeXpbdIncrementalPotentialCurvaturePolicyN(
   policy: XpbdIncrementalPotentialCurvaturePolicyN | undefined,
@@ -546,47 +819,59 @@ export function normalizeXpbdIncrementalPotentialCurvaturePolicyN(
   });
 }
 
-function evaluateProviderCurvature(
+function compileProviderCurvature(
   provider: XpbdConservativeHessianVectorProviderN,
   positionOf: XpbdParticlePositionQueryN,
-  directionOf: XpbdParticleDirectionQueryN,
   dimension: number,
   policy: NormalizedXpbdIncrementalPotentialCurvaturePolicyN,
   caller: string
-): SelectedProviderCurvatureN {
+): CompiledProviderCurvatureN {
   if (policy.kind === 'exact') {
+    const snapshot = Object.freeze({
+      provider,
+      kind: 'exact',
+      decomposition: 'exact-matrix-free',
+      constructionOperatorEvaluations: 0,
+      applicationOperatorEvaluationsPerNonzeroProduct: 1,
+      blocks: Object.freeze([])
+    }) satisfies XpbdConservativeCurvatureOperatorProviderN;
     return Object.freeze({
-      evaluation: validateProviderEvaluation(
-        provider.evaluatePotentialHessianVectorAt(positionOf, directionOf),
-        provider,
-        dimension,
-        caller
-      ),
-      curvature: Object.freeze({
-        kind: 'exact',
-        operatorEvaluations: 1
-      })
+      snapshot,
+      apply: (directionOf: XpbdParticleDirectionQueryN) =>
+        Object.freeze({
+          evaluation: validateProviderEvaluation(
+            provider.evaluatePotentialHessianVectorAt(
+              positionOf,
+              directionOf
+            ),
+            provider,
+            dimension,
+            caller
+          ),
+          curvature: Object.freeze({
+            kind: 'exact',
+            operatorEvaluations: 1
+          })
+        })
     });
   }
 
   if (policy.kind === 'provider-block-psd') {
-    return evaluateProviderBlockPsdCurvature(
+    return compileProviderBlockPsdCurvature(
       provider,
       positionOf,
-      directionOf,
       dimension,
       policy,
       caller
     );
   }
 
-  const projected = projectHessianBlock({
+  const compiledBlock = compileHessianBlock({
     block: Object.freeze({
       id: provider.id,
       particles: provider.particles
     }),
     dimension,
-    directionOf,
     evaluate: (basisDirectionOf) =>
       validateProviderEvaluation(
         provider.evaluatePotentialHessianVectorAt(
@@ -602,30 +887,47 @@ function evaluateProviderCurvature(
     eigensolverMaximumSweeps: policy.eigensolverMaximumSweeps,
     caller: `${caller}: provider "${provider.id}"`
   });
+  const evidence = compiledBlock.evidence;
+  const snapshot = Object.freeze({
+    provider,
+    kind: 'provider-local-psd',
+    decomposition: 'provider',
+    constructionOperatorEvaluations: evidence.operatorEvaluations,
+    applicationOperatorEvaluationsPerNonzeroProduct: 0,
+    blocks: Object.freeze([evidence])
+  }) satisfies XpbdConservativeCurvatureOperatorProviderN;
   return Object.freeze({
-    evaluation: Object.freeze({
-      products: projected.projectedProducts
-    }),
-    curvature: Object.freeze({
-      kind: 'provider-local-psd',
-      localVariableCount: projected.evidence.localVariableCount,
-      operatorEvaluations: projected.evidence.operatorEvaluations,
-      rawEigenvalues: projected.evidence.rawEigenvalues,
-      projectedEigenvalues: projected.evidence.projectedEigenvalues,
-      clippedEigenvalueCount: projected.evidence.clippedEigenvalueCount,
-      relativeSymmetryError: projected.evidence.relativeSymmetryError,
-      eigensystemMaxResidual:
-        projected.evidence.eigensystemMaxResidual,
-      eigensystemOrthogonalityError:
-        projected.evidence.eigensystemOrthogonalityError
-    })
+    snapshot,
+    apply: (directionOf: XpbdParticleDirectionQueryN) => {
+      const projected = applyCompiledHessianBlock(
+        compiledBlock,
+        directionOf,
+        `${caller}: provider "${provider.id}"`
+      );
+      return Object.freeze({
+        evaluation: Object.freeze({
+          products: projected.projectedProducts
+        }),
+        curvature: Object.freeze({
+          kind: 'provider-local-psd',
+          localVariableCount: evidence.localVariableCount,
+          operatorEvaluations: evidence.operatorEvaluations,
+          rawEigenvalues: evidence.rawEigenvalues,
+          projectedEigenvalues: evidence.projectedEigenvalues,
+          clippedEigenvalueCount: evidence.clippedEigenvalueCount,
+          relativeSymmetryError: evidence.relativeSymmetryError,
+          eigensystemMaxResidual: evidence.eigensystemMaxResidual,
+          eigensystemOrthogonalityError:
+            evidence.eigensystemOrthogonalityError
+        })
+      });
+    }
   });
 }
 
-interface ProjectHessianBlockOptionsN {
+interface CompileHessianBlockOptionsN {
   readonly block: XpbdConservativeHessianBlockN;
   readonly dimension: number;
-  readonly directionOf: XpbdParticleDirectionQueryN;
   readonly evaluate: (
     directionOf: XpbdParticleDirectionQueryN
   ) => XpbdConservativeHessianVectorEvaluationN;
@@ -635,15 +937,23 @@ interface ProjectHessianBlockOptionsN {
   readonly caller: string;
 }
 
-interface ProjectedHessianBlockN {
-  readonly rawProducts: readonly VecN[];
-  readonly projectedProducts: readonly VecN[];
+interface CompiledHessianBlockN {
+  readonly block: XpbdConservativeHessianBlockN;
+  readonly dimension: number;
+  readonly rawHessian: MatN;
+  readonly eigenvectors: MatN;
+  readonly projectedEigenvalues: Float64Array;
   readonly evidence: XpbdConservativePsdBlockApplicationN;
 }
 
-function projectHessianBlock(
-  options: ProjectHessianBlockOptionsN
-): ProjectedHessianBlockN {
+interface AppliedHessianBlockN {
+  readonly rawProducts: readonly VecN[];
+  readonly projectedProducts: readonly VecN[];
+}
+
+function compileHessianBlock(
+  options: CompileHessianBlockOptionsN
+): CompiledHessianBlockN {
   const { block, dimension, caller } = options;
   const localVariableCount = block.particles.length * dimension;
   const hessian = new MatN(localVariableCount);
@@ -679,23 +989,7 @@ function projectHessianBlock(
       }
     }
   }
-
-  const localDirection = new Float64Array(localVariableCount);
-  for (let local = 0; local < block.particles.length; local++) {
-    const direction = options.directionOf(block.particles[local]!);
-    if (!(direction instanceof VecN) || direction.dim !== dimension) {
-      throw new Error(
-        `${caller}: direction ${local} must be R${dimension}`
-      );
-    }
-    assertFiniteVector(direction, `${caller}: direction ${local}`);
-    localDirection.set(direction.data, local * dimension);
-  }
-  const rawProduct = applyDenseMatrix(
-    hessian,
-    localDirection,
-    `${caller}: raw product`
-  );
+  const rawHessian = hessian.clone();
 
   let matrixScale = 1;
   let maximumSkew = 0;
@@ -742,63 +1036,90 @@ function projectHessianBlock(
   for (const value of eigensystem.values) {
     if (value < 0) clippedEigenvalueCount++;
   }
+  const evidence = Object.freeze({
+    blockId: block.id,
+    particleIds: Object.freeze(
+      block.particles.map((particle) => particle.id)
+    ),
+    localVariableCount,
+    operatorEvaluations: localVariableCount,
+    rawEigenvalues: eigensystem.values.slice(),
+    projectedEigenvalues,
+    clippedEigenvalueCount,
+    relativeSymmetryError,
+    eigensystemMaxResidual: eigensystem.maxResidual,
+    eigensystemOrthogonalityError: eigensystem.orthogonalityError
+  }) satisfies XpbdConservativePsdBlockApplicationN;
+  return Object.freeze({
+    block,
+    dimension,
+    rawHessian,
+    eigenvectors: eigensystem.vectors,
+    projectedEigenvalues,
+    evidence
+  });
+}
 
+function applyCompiledHessianBlock(
+  compiled: CompiledHessianBlockN,
+  directionOf: XpbdParticleDirectionQueryN,
+  caller: string
+): AppliedHessianBlockN {
+  const { block, dimension } = compiled;
+  const localVariableCount = compiled.evidence.localVariableCount;
+  const localDirection = new Float64Array(localVariableCount);
+  for (let local = 0; local < block.particles.length; local++) {
+    const direction = directionOf(block.particles[local]!);
+    if (!(direction instanceof VecN) || direction.dim !== dimension) {
+      throw new Error(`${caller}: direction ${local} must be R${dimension}`);
+    }
+    assertFiniteVector(direction, `${caller}: direction ${local}`);
+    localDirection.set(direction.data, local * dimension);
+  }
+  const rawProduct = applyDenseMatrix(
+    compiled.rawHessian,
+    localDirection,
+    `${caller}: raw product`
+  );
   const projectedProduct = new Float64Array(localVariableCount);
   for (let eigen = 0; eigen < localVariableCount; eigen++) {
-    const eigenvalue = projectedEigenvalues[eigen]!;
+    const eigenvalue = compiled.projectedEigenvalues[eigen]!;
     if (eigenvalue === 0) continue;
     let coordinate = 0;
     for (let row = 0; row < localVariableCount; row++) {
       coordinate +=
-        eigensystem.vectors.get(row, eigen) * localDirection[row]!;
+        compiled.eigenvectors.get(row, eigen) * localDirection[row]!;
     }
     const scale = eigenvalue * coordinate;
     for (let row = 0; row < localVariableCount; row++) {
       projectedProduct[row]! +=
-        scale * eigensystem.vectors.get(row, eigen);
+        scale * compiled.eigenvectors.get(row, eigen);
       if (!Number.isFinite(projectedProduct[row])) {
         throw new Error(`${caller}: projected product is outside Float64`);
       }
     }
   }
-  const rawProducts = packedProducts(
-    rawProduct,
-    block.particles.length,
-    dimension
-  );
-  const projectedProducts = packedProducts(
-    projectedProduct,
-    block.particles.length,
-    dimension
-  );
   return Object.freeze({
-    rawProducts,
-    projectedProducts,
-    evidence: Object.freeze({
-      blockId: block.id,
-      particleIds: Object.freeze(
-        block.particles.map((particle) => particle.id)
-      ),
-      localVariableCount,
-      operatorEvaluations: localVariableCount,
-      rawEigenvalues: eigensystem.values.slice(),
-      projectedEigenvalues,
-      clippedEigenvalueCount,
-      relativeSymmetryError,
-      eigensystemMaxResidual: eigensystem.maxResidual,
-      eigensystemOrthogonalityError: eigensystem.orthogonalityError
-    })
+    rawProducts: packedProducts(
+      rawProduct,
+      block.particles.length,
+      dimension
+    ),
+    projectedProducts: packedProducts(
+      projectedProduct,
+      block.particles.length,
+      dimension
+    )
   });
 }
 
-function evaluateProviderBlockPsdCurvature(
+function compileProviderBlockPsdCurvature(
   provider: XpbdConservativeHessianVectorProviderN,
   positionOf: XpbdParticlePositionQueryN,
-  directionOf: XpbdParticleDirectionQueryN,
   dimension: number,
   policy: NormalizedProviderBlockPsdCurvaturePolicyN,
   caller: string
-): SelectedProviderBlockPsdCurvatureN {
+): CompiledProviderCurvatureN {
   const capable = hasHessianBlockCapability(provider, caller);
   const blocks = capable
     ? validateHessianBlocks(provider, caller)
@@ -810,16 +1131,12 @@ function evaluateProviderBlockPsdCurvature(
   for (let local = 0; local < provider.particles.length; local++) {
     providerIndices.set(provider.particles[local]!, local);
   }
-  const rawProducts = provider.particles.map(() => new VecN(dimension));
-  const projectedProducts = provider.particles.map(() => new VecN(dimension));
-  const blockEvidence: XpbdConservativePsdBlockApplicationN[] = [];
-  let operatorEvaluations = 1;
+  const compiledBlocks: CompiledHessianBlockN[] = [];
   for (const block of blocks) {
     const label = `${caller}: provider "${provider.id}" block "${block.id}"`;
-    const projected = projectHessianBlock({
+    compiledBlocks.push(compileHessianBlock({
       block,
       dimension,
-      directionOf,
       evaluate: (basisDirectionOf) => capable
         ? provider.evaluatePotentialHessianBlockVectorAt(
           block,
@@ -834,68 +1151,111 @@ function evaluateProviderBlockPsdCurvature(
       eigensolverTolerance: policy.eigensolverTolerance,
       eigensolverMaximumSweeps: policy.eigensolverMaximumSweeps,
       caller: label
-    });
-    for (let local = 0; local < block.particles.length; local++) {
-      const providerIndex = providerIndices.get(block.particles[local]!)!;
-      rawProducts[providerIndex]!.add(projected.rawProducts[local]!);
-      projectedProducts[providerIndex]!
-        .add(projected.projectedProducts[local]!);
-      assertFiniteVector(
-        rawProducts[providerIndex]!,
-        `${label}: assembled raw product`
-      );
-      assertFiniteVector(
-        projectedProducts[providerIndex]!,
-        `${label}: assembled projected product`
-      );
-    }
-    operatorEvaluations += projected.evidence.operatorEvaluations;
-    blockEvidence.push(projected.evidence);
+    }));
   }
-
-  const exact = validateProviderEvaluation(
-    provider.evaluatePotentialHessianVectorAt(positionOf, directionOf),
-    provider,
-    dimension,
-    caller
+  const blockEvidence = Object.freeze(
+    compiledBlocks.map((block) => block.evidence)
   );
-  let exactNorm = 0;
-  let differenceNorm = 0;
-  for (let local = 0; local < provider.particles.length; local++) {
-    for (let axis = 0; axis < dimension; axis++) {
-      const expected = exact.products[local]!.data[axis]!;
-      const actual = rawProducts[local]!.data[axis]!;
-      exactNorm = Math.hypot(exactNorm, expected);
-      differenceNorm = Math.hypot(differenceNorm, actual - expected);
-    }
-  }
-  const rawAssemblyRelativeError =
-    differenceNorm / Math.max(1, exactNorm);
-  if (!Number.isFinite(rawAssemblyRelativeError)) {
-    throw new Error(
-      `${caller}: provider "${provider.id}" block assembly is outside Float64`
-    );
-  }
-  if (rawAssemblyRelativeError > policy.decompositionTolerance) {
-    throw new Error(
-      `${caller}: provider "${provider.id}" block assembly does not match ` +
-        `its aggregate Hessian-vector product (relative error ` +
-        `${rawAssemblyRelativeError}, tolerance ` +
-        `${policy.decompositionTolerance})`
-    );
-  }
+  const constructionOperatorEvaluations = blockEvidence.reduce(
+    (sum, block) => sum + block.operatorEvaluations,
+    0
+  );
+  const decomposition = capable ? 'declared' : 'implicit-provider';
+  const snapshot = Object.freeze({
+    provider,
+    kind: 'provider-block-psd',
+    decomposition,
+    constructionOperatorEvaluations,
+    applicationOperatorEvaluationsPerNonzeroProduct: 1,
+    blocks: blockEvidence
+  }) satisfies XpbdConservativeCurvatureOperatorProviderN;
   return Object.freeze({
-    evaluation: Object.freeze({
-      products: Object.freeze(projectedProducts)
-    }),
-    curvature: Object.freeze({
-      kind: 'provider-block-psd',
-      decomposition: capable ? 'declared' : 'implicit-provider',
-      blockCount: blocks.length,
-      operatorEvaluations,
-      rawAssemblyRelativeError,
-      blocks: Object.freeze(blockEvidence)
-    })
+    snapshot,
+    apply: (directionOf: XpbdParticleDirectionQueryN) => {
+      const rawProducts = provider.particles.map(() => new VecN(dimension));
+      const projectedProducts =
+        provider.particles.map(() => new VecN(dimension));
+      for (const compiledBlock of compiledBlocks) {
+        const label =
+          `${caller}: provider "${provider.id}" block ` +
+          `"${compiledBlock.block.id}"`;
+        const applied = applyCompiledHessianBlock(
+          compiledBlock,
+          directionOf,
+          label
+        );
+        for (
+          let local = 0;
+          local < compiledBlock.block.particles.length;
+          local++
+        ) {
+          const providerIndex = providerIndices.get(
+            compiledBlock.block.particles[local]!
+          )!;
+          rawProducts[providerIndex]!.add(applied.rawProducts[local]!);
+          projectedProducts[providerIndex]!
+            .add(applied.projectedProducts[local]!);
+          assertFiniteVector(
+            rawProducts[providerIndex]!,
+            `${label}: assembled raw product`
+          );
+          assertFiniteVector(
+            projectedProducts[providerIndex]!,
+            `${label}: assembled projected product`
+          );
+        }
+      }
+
+      const exact = validateProviderEvaluation(
+        provider.evaluatePotentialHessianVectorAt(positionOf, directionOf),
+        provider,
+        dimension,
+        caller
+      );
+      let exactNorm = 0;
+      let differenceNorm = 0;
+      for (let local = 0; local < provider.particles.length; local++) {
+        for (let axis = 0; axis < dimension; axis++) {
+          const expected = exact.products[local]!.data[axis]!;
+          const actual = rawProducts[local]!.data[axis]!;
+          exactNorm = Math.hypot(exactNorm, expected);
+          differenceNorm = Math.hypot(
+            differenceNorm,
+            actual - expected
+          );
+        }
+      }
+      const rawAssemblyRelativeError =
+        differenceNorm / Math.max(1, exactNorm);
+      if (!Number.isFinite(rawAssemblyRelativeError)) {
+        throw new Error(
+          `${caller}: provider "${provider.id}" block assembly is outside ` +
+            `Float64`
+        );
+      }
+      if (rawAssemblyRelativeError > policy.decompositionTolerance) {
+        throw new Error(
+          `${caller}: provider "${provider.id}" block assembly does not ` +
+            `match its aggregate Hessian-vector product (relative error ` +
+            `${rawAssemblyRelativeError}, tolerance ` +
+            `${policy.decompositionTolerance})`
+        );
+      }
+      return Object.freeze({
+        evaluation: Object.freeze({
+          products: Object.freeze(projectedProducts)
+        }),
+        curvature: Object.freeze({
+          kind: 'provider-block-psd',
+          decomposition,
+          blockCount: blocks.length,
+          operatorEvaluations:
+            constructionOperatorEvaluations + 1,
+          rawAssemblyRelativeError,
+          blocks: blockEvidence
+        })
+      });
+    }
   });
 }
 

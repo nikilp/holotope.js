@@ -229,6 +229,90 @@ describe('XPBD matrix-free Newton-direction reference', () => {
     expect(result.residualNorm).toBeLessThan(1e-13);
   });
 
+  it('reuses one projected curvature construction across CG iterations', () => {
+    const particles = [
+      new XpbdParticleN({ id: 'reuse/a', position: [0], inverseMass: 1 }),
+      new XpbdParticleN({ id: 'reuse/b', position: [0], inverseMass: 1 })
+    ];
+    let providerLocalCalls = 0;
+    const providerLocalProblem = compileXpbdIncrementalPotentialProblemN({
+      dimension: 1,
+      particles,
+      predictedPositions: [new VecN([0]), new VecN([0])],
+      deltaTime: 1,
+      providers: [packedQuadraticProvider(
+        'reuse-provider-local',
+        particles,
+        [[3, 1], [1, 2]],
+        () => providerLocalCalls++
+      )]
+    });
+    const providerLocal = solveXpbdIncrementalPotentialNewtonDirectionN({
+      problem: providerLocalProblem,
+      coordinates: [1, -2],
+      preconditioner: 'identity',
+      curvaturePolicy: { kind: 'provider-local-psd' },
+      maximumIterations: 2,
+      relativeResidualTolerance: 0,
+      absoluteResidualTolerance: 1e-13
+    });
+
+    expect(providerLocal.status).toBe('converged');
+    if (providerLocal.status !== 'converged') return;
+    expect(providerLocal.iterations).toHaveLength(2);
+    expect(providerLocal.operatorEvaluations).toBe(2);
+    expect(providerLocalCalls).toBe(2);
+    expect(providerLocal.curvatureConstructionOperatorEvaluations).toBe(2);
+    expect(providerLocal.curvatureApplicationOperatorEvaluations).toBe(0);
+    expect(providerLocal.curvatureProviders).toHaveLength(1);
+    expect(providerLocal.curvatureProviders[0]).toMatchObject({
+      kind: 'provider-local-psd',
+      decomposition: 'provider',
+      constructionOperatorEvaluations: 2,
+      applicationOperatorEvaluationsPerNonzeroProduct: 0
+    });
+    expect(providerLocal.direction[0]).toBeCloseTo(-1, 13);
+    expect(providerLocal.direction[1]).toBeCloseTo(2, 13);
+
+    let blockCalls = 0;
+    const blockProblem = compileXpbdIncrementalPotentialProblemN({
+      dimension: 1,
+      particles,
+      predictedPositions: [new VecN([0]), new VecN([0])],
+      deltaTime: 1,
+      providers: [packedQuadraticProvider(
+        'reuse-implicit-block',
+        particles,
+        [[3, 1], [1, 2]],
+        () => blockCalls++
+      )]
+    });
+    const block = solveXpbdIncrementalPotentialNewtonDirectionN({
+      problem: blockProblem,
+      coordinates: [1, -2],
+      preconditioner: 'identity',
+      curvaturePolicy: { kind: 'provider-block-psd' },
+      maximumIterations: 2,
+      relativeResidualTolerance: 0,
+      absoluteResidualTolerance: 1e-13
+    });
+
+    expect(block.status).toBe('converged');
+    if (block.status !== 'converged') return;
+    expect(block.iterations).toHaveLength(2);
+    expect(blockCalls).toBe(4);
+    expect(block.curvatureConstructionOperatorEvaluations).toBe(2);
+    expect(block.curvatureApplicationOperatorEvaluations).toBe(2);
+    expect(block.curvatureProviders[0]).toMatchObject({
+      kind: 'provider-block-psd',
+      decomposition: 'implicit-provider',
+      constructionOperatorEvaluations: 2,
+      applicationOperatorEvaluationsPerNonzeroProduct: 1
+    });
+    expect(block.direction[0]).toBeCloseTo(-1, 13);
+    expect(block.direction[1]).toBeCloseTo(2, 13);
+  });
+
   it('refuses non-positive curvature rather than certifying a false solve', () => {
     const particle = new XpbdParticleN({
       id: 'indefinite',
@@ -443,7 +527,10 @@ describe('XPBD matrix-free Newton-direction reference', () => {
       status: 'zero-gradient',
       initialResidualNorm: 0,
       residualNorm: 0,
-      operatorEvaluations: 0
+      operatorEvaluations: 0,
+      curvatureConstructionOperatorEvaluations: 0,
+      curvatureApplicationOperatorEvaluations: 0,
+      curvatureProviders: []
     });
 
     const limited = solveXpbdIncrementalPotentialNewtonDirectionN({
@@ -454,9 +541,26 @@ describe('XPBD matrix-free Newton-direction reference', () => {
     expect(limited).toMatchObject({
       status: 'iteration-limit',
       maximumIterations: 0,
-      operatorEvaluations: 0
+      operatorEvaluations: 0,
+      curvatureConstructionOperatorEvaluations: 0,
+      curvatureApplicationOperatorEvaluations: 0,
+      curvatureProviders: []
     });
     expect(Array.from(limited.direction)).toEqual([0, 0, 0, 0]);
+
+    const initial = solveXpbdIncrementalPotentialNewtonDirectionN({
+      problem,
+      coordinates: [1, 0, 0, 0],
+      relativeResidualTolerance: 1
+    });
+    expect(initial).toMatchObject({
+      status: 'converged',
+      convergencePoint: 'initial-residual',
+      operatorEvaluations: 0,
+      curvatureConstructionOperatorEvaluations: 0,
+      curvatureApplicationOperatorEvaluations: 0,
+      curvatureProviders: []
+    });
   });
 
   it('is deterministic and preserves caller buffers and live particles', () => {

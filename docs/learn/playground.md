@@ -71,6 +71,7 @@ there is improved here.
 | [`TransformN`](/api/core/math/classes/TransformN) | [open](https://nikilp.github.io/holotope.js/playground.html#TransformN) |
 | [`XpbdParticleHyperplaneBarrierFamilyN`](/api/physics/classes/XpbdParticleHyperplaneBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#XpbdParticleHyperplaneBarrierFamilyN) |
 | [`XpbdParticleHyperplaneBarrierStepFilterN`](/api/physics/classes/XpbdParticleHyperplaneBarrierStepFilterN) | [open](https://nikilp.github.io/holotope.js/playground.html#XpbdParticleHyperplaneBarrierStepFilterN) |
+| [`compileXpbdIncrementalPotentialAnalyticHessianOperatorN`](/api/physics/functions/compileXpbdIncrementalPotentialAnalyticHessianOperatorN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdIncrementalPotentialAnalyticHessianOperatorN) |
 | [`create24Cell`](/api/core/polytope/functions/create24Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create24Cell) |
 | [`create600Cell`](/api/core/polytope/functions/create600Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create600Cell) |
 | [`createCrossPolytope`](/api/core/polytope/functions/createCrossPolytope) | [open](https://nikilp.github.io/holotope.js/playground.html#createCrossPolytope) |

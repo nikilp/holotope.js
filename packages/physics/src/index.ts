@@ -285,8 +285,11 @@ export {
   type XpbdProviderLocalPsdCurvaturePolicyN
 } from './xpbd-incremental-potential-curvature-policy.js';
 export {
+  compileXpbdIncrementalPotentialAnalyticHessianOperatorN,
   evaluateXpbdIncrementalPotentialAnalyticHessianVectorN,
+  type CompileXpbdIncrementalPotentialAnalyticHessianOperatorNOptions,
   type EvaluateXpbdIncrementalPotentialAnalyticHessianVectorNOptions,
+  type XpbdConservativeCurvatureOperatorProviderN,
   type XpbdConservativeHessianBlockN,
   type XpbdConservativeHessianBlockProviderN,
   type XpbdConservativeHessianVectorEvaluationN,
@@ -296,6 +299,9 @@ export {
   type XpbdIncrementalPotentialAnalyticHessianVectorResultN,
   type XpbdIncrementalPotentialAnalyticHessianVectorUnsupportedN,
   type XpbdIncrementalPotentialAnalyticHessianVectorZeroDirectionN,
+  type XpbdIncrementalPotentialAnalyticHessianOperatorCompilationN,
+  type XpbdIncrementalPotentialAnalyticHessianOperatorN,
+  type XpbdIncrementalPotentialAnalyticHessianOperatorUnsupportedN,
   type XpbdParticleDirectionQueryN
 } from './xpbd-incremental-potential-analytic-curvature.js';
 export {

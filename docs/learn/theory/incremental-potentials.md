@@ -623,9 +623,58 @@ simplex is one block, in source-cell order, and its retained block record
 points back to the compiled source element. Thus a family with local scalar
 counts \(k_b\) changes the dense spectral work from
 \(O((\sum_b k_b)^3)\) to \(\sum_b O(k_b^3)\). This is the exact Float64
-golden path for element-local modified curvature. It deliberately does not
-cache block matrices, assemble a global sparse Hessian, construct a scalable
-preconditioner, or claim a production large-mesh solve.
+golden path for element-local modified curvature. The one-shot API does not
+retain matrices across calls; the fixed-coordinate compiler below reuses them
+only within one authored linearization. Neither path assembles a global sparse
+Hessian, constructs a scalable preconditioner, or claims a production
+large-mesh solve.
+
+### Fixed-coordinate analytic operators
+
+A Newton linear solve asks many directional questions at one unchanged
+coordinate. Reconstructing and diagonalizing the same local matrices for every
+Krylov direction is mathematically redundant. The reusable boundary is:
+
+```ts
+const operator =
+  compileXpbdIncrementalPotentialAnalyticHessianOperatorN({
+    problem,
+    coordinates: packed.coordinates,
+    curvaturePolicy: { kind: 'provider-block-psd' }
+  });
+
+if (operator.status === 'compiled') {
+  const Hd0 = operator.apply(direction0);
+  const Hd1 = operator.apply(direction1);
+}
+```
+
+The returned operator copies its fixed coordinate, retains the complete base
+objective, and exposes separate construction and per-product provider HVP
+counts. Its policy-dependent work is exact:
+
+- `'exact'` compiles no matrix and requests one aggregate HVP per provider and
+  nonzero product;
+- `provider-local-psd` pays the provider basis HVPs and eigendecomposition once
+  and subsequently applies the stored projected matrix without provider HVPs;
+- `provider-block-psd` pays every block basis HVP and eigendecomposition once,
+  then retains one authoritative aggregate provider HVP audit for each nonzero
+  applied direction.
+
+That last audit is not redundant. A provider declares that its blocks sum to
+its aggregate Hessian. Proving the equality for every possible direction at
+compile time would require reconstructing the complete provider-wide
+aggregate matrix. Instead, the compiled operator stores the raw block matrices
+and compares their action with the exact aggregate HVP on every direction it
+actually applies. A direction-dependent disagreement remains a contract
+error.
+
+`evaluateXpbdIncrementalPotentialAnalyticHessianVectorN()` is the convenient
+one-shot form of the same construction. The Newton solver compiles once per
+linearization and reuses it through CG; it never carries projected matrices
+across candidate coordinates or nonlinear iterations. This is a per-solve
+Float64 CPU cache, not a sparse/global Hessian, cross-iteration quasi-Newton
+approximation, or GPU operator.
 
 ### Bounded matrix-free Newton direction
 
@@ -661,7 +710,8 @@ if (linear.status === 'converged') {
 ```
 
 The result is deliberately evidence-rich. It retains every completed Krylov
-iteration, residual reduction, operator-evaluation count, and the authored
+iteration, residual reduction, complete packed-product count, one-time
+curvature-construction HVP count, application HVP count, and the authored
 tolerances. A mixed objective with first-order-only providers returns
 `unsupported-provider`. A search ray whose
 `dᵀHd` is non-positive or too small relative to `||d|| ||Hd||` returns
@@ -856,12 +906,13 @@ an independently auditable matrix-free curvature estimate, exact analytic
 composition for completely capable provider mixtures, bounded
 preconditioned-CG Newton directions, explicit direction-policy globalization,
 opt-in dense provider-local and exact provider-block PSD references, an
-explicit atomic state transition, and a single-call transactional reference
-step. They do not:
+immutable fixed-coordinate analytic operator with per-solve projected-block
+reuse, an explicit atomic state transition, and a single-call transactional
+reference step. They do not:
 
 - assemble a sparse/global Hessian or direct linear factorization;
-- cache local projected blocks or provide a scalable sparse large-mesh
-  modified-Newton backend;
+- cache projected blocks across linearization coordinates or provide a
+  scalable sparse large-mesh modified-Newton backend;
 - provide quasi-Newton or trust-region directions;
 - apply `XpbdWorldN` velocity responses or state guards to the optimization
   path;

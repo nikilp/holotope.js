@@ -167,6 +167,16 @@ windows.
   eigensystem diagnostics. Their cost is cubic in the complete provider or
   each declared block respectively; neither is a cached sparse large-mesh
   backend. Omission preserves exact curvature and typed refusal.
+- Fixed-coordinate curvature:
+  `compileXpbdIncrementalPotentialAnalyticHessianOperatorN` copies one packed
+  coordinate and returns either a reusable analytic operator or a typed
+  unsupported-provider refusal. Exact mode stays matrix-free. Provider-local
+  and provider-block PSD pay basis HVPs and eigendecomposition once, then
+  reuse stored projected matrices. Block-local application still pays one
+  aggregate provider HVP per nonzero direction to audit the declared raw sum.
+  The Newton CG solver uses this compiler once per linearization and reports
+  construction and application provider-call counts separately. Nothing is
+  cached across candidate coordinates or nonlinear iterations.
 - Candidate objectives: `XpbdConservativeForceProviderN`, family
   `evaluateAt(positionOf)`, and `evaluateXpbdPotentialStateN` evaluate and
   assemble trial-state energy plus `dU/dx` without mutating live particles.
