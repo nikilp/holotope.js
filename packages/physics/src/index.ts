@@ -274,6 +274,14 @@ export {
   type XpbdIncrementalPotentialHessianVectorZeroDirectionN
 } from './xpbd-incremental-potential-curvature.js';
 export {
+  type XpbdConservativeCurvatureApplicationN,
+  type XpbdConservativeExactCurvatureApplicationN,
+  type XpbdConservativeProviderLocalPsdApplicationN,
+  type XpbdIncrementalPotentialCurvaturePolicyKindN,
+  type XpbdIncrementalPotentialCurvaturePolicyN,
+  type XpbdProviderLocalPsdCurvaturePolicyN
+} from './xpbd-incremental-potential-curvature-policy.js';
+export {
   evaluateXpbdIncrementalPotentialAnalyticHessianVectorN,
   type EvaluateXpbdIncrementalPotentialAnalyticHessianVectorNOptions,
   type XpbdConservativeHessianVectorEvaluationN,

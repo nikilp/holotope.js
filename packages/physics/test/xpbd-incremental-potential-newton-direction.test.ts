@@ -263,6 +263,55 @@ describe('XPBD matrix-free Newton-direction reference', () => {
     }
   });
 
+  it('uses provider-local PSD only when explicitly authored', () => {
+    const particle = new XpbdParticleN({
+      id: 'modified-newton',
+      position: [0],
+      inverseMass: 1
+    });
+    const problem = compileXpbdIncrementalPotentialProblemN({
+      dimension: 1,
+      particles: [particle],
+      predictedPositions: [new VecN([0])],
+      deltaTime: 1,
+      providers: [
+        packedQuadraticProvider('negative-potential', [particle], [[-2]])
+      ]
+    });
+    const exact = solveXpbdIncrementalPotentialNewtonDirectionN({
+      problem,
+      coordinates: [1]
+    });
+    const projected = solveXpbdIncrementalPotentialNewtonDirectionN({
+      problem,
+      coordinates: [1],
+      curvaturePolicy: { kind: 'provider-local-psd' }
+    });
+
+    expect(exact.status).toBe('non-positive-curvature');
+    expect(exact.curvaturePolicy).toBe('exact');
+    expect(projected.status).toBe('converged');
+    expect(projected.curvaturePolicy).toBe('provider-local-psd');
+    if (projected.status !== 'converged') return;
+    expect(Array.from(projected.direction)).toEqual([1]);
+    expect(projected.iterations).toHaveLength(1);
+    expect(projected.iterations[0]!.quadraticForm).toBe(1);
+    expect(projected.iterations[0]!.providerCurvatures)
+      .toHaveLength(1);
+    const providerCurvature =
+      projected.iterations[0]!.providerCurvatures[0]!;
+    expect(providerCurvature.providerId).toBe('negative-potential');
+    expect(providerCurvature.curvature.kind)
+      .toBe('provider-local-psd');
+    if (providerCurvature.curvature.kind === 'provider-local-psd') {
+      expect(providerCurvature.curvature.clippedEigenvalueCount).toBe(1);
+      expect(Array.from(providerCurvature.curvature.rawEigenvalues))
+        .toEqual([-2]);
+    }
+    expect(projected.base.gradient[0]! * projected.direction[0]!)
+      .toBeLessThan(0);
+  });
+
   it('preflights unsupported providers before requesting partial curvature', () => {
     const particle = new XpbdParticleN({
       id: 'mixed',
@@ -448,6 +497,27 @@ describe('XPBD matrix-free Newton-direction reference', () => {
     expect(() => solve({
       maximumIterations: 1.5
     })).toThrow(/maximumIterations/);
+    expect(() => solve({
+      curvaturePolicy: 'repair'
+    })).toThrow(/curvaturePolicy/);
+    expect(() => solve({
+      curvaturePolicy: {
+        kind: 'provider-local-psd',
+        symmetryTolerance: 0
+      }
+    })).toThrow(/symmetryTolerance/);
+    expect(() => solve({
+      curvaturePolicy: {
+        kind: 'provider-local-psd',
+        eigensolverTolerance: Number.NaN
+      }
+    })).toThrow(/eigensolverTolerance/);
+    expect(() => solve({
+      curvaturePolicy: {
+        kind: 'provider-local-psd',
+        eigensolverMaximumSweeps: 1.5
+      }
+    })).toThrow(/eigensolverMaximumSweeps/);
     expect(() => solveXpbdIncrementalPotentialNewtonDirectionN({
       problem,
       coordinates: []

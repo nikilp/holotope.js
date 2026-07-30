@@ -258,14 +258,27 @@ protocol. Custom laws may remain first-order-only and are then refused
 explicitly by that protocol. No dense Hessian, definiteness modification, or
 Newton/Krylov solver is implied by the provider capability itself.
 
+Analytic composition and the Newton APIs default to the providers' exact
+curvature. Authors may instead select
+`curvaturePolicy: { kind: 'provider-local-psd' }`. That explicit
+modified-Newton reference reconstructs each provider-local dense Hessian from
+basis HVPs, audits symmetry, diagonalizes it with the deterministic Float64
+eigensolver, and clamps negative eigenvalues to zero. Results retain raw and
+projected spectra, clipped counts, symmetry error, eigensystem residuals, and
+operator cost. This is a cubic-cost CPU golden path for small providers. An
+assembled material family is one provider, so this is not yet the scalable
+per-element or sparse PSD path for a large deformable mesh.
+
 `solveXpbdIncrementalPotentialNewtonDirectionN()` composes the complete
 analytic objective product into a bounded, non-mutating preconditioned-CG
 reference for `H(q) p = -gradient(Phi(q))`. Identity and exact inertial
 mass-diagonal preconditioners are available. Results retain per-iteration
 residual and curvature evidence and distinguish convergence, an exact zero
 gradient, budget exhaustion, unsupported providers, and non-positive or
-numerically unresolved curvature. The function assembles no matrix and does
-not modify definiteness, choose a nonlinear step, run Armijo, or apply state.
+numerically unresolved curvature. In exact mode the function assembles no
+matrix and does not modify definiteness. Provider-local PSD is the explicit
+exception described above. Neither mode chooses a nonlinear step, runs Armijo,
+or applies state.
 
 `compileSimplexConstitutiveFamilyStateGuardN()` is an optional post-substep
 policy over that generic family. It rejects typed law-domain refusal,

@@ -155,6 +155,14 @@ windows.
   It returns explicit convergence, budget, unsupported-provider, and
   non-positive-curvature evidence. It does not select or apply a nonlinear
   step.
+- Modified-Newton curvature:
+  analytic composition, the Newton solve, and `xpbdNewtonDirectionPolicyN`
+  accept `curvaturePolicy: { kind: 'provider-local-psd' }`. This explicit
+  CPU reference reconstructs each provider-local dense Hessian, audits
+  symmetry, clamps negative eigenvalues, and retains both spectra and
+  eigensystem diagnostics. It is cubic in each provider's scalar-variable
+  count; use it for small providers and differential checks, not as a sparse
+  large-mesh backend. Omission preserves exact curvature and typed refusal.
 - Candidate objectives: `XpbdConservativeForceProviderN`, family
   `evaluateAt(positionOf)`, and `evaluateXpbdPotentialStateN` evaluate and
   assemble trial-state energy plus `dU/dx` without mutating live particles.

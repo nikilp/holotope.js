@@ -3,8 +3,14 @@ import {
   type XpbdPackedIncrementalPotentialEvaluationN
 } from './xpbd-incremental-potential-problem.js';
 import {
-  evaluateXpbdIncrementalPotentialAnalyticHessianVectorN
+  evaluateXpbdIncrementalPotentialAnalyticHessianVectorN,
+  normalizeXpbdIncrementalPotentialCurvaturePolicyN
 } from './xpbd-incremental-potential-analytic-curvature.js';
+import type {
+  XpbdConservativeCurvatureApplicationN,
+  XpbdIncrementalPotentialCurvaturePolicyKindN,
+  XpbdIncrementalPotentialCurvaturePolicyN
+} from './xpbd-incremental-potential-curvature-policy.js';
 
 const METHOD = 'preconditioned-conjugate-gradient' as const;
 
@@ -21,6 +27,10 @@ export interface SolveXpbdIncrementalPotentialNewtonDirectionNOptions {
   readonly coordinates: ArrayLike<number>;
   /** Positive preconditioner policy; default `mass-diagonal`. */
   readonly preconditioner?: XpbdIncrementalPotentialNewtonPreconditionerN;
+  /**
+   * Exact provider Hessians by default, or explicit dense provider-local PSD.
+   */
+  readonly curvaturePolicy?: XpbdIncrementalPotentialCurvaturePolicyN;
   /** Residual tolerance relative to the initial gradient norm; default `1e-8`. */
   readonly relativeResidualTolerance?: number;
   /** Absolute packed residual tolerance; default zero. */
@@ -51,6 +61,13 @@ export interface XpbdIncrementalPotentialNewtonIterationN {
   readonly stepLength: number;
   /** Next-direction coefficient `beta`, or `null` on terminal convergence. */
   readonly conjugacyCoefficient: number | null;
+  /** Provider-local construction behind this iteration's operator product. */
+  readonly providerCurvatures: readonly {
+    /** Stable conservative-provider identity. */
+    readonly providerId: string;
+    /** Exact or projected construction used for this product. */
+    readonly curvature: XpbdConservativeCurvatureApplicationN;
+  }[];
 }
 
 /** Evidence common to every matrix-free Newton-direction outcome. */
@@ -74,6 +91,8 @@ export interface XpbdIncrementalPotentialNewtonDirectionBaseN {
   /** Positive packed preconditioner used by the iteration. */
   readonly preconditioner:
     XpbdIncrementalPotentialNewtonPreconditionerN;
+  /** Exact or explicitly modified curvature used by every operator query. */
+  readonly curvaturePolicy: XpbdIncrementalPotentialCurvaturePolicyKindN;
   /** Authored or default Krylov iteration budget. */
   readonly maximumIterations: number;
   /** Completed positive-curvature iterations in execution order. */
@@ -221,6 +240,11 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
       `${caller}: preconditioner must be "identity" or "mass-diagonal"`
     );
   }
+  const normalizedCurvaturePolicy =
+    normalizeXpbdIncrementalPotentialCurvaturePolicyN(
+      options.curvaturePolicy,
+      caller
+    );
   const relativeResidualTolerance =
     options.relativeResidualTolerance ?? 1e-8;
   const absoluteResidualTolerance =
@@ -274,6 +298,7 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
     initialResidualNorm,
     residualTolerance,
     preconditioner,
+    curvaturePolicy: normalizedCurvaturePolicy.kind,
     maximumIterations,
     relativeResidualTolerance,
     absoluteResidualTolerance,
@@ -331,7 +356,10 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
       evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
         problem: options.problem,
         coordinates,
-        direction: krylovDirection
+        direction: krylovDirection,
+        ...(options.curvaturePolicy === undefined
+          ? {}
+          : { curvaturePolicy: options.curvaturePolicy })
       });
     if (analytic.status === 'unsupported-provider') {
       return Object.freeze({
@@ -349,6 +377,14 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
     }
     operatorEvaluations++;
     const product = analytic.product;
+    const providerCurvatures = Object.freeze(
+      analytic.providers.map(({ provider, curvature }) =>
+        Object.freeze({
+          providerId: provider.id,
+          curvature
+        })
+      )
+    );
     const quadraticForm = dot(krylovDirection, product, caller);
     const curvatureThreshold =
       relativeCurvatureTolerance *
@@ -395,7 +431,8 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
         quadraticForm,
         curvatureThreshold,
         stepLength,
-        conjugacyCoefficient: null
+        conjugacyCoefficient: null,
+        providerCurvatures
       }));
       return Object.freeze({
         ...common,
@@ -434,7 +471,8 @@ export function solveXpbdIncrementalPotentialNewtonDirectionN(
       quadraticForm,
       curvatureThreshold,
       stepLength,
-      conjugacyCoefficient
+      conjugacyCoefficient,
+      providerCurvatures
     }));
     for (
       let coordinate = 0;

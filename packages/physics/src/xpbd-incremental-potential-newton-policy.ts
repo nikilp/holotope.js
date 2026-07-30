@@ -13,6 +13,9 @@ import {
   type XpbdIncrementalPotentialNewtonDirectionResultN,
   type XpbdIncrementalPotentialNewtonPreconditionerN
 } from './xpbd-incremental-potential-newton-direction.js';
+import type {
+  XpbdIncrementalPotentialCurvaturePolicyN
+} from './xpbd-incremental-potential-curvature-policy.js';
 
 const KIND = 'newton-cg' as const;
 
@@ -43,6 +46,8 @@ export interface XpbdNewtonDirectionPolicyNOptions {
   readonly problem: XpbdIncrementalPotentialProblemN;
   /** Forwarded to the P37 solve; default `mass-diagonal`. */
   readonly preconditioner?: XpbdIncrementalPotentialNewtonPreconditionerN;
+  /** Exact provider Hessians by default, or explicit provider-local PSD. */
+  readonly curvaturePolicy?: XpbdIncrementalPotentialCurvaturePolicyN;
   /** Residual tolerance relative to the initial gradient norm. */
   readonly relativeResidualTolerance?: number;
   /** Absolute packed residual tolerance. */
@@ -180,6 +185,9 @@ export function xpbdNewtonDirectionPolicyN(
     ...(options.preconditioner === undefined
       ? {}
       : { preconditioner: options.preconditioner }),
+    ...(options.curvaturePolicy === undefined
+      ? {}
+      : { curvaturePolicy: options.curvaturePolicy }),
     ...(options.relativeResidualTolerance === undefined
       ? {}
       : { relativeResidualTolerance: options.relativeResidualTolerance }),

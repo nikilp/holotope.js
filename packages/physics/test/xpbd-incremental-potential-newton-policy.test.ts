@@ -252,6 +252,35 @@ describe('xpbdNewtonDirectionPolicyN', () => {
     expect(particle.position.toArray()).toEqual(before.toArray());
   });
 
+  it('forwards an explicit provider-local PSD policy with its evidence', () => {
+    const { problem } = scene(2, INDEFINITE_2D);
+    const result = minimizeXpbdIncrementalPotentialN({
+      problem,
+      initialCoordinates: [0.5, 0.5],
+      directionPolicy: xpbdNewtonDirectionPolicyN({
+        problem,
+        curvaturePolicy: { kind: 'provider-local-psd' }
+      }),
+      maximumIterations: 1
+    });
+
+    expect(result.iterations).toHaveLength(1);
+    const evidence = evidenceOf(
+      result.iterations[0]!.directionEvidence
+    );
+    expect(evidence.outcome).toBe('newton');
+    expect(evidence.newton.status).toBe('converged');
+    expect(evidence.newton.curvaturePolicy).toBe('provider-local-psd');
+    const gradientDotDirection = Array.from(
+      result.initial.gradient
+    ).reduce(
+      (sum, gradient, index) =>
+        sum + gradient * result.iterations[0]!.direction[index]!,
+      0
+    );
+    expect(gradientDotDirection).toBeLessThan(0);
+  });
+
   it('is refused by the application boundary as not-converged', () => {
     const { particle, problem } = scene(2, INDEFINITE_2D);
     const before = particle.position.clone();

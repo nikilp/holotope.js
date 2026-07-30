@@ -84,6 +84,46 @@ function analyticPairProvider(
   };
 }
 
+function analyticDenseQuadraticProvider(
+  id: string,
+  particle: XpbdParticleN,
+  matrix: readonly (readonly number[])[]
+): XpbdConservativeHessianVectorProviderN {
+  const dimension = particle.dimension;
+  if (matrix.length !== dimension ||
+    matrix.some((row) => row.length !== dimension)) {
+    throw new Error('test matrix dimension mismatch');
+  }
+  const apply = (vector: VecN): VecN =>
+    new VecN(matrix.map((row) =>
+      row.reduce(
+        (sum, coefficient, axis) =>
+          sum + coefficient * vector.data[axis]!,
+        0
+      )
+    ));
+  const evaluateAt: XpbdConservativeForceProviderN['evaluateAt'] = (
+    positionOf
+  ) => {
+    const position = positionOf(particle);
+    const gradient = apply(position);
+    return {
+      potentialEnergy: 0.5 * position.dot(gradient),
+      forces: [gradient.multiplyScalar(-1)]
+    };
+  };
+  return {
+    id,
+    dimension,
+    particles: [particle],
+    evaluate: () => evaluateAt(() => particle.position.clone()),
+    evaluateAt,
+    evaluatePotentialHessianVectorAt: (_positionOf, directionOf) => ({
+      products: [apply(directionOf(particle))]
+    })
+  };
+}
+
 function ordinaryQuadraticProvider(
   id: string,
   particle: XpbdParticleN,
@@ -205,6 +245,140 @@ describe('XPBD incremental-potential analytic curvature', () => {
     expectArrayClose(result.product, expected, 13);
     expect(result.providers.map((entry) => entry.provider.id))
       .toEqual(['both', 'b-only']);
+    expect(result.curvaturePolicy).toBe('exact');
+    expect(result.providers.map((entry) => entry.curvature))
+      .toEqual([
+        { kind: 'exact', operatorEvaluations: 1 },
+        { kind: 'exact', operatorEvaluations: 1 }
+      ]);
+  });
+
+  it('projects one indefinite provider through an auditable dense PSD oracle', () => {
+    const particle = new XpbdParticleN({
+      id: 'indefinite-r2',
+      position: [0, 0],
+      inverseMass: 1
+    });
+    const provider = analyticDenseQuadraticProvider(
+      'indefinite-law',
+      particle,
+      [[1, 2], [2, 1]]
+    );
+    const direction = new Float64Array([1, -2]);
+    const result =
+      evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+        problem: compile(
+          [particle],
+          [new VecN([0, 0])],
+          0.5,
+          [provider]
+        ),
+        coordinates: [0.2, -0.1],
+        direction,
+        curvaturePolicy: { kind: 'provider-local-psd' }
+      });
+
+    expect(result.status).toBe('evaluated');
+    if (result.status !== 'evaluated') return;
+    expect(result.curvaturePolicy).toBe('provider-local-psd');
+    // Q diag(0, 3) Q^T d for Q = [(1,-1), (1,1)] / sqrt(2).
+    expectArrayClose(result.potentialProducts[0]!.data, [-1.5, -1.5], 12);
+    expectArrayClose(result.product, [0.625, -2.375], 12);
+    expect(result.providers).toHaveLength(1);
+    const evidence = result.providers[0]!.curvature;
+    expect(evidence.kind).toBe('provider-local-psd');
+    if (evidence.kind !== 'provider-local-psd') return;
+    expect(evidence.localVariableCount).toBe(2);
+    expect(evidence.operatorEvaluations).toBe(2);
+    expectArrayClose(evidence.rawEigenvalues, [-1, 3], 12);
+    expectArrayClose(evidence.projectedEigenvalues, [0, 3], 12);
+    expect(evidence.clippedEigenvalueCount).toBe(1);
+    expect(evidence.relativeSymmetryError).toBe(0);
+    expect(evidence.eigensystemMaxResidual).toBeLessThan(1e-12);
+    expect(evidence.eigensystemOrthogonalityError).toBeLessThan(1e-12);
+  });
+
+  it('is dimension-independent and leaves positive provider spectra unchanged', () => {
+    for (const dimension of [1, 2, 4, 7]) {
+      const particle = new XpbdParticleN({
+        id: `positive-r${dimension}`,
+        position: new Float64Array(dimension),
+        inverseMass: 1
+      });
+      const diagonal = Array.from(
+        { length: dimension },
+        (_, row) => Array.from(
+          { length: dimension },
+          (_, column) => row === column ? row + 1 : 0
+        )
+      );
+      const direction = Float64Array.from(
+        { length: dimension },
+        (_, axis) => 0.2 * (axis + 1)
+      );
+      const problem = compile(
+        [particle],
+        [new VecN(dimension)],
+        0.1,
+        [analyticDenseQuadraticProvider(
+          `positive-law-r${dimension}`,
+          particle,
+          diagonal
+        )]
+      );
+      const exact = evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+        problem,
+        coordinates: new Float64Array(dimension),
+        direction,
+        curvaturePolicy: 'exact'
+      });
+      const projected =
+        evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+          problem,
+          coordinates: new Float64Array(dimension),
+          direction,
+          curvaturePolicy: { kind: 'provider-local-psd' }
+        });
+
+      expect(exact.status).toBe('evaluated');
+      expect(projected.status).toBe('evaluated');
+      if (exact.status !== 'evaluated' ||
+        projected.status !== 'evaluated') continue;
+      expectArrayClose(projected.product, exact.product, 12);
+      const evidence = projected.providers[0]!.curvature;
+      expect(evidence.kind).toBe('provider-local-psd');
+      if (evidence.kind !== 'provider-local-psd') continue;
+      expect(evidence.clippedEigenvalueCount).toBe(0);
+      expect(evidence.operatorEvaluations).toBe(dimension);
+      expect(evidence.projectedEigenvalues.every((value) => value >= 0))
+        .toBe(true);
+    }
+  });
+
+  it('rejects a provider whose claimed Hessian is materially asymmetric', () => {
+    const particle = new XpbdParticleN({
+      id: 'asymmetric-r2',
+      position: [0, 0],
+      inverseMass: 1
+    });
+    const problem = compile(
+      [particle],
+      [new VecN([0, 0])],
+      0.1,
+      [analyticDenseQuadraticProvider(
+        'asymmetric-law',
+        particle,
+        [[1, 1], [0, 1]]
+      )]
+    );
+    expect(() =>
+      evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+        problem,
+        coordinates: [0, 0],
+        direction: [1, 0],
+        curvaturePolicy: { kind: 'provider-local-psd' }
+      })
+    ).toThrow(/Hessian is not symmetric/);
   });
 
   it('retains fixed-particle reaction curvature outside packed coordinates', () => {
@@ -230,9 +404,23 @@ describe('XPBD incremental-potential analytic curvature', () => {
         coordinates: [0.2, 0.4],
         direction
       });
+    const projected =
+      evaluateXpbdIncrementalPotentialAnalyticHessianVectorN({
+        problem: compile(
+          [dynamic, fixed],
+          [new VecN([0, 0]), new VecN([1, -1])],
+          0.1,
+          [analyticPairProvider(dynamic, fixed, 4)]
+        ),
+        coordinates: [0.2, 0.4],
+        direction,
+        curvaturePolicy: { kind: 'provider-local-psd' }
+      });
 
     expect(result.status).toBe('evaluated');
-    if (result.status !== 'evaluated') return;
+    expect(projected.status).toBe('evaluated');
+    if (result.status !== 'evaluated' ||
+      projected.status !== 'evaluated') return;
     expectArrayClose(
       result.potentialProducts[0]!.data,
       direction.map((value) => 4 * value),
@@ -244,6 +432,16 @@ describe('XPBD incremental-potential analytic curvature', () => {
       14
     );
     expect(result.product).toHaveLength(2);
+    expectArrayClose(
+      projected.potentialProducts[0]!.data,
+      result.potentialProducts[0]!.data,
+      12
+    );
+    expectArrayClose(
+      projected.potentialProducts[1]!.data,
+      result.potentialProducts[1]!.data,
+      12
+    );
   });
 
   it('refuses every unsupported provider before requesting a partial product', () => {

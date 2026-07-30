@@ -525,6 +525,51 @@ curvature or chooses a solver direction. Exact matrix-free products do not
 imply positive semidefiniteness, a sparse Hessian, a Krylov solve, or a Newton
 policy.
 
+### Explicit provider-local PSD curvature
+
+Exact negative curvature is evidence, not a defect to hide. Consequently every
+analytic and Newton entry point defaults to `'exact'`: a non-positive Krylov
+ray remains a typed refusal.
+
+For modified-Newton experiments on small providers, an author can opt into a
+dense CPU reference:
+
+```ts
+const linear = solveXpbdIncrementalPotentialNewtonDirectionN({
+  problem,
+  coordinates: packed.coordinates,
+  curvaturePolicy: { kind: 'provider-local-psd' }
+});
+```
+
+For each conservative provider with \(k\) local scalar variables, this policy
+requests \(k\) analytic Hessian-vector products to reconstruct its local
+matrix, rejects material asymmetry, diagonalizes the symmetric matrix, and
+applies
+
+$$
+H_i^+=V_i\max(\Lambda_i,0)V_i^T.
+$$
+
+The incremental operator is then
+
+$$
+H^+=M+h^2\sum_i A_i^T H_i^+ A_i,
+$$
+
+so the exact positive mass block is never projected. Provider evidence retains
+the raw and clamped spectra, clipped count, pre-symmetrization error,
+eigensystem residuals, and HVP count.
+
+“Provider-local” is a precise boundary. A provider may be one contact stencil,
+one element, or an already assembled constitutive family. The last case means
+this dense reference scales cubically with the whole family block; it is not
+the eventual per-element sparse implementation. The option is explicit on
+`evaluateXpbdIncrementalPotentialAnalyticHessianVectorN()`,
+`solveXpbdIncrementalPotentialNewtonDirectionN()`, and
+`xpbdNewtonDirectionPolicyN()` so applications cannot confuse exact and
+modified curvature.
+
 ### Bounded matrix-free Newton direction
 
 `solveXpbdIncrementalPotentialNewtonDirectionN()` is the first bounded linear
@@ -568,10 +613,12 @@ stationarity, convergence, and exhaustion of a finite iteration budget have
 separate statuses.
 
 This function solves only the linearized equation at one fixed coordinate.
-It does not make the Hessian positive semidefinite, select an admissible
-nonlinear step, invoke Armijo backtracking, mutate particles, or claim a
-globally convergent Newton method. Those are separate policies so callers
-cannot mistake a locally valid direction for an accepted simulation state.
+Its default exact policy does not modify definiteness; the explicit
+provider-local PSD option is the bounded reference above. Neither policy
+selects an admissible nonlinear step, invokes Armijo backtracking, mutates
+particles, or claims a globally convergent Newton method. Those remain
+separate policies so callers cannot mistake a locally valid direction for an
+accepted simulation state.
 
 ## Globalizing the Newton direction
 
@@ -749,12 +796,14 @@ first-order sufficient-decrease search, ordered admissible-step filtering with
 an exact RN point–static-plane specialization, a bounded non-mutating
 direction-policy golden path with steepest and inertial-mass specializations,
 an independently auditable matrix-free curvature estimate, exact analytic
-composition for completely capable provider mixtures, an explicit atomic state
+composition for completely capable provider mixtures, bounded
+preconditioned-CG Newton directions, explicit direction-policy globalization,
+an opt-in dense provider-local PSD reference, an explicit atomic state
 transition, and a single-call transactional reference step. They do not:
 
-- assemble an exact Hessian or linear system, or project one to a definiteness
-  class;
-- provide Newton, quasi-Newton, or material-Hessian directions;
+- assemble a sparse/global Hessian or direct linear factorization;
+- provide a scalable per-element PSD or large-mesh modified-Newton backend;
+- provide quasi-Newton or trust-region directions;
 - apply `XpbdWorldN` velocity responses or state guards to the optimization
   path;
 - perform mesh-wide continuous-collision-filtered search automatically;
