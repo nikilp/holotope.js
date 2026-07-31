@@ -104,7 +104,10 @@ export const DIMENSION_BRIDGE_DOCUMENT = {
     {
       id: 'sliceOffset',
       label: 'Slice offset',
-      value: { type: 'number', default: 0.12, min: -1.6, max: 1.6, step: 0.01 },
+      // Matches the page slider's range. The body's w edge is 0.86, so cuts
+      // beyond +/-0.43 are empty -- which is honest rather than an error, and
+      // is the range the flagship has always offered.
+      value: { type: 'number', default: 0.12, min: -2.5, max: 2.5, step: 0.005 },
       dimension: 'length',
       frame: { space: 'ambient', dim: 4 },
       unit: 'm',
