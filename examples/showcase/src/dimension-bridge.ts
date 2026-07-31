@@ -23,11 +23,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
-  BivectorN,
-  CoordinateProjection,
-  HyperplaneSlice4,
   PerspectiveProjection,
-  Rotor4,
   TransformN,
   VecN,
   affineSectionMapRecipe4,
@@ -36,7 +32,6 @@ import {
   createSourceCellIdN,
   createSourceCellReferenceN,
   createSourceEdgeCoordinateN,
-  createHypercube,
   evaluateRepresentationLineagePointN,
   evaluateProjectionFibre,
   evaluateSourceEdgeCoordinateN,
@@ -44,7 +39,6 @@ import {
   projectPointToSourceEdgeN,
   projectionMapRecipeN,
   resolveSourceCellIdN,
-  tetrahedralizeCuboidCells,
   type RepresentationHitN,
   type RepresentationLineageN,
   type SourceCellIdN,
@@ -59,11 +53,10 @@ import {
   representationHitFromSlicedComplex
 } from '@holotope/three';
 import {
-  PhysicsWorld4,
-  RigidBody4,
-  massPropertiesFromCellComplex4,
-  rebasePositionsToPrincipalFrame4
-} from '@holotope/physics';
+  BRIDGE_IDS,
+  compileDimensionBridgeDocument,
+  poseForRepresentation
+} from './dimension-bridge-document';
 import { setupShowcaseUI } from './ui';
 
 const container = document.getElementById('app')!;
@@ -92,26 +85,36 @@ const rimLight = new DirectionalLight(0x65e5c0, 2.1);
 rimLight.position.set(-6, -2, 3);
 scene.add(rimLight);
 
-// The source remains a topology-first R4 complex. Anisotropy makes hidden-axis
-// motion visually distinguishable and gives the rigid body non-isotropic inertia.
-const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
-const groupOrdinals = new Map<string, number>();
-for (const group of complex.groups) {
-  const family = `${group.dim}:${group.kind}:${group.verticesPerCell}`;
-  const ordinal = groupOrdinals.get(family) ?? 0;
-  groupOrdinals.set(family, ordinal + 1);
-  group.key = `bridge-source:${family}:${ordinal}`;
-}
-const sideScales = [1.35, 0.92, 0.66, 0.43];
-for (let vertex = 0; vertex < complex.vertexCount; vertex++) {
-  for (let axis = 0; axis < 4; axis++) {
-    complex.positions[vertex * 4 + axis]! *= sideScales[axis]!;
-  }
-}
-const massProperties = massPropertiesFromCellComplex4(complex);
-complex.positions = rebasePositionsToPrincipalFrame4(complex.positions, massProperties);
+// Everything authoritative comes from one typed experiment document: the exact
+// R4 orthotope source, the momentum-primary rigid model that moves it, and the
+// three representation maps that observe it. The page constructs no geometry,
+// no body, and no world of its own -- it renders what the compilation holds.
+const bridge = await compileDimensionBridgeDocument();
+const compilation = bridge.compilation;
+const complex = bridge.source.complex;
 
-const perspective = new PerspectiveProjection({ fromDim: 4, viewDistance: 5.4 });
+// The compiled maps, narrowed once. Their objects are the ones the document
+// built; rebuilding equivalents here would mean rendering something the
+// document does not describe.
+if (bridge.perspective.map.kind !== 'projection') {
+  throw new Error('dimension bridge: the perspective view is not a projection');
+}
+if (bridge.coordinate.map.kind !== 'projection') {
+  throw new Error('dimension bridge: the coordinate view is not a projection');
+}
+if (bridge.section.map.kind !== 'slice4') {
+  throw new Error('dimension bridge: the section is not a slice');
+}
+const perspectiveProjection = bridge.perspective.map.projection;
+// The homogeneous residual and fibre readouts below are perspective-specific
+// capabilities, so the page checks it really got one rather than assuming.
+if (!(perspectiveProjection instanceof PerspectiveProjection)) {
+  throw new Error('dimension bridge: the perspective view is not a perspective projection');
+}
+const perspective = perspectiveProjection;
+const coordinateProjection = bridge.coordinate.map.projection;
+const slice = bridge.section.map.slice;
+
 const perspectiveSurface = new ProjectedSurface3D(complex, perspective, {
   material: new MeshStandardMaterial({
     color: 0x529df4,
@@ -133,7 +136,6 @@ perspectiveGroup.add(perspectiveSurface.object, perspectiveEdges.object);
 perspectiveGroup.rotation.set(-0.1, 0.2, -0.03);
 scene.add(perspectiveGroup);
 
-const coordinateProjection = new CoordinateProjection({ fromDim: 4, axes: [0, 1, 3] });
 const coordinateSurface = new ProjectedSurface3D(complex, coordinateProjection, {
   material: new MeshStandardMaterial({
     color: 0x52d5b0,
@@ -155,7 +157,6 @@ coordinateGroup.add(coordinateSurface.object, coordinateEdges.object);
 coordinateGroup.rotation.set(-0.08, -0.18, 0.025);
 scene.add(coordinateGroup);
 
-const slice = HyperplaneSlice4.axisAligned(3, 0.12);
 const perspectivePointLineage = createRepresentationLineageN(4, [
   projectionMapRecipeN(perspective)
 ]);
@@ -187,12 +188,7 @@ sectionGroup.add(section.object);
 sectionGroup.rotation.set(-0.08, 0.2, -0.02);
 scene.add(sectionGroup);
 
-const body = new RigidBody4({
-  mass: massProperties.mass,
-  inertiaDiagonal: massProperties.inertiaDiagonal,
-  gravityScale: 0
-});
-const world = new PhysicsWorld4({ gravity: [0, 0, 0, 0] }).addBody(body);
+const body = bridge.runtime.body;
 
 const perspectiveMarker = createMarker(0xdfff74);
 const coordinateMarker = createMarker(0xdfff74);
@@ -300,8 +296,12 @@ function showTriangle(highlight: Mesh, source: BufferGeometry, faceIndex: number
   highlight.visible = true;
 }
 
+/**
+ * The pose the compiled model publishes, which is motion relative to where the
+ * source geometry was authored -- not the body's principal-frame pose.
+ */
 function bodyTransform(): TransformN {
-  return new TransformN(4, body.rotation, body.position);
+  return poseForRepresentation(compilation, bridge.perspective) ?? TransformN.identity(4);
 }
 
 function setPaused(value: boolean): void {
@@ -311,14 +311,12 @@ function setPaused(value: boolean): void {
 }
 
 function resetBody(): void {
-  body.position.data.fill(0);
-  body.rotation = Rotor4.identity();
-  body.linearVelocity.data.fill(0);
-  body.angularMomentumWorld.coeffs.fill(0);
-  body.clearAccumulators();
-  body.setAngularVelocityWorld(
-    new BivectorN(4, [0.16, 0.82, -0.24, 0.38, -0.61, 0.21])
-  );
+  // The document owns the initial state, so reset is a restore of the snapshot
+  // captured at compile time rather than a list of fields written by hand.
+  const restored = compilation.restore(bridge.initialSnapshot);
+  if (!restored.ok) {
+    throw new Error(`dimension bridge reset: ${JSON.stringify(restored.failures)}`);
+  }
   initialEnergy = body.rotationalKineticEnergy();
   initialMomentum = Float64Array.from(body.angularMomentumWorld.coeffs);
   accumulator = 0;
@@ -331,7 +329,6 @@ function resetBody(): void {
   }
   connector.visible = false;
   followInput.checked = true;
-  slice.offset = 0.12;
   syncSliceOffset();
   setPaused(false);
   setTracePlaceholder();
@@ -490,7 +487,7 @@ function followSelection(transform: TransformN): boolean {
     normal[2]! * ambient.data[2]! +
     normal[3]! * ambient.data[3]!;
   const changed = Math.abs(nextOffset - slice.offset) > 1e-12;
-  slice.offset = nextOffset;
+  setSliceOffset(nextOffset);
   syncSliceOffset();
   return changed;
 }
@@ -663,6 +660,20 @@ function updateJourney(): void {
   simulate.className = selection?.edgeCoordinate === undefined ? '' : 'active';
 }
 
+/**
+ * Moves the section through its declared parameter.
+ *
+ * Writing `slice.offset` directly would change the object without the document
+ * knowing, so the clock, revision, and trace would disagree with what is drawn.
+ */
+function setSliceOffset(value: number): void {
+  const applied = compilation.setParameter(BRIDGE_IDS.sliceOffset, value);
+  if (applied.outcome === 'refused') {
+    // The declared domain is the authority; reflect what actually holds.
+    syncSliceOffset();
+  }
+}
+
 function syncSliceOffset(): void {
   sliceOffsetInput.value = Math.max(
     Number(sliceOffsetInput.min),
@@ -788,7 +799,7 @@ speedInput.addEventListener('input', () => {
 
 sliceOffsetInput.addEventListener('input', () => {
   followInput.checked = false;
-  slice.offset = Number(sliceOffsetInput.value);
+  setSliceOffset(Number(sliceOffsetInput.value));
   sectionHighlight.visible = false;
   syncSliceOffset();
   if (selection !== null) describeSelection();
@@ -828,19 +839,30 @@ layout();
 resetBody();
 setupShowcaseUI();
 
+// The compilation owns the source, body, world, and maps, so releasing it is
+// part of teardown. The page has no other lifecycle hook, and leaving a
+// registry alive across a navigation is the kind of leak that only shows up
+// under repeated visits.
+addEventListener('pagehide', () => {
+  renderer.setAnimationLoop(null);
+  compilation.dispose();
+}, { once: true });
+
 renderer.setAnimationLoop(() => {
   const now = performance.now();
   const frameDt = Math.min(0.05, Math.max(0, (now - previousTime) / 1000));
   previousTime = now;
   if (!paused) accumulator += frameDt * Number(speedInput.value);
-  const fixedDt = 1 / 120;
+  const fixedDt = bridge.runtime.fixedStep;
   let steps = 0;
   while (accumulator >= fixedDt && steps < 10) {
-    world.step(fixedDt);
     accumulator -= fixedDt;
     steps++;
   }
   if (steps === 10 && accumulator >= fixedDt) accumulator = fixedDt;
+  // One advance per frame keeps the document clock, trace, and model step
+  // coherent; stepping the world directly would leave them behind.
+  if (steps > 0) compilation.advance(steps);
 
   const transform = bodyTransform();
   followSelection(transform);

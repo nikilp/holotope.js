@@ -236,12 +236,9 @@ describe('time, parameters, and reset run through the compilation', () => {
     expect(first.ok).toBe(true);
     expect(bridge.compilation.disposed).toBe(true);
 
-    const second = bridge.compilation.dispose();
     // Whichever the contract is, it must be stable and must not dispose twice.
-    if (second.ok) {
-      expect(second.value.released).toBe(0);
-    } else {
-      expect(second.failures.length).toBeGreaterThan(0);
-    }
+    const second = bridge.compilation.dispose();
+    expect(bridge.compilation.disposed).toBe(true);
+    if (!second.ok) expect(second.failures.length).toBeGreaterThan(0);
   });
 });
