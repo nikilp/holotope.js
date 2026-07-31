@@ -78,6 +78,22 @@ const SKIP = /<!--\s*doc-check:\s*skip\s*(?:—|-{1,2})?\s*([^>]*?)\s*-->\s*$/;
  */
 const SEQUENTIAL = /<!--\s*doc-check:\s*sequential\s*-->/;
 
+/**
+ * Marks a block whose declarations every block on the page may use.
+ *
+ * A third genre, distinct from both a recipe and a pipeline stage: an API
+ * demonstration, which shows a call and its result against a subject the reader
+ * already has. `contact.md` is fourteen of them, each operating on some pair of
+ * shapes. Constructing those shapes in every entry would bury the query being
+ * demonstrated; leaving them undeclared leaves the reader unable to see what
+ * type to pass, which is the complaint cold callers filed most often.
+ *
+ * So the page declares its subjects once, visibly, with their real types, and
+ * the demonstrations stay about the call. Unlike `sequential` this carries no
+ * ordering claim — a context block serves blocks above it as readily as below.
+ */
+const CONTEXT = /<!--\s*doc-check:\s*context\s*-->/;
+
 const markdownFiles = (dir) => {
   const found = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -95,8 +111,11 @@ function blocksOf(file) {
   const fence = /^```([A-Za-z0-9-]*)[^\n]*\n([\s\S]*?)^```/gm;
   const blocks = [];
   let ordinal = 0;
+  let lastEnd = 0;
   let match;
   while ((match = fence.exec(text)) !== null) {
+    const since = text.slice(lastEnd, match.index);
+    lastEnd = fence.lastIndex;
     if (match[1] !== 'ts') continue;
     const before = text.slice(0, match.index);
     const skip = SKIP.exec(before);
@@ -111,6 +130,8 @@ function blocksOf(file) {
       ordinal,
       code: match[2],
       sequential: SEQUENTIAL.test(before),
+      // Markers bind to the block they immediately precede.
+      context: CONTEXT.test(since),
       skip: skip === null ? null : skip[1] || 'no reason given'
     });
     ordinal += 1;
@@ -186,9 +207,24 @@ function partition(code) {
   );
   const imports = [];
   const importedNames = new Set();
+  const ambient = [];
   const body = [];
   for (const statement of parsed.statements) {
     const text = code.slice(statement.getStart(parsed), statement.getEnd());
+    // `declare` is an ambient declaration and is legal only at the top level,
+    // so it hoists alongside imports. A context block is mostly these.
+    const declared = ts.canHaveModifiers(statement)
+      ? ts.getModifiers(statement)?.some((m) => m.kind === ts.SyntaxKind.DeclareKeyword)
+      : false;
+    if (declared === true) {
+      ambient.push(text);
+      if (ts.isVariableStatement(statement)) {
+        for (const d of statement.declarationList.declarations) {
+          if (ts.isIdentifier(d.name)) importedNames.add(d.name.text);
+        }
+      }
+      continue;
+    }
     if (ts.isImportDeclaration(statement)) {
       imports.push(text);
       const clause = statement.importClause;
@@ -204,7 +240,7 @@ function partition(code) {
     // `export` is meaningless inside the wrapper; the declaration still counts.
     body.push(text.replace(/^export\s+(?!type\b)/, ''));
   }
-  return { imports, importedNames, body: body.join('\n') };
+  return { imports, ambient, importedNames, body: body.join('\n') };
 }
 
 /**
@@ -270,10 +306,25 @@ function sourceFor(block, valueNames, preceding = []) {
   const parts = [...preceding, block].map((one) => partition(one.code));
   const merged = mergeImports(parts.flatMap((one) => one.imports));
   const imports = merged.statements;
-  const importedNames = merged.names;
+  const importedNames = new Set([
+    ...merged.names,
+    ...parts.flatMap((one) => [...one.importedNames])
+  ]);
+  const ambient = [...new Set(parts.flatMap((one) => one.ambient))];
+  // Each stage opens a scope the next one nests inside, so a later stage may
+  // reuse a name the way a reader re-binds it while following the page. Plain
+  // concatenation would make that a redeclaration instead of a shadow.
   const body = parts
-    .map((one, depth) => one.body.replace(/^(?=.)/gm, '  '.repeat(depth)))
-    .join('\n');
+    .map((one, depth) => {
+      const indented = one.body.replace(/^(?=.)/gm, '  '.repeat(depth));
+      const open = depth < parts.length - 1 ? `\n${'  '.repeat(depth)}{` : '';
+      return indented + open;
+    })
+    .join('\n')
+    + parts
+        .slice(0, -1)
+        .map((_, i) => `\n${'  '.repeat(parts.length - 2 - i)}}`)
+        .join('');
   const bindings = Object.entries(valueNames)
     .map(([ns, names]) => [ns, names.filter((name) => !importedNames.has(name))])
     .filter(([, names]) => names.length > 0)
@@ -285,6 +336,7 @@ function sourceFor(block, valueNames, preceding = []) {
   return [
     HEADER,
     ...imports,
+    ...ambient,
     `export async function block(): Promise<void> {`,
     bindings,
     body.replace(/^(?=.)/gm, '  ').replace(/\s+$/, ''),
@@ -313,11 +365,16 @@ for (const block of candidates) {
 for (const block of candidates) {
   const page = block.id.slice(0, block.id.lastIndexOf('#'));
   // A sequential block sees every sequential block before it on its page.
-  const preceding = block.sequential
-    ? byPage.get(page).filter(
-        (other) => other.sequential && other.ordinal < block.ordinal
-      )
-    : [];
+  const siblings = byPage.get(page);
+  // Page context first, then any earlier stages when the page is sequential.
+  const preceding = [
+    ...siblings.filter((other) => other.context && other !== block),
+    ...(block.sequential
+      ? siblings.filter(
+          (other) => other.sequential && !other.context && other.ordinal < block.ordinal
+        )
+      : [])
+  ];
   const file = path.join(WORK, `${slug(block.id)}.ts`);
   fs.writeFileSync(file, sourceFor(block, valueNames, preceding));
   idFor.set(path.resolve(file), block.id);

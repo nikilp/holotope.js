@@ -2,6 +2,58 @@
 
 Dimension-independent simplex constitutive laws, intrinsic mass, and the RN compliant-constraint kernel that runs on point coordinates rather than rigid bodies.
 
+<!-- doc-check: sequential -->
+
+## What the examples build on
+
+The material, constraint, and contact examples below are one thread over a
+single deformable source: a tesseract, its cuboid 3-cells, and the simplex
+decomposition a constitutive law is defined over.
+
+<!-- doc-check: context -->
+
+```ts
+import {
+  createHypercube,
+  type CellComplex,
+  type CellGroup,
+  type VecN
+} from '@holotope/core';
+import { XpbdWorldN, compileXpbdParticleBindingN } from '@holotope/physics';
+
+const source: CellComplex = createHypercube({
+  dim: 4,
+  size: 1,
+  maxCellDimension: 3
+});
+const cuboidGroup: CellGroup = source
+  .cellsOfDim(3)
+  .find((group) => group.kind === 'cuboid')!;
+
+// The degrees of freedom every family below is compiled against. A binding
+// maps source vertices to particles; `particles` is that array, and examples
+// pass it directly.
+const binding = compileXpbdParticleBindingN({
+  id: 'deformable-points',
+  source,
+  mass: 1,
+  fixed: ({ sourceVertexIndex }) => sourceVertexIndex === 0
+});
+const particles = binding.particles;
+
+// Rest configuration a constitutive family measures deformation against, and
+// the step's starting configuration a trajectory guard compares against.
+declare const restPositions: readonly VecN[];
+declare const startPositions: readonly VecN[];
+declare const endPositions: readonly VecN[];
+
+const world = binding.addToWorld(new XpbdWorldN({
+  dimension: 4,
+  gravity: [0, -9.81, 0, 0],
+  solverIterations: 12
+}));
+```
+
 ## Dimension-independent simplex materials
 
 Matching rest and current k-simplices in $\mathbb{R}^N$ define an intrinsic material
@@ -398,6 +450,8 @@ ratio. Its degree is at most `2k` along a linear chord. The reference path
 constructs the three Gram coefficient matrices, expands their determinant by
 column multilinearity, and applies the same shared Bernstein classifier.
 
+<!-- doc-check: skip — guards `embeddedMaterial`, a membrane family this page discusses but never constructs -->
+
 ```ts
 import {
   analyzeLinearSimplexMeasureN,
@@ -525,8 +579,18 @@ import {
   XpbdDistanceConstraintN
 } from '@holotope/physics';
 
-const fixed = { position: new VecN([0, 0, 0, 0]), inverseMass: 0 };
-const point = { position: new VecN([1.4, 0, 0, 0]), inverseMass: 1 };
+// A particle is a constructed XpbdParticleN, not a bare literal: it carries an
+// id, velocity, and force alongside the position. Zero inverse mass fixes it.
+const fixed = new XpbdParticleN({
+  id: 'anchor',
+  position: [0, 0, 0, 0],
+  inverseMass: 0
+});
+const point = new XpbdParticleN({
+  id: 'bob',
+  position: [1.4, 0, 0, 0],
+  inverseMass: 1
+});
 const spring = new XpbdDistanceConstraintN({
   id: 'spring',
   pointA: point,

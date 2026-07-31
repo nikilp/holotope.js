@@ -2,6 +2,63 @@
 
 Turning an intersection into a manifold with persistent identity, then into an impulse: patches, margins, the R4 friction ball, and the pipelines that orchestrate them.
 
+## What these queries operate on
+
+Every query on this page takes support shapes rather than meshes: a
+`SupportShapeN` answers "how far does this body extend in direction d", which is
+all GJK and EPA need. `ConvexHullSupportShapeN`, `HyperboxSupportShape4`,
+`GlomeSupportShapeN`, and `TransformedSupportShapeN` all satisfy it.
+
+<!-- doc-check: context -->
+
+```ts
+import type {
+  GjkMarginResult,
+  GlomeSupportShapeN,
+  HyperboxSupportShape4,
+  HyperboxContactResult4,
+  HyperboxContactKinematics4,
+  HyperplaneColliderN,
+  PhysicsWorld4,
+  RigidBody4,
+  SupportShapeN
+} from '@holotope/physics';
+import type { TransformN } from '@holotope/core';
+
+// The subjects the examples below operate on.
+declare const hullA: SupportShapeN;
+declare const hullB: SupportShapeN;
+declare const hull: SupportShapeN;
+declare const a: SupportShapeN;
+declare const b: SupportShapeN;
+declare const shapeA: SupportShapeN;
+declare const shapeB: SupportShapeN;
+declare const box: HyperboxSupportShape4;
+declare const boxA: HyperboxSupportShape4;
+declare const boxB: HyperboxSupportShape4;
+declare const glome: GlomeSupportShapeN;
+declare const polytope: SupportShapeN;
+declare const movingTransform: TransformN;
+declare const body: RigidBody4;
+declare const bodyA: RigidBody4;
+declare const bodyB: RigidBody4;
+declare const world: PhysicsWorld4;
+declare const fixedDt: number;
+
+// Results carried between steps: a previous query warm-starts the next one,
+// and a tracked patch is fed back for persistent contact identity.
+declare const next: GjkMarginResult;
+declare const contact: HyperboxContactResult4;
+declare const previousPlatformPose: TransformN;
+// The previous step's kinematics, or undefined on the first step. Feeding its
+// tangent basis forward is what keeps friction directions coherent frame to
+// frame; the R4 tangent space is three-dimensional, so an arbitrary basis
+// would spin.
+declare const previousFrame: HyperboxContactKinematics4 | undefined;
+declare const floor: HyperplaneColliderN;
+declare const currentPlatformPose: TransformN;
+```
+
 ## Vertex-polytope contact manifolds
 
 A support function alone cannot reveal the topology of the face selected by
@@ -82,7 +139,7 @@ import { gjkMarginDistance } from '@holotope/physics';
 const contact = gjkMarginDistance(a, b, {
   marginA: 0.05,
   marginB: 0.05,
-  warmStart: next.warmStart
+  warmStart: next.coreResult.warmStart
 });
 ```
 
