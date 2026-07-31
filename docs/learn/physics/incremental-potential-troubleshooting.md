@@ -12,6 +12,25 @@ This guide gives a caller one debugging sequence:
 3. ask the shared diagnosis helper which policies are legitimate to consider;
 4. choose the policy explicitly.
 
+## The step being diagnosed
+
+<!-- doc-check: context -->
+
+```ts
+import type { VecN } from '@holotope/core';
+import type {
+  XpbdConservativeForceProviderN,
+  XpbdIncrementalPotentialStepFilterN,
+  XpbdParticleN
+} from '@holotope/physics';
+
+declare const dimension: number;
+declare const particles: readonly XpbdParticleN[];
+declare const providers: readonly XpbdConservativeForceProviderN[];
+declare const stepFilters: readonly XpbdIncrementalPotentialStepFilterN[];
+declare const gravity: VecN;
+```
+
 ## Start with the result
 
 ```ts
@@ -94,12 +113,12 @@ For the repository's dimension-independent point–plane contact scene, the
 smallest working configuration is:
 
 ```ts
-{
+const stepOptions = {
   warmStart: 'previous-positions',
   minimization: {
     directionPolicy: 'newton-cg'
   }
-}
+} as const;
 ```
 
 The same scene under steepest descent exhausts its iteration budget at contact,

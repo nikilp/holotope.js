@@ -4,6 +4,35 @@ Higher-dimensional state remains authoritative when Holotope constructs a 3D
 representation. The renderer receives a projection, section, sampled surface,
 or ray-marched restriction; it does not replace the source object.
 
+## What the examples read from
+
+Provenance is carried by render products and read back through a Three
+intersection, so the examples below need a product, a hit, and a source
+reference.
+
+<!-- doc-check: context -->
+
+```ts
+import type { Intersection } from 'three';
+import type { SourceCellReferenceN, VecN } from '@holotope/core';
+import type { ProjectedEdges3D, ProjectedSurface3D, SlicedComplex3D } from '@holotope/three';
+
+declare const surface: ProjectedSurface3D;
+declare const edges: ProjectedEdges3D;
+declare const section: SlicedComplex3D;
+declare const intersection: Intersection;
+
+// A source edge and a point to project onto it, in ambient R4.
+declare const edgeReference: SourceCellReferenceN;
+declare const ambientPoint: readonly number[];
+
+// Renderer-local coordinates a lift is asked about. A lift takes plain
+// coordinates rather than a VecN, whose `length` is a method.
+declare const segmentIndex: number;
+declare const faceIndex: number;
+declare const pointLocal: readonly number[];
+```
+
 ## Traceability is carried, not inferred
 
 For a representation map

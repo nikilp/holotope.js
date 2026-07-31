@@ -2,8 +2,8 @@
  * Documentation example gate.
  *
  * Compiles every fenced `ts` block on the learning pages against the real
- * types, baselines the blocks that cannot compile today, and fails when a
- * block that used to compile stops — or when a new uncompilable one appears.
+ * types and fails when one does not compile. Every block on every page
+ * currently does.
  *
  *   node scripts/check-doc-examples.mjs            check; exit 1 on regression
  *   node scripts/check-doc-examples.mjs --update   rewrite the baseline
@@ -29,17 +29,35 @@
  * catches is the larger, duller population: a renamed export, a changed
  * signature, a snippet that quietly drifted from the API it documents.
  *
- * ## The bargain
+ * ## The baseline is empty, and should stay that way
  *
- * The same one `check-coverage.mjs` and `check-reachability.mjs` strike. Many
- * snippets are deliberate fragments — three illustrative lines, a shape sketch —
- * and rewriting them all to compile would be a large change that improves
- * nothing for a reader. Today's uncompilable blocks are baselined and do not
- * block; new ones carry their own weight.
+ * This began with the bargain `check-coverage.mjs` and `check-reachability.mjs`
+ * strike — baseline today's debt, make new work carry its own weight — and 113
+ * blocks were grandfathered on the first run. Reading them turned out to be
+ * worth more than baselining them: they were not one population of "deliberate
+ * fragments" but four, each wanting different treatment, and the sorting
+ * surfaced a dozen real defects. The debt is now zero.
  *
- * A block is identified by page and ordinal, so inserting a snippet ahead of a
- * grandfathered one shifts its identity and it is re-examined. That is intended:
- * editing around old debt should surface it.
+ * So this is a hard gate. A block that does not compile fails the build unless
+ * it is explicitly skipped with a stated reason, and the skip list is one entry
+ * long. If the baseline ever refills, that is a decision someone made, not a
+ * backlog that accumulated.
+ *
+ * ## The four genres, and how each is served
+ *
+ * - **Independent recipe** — must run for a reader who lands on it from the
+ *   sidebar, so it constructs everything it uses. The default.
+ * - **Staged procedure** — `doc-check: sequential` on the page; blocks compile
+ *   cumulatively, each nested inside the last, as a reader accumulates scope.
+ * - **API demonstration** — a call shown against a subject the reader already
+ *   holds. `doc-check: context` on one visible block declares those subjects
+ *   with their real types, which is also the "what do I pass?" answer cold
+ *   callers asked for most.
+ * - **Type-shape illustration** — an interface a caller implements. It imports
+ *   its types explicitly, mirroring the real declaration.
+ *
+ * Identity is the block's content hash, so moving a snippet keeps it and
+ * editing one re-examines it.
  */
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';

@@ -2,6 +2,8 @@
 
 Exact convex volume, centre of mass, covariance, and the diagonalised inertia that R4 rigid motion is built on.
 
+<!-- doc-check: sequential -->
+
 ## Convex mass properties
 
 A tetrahedralized convex boundary in R4 is integrated by coning every boundary

@@ -20,7 +20,21 @@ conditional lift as the source point.
 `describeRepresentationHitN` performs that reading once and returns a claim:
 
 ```ts
-import { describeRepresentationHitN } from '@holotope/core';
+import {
+  describeRepresentationHitN,
+  type RepresentationHitN,
+  type RepresentationSourceN,
+  type VecN
+} from '@holotope/core';
+
+// A hit from any representationHitFrom... adapter, and what an application
+// does with each outcome.
+declare const hit: RepresentationHitN;
+declare function useSourceCell(source: RepresentationSourceN): void;
+declare function useSourcePoint(point: VecN): void;
+declare function showAgainstPrimitive(point: VecN, ambiguity: string): void;
+declare function showApproximate(point: VecN): void;
+declare function showIdentityOnly(source: RepresentationSourceN): void;
 
 const report = describeRepresentationHitN(hit);
 

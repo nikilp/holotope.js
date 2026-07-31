@@ -2,6 +2,21 @@
 
 Momentum-primary integration of `RigidBody4`, and how a fixed-step simulation is handed to a renderer without making the view authoritative.
 
+## The body these examples act on
+
+<!-- doc-check: context -->
+
+```ts
+import { RigidBody4 } from '@holotope/physics';
+
+const body = new RigidBody4({
+  mass: 1,
+  // Six plane inertias, in [xy, xz, xw, yz, yw, zw] order.
+  inertiaDiagonal: [1, 1, 1, 1, 1, 1],
+  position: [0, 2, 0, 0]
+});
+```
+
 ## Scene synchronization and fixed-step interpolation
 
 Physics is headless, but `RigidBodyObject4Binding` connects a simulated world
@@ -20,6 +35,9 @@ const scene = new SceneN(4);
 const node = new ObjectN(4);
 scene.add(node);
 
+const world = new PhysicsWorld4({ gravity: [0, -9.81, 0, 0] });
+world.addBody(body);
+
 const binding = new RigidBodyObject4Binding(body, node);
 const fixedDt = 1 / 120;
 
@@ -28,6 +46,7 @@ world.step(fixedDt);
 binding.capture();
 
 // Once per rendered frame, with accumulator/fixedDt in [0, 1]:
+const alpha = 0.5;
 binding.apply(alpha);
 scene.updateWorld();
 ```

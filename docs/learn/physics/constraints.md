@@ -2,6 +2,44 @@
 
 Scalar Jacobian rows and coupled blocks, distance and orientation coordinates, and the stabilizer-classified rotation policies.
 
+## What these joints operate on
+
+Every example below acts on a pair of R4 rigid bodies in a world, using
+world-space anchors and rotors rather than meshes.
+
+<!-- doc-check: context -->
+
+```ts
+import type { Rotor4, VecN } from '@holotope/core';
+import type {
+  OrientationBranchToken4,
+  PhysicsWorld4,
+  PlanarRotationJoint4,
+  RigidBody4
+} from '@holotope/physics';
+
+declare const world: PhysicsWorld4;
+declare const bodyA: RigidBody4;
+declare const bodyB: RigidBody4;
+
+// The body-local frame an orientation joint is stated in.
+declare const localFrameA: Rotor4;
+declare const localFrameB: Rotor4;
+
+// The fixed timestep the solver is driven at, and the branch token that keeps
+// an orientation coordinate continuous across steps.
+declare const fixedDt: number;
+declare let previousBranch: OrientationBranchToken4;
+
+// A joint built by an earlier recipe on this page.
+declare const rotation: PlanarRotationJoint4;
+
+// Orientation coordinates compare a current rotor against a target.
+declare const current: Rotor4;
+declare const target: Rotor4;
+declare const axis: VecN;
+```
+
 ## Bilateral R4 point joints
 
 `PointJointSolver4` constrains two world-space anchors to have one shared
@@ -619,6 +657,7 @@ const interval = new PlanarRotationIntervalJoint4({
   minAngle: -Math.PI / 3,
   maxAngle: Math.PI / 3
 });
+const blocks = new ConstraintBlockSolver4({ iterations: 8 });
 
 world.step(fixedDt, 1, (dt) => {
   const drive = motor.constraint();

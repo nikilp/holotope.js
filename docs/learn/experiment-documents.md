@@ -28,6 +28,22 @@ headless model, while presentation panes remain validated document metadata.
 That separation lets the authored contract be reviewed and tested without
 hiding construction choices in a convenient demo wrapper.
 
+<!-- doc-check: sequential -->
+
+## The document these steps operate on
+
+The intake, compile, control, and replay steps below are one pipeline over a
+single document: untrusted JSON text arrives, is parsed and validated, is
+prepared, and only then compiled.
+
+<!-- doc-check: context -->
+
+```ts
+// Untrusted input, exactly as it arrives — a string, not a parsed object.
+// Intake is the boundary; nothing below assumes it has already been trusted.
+declare const text: string;
+```
+
 ## Three identities that must not be conflated
 
 | Identity | Owned by | Meaning |
@@ -187,9 +203,16 @@ than merely intends — and a `@holotope/physics` subpath would hand every
 physics consumer an experiment dependency it never asked for.
 
 ```ts
-const compilation = compileExperimentDocumentV0(prepared, {
+const compiled = compileExperimentDocumentV0(prepared.value, {
   compilers: [coreExperimentCompilerV0(), physicsExperimentCompilerV0()]
 });
+if (!compiled.ok) {
+  console.error(compiled.failures);
+  return;
+}
+
+// Every step below operates on the compilation, not the result wrapper.
+const compilation = compiled.value;
 ```
 
 ### The pose a representation sees is motion, not position
@@ -215,7 +238,10 @@ A representation with `transform: { fromModel: 'tumble' }` compiles to a
 binding, not a transform:
 
 ```ts
-representation.pose; // { kind: 'model', model: 'tumble' }
+const entry = compilation.get('shadow');
+if (entry.ok && entry.value.category === 'representation') {
+  entry.value.pose; // { kind: 'model', model: 'tumble' }
+}
 ```
 
 Consumers resolve it through the registry at read time. A pose copied at
@@ -305,8 +331,13 @@ refusal, because a triangle soup retains no edge product to count.
 ### Records are stamped, not flagged
 
 ```ts
-const record = compilation.observe('angularMomentum');
-// { value, revision, step }
+const observed = compilation.observe('angularMomentum');
+if (!observed.ok) {
+  console.error(observed.failures);
+  return;
+}
+
+const record = observed.value; // { value, revision, step }
 ```
 
 Every value is computed fresh — nothing is memoized in this slice, so there is
@@ -314,7 +345,7 @@ no `stale` flag to trust or mistrust. Staleness is a comparison the caller
 makes:
 
 ```ts
-record.value.revision < compilation.revision // something changed since
+record.revision < compilation.revision // something changed since
 ```
 
 The revision starts at 1 and bumps once per accepted mutation: an applied
@@ -335,9 +366,13 @@ rather than failing vaguely or, worse, silently doing nothing.
 A compiled experiment can be captured, restored, and replayed bitwise.
 
 ```ts
+// Every observation and capture returns a result: check it before reading.
 const taken = compilation.snapshot();   // complete layer-2 state
-compilation.restore(taken.value);       // transactional, hash-bound
-compilation.replay(compilation.trace().value); // re-execute the recording
+const recorded = compilation.trace();   // refuses if the recording is partial
+if (taken.ok && recorded.ok) {
+  compilation.restore(taken.value);     // transactional, hash-bound
+  compilation.replay(recorded.value);   // re-execute the recording
+}
 ```
 
 ### Numbers do not go through JSON numbers
@@ -404,10 +439,12 @@ restore accepts.
 An action declaration says what it *is*; an `operation` says what it **does**:
 
 ```ts
-operation: { kind: 'advance-clock' }
-operation: { kind: 'set-parameter', parameter: 'sliceOffset' }
-operation: { kind: 'probe' }
-operation: { kind: 'reset' }
+// The four operation shapes an action declaration may carry.
+type ExperimentActionOperation =
+  | { kind: 'advance-clock' }
+  | { kind: 'set-parameter'; parameter: 'sliceOffset' }
+  | { kind: 'probe' }
+  | { kind: 'reset' };
 ```
 
 A closed vocabulary, exactly like an observation's `source`. Documents name an

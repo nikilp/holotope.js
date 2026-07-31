@@ -25,9 +25,9 @@ const decorated = applyDecoration(
   patch.points
 );
 
-decorated[0].parameter.exact;       // four exact Z[phi] numerators
-decorated[0].parameter.denominator; // their common scale
-decorated[0].parameter.value;       // one Float64 view for a field evaluator
+decorated[0]!.parameter.exact;       // four exact Z[phi] numerators
+decorated[0]!.parameter.denominator; // their common scale
+decorated[0]!.parameter.value;       // one Float64 view for a field evaluator
 ```
 
 ## The canonical Elser–Sloane parameter

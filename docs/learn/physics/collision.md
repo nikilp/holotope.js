@@ -2,6 +2,40 @@
 
 Support mappings, GJK distance, linear and rigid casts with time of impact, and the EPA penetration fallback.
 
+## What these queries operate on
+
+The casts and pipelines below act on support shapes and rigid poses, not on
+meshes.
+
+<!-- doc-check: context -->
+
+```ts
+import type { Rotor4Track, TransformN, VecN } from '@holotope/core';
+import type {
+  ContactPipeline4,
+  HyperplaneColliderN,
+  PhysicsWorld4,
+  SupportShapeN
+} from '@holotope/physics';
+
+declare const world: PhysicsWorld4;
+declare const a: SupportShapeN;
+declare const b: SupportShapeN;
+declare const shapeA: SupportShapeN;
+declare const shapeB: SupportShapeN;
+
+// A linear cast sweeps one shape by a displacement; a rigid cast interpolates
+// between two authored poses.
+declare const displacementA: VecN;
+declare const displacementB: VecN;
+declare const fixedDt: number;
+declare const floor: HyperplaneColliderN;
+declare const previousPlatformPose: TransformN;
+declare const nextPlatformPose: TransformN;
+declare const rotationTrack: Rotor4Track;
+declare const pipeline: ContactPipeline4;
+```
+
 ## Convex support mappings and GJK
 
 A support shape exposes the farthest point in any direction. This is a compact

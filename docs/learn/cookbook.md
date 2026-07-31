@@ -126,8 +126,25 @@ perspective product can lift a point on a visible source triangle; overlapping
 projected geometry remains explicitly ambiguous.
 
 ```ts
-import { TransformN } from '@holotope/core';
-import { representationHitFromProjectedSurface } from '@holotope/three';
+import {
+  PerspectiveProjection,
+  TransformN,
+  createHypercube,
+  describeRepresentationHitN,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
+import {
+  ProjectedSurface3D,
+  representationHitFromProjectedSurface
+} from '@holotope/three';
+
+const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+const bodyTransform = TransformN.identity(4);
+const surface = new ProjectedSurface3D(
+  complex,
+  new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+);
+surface.update(bodyTransform);
 
 const intersections = raycaster.intersectObject(surface.object, false);
 const intersection = intersections.find((value) => value.faceIndex !== undefined);
@@ -135,20 +152,28 @@ const intersection = intersections.find((value) => value.faceIndex !== undefined
 if (intersection?.faceIndex !== undefined) {
   // A Three Intersection is structurally accepted as-is.
   const hit = representationHitFromProjectedSurface(surface, intersection);
+  const report = describeRepresentationHitN(hit);
 
-  console.log(hit.source.id); // stable source-cell identity
+  // `source` is a union; the cell variant is the one that carries an id.
+  if (report.source.kind === 'cell') {
+    console.log(report.source.id); // stable source-cell identity
+  }
 
-  if (hit.ambientPointStatus === 'exact') {
-    const pointInUpdatedR4Frame = hit.ambientPoint;
-    const pointInBodyLocalR4 = bodyTransform.inverse()
-      .applyToPoint(pointInUpdatedR4Frame);
-
-    if (hit.ambiguity === 'none') {
-      console.log(pointInBodyLocalR4.data); // the source point
+  // Branch on the claim rather than combining precision and uniqueness by
+  // hand: a projected pick reports `ambientPointStatus: 'exact'` while its
+  // `ambiguity` is `'projection-overlap'`, and reading only the first is the
+  // mistake this shape removes.
+  const ambient = report.ambient;
+  if (ambient.claim === 'unavailable') {
+    console.log('identity only', ambient.ambiguity);
+  } else {
+    const inBodyLocalR4 = bodyTransform.inverse().applyToPoint(ambient.point);
+    if (ambient.claim === 'unique') {
+      console.log(inBodyLocalR4.data); // safe to present as the source point
     } else {
       // Exact on the triangle the ray selected, not unique under the
       // projection. Report it against that primitive or not at all.
-      console.log(pointInBodyLocalR4.data, hit.ambiguity, hit.source.id);
+      console.log(inBodyLocalR4.data, ambient.ambiguity, report.source.kind);
     }
   }
 }
@@ -183,6 +208,8 @@ simplexization.permutationIndices;  // Uint32Array: which Kuhn permutation
 simplexization.simplicesPerCell;    // 6 for a 3-cuboid
 simplexization.sourceCellCount;     // 8 for a tesseract
 
+// The ordinal a section pick reported; any tetrahedron index works here.
+const tetrahedronIndex = 17;
 const parentCell = simplexization.sourceCellIndices[tetrahedronIndex];
 ```
 
@@ -359,8 +386,28 @@ if (intersection !== undefined) {
 render products through `TransformN`.
 
 ```ts
-import { BivectorN, TransformN } from '@holotope/core';
+import {
+  BivectorN,
+  PerspectiveProjection,
+  TransformN,
+  createHypercube,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
 import { PhysicsWorld4, RigidBody4 } from '@holotope/physics';
+import { ProjectedSurface3D } from '@holotope/three';
+
+const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+const surface = new ProjectedSurface3D(
+  complex,
+  new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+);
+
+const body = new RigidBody4({
+  mass: 1,
+  // Six plane inertias, in [xy, xz, xw, yz, yw, zw] order.
+  inertiaDiagonal: [1, 1, 1, 1, 1, 1],
+  position: [0, 2, 0, 0]
+});
 
 const world = new PhysicsWorld4({ gravity: [0, -9.81, 0, 0] });
 world.addBody(body);
@@ -374,8 +421,7 @@ body.setAngularVelocityWorld(BivectorN.fromPlanes(4, [
 
 world.step(1 / 120);
 const pose = new TransformN(4, body.rotation, body.position);
-surface.update(pose);
-section.update(pose);
+surface.update(pose); // every render product of this body takes the same pose
 ```
 
 R4 bivector coefficients are plane coordinates, not a 3D axis-angle vector.
@@ -411,7 +457,8 @@ import {
 } from '@holotope/core';
 import {
   XpbdWorldN,
-  compileXpbdParticleBindingN
+  compileXpbdParticleBindingN,
+  type XpbdConservativeForceProviderN
 } from '@holotope/physics';
 
 const source = tetrahedralizeCuboidCells(
@@ -433,6 +480,15 @@ const world = binding.addToWorld(new XpbdWorldN({
   gravity: [0, -9.81, 0, 0],
   solverIterations: 12
 }));
+
+// A contact barrier provider. The objective and search stages use one before
+// this page reaches "Compile barriers for every bound source vertex", which is
+// where it is built; it is declared here so those stages read in order.
+declare const barrier: XpbdConservativeForceProviderN;
+
+// A trial configuration the objective is evaluated at: one position per
+// particle, in the same order.
+const candidatePositions = binding.particles.map((p) => p.position);
 ```
 
 ## Choose and assemble a simplex material law
@@ -475,8 +531,13 @@ may share particles; assembly follows object identity rather than list order.
 ```ts
 import { evaluateXpbdPotentialStateN } from '@holotope/physics';
 
+// Perturb one vertex along w. `VecN.data` is a Float64Array, so an indexed
+// read is `number | undefined` under the strictness this library compiles
+// with; bind the vector once rather than asserting twice.
+const selectedVertex = 1;
 const candidate = binding.particles.map((particle) => particle.position.clone());
-candidate[selectedVertex]!.data[3] += 0.1;
+const moved = candidate[selectedVertex]!;
+moved.data[3] = moved.data[3]! + 0.1;
 
 const trial = evaluateXpbdPotentialStateN({
   dimension: 4,
@@ -586,7 +647,7 @@ import {
 
 const floorBarrier = new XpbdParticleHyperplaneBarrierN({
   id: 'floor/point-0',
-  particle: binding.particles[0],
+  particle: binding.particles[0]!,
   plane: new HyperplaneColliderN([0, 1, 0, 0], 0),
   minimumDistance: 0.01,
   activationDistance: 0.1,
@@ -698,6 +759,9 @@ const result = minimizeXpbdIncrementalPotentialN({
 
 if (result.status === 'converged') {
   console.log(result.final.positions);
+} else if (result.status === 'initial-state-refused') {
+  // No iterate was ever evaluated, so there is no `final` to report.
+  console.log(result.status, result.problem.dimension);
 } else {
   console.log(result.status, result.final.gradientNorm);
 }
@@ -839,7 +903,7 @@ const guard = compileSimplexConstitutiveFamilyStateGuardN({
 });
 guard.addToWorld(world);
 
-const trajectoryGuard = simplexGroup.dim === source.dim
+const trajectoryGuard = simplexGroup.dim === source.ambientDim
   // Full-dimensional: retain signed orientation as well as measure.
   ? compileSimplexConstitutiveFamilyTrajectoryGuardN({
       id: 'material-linear-orientation',

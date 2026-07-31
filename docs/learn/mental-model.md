@@ -95,6 +95,11 @@ A `CellComplex` is flat positions plus indexed cell groups, and callers reach
 for it constantly, so the whole surface is worth stating.
 
 ```ts
+import { createHypercube } from '@holotope/core';
+
+const complex = createHypercube({ dim: 4, size: 2, maxCellDimension: 3 });
+const index = 0;
+
 complex.ambientDim;        // 4 for an R4 source
 complex.vertexCount;       // number of vertices
 complex.positions;         // Float64Array, ambientDim numbers per vertex
