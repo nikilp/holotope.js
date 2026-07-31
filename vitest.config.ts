@@ -16,7 +16,10 @@ export default defineConfig({
     // CI at the point someone relied on them.
     include: [
       'packages/*/test/**/*.test.ts',
-      'examples/*/test/**/*.test.ts'
+      'examples/*/test/**/*.test.ts',
+      // The release verifier's judgements are ordinary code and are tested
+      // like it, against synthetic manifests rather than five real installs.
+      'scripts/test/**/*.test.ts'
     ]
   }
 });

@@ -13,3 +13,4 @@ docs/.vitepress/dist/
 # Editor/agent local state
 .claude/
 docs/.doc-examples/
+.packed/
