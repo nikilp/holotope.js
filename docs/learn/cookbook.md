@@ -57,6 +57,15 @@ orientation and updates the slice display frame in place, so the existing
 `SlicedComplex3D` can be retained.
 
 ```ts
+import {
+  HyperplaneSlice4,
+  TransformN,
+  createHypercube,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
+import { SlicedComplex3D } from '@holotope/three';
+
+const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
 const slice = HyperplaneSlice4.axisAligned(3, 0); // w = 0 initially
 const section = new SlicedComplex3D(complex, slice);
 
@@ -76,8 +85,21 @@ Use `DragRotation4D` for inspection. It maps pointer deltas to a `Rotor4` in
 chosen coordinate planes; it does not apply a physical torque.
 
 ```ts
-import { TransformN } from '@holotope/core';
-import { DragRotation4D } from '@holotope/three';
+import {
+  HyperplaneSlice4,
+  PerspectiveProjection,
+  TransformN,
+  createHypercube,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
+import { DragRotation4D, ProjectedEdges3D, SlicedComplex3D } from '@holotope/three';
+
+const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+const shadow = new ProjectedEdges3D(
+  complex,
+  new PerspectiveProjection({ fromDim: 4, viewDistance: 4 })
+);
+const section = new SlicedComplex3D(complex, HyperplaneSlice4.axisAligned(3, 0));
 
 const drag4d = new DragRotation4D({
   horizontalPlane: [0, 3], // xw
@@ -224,12 +246,21 @@ offset against the extent yourself before cutting.
 :::
 
 ```ts
+import {
+  HyperplaneSlice4,
+  TransformN,
+  createHypercube,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
+import { SlicedComplex3D } from '@holotope/three';
+
+const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
 const section = new SlicedComplex3D(
   complex,
-  HyperplaneSlice4.axisAligned(3, offset)
+  HyperplaneSlice4.axisAligned(3, 0.5)
 );
-section.update(pose);
-const empty = section.triangleCount === 0;
+section.update(TransformN.identity(4));
+const empty = section.triangleCount === 0; // false at w = 0.5
 ```
 
 Without a render product, slice the tetrahedra yourself. Size the output buffer
@@ -249,7 +280,16 @@ worst-case per source tetrahedron. With `tetCount = tets.length / 4`:
 Undersized buffers throw rather than truncate.
 
 ```ts
-import { sliceTetrahedra, sliceTetrahedraAmbient } from '@holotope/core';
+import {
+  HyperplaneSlice4,
+  createHypercube,
+  sliceTetrahedra,
+  sliceTetrahedraAmbient,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
+
+const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+const slice = HyperplaneSlice4.axisAligned(3, 0.5);
 
 const tets = complex.cellsOfDim(3)
   .find((group) => group.kind === 'simplex' && group.verticesPerCell === 4)!;
@@ -279,11 +319,20 @@ answering provenance questions in a script.
 
 ```ts
 import { PerspectiveCamera, Raycaster, Vector2 } from 'three';
-import { describeRepresentationHitN } from '@holotope/core';
+import {
+  HyperplaneSlice4,
+  TransformN,
+  createHypercube,
+  describeRepresentationHitN,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
 import { SlicedComplex3D, representationHitFromSlicedComplex } from '@holotope/three';
 
+const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+const slice = HyperplaneSlice4.axisAligned(3, 0);
+
 const section = new SlicedComplex3D(complex, slice);
-section.update(pose); // builds the geometry a ray can meet
+section.update(TransformN.identity(4)); // builds the geometry a ray can meet
 
 const camera = new PerspectiveCamera(60, 1, 0.1, 100);
 camera.position.set(0, 0, 8);
@@ -343,6 +392,48 @@ Current rigid contact is exposed through named query, manifold, and pipeline
 APIs; it is not automatically enabled by merely adding multiple bodies to
 `PhysicsWorld4`. Compose the named contact pipeline explicitly while the
 automatic convenience layer remains under development.
+
+<!-- doc-check: sequential -->
+
+The recipes below are one pipeline rather than independent entries: each stage
+consumes the previous stage's product, so read them in order.
+
+## Set up the deformable pipeline
+
+Every stage below builds on this: a tetrahedralized source, its simplex group,
+the particle binding that carries the degrees of freedom, and the world they
+are stepped in.
+
+```ts
+import {
+  createHypercube,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
+import {
+  XpbdWorldN,
+  compileXpbdParticleBindingN
+} from '@holotope/physics';
+
+const source = tetrahedralizeCuboidCells(
+  createHypercube({ dim: 4, size: 1, maxCellDimension: 3 })
+);
+const simplexGroup = source
+  .cellsOfDim(3)
+  .find((group) => group.kind === 'simplex' && group.verticesPerCell === 4)!;
+
+const binding = compileXpbdParticleBindingN({
+  id: 'tesseract-points',
+  source,
+  mass: 1,
+  fixed: ({ sourceVertexIndex }) => sourceVertexIndex === 0
+});
+
+const world = binding.addToWorld(new XpbdWorldN({
+  dimension: 4,
+  gravity: [0, -9.81, 0, 0],
+  solverIterations: 12
+}));
+```
 
 ## Choose and assemble a simplex material law
 

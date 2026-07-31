@@ -41,6 +41,7 @@
  * grandfathered one shifts its identity and it is re-examined. That is intended:
  * editing around old debt should surface it.
  */
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -60,6 +61,22 @@ const LIST = process.argv.includes('--list');
 
 /** Opt out of a single block, with a reason, invisibly to the reader. */
 const SKIP = /<!--\s*doc-check:\s*skip\s*(?:—|-{1,2})?\s*([^>]*?)\s*-->\s*$/;
+
+/**
+ * Switches a page into cumulative mode from that point on.
+ *
+ * Two genres of documentation live on these pages and they want opposite
+ * treatment. An independent recipe must run for a reader who lands on it from
+ * the sidebar, so it is compiled alone and has to construct everything it uses.
+ * A staged procedure — compile a material, bind particles, predict, evaluate,
+ * minimize, apply — is consumed top to bottom, and forcing each stage to
+ * restate the previous five would make it worse to read, not better.
+ *
+ * The marker makes the genre explicit in the document rather than inferred from
+ * whatever happens to compile. `cookbook.md` is both: independent recipes, then
+ * one physics pipeline.
+ */
+const SEQUENTIAL = /<!--\s*doc-check:\s*sequential\s*-->/;
 
 const markdownFiles = (dir) => {
   const found = [];
@@ -81,10 +98,19 @@ function blocksOf(file) {
   let match;
   while ((match = fence.exec(text)) !== null) {
     if (match[1] !== 'ts') continue;
-    const skip = SKIP.exec(text.slice(0, match.index));
+    const before = text.slice(0, match.index);
+    const skip = SKIP.exec(before);
     blocks.push({
       id: `${page}#${ordinal}`,
+      // Identity is the content, not the position. Inserting a recipe renumbers
+      // everything after it, and position-based identity would report each of
+      // those as a fresh regression -- false alarms are how a gate gets turned
+      // off. A hash changes exactly when the snippet does, which is exactly
+      // when it should have to prove itself again.
+      key: createHash('sha256').update(match[2]).digest('hex').slice(0, 12),
+      ordinal,
       code: match[2],
+      sequential: SEQUENTIAL.test(before),
       skip: skip === null ? null : skip[1] || 'no reason given'
     });
     ordinal += 1;
@@ -135,9 +161,11 @@ const HEADER = [
   "declare const scene: import('three').Scene;",
   "declare const camera: import('three').PerspectiveCamera;",
   "declare const renderer: import('three').WebGLRenderer;",
+  "declare const raycaster: import('three').Raycaster;",
+  "declare const orbitControls: import('three/examples/jsm/controls/OrbitControls.js').OrbitControls;",
   'declare function onFrame(callback: (t: number) => void): void;',
   'declare function log(...values: unknown[]): void;',
-  'void [scene, camera, renderer, onFrame, log];'
+  'void [scene, camera, renderer, raycaster, orbitControls, onFrame, log];'
 ].join('\n');
 
 /**
@@ -179,8 +207,73 @@ function partition(code) {
   return { imports, importedNames, body: body.join('\n') };
 }
 
-function sourceFor(block, valueNames) {
-  const { imports, importedNames, body } = partition(block.code);
+/**
+ * Merges the import statements of a cumulative chain into one per module.
+ *
+ * Stages routinely re-import a name an earlier stage already brought in, and a
+ * repeated statement is a duplicate identifier rather than a no-op. Merging by
+ * module specifier keeps every name exactly once and preserves type-only form.
+ */
+function mergeImports(statements) {
+  const modules = new Map();
+  for (const statement of statements) {
+    const parsed = ts.createSourceFile(
+      'import.ts', statement, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS
+    );
+    for (const node of parsed.statements) {
+      if (!ts.isImportDeclaration(node)) continue;
+      const from = node.moduleSpecifier.getText(parsed).slice(1, -1);
+      if (!modules.has(from)) {
+        modules.set(from, { named: new Map(), namespace: null, byDefault: null });
+      }
+      const entry = modules.get(from);
+      const clause = node.importClause;
+      if (clause === undefined) continue;
+      if (clause.name !== undefined) entry.byDefault = clause.name.text;
+      const named = clause.namedBindings;
+      if (named !== undefined && ts.isNamespaceImport(named)) {
+        entry.namespace = named.name.text;
+      } else if (named !== undefined && ts.isNamedImports(named)) {
+        for (const element of named.elements) {
+          const typeOnly = clause.isTypeOnly || element.isTypeOnly;
+          const text = element.getText(parsed).replace(/^type\s+/, '');
+          // A name imported as a value anywhere wins over a type-only form.
+          const existing = entry.named.get(element.name.text);
+          if (existing === undefined || (existing.typeOnly && !typeOnly)) {
+            entry.named.set(element.name.text, { text, typeOnly });
+          }
+        }
+      }
+    }
+  }
+  const out = [];
+  const names = new Set();
+  for (const [from, entry] of modules) {
+    const clauses = [];
+    if (entry.byDefault !== null) { clauses.push(entry.byDefault); names.add(entry.byDefault); }
+    if (entry.namespace !== null) { clauses.push(`* as ${entry.namespace}`); names.add(entry.namespace); }
+    const named = [...entry.named.entries()];
+    for (const [name] of named) names.add(name);
+    if (named.length > 0) {
+      clauses.push(
+        `{ ${named.map(([, v]) => (v.typeOnly ? `type ${v.text}` : v.text)).join(', ')} }`
+      );
+    }
+    out.push(clauses.length === 0
+      ? `import '${from}';`
+      : `import ${clauses.join(', ')} from '${from}';`);
+  }
+  return { statements: out, names };
+}
+
+function sourceFor(block, valueNames, preceding = []) {
+  const parts = [...preceding, block].map((one) => partition(one.code));
+  const merged = mergeImports(parts.flatMap((one) => one.imports));
+  const imports = merged.statements;
+  const importedNames = merged.names;
+  const body = parts
+    .map((one, depth) => one.body.replace(/^(?=.)/gm, '  '.repeat(depth)))
+    .join('\n');
   const bindings = Object.entries(valueNames)
     .map(([ns, names]) => [ns, names.filter((name) => !importedNames.has(name))])
     .filter(([, names]) => names.length > 0)
@@ -211,9 +304,22 @@ fs.rmSync(WORK, { recursive: true, force: true });
 fs.mkdirSync(WORK, { recursive: true });
 const idFor = new Map();
 const roots = [];
+const byPage = new Map();
 for (const block of candidates) {
+  const page = block.id.slice(0, block.id.lastIndexOf('#'));
+  if (!byPage.has(page)) byPage.set(page, []);
+  byPage.get(page).push(block);
+}
+for (const block of candidates) {
+  const page = block.id.slice(0, block.id.lastIndexOf('#'));
+  // A sequential block sees every sequential block before it on its page.
+  const preceding = block.sequential
+    ? byPage.get(page).filter(
+        (other) => other.sequential && other.ordinal < block.ordinal
+      )
+    : [];
   const file = path.join(WORK, `${slug(block.id)}.ts`);
-  fs.writeFileSync(file, sourceFor(block, valueNames));
+  fs.writeFileSync(file, sourceFor(block, valueNames, preceding));
   idFor.set(path.resolve(file), block.id);
   roots.push(file);
 }
@@ -271,15 +377,30 @@ for (const diagnostic of [
   failing.set(id, `TS${diagnostic.code}: ${message}`);
 }
 
+const keyOf = new Map(candidates.map((block) => [block.id, block.key]));
 const baseline = fs.existsSync(BASELINE)
-  ? new Set(JSON.parse(fs.readFileSync(BASELINE, 'utf8')).uncompilable)
+  ? new Set(
+      JSON.parse(fs.readFileSync(BASELINE, 'utf8')).uncompilable.map((entry) =>
+        typeof entry === 'string' ? entry : entry.key
+      )
+    )
   : new Set();
+const grandfathered = (id) => baseline.has(keyOf.get(id));
 const failingIds = [...failing.keys()].sort();
-const regressions = failingIds.filter((id) => !baseline.has(id));
-const banked = [...baseline].filter((id) => !failing.has(id)).sort();
+const regressions = failingIds.filter((id) => !grandfathered(id));
+const failingKeys = new Set(failingIds.map((id) => keyOf.get(id)));
+const banked = [...baseline].filter((key) => !failingKeys.has(key)).sort();
 
+/** Recorded as key plus the id it had when written, so the file stays legible. */
 const writeBaseline = (ids) =>
-  fs.writeFileSync(BASELINE, JSON.stringify({ uncompilable: ids }, null, 1) + '\n');
+  fs.writeFileSync(
+    BASELINE,
+    JSON.stringify(
+      { uncompilable: ids.map((id) => ({ key: keyOf.get(id), seenAs: id })) },
+      null,
+      1
+    ) + '\n'
+  );
 
 if (UPDATE) {
   writeBaseline(failingIds);
@@ -290,7 +411,7 @@ if (UPDATE) {
 }
 
 if (SHRINK) {
-  const kept = failingIds.filter((id) => baseline.has(id));
+  const kept = failingIds.filter((id) => grandfathered(id));
   writeBaseline(kept);
   console.log(
     `check-doc-examples: banked ${banked.length} block(s) that now compile; ${kept.length} remain.`
@@ -312,7 +433,7 @@ console.log(
 if (LIST) {
   console.log('');
   for (const id of failingIds) {
-    console.log(`  ${baseline.has(id) ? ' ' : '!'} ${id}  ${failing.get(id)}`);
+    console.log(`  ${grandfathered(id) ? ' ' : '!'} ${id}  ${failing.get(id)}`);
   }
   for (const block of skipped) console.log(`  - ${block.id}  skipped: ${block.skip}`);
 }
