@@ -107,6 +107,18 @@ export interface ExperimentHypercubeSourceV0
  * `maxCellDimension` is deliberately not in the schema: the compiler already
  * authors the topology its closed products need, and a second control would
  * admit documents whose topology no capability consumes.
+ *
+ * @example
+ * The smallest complete declaration of a non-isotropic R4 body:
+ * ```ts
+ * const body: experiment.ExperimentHyperrectangleSourceV0 = {
+ *   kind: 'core.source.hyperrectangle',
+ *   dim: 4,
+ *   edgeLengths: [2, 3, 5, 7],
+ *   tetrahedralize: true
+ * };
+ * log(body.edgeLengths.length); // 4, one per ambient axis
+ * ```
  */
 export interface ExperimentHyperrectangleSourceV0
   extends ExperimentDescriptorBaseV0 {

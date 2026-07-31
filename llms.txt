@@ -28,7 +28,10 @@
 - `@holotope/experiment`: inert, versioned experiment documents with bounded
   JSON intake, semantic validation, canonical SHA-256 identity, stable
   dependency planning, and headless explicit-capability compilation of
-  sources, models, and coordinate/perspective/section representations into a
+  sources -- `core.source.hypercube` and `core.source.hyperrectangle`, the
+  latter taking one full edge length per ambient axis for a centered orthotope
+  whose topology is the hypercube's -- models, and
+  coordinate/perspective/section representations into a
   registry of live objects with derived lineage. It owns live parameter
   reads/writes, bounded action invocation, stamped observations, exact CPU
   snapshots, traces, and replay. A `probe` action reports `sourceCellStatus`
@@ -64,7 +67,8 @@
 // @holotope/core
 import {
   VecN, MatN, BivectorN, Rotor4, TransformN,
-  CellComplex, createHypercube, tetrahedralizeCuboidCells,
+  CellComplex, createHypercube, createHyperrectangle,
+  tetrahedralizeCuboidCells,
   PerspectiveProjection, CoordinateProjection, HyperplaneSlice4
 } from '@holotope/core';
 

@@ -77,6 +77,7 @@ there is improved here.
 | [`createCrossPolytope`](/api/core/polytope/functions/createCrossPolytope) | [open](https://nikilp.github.io/holotope.js/playground.html#createCrossPolytope) |
 | [`createDuoprism`](/api/core/polytope/functions/createDuoprism) | [open](https://nikilp.github.io/holotope.js/playground.html#createDuoprism) |
 | [`createHypercube`](/api/core/polytope/functions/createHypercube) | [open](https://nikilp.github.io/holotope.js/playground.html#createHypercube) |
+| [`createHyperrectangle`](/api/core/polytope/functions/createHyperrectangle) | [open](https://nikilp.github.io/holotope.js/playground.html#createHyperrectangle) |
 | [`createSimplex`](/api/core/polytope/functions/createSimplex) | [open](https://nikilp.github.io/holotope.js/playground.html#createSimplex) |
 | [`createSourceCellLookupN`](/api/core/representation/functions/createSourceCellLookupN) | [open](https://nikilp.github.io/holotope.js/playground.html#createSourceCellLookupN) |
 | [`cuboidCellFacetN`](/api/core/geometry/functions/cuboidCellFacetN) | [open](https://nikilp.github.io/holotope.js/playground.html#cuboidCellFacetN) |
@@ -87,6 +88,7 @@ there is improved here.
 | [`evaluateSimplexStVenantKirchhoffHessianVectorN`](/api/physics/functions/evaluateSimplexStVenantKirchhoffHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexStVenantKirchhoffHessianVectorN) |
 | [`evaluateXpbdIncrementalPotentialAnalyticHessianVectorN`](/api/physics/functions/evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) |
 | [`findIncidentCellsN`](/api/core/geometry/functions/findIncidentCellsN) | [open](https://nikilp.github.io/holotope.js/playground.html#findIncidentCellsN) |
+| [`massPropertiesFromCellComplex4`](/api/physics/functions/massPropertiesFromCellComplex4) | [open](https://nikilp.github.io/holotope.js/playground.html#massPropertiesFromCellComplex4) |
 | [`solveXpbdIncrementalPotentialNewtonDirectionN`](/api/physics/functions/solveXpbdIncrementalPotentialNewtonDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#solveXpbdIncrementalPotentialNewtonDirectionN) |
 | [`tetrahedralizeCuboidCells`](/api/core/geometry/functions/tetrahedralizeCuboidCells) | [open](https://nikilp.github.io/holotope.js/playground.html#tetrahedralizeCuboidCells) |
 | [`xpbdMassPreconditionedDirectionN`](/api/physics/variables/xpbdMassPreconditionedDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#xpbdMassPreconditionedDirectionN) |

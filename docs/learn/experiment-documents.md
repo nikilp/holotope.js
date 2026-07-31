@@ -167,6 +167,72 @@ The R3 specialization stays clean: an `ambientDim: 3` document compiles a
 cube and an exact XYZ coordinate view without manufacturing any fourth
 coordinate.
 
+### Boxes: `core.source.hypercube` and `core.source.hyperrectangle`
+
+A hypercube takes one `size`; a hyperrectangle takes one full edge length per
+ambient axis and is the centered orthotope
+
+$$H(\ell)=\{x : -\ell_i/2 \le x_i \le \ell_i/2\}.$$
+
+```ts
+import {
+  compileExperimentDocumentV0,
+  coreExperimentCompilerV0,
+  prepareExperimentDocumentV0
+} from '@holotope/experiment';
+
+// Named apart from the running example above, so this illustration does not
+// rebind the document the rest of the page is following.
+const preparedBox = await prepareExperimentDocumentV0({
+  schema: 'holotope.experiment/0',
+  title: 'Orthotope',
+  ambientDim: 4,
+  sources: {
+    body: {
+      kind: 'core.source.hyperrectangle',
+      dim: 4,
+      // One full edge length per axis; edgeLengths[i] is axis i.
+      edgeLengths: [2, 3, 5, 7],
+      // Supplies the simplex boundary exact sections and R4 mass integration
+      // consume. Omit it for a projection-only source.
+      tetrahedralize: true
+    }
+  },
+  representations: {
+    cut: {
+      kind: 'core.representation.section4',
+      source: 'body',
+      normal: [0, 0, 0, 1],
+      offset: 0,
+      frame: 'canonical'
+    }
+  }
+});
+if (preparedBox.ok) {
+  const compiledBox = compileExperimentDocumentV0(preparedBox.value, {
+    compilers: [coreExperimentCompilerV0()]
+  });
+  log(compiledBox.ok);
+}
+```
+
+Three things follow from the definition and are worth stating outright:
+
+- **Axes are ordered.** `edgeLengths[i]` is the extent along source axis `i`,
+  so permuting the array is a different body and a different document digest.
+- **Topology is the hypercube's.** Only positions differ, so every
+  representation, provenance query, and model that accepts a hypercube accepts
+  this with no second path. Equal lengths reproduce a hypercube exactly.
+- **Shape is not pose.** Orientation and translation remain explicit
+  transforms after construction. Non-uniform scale is deliberately absent from
+  `TransformN`, because a non-uniformly scaled rotation composes into shear;
+  baking one axis-aligned shape into the source avoids that entirely.
+
+Unequal edges matter for simulation: a hypercube's inertia is isotropic, so its
+angular velocity stays a fixed multiple of its angular momentum. An orthotope's
+six R4 plane inertias differ, which is what makes a genuine torque-free tumble
+expressible.
+
 ## The first vertical document
 
 Schema v0 can describe one source-first R4 bridge:

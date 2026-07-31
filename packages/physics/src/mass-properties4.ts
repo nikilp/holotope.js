@@ -251,7 +251,27 @@ export function massPropertiesFromTetrahedralization4(
   return massPropertiesFromConvexBoundary4(tetrahedralization, options);
 }
 
-/** Uses all simplex 3-cell groups as a tetrahedralized convex boundary. */
+/**
+ * Uses all simplex 3-cell groups as a tetrahedralized convex boundary.
+ *
+ * @example
+ * An orthotope's mass properties are closed-form, which makes it a good way to
+ * read what each field means. With edge lengths `a` and density `ρ`, the
+ * volume is `∏aᵢ`, the principal second moments are `m aᵢ²/12`, and the six
+ * plane inertias are their pair sums `m(aᵢ² + aⱼ²)/12`:
+ * ```ts
+ * const body = tetrahedralizeCuboidCells(
+ *   createHyperrectangle({ dim: 4, edgeLengths: [2, 3, 5, 7], maxCellDimension: 3 })
+ * );
+ * const properties: physics.MassProperties4 = massPropertiesFromCellComplex4(body);
+ *
+ * log(properties.volume); // 210
+ * // One per principal axis, ordered by the eigensolver.
+ * log(Array.from(properties.principalSecondMoments).length); // 4
+ * // One per plane, in bivector order 01, 02, 03, 12, 13, 23.
+ * log(Array.from(properties.inertiaDiagonal).length); // 6
+ * ```
+ */
 export function massPropertiesFromCellComplex4(
   complex: CellComplex,
   options: MassProperties4Options = {}

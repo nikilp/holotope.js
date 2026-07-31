@@ -1,6 +1,13 @@
 import type { CellComplex } from '../geometry/cell-complex.js';
 import { createHypercube } from './hypercube.js';
 
+/**
+ * Edge lengths and topology depth for a centered axis-aligned orthotope.
+ *
+ * There is no `size`: the whole point of this shape is that each axis has its
+ * own extent, and there is no position or orientation either, because pose
+ * stays an explicit transform applied afterwards.
+ */
 export interface HyperrectangleOptions {
   /** Ambient and intrinsic dimension. */
   readonly dim: number;
@@ -48,11 +55,12 @@ export interface HyperrectangleOptions {
  * @example
  * A 4D body whose plane inertias are all different:
  * ```ts
- * const body = createHyperrectangle({
+ * const options: core.HyperrectangleOptions = {
  *   dim: 4,
  *   edgeLengths: [2, 3, 5, 7],
  *   maxCellDimension: 3
- * });
+ * };
+ * const body = createHyperrectangle(options);
  * log(body.vertexCount); // 16
  * log(Array.from(body.getPosition(0))); // [-1, -1.5, -2.5, -3.5]
  * ```
