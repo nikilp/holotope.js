@@ -10,7 +10,6 @@ import {
   BivectorN,
   CellComplex,
   TransformN,
-  VecN,
   createHypercube,
   createHyperrectangle,
   cuboidCellFacetN,
@@ -31,9 +30,13 @@ import {
   compileExperimentDocumentV0,
   coreExperimentCompilerV0,
   prepareExperimentDocumentV0,
+  type ExperimentDocumentV0,
   type ExperimentProbeSourceCellStatusV0
 } from '@holotope/experiment';
-import { physicsExperimentCompilerV0 } from '@holotope/experiment-physics';
+import {
+  physicsExperimentCompilerV0,
+  type ExperimentRigidModel4RuntimeV0
+} from '@holotope/experiment-physics';
 import { buildScenario, buildSection, buildSurface, cellCountOf, requireGroup } from './scenario.js';
 
 /** An assertion function, so a checked `result.ok` narrows the union after it. */
@@ -246,7 +249,7 @@ export async function hyperrectangleComposition(): Promise<void> {
     'the packed body is isotropic, so it is not the orthotope'
   );
 
-  const prepared = await prepareExperimentDocumentV0({
+  const document = {
     schema: 'holotope.experiment/0',
     title: 'Packed orthotope',
     ambientDim: 4,
@@ -277,7 +280,8 @@ export async function hyperrectangleComposition(): Promise<void> {
         product: 'both'
       }
     }
-  } as never);
+  } satisfies ExperimentDocumentV0;
+  const prepared = await prepareExperimentDocumentV0(document);
   assert(prepared.ok, `orthotope document did not prepare: ${describeFailures(prepared)}`);
 
   const compiled = compileExperimentDocumentV0(prepared.value, {
@@ -288,9 +292,7 @@ export async function hyperrectangleComposition(): Promise<void> {
 
   const model = compilation.get('tumble');
   assert(model.ok && model.value.category === 'model', 'the rigid model did not compile');
-  const runtime = (model as { value: { runtime: unknown } }).value.runtime as {
-    body: { rotation: { left: Float64Array } };
-  };
+  const runtime = model.value.runtime as ExperimentRigidModel4RuntimeV0;
   const before = Array.from(runtime.body.rotation.left);
 
   const advanced = compilation.advance(240);
@@ -305,7 +307,6 @@ export async function hyperrectangleComposition(): Promise<void> {
   assert(after.every((value) => Number.isFinite(value)), 'orientation is not finite');
 
   compilation.dispose();
-  void VecN;
 }
 
 interface ProbeOutput {

@@ -18,6 +18,15 @@ CellComplex / field / state in R^N                 @holotope/core
               │                     └── ordinary Three.js scene and Raycaster
               │
               └── RepresentationHitN ── source identity / exact lift when available
+
+Optional declarative entry:
+
+ExperimentDocumentV0                              @holotope/experiment
+              │ explicit compiler capabilities
+              ├── core source + representation maps
+              └── rigid model                    @holotope/experiment-physics
+                         │
+                         └── the same objects and render products shown above
 ```
 
 The reverse arrow is deliberately not automatic. A projection can overlap
@@ -32,10 +41,19 @@ inverse.
 | `@holotope/core` | Float64 N-D math, topology, exact constructions, source references, transformations, projections, slices, fields, spectral and coupling kernels | Three.js objects, GPU state, time integration |
 | `@holotope/physics` | Headless R4 rigid bodies, mass properties, collision/query kernels, rigid constraints, and separate RN XPBD point systems | Rendering, implicit automatic conversion from a mesh to a simulation |
 | `@holotope/three` | Three.js render products, WebGPU fast paths, pointer-driven visual R4 rotation, and conversion of Three ray hits into source-aware results | Authoritative geometry or physics state |
+| `@holotope/experiment` | Inert versioned documents, validation, canonical identity, explicit-capability compilation, parameters, actions, observations, snapshots, traces, and replay | Physics implementation, rendering, dynamic package loading |
+| `@holotope/experiment-physics` | The explicit capability that compiles `physics.model.rigid4` descriptors into the public physics runtime | Core geometry construction, presentation, an implicit global compiler registry |
 
 `@holotope/three` has `three` as a peer dependency. Its products are ordinary
 `Object3D` instances: add `product.object` to a normal Three scene and keep
 calling `product.update(...)` from your animation loop.
+
+Experiment documents are an optional reproducibility layer, not a second
+engine. Their explicit compiler capabilities produce the same `CellComplex`,
+projection/slice, and physics objects a direct caller constructs. Presentation
+remains renderer-owned: a document can declare a representation, but a Three.js
+adapter still decides how that map is drawn and how a real ray intersection is
+converted into source evidence.
 
 ## The three common pipelines
 
@@ -65,6 +83,24 @@ Use this for a compact ballistic body.
 not a one-call all-shapes collision world; contact policies are deliberately
 explicit through its velocity-constraint callback and the contact pipeline
 APIs. This keeps capability and approximation boundaries visible.
+
+### Experiment document → the same live pipeline
+
+Use a document when the scenario itself should be validated, hashed, replayed,
+or passed between tools without embedding executable code.
+
+1. Author a typed `ExperimentDocumentV0`.
+2. Call `prepareExperimentDocumentV0()` to validate, canonicalize, hash, copy,
+   and freeze it.
+3. Call `compileExperimentDocumentV0()` with explicit capabilities such as
+   `coreExperimentCompilerV0()` and `physicsExperimentCompilerV0()`.
+4. Retrieve the compiled source, model, and representation maps by id.
+5. Give those maps and the authoritative source to ordinary Three.js products;
+   advance, parameterize, snapshot, and reset through the compilation.
+
+Nothing in the document chooses code by name or loads a package. The host
+supplies every compiler capability, and the compiled registry refuses a kind
+that no supplied capability honestly serves.
 
 ### Pick → source evidence → controlled edit
 

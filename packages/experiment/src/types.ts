@@ -101,8 +101,9 @@ export interface ExperimentHypercubeSourceV0
  *
  * Topology is identical to the hypercube of the same `dim`, so every
  * representation and model that accepts a hypercube accepts this without a
- * second path. Unequal lengths give a body whose six R4 plane inertias differ,
- * which a cube cannot express.
+ * second path. Unequal lengths can give the body non-isotropic R4 plane
+ * inertia, which a cube cannot express; suitably chosen lengths make all six
+ * plane inertias distinct.
  *
  * `maxCellDimension` is deliberately not in the schema: the compiler already
  * authors the topology its closed products need, and a second control would

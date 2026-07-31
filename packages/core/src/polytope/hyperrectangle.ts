@@ -35,9 +35,10 @@ export interface HyperrectangleOptions {
  * hypercube accept this shape without a second code path. Equal edge lengths
  * reproduce a hypercube's position buffer exactly.
  *
- * Unequal lengths matter because a cube's inertia is isotropic. This is the
- * simplest body whose six R4 plane inertias differ, which is what makes it
- * possible to exercise anisotropic rigid-body motion at all.
+ * Unequal lengths matter because a cube's inertia is isotropic. An unequal-edge
+ * orthotope can have non-isotropic R4 plane inertia; lengths such as
+ * `[2, 3, 5, 7]` make all six plane inertias distinct and therefore exercise
+ * anisotropic rigid-body motion without an authored inertia override.
  *
  * Orientation and translation stay outside the shape: pose it afterwards with a
  * rotor and a translation. Non-uniform scale is deliberately not part of

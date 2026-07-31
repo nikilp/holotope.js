@@ -229,9 +229,10 @@ Three things follow from the definition and are worth stating outright:
   baking one axis-aligned shape into the source avoids that entirely.
 
 Unequal edges matter for simulation: a hypercube's inertia is isotropic, so its
-angular velocity stays a fixed multiple of its angular momentum. An orthotope's
-six R4 plane inertias differ, which is what makes a genuine torque-free tumble
-expressible.
+angular velocity stays a fixed multiple of its angular momentum. An unequal-edge
+orthotope can instead have non-isotropic plane inertia; with suitably chosen
+lengths all six R4 plane inertias are distinct, making a genuine torque-free
+tumble expressible.
 
 ## The first vertical document
 
