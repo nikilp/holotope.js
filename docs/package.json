@@ -32,7 +32,11 @@
     "evidence": "node scripts/check-evidence-readership.mjs",
     "evidence:list": "node scripts/check-evidence-readership.mjs --list",
     "evidence:update": "node scripts/check-evidence-readership.mjs --update",
-    "evidence:shrink": "node scripts/check-evidence-readership.mjs --shrink"
+    "evidence:shrink": "node scripts/check-evidence-readership.mjs --shrink",
+    "doc-examples": "node scripts/check-doc-examples.mjs",
+    "doc-examples:list": "node scripts/check-doc-examples.mjs --list",
+    "doc-examples:update": "node scripts/check-doc-examples.mjs --update",
+    "doc-examples:shrink": "node scripts/check-doc-examples.mjs --shrink"
   },
   "devDependencies": {
     "markdown-it-mathjax3": "^5.2.0",

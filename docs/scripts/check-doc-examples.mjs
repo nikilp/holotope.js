@@ -1,0 +1,336 @@
+/**
+ * Documentation example gate.
+ *
+ * Compiles every fenced `ts` block on the learning pages against the real
+ * types, baselines the blocks that cannot compile today, and fails when a
+ * block that used to compile stops — or when a new uncompilable one appears.
+ *
+ *   node scripts/check-doc-examples.mjs            check; exit 1 on regression
+ *   node scripts/check-doc-examples.mjs --update   rewrite the baseline
+ *   node scripts/check-doc-examples.mjs --shrink   bank blocks now compiling
+ *   node scripts/check-doc-examples.mjs --list     per-block detail
+ *
+ * ## Why this exists
+ *
+ * `@example` blocks in source JSDoc have always been compiled — the showcase
+ * extracts them and typechecks them. Prose pages were the hole: their snippets
+ * were markdown and nothing more, so a recipe could be wrong on the page while
+ * every gate stayed green.
+ *
+ * One was. `cookbook.md` shipped a facet-recovery recipe comparing coordinates
+ * against a literal `±1`, which is the boundary only when `size` is 2. It
+ * arrived in the commit that closed eight documentation gaps, and the next cold
+ * caller hit it.
+ *
+ * Compiling is not the same as being correct, and this gate would not have
+ * caught that snippet — it compiled fine and computed the wrong thing. That
+ * case is answered by making the capability a library function
+ * (`cuboidCellFacetN`) with tests, precisely because no gate could. What this
+ * catches is the larger, duller population: a renamed export, a changed
+ * signature, a snippet that quietly drifted from the API it documents.
+ *
+ * ## The bargain
+ *
+ * The same one `check-coverage.mjs` and `check-reachability.mjs` strike. Many
+ * snippets are deliberate fragments — three illustrative lines, a shape sketch —
+ * and rewriting them all to compile would be a large change that improves
+ * nothing for a reader. Today's uncompilable blocks are baselined and do not
+ * block; new ones carry their own weight.
+ *
+ * A block is identified by page and ordinal, so inserting a snippet ahead of a
+ * grandfathered one shifts its identity and it is re-examined. That is intended:
+ * editing around old debt should surface it.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const ts = require('typescript');
+
+const DOCS = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const REPO = path.dirname(DOCS);
+const LEARN = path.join(DOCS, 'learn');
+const WORK = path.join(DOCS, '.doc-examples');
+const BASELINE = path.join(DOCS, 'doc-example-baseline.json');
+const UPDATE = process.argv.includes('--update');
+const SHRINK = process.argv.includes('--shrink');
+const LIST = process.argv.includes('--list');
+
+/** Opt out of a single block, with a reason, invisibly to the reader. */
+const SKIP = /<!--\s*doc-check:\s*skip\s*(?:—|-{1,2})?\s*([^>]*?)\s*-->\s*$/;
+
+const markdownFiles = (dir) => {
+  const found = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...markdownFiles(full));
+    else if (entry.name.endsWith('.md')) found.push(full);
+  }
+  return found.sort();
+};
+
+/** Every fenced `ts` block, with the page-local ordinal that names it. */
+function blocksOf(file) {
+  const text = fs.readFileSync(file, 'utf8');
+  const page = path.relative(LEARN, file).replace(/\.md$/, '');
+  const fence = /^```([A-Za-z0-9-]*)[^\n]*\n([\s\S]*?)^```/gm;
+  const blocks = [];
+  let ordinal = 0;
+  let match;
+  while ((match = fence.exec(text)) !== null) {
+    if (match[1] !== 'ts') continue;
+    const skip = SKIP.exec(text.slice(0, match.index));
+    blocks.push({
+      id: `${page}#${ordinal}`,
+      code: match[2],
+      skip: skip === null ? null : skip[1] || 'no reason given'
+    });
+    ordinal += 1;
+  }
+  return blocks;
+}
+
+const NAMESPACES = {
+  core: 'core',
+  three: 'three',
+  physics: 'physics',
+  experiment: 'experiment',
+  experimentPhysics: 'experiment-physics'
+};
+
+/**
+ * Value exports of each package, read from the built entry points.
+ *
+ * Pages write bare names, matching the convention the JSDoc examples already
+ * use, so each block gets them destructured from the package namespaces.
+ */
+async function valueExportsByNamespace() {
+  const out = {};
+  for (const [ns, dir] of Object.entries(NAMESPACES)) {
+    const entry = path.join(REPO, 'packages', dir, 'dist/index.js');
+    if (!fs.existsSync(entry)) {
+      throw new Error(
+        `check-doc-examples: @holotope/${dir} is not built. Run \`pnpm build\` first.`
+      );
+    }
+    const module = await import(entry);
+    out[ns] = Object.keys(module)
+      .filter((name) => name !== 'default' && /^[A-Za-z_$][\w$]*$/.test(name))
+      .sort();
+  }
+  return out;
+}
+
+const HEADER = [
+  '// Generated by scripts/check-doc-examples.mjs — do not edit.',
+  "import * as core from '@holotope/core';",
+  "import * as three from '@holotope/three';",
+  "import * as physics from '@holotope/physics';",
+  "import * as experiment from '@holotope/experiment';",
+  "import * as experimentPhysics from '@holotope/experiment-physics';",
+  // Inline import types rather than a type import: a snippet is free to import
+  // `PerspectiveCamera` itself, and a binding here would collide with it.
+  "declare const scene: import('three').Scene;",
+  "declare const camera: import('three').PerspectiveCamera;",
+  "declare const renderer: import('three').WebGLRenderer;",
+  'declare function onFrame(callback: (t: number) => void): void;',
+  'declare function log(...values: unknown[]): void;',
+  'void [scene, camera, renderer, onFrame, log];'
+].join('\n');
+
+/**
+ * Splits a snippet into the imports it declares and everything else.
+ *
+ * Imports have to be hoisted: the body is wrapped in a function so that local
+ * declarations stay scoped and top-level `await` is legal, and an import cannot
+ * appear there. Parsing rather than pattern-matching keeps multi-line and
+ * type-only forms honest.
+ */
+function partition(code) {
+  const parsed = ts.createSourceFile(
+    'snippet.ts',
+    code,
+    ts.ScriptTarget.ESNext,
+    true,
+    ts.ScriptKind.TS
+  );
+  const imports = [];
+  const importedNames = new Set();
+  const body = [];
+  for (const statement of parsed.statements) {
+    const text = code.slice(statement.getStart(parsed), statement.getEnd());
+    if (ts.isImportDeclaration(statement)) {
+      imports.push(text);
+      const clause = statement.importClause;
+      if (clause?.name !== undefined) importedNames.add(clause.name.text);
+      const named = clause?.namedBindings;
+      if (named !== undefined && ts.isNamedImports(named)) {
+        for (const element of named.elements) importedNames.add(element.name.text);
+      } else if (named !== undefined && ts.isNamespaceImport(named)) {
+        importedNames.add(named.name.text);
+      }
+      continue;
+    }
+    // `export` is meaningless inside the wrapper; the declaration still counts.
+    body.push(text.replace(/^export\s+(?!type\b)/, ''));
+  }
+  return { imports, importedNames, body: body.join('\n') };
+}
+
+function sourceFor(block, valueNames) {
+  const { imports, importedNames, body } = partition(block.code);
+  const bindings = Object.entries(valueNames)
+    .map(([ns, names]) => [ns, names.filter((name) => !importedNames.has(name))])
+    .filter(([, names]) => names.length > 0)
+    .map(
+      ([ns, names]) =>
+        `  const { ${names.join(', ')} } = ${ns};\n  void [${names.join(', ')}];`
+    )
+    .join('\n');
+  return [
+    HEADER,
+    ...imports,
+    `export async function block(): Promise<void> {`,
+    bindings,
+    body.replace(/^(?=.)/gm, '  ').replace(/\s+$/, ''),
+    '}',
+    ''
+  ].join('\n');
+}
+
+const files = markdownFiles(LEARN);
+const all = files.flatMap(blocksOf);
+const skipped = all.filter((block) => block.skip !== null);
+const candidates = all.filter((block) => block.skip === null);
+const valueNames = await valueExportsByNamespace();
+
+const slug = (id) => id.replace(/[^\w]/g, '_');
+fs.rmSync(WORK, { recursive: true, force: true });
+fs.mkdirSync(WORK, { recursive: true });
+const idFor = new Map();
+const roots = [];
+for (const block of candidates) {
+  const file = path.join(WORK, `${slug(block.id)}.ts`);
+  fs.writeFileSync(file, sourceFor(block, valueNames));
+  idFor.set(path.resolve(file), block.id);
+  roots.push(file);
+}
+
+const base = JSON.parse(fs.readFileSync(path.join(REPO, 'tsconfig.base.json'), 'utf8'));
+const options = ts.convertCompilerOptionsFromJson(
+  {
+    ...base.compilerOptions,
+    noEmit: true,
+    noUnusedLocals: false,
+    noUnusedParameters: false,
+    declaration: false,
+    declarationMap: false,
+    sourceMap: false,
+    types: [],
+    baseUrl: '.',
+    paths: {
+      ...Object.fromEntries(
+        Object.values(NAMESPACES).flatMap((dir) => {
+          // Every declared subpath export, mapped to source the same way the
+          // root entry point is. Pages import `@holotope/core/lattice` and the
+          // like, and a missing mapping would look like a broken snippet.
+          const manifest = JSON.parse(
+            fs.readFileSync(path.join(REPO, 'packages', dir, 'package.json'), 'utf8')
+          );
+          return Object.keys(manifest.exports ?? { '.': {} }).map((entry) => {
+            const sub = entry === '.' ? '' : entry.slice(1);
+            return [
+              `@holotope/${dir}${sub}`,
+              [path.join(REPO, 'packages', dir, `src${sub}/index.ts`)]
+            ];
+          });
+        })
+      ),
+      // `three` is a peer dependency installed beside its adapter, not at the
+      // repository root, so nothing resolves it from `docs/`.
+      three: [path.join(REPO, 'packages/three/node_modules/@types/three/index.d.ts')],
+      'three/*': [path.join(REPO, 'packages/three/node_modules/@types/three/*')]
+    }
+  },
+  REPO
+).options;
+
+const program = ts.createProgram(roots, options);
+const failing = new Map();
+for (const diagnostic of [
+  ...program.getSemanticDiagnostics(),
+  ...program.getSyntacticDiagnostics()
+]) {
+  const file = diagnostic.file;
+  if (file === undefined) continue;
+  const id = idFor.get(path.resolve(file.fileName));
+  if (id === undefined || failing.has(id)) continue;
+  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ');
+  failing.set(id, `TS${diagnostic.code}: ${message}`);
+}
+
+const baseline = fs.existsSync(BASELINE)
+  ? new Set(JSON.parse(fs.readFileSync(BASELINE, 'utf8')).uncompilable)
+  : new Set();
+const failingIds = [...failing.keys()].sort();
+const regressions = failingIds.filter((id) => !baseline.has(id));
+const banked = [...baseline].filter((id) => !failing.has(id)).sort();
+
+const writeBaseline = (ids) =>
+  fs.writeFileSync(BASELINE, JSON.stringify({ uncompilable: ids }, null, 1) + '\n');
+
+if (UPDATE) {
+  writeBaseline(failingIds);
+  console.log(
+    `check-doc-examples: baseline updated — ${failingIds.length} grandfathered block(s).`
+  );
+  process.exit(0);
+}
+
+if (SHRINK) {
+  const kept = failingIds.filter((id) => baseline.has(id));
+  writeBaseline(kept);
+  console.log(
+    `check-doc-examples: banked ${banked.length} block(s) that now compile; ${kept.length} remain.`
+  );
+  if (regressions.length > 0) {
+    console.log(
+      `  ${regressions.length} new uncompilable block(s) left reported rather than absorbed.`
+    );
+  }
+  process.exit(regressions.length > 0 ? 1 : 0);
+}
+
+console.log(
+  `check-doc-examples: ${candidates.length} block(s) across ${files.length} page(s); ` +
+    `${skipped.length} skipped, ${failingIds.length} uncompilable ` +
+    `(${baseline.size} grandfathered).`
+);
+
+if (LIST) {
+  console.log('');
+  for (const id of failingIds) {
+    console.log(`  ${baseline.has(id) ? ' ' : '!'} ${id}  ${failing.get(id)}`);
+  }
+  for (const block of skipped) console.log(`  - ${block.id}  skipped: ${block.skip}`);
+}
+
+if (banked.length > 0) {
+  console.log(
+    `\n${banked.length} grandfathered block(s) now compile. Run --shrink to bank them.`
+  );
+}
+
+if (regressions.length > 0) {
+  console.log(`\n${regressions.length} block(s) newly fail to compile:\n`);
+  for (const id of regressions) console.log(`  ${id}\n    ${failing.get(id)}`);
+  console.log(
+    '\nFix the snippet, or mark it `<!-- doc-check: skip — why -->` if it is a' +
+      ' deliberate fragment.'
+  );
+  process.exit(1);
+}
+
+console.log('\nNo documentation example regression.');
