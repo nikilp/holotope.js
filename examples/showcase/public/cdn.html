@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Holotope from a CDN</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0 auto; padding: 2rem 1.25rem; max-width: 46rem;
+        font: 15px/1.6 ui-sans-serif, system-ui, sans-serif;
+      }
+      h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+      p.lede { margin: 0 0 1.5rem; opacity: .75; }
+      pre {
+        background: color-mix(in oklab, currentColor 8%, transparent);
+        padding: 1rem; border-radius: .5rem; overflow-x: auto; font-size: 13px;
+      }
+      #results { list-style: none; padding: 0; margin: 1.5rem 0; }
+      #results li { padding: .35rem 0; border-bottom: 1px solid color-mix(in oklab, currentColor 15%, transparent); }
+      .ok::before  { content: "PASS"; color: #1a7f37; font-weight: 600; margin-right: .75rem; }
+      .bad::before { content: "FAIL"; color: #cf222e; font-weight: 600; margin-right: .75rem; }
+      #verdict { font-weight: 600; padding: .75rem 1rem; border-radius: .5rem; }
+      #verdict.ok  { background: #1a7f3720; }
+      #verdict.bad { background: #cf222e20; }
+    </style>
+  </head>
+  <body>
+    <h1>Holotope from a CDN</h1>
+    <p class="lede">
+      No build step, no bundler, no install. This page loads the published
+      packages straight from jsDelivr and checks itself.
+    </p>
+
+    <pre><code>import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/+esm';
+import { createHypercube, cuboidCellFacetN } from 'https://cdn.jsdelivr.net/npm/@holotope/core@0.0.9/+esm';
+import { SlicedComplex3D } from 'https://cdn.jsdelivr.net/npm/@holotope/three@0.0.9/+esm';</code></pre>
+
+    <p>
+      The <code>+esm</code> suffix matters. Without it the adapter packages
+      still download, but they import the bare specifier
+      <code>'@holotope/core'</code>, which a browser cannot resolve.
+      <code>+esm</code> rewrites those to exact pinned versions.
+    </p>
+
+    <p>
+      The <code>three</code> version above is pinned to the one jsDelivr
+      resolves <code>@holotope/three</code> against. That is what keeps a single
+      Three.js instance in the page: two copies would still render, but
+      <code>instanceof</code> across them fails, and the checks below would
+      catch it.
+    </p>
+
+    <div id="verdict">Running…</div>
+    <ul id="results"></ul>
+
+    <script type="module">
+      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/+esm';
+      import {
+        HyperplaneSlice4,
+        TransformN,
+        createHypercube,
+        cuboidCellFacetN,
+        describeRepresentationHitN,
+        tetrahedralizeCuboidCells
+      } from 'https://cdn.jsdelivr.net/npm/@holotope/core@0.0.9/+esm';
+      import {
+        SlicedComplex3D,
+        representationHitFromSlicedComplex
+      } from 'https://cdn.jsdelivr.net/npm/@holotope/three@0.0.9/+esm';
+
+      const results = document.querySelector('#results');
+      const verdict = document.querySelector('#verdict');
+      const record = [];
+
+      function check(name, run) {
+        let passed = false;
+        let detail = '';
+        try {
+          detail = run() ?? '';
+          passed = true;
+        } catch (error) {
+          detail = error instanceof Error ? error.message : String(error);
+        }
+        record.push({ name, passed, detail });
+        const item = document.createElement('li');
+        item.className = passed ? 'ok' : 'bad';
+        item.textContent = detail === '' ? name : `${name} — ${detail}`;
+        results.append(item);
+      }
+
+      function assert(condition, message) {
+        if (!condition) throw new Error(message);
+      }
+
+      check('core loads and constructs a tesseract', () => {
+        const complex = createHypercube({ dim: 4, size: 2, maxCellDimension: 3 });
+        assert(complex.vertexCount === 16, `vertexCount ${complex.vertexCount}`);
+        return `${complex.vertexCount} vertices in R${complex.ambientDim}`;
+      });
+
+      check('a post-0.0.8 export is present, so this is not a stale package', () => {
+        const complex = createHypercube({ dim: 4, size: 3, maxCellDimension: 3 });
+        const cubes = complex.cellsOfDim(3).find((group) => group.kind === 'cuboid');
+        const names = [];
+        const count = cubes.indices.length / cubes.verticesPerCell;
+        for (let cell = 0; cell < count; cell += 1) {
+          const facet = cuboidCellFacetN(complex, cubes, cell);
+          names.push(`${facet.axis}:${facet.sign > 0 ? '+' : '-'}`);
+        }
+        const expected = '3:- 3:+ 2:- 2:+ 1:- 1:+ 0:- 0:+';
+        assert(names.join(' ') === expected, names.join(' '));
+        return expected;
+      });
+
+      // The single-instance check. A render product is built by the adapter's
+      // copy of Three; `instanceof` against this page's copy holds only if
+      // there is exactly one copy.
+      const complex = tetrahedralizeCuboidCells(
+        createHypercube({ dim: 4, size: 2, maxCellDimension: 3 })
+      );
+      const section = new SlicedComplex3D(complex, HyperplaneSlice4.axisAligned(3, 0));
+      section.update(TransformN.identity(4));
+
+      check('Three.js is loaded exactly once', () => {
+        assert(
+          section.object instanceof THREE.Object3D,
+          'the adapter built an Object3D from a different Three.js copy'
+        );
+        assert(
+          section.geometry instanceof THREE.BufferGeometry,
+          'the adapter built a BufferGeometry from a different Three.js copy'
+        );
+        return `THREE.REVISION ${THREE.REVISION}, shared with the adapter`;
+      });
+
+      check('a Raycaster from this page picks adapter geometry', () => {
+        section.object.updateMatrixWorld(true);
+        const position = section.geometry.getAttribute('position');
+        const centre = new THREE.Vector3(
+          (position.getX(0) + position.getX(1) + position.getX(2)) / 3,
+          (position.getY(0) + position.getY(1) + position.getY(2)) / 3,
+          (position.getZ(0) + position.getZ(1) + position.getZ(2)) / 3
+        );
+        const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 1000);
+        camera.position.set(centre.x, centre.y, centre.z + 20);
+        camera.lookAt(centre);
+        camera.updateMatrixWorld(true);
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const hits = raycaster.intersectObject(section.object, false);
+        assert(hits.length > 0, 'the ray met no triangle, so the classes differ');
+        return `${hits.length} intersection(s)`;
+      });
+
+      check('a section pick claims a unique source point', () => {
+        section.object.updateMatrixWorld(true);
+        const position = section.geometry.getAttribute('position');
+        const centre = new THREE.Vector3(
+          (position.getX(0) + position.getX(1) + position.getX(2)) / 3,
+          (position.getY(0) + position.getY(1) + position.getY(2)) / 3,
+          (position.getZ(0) + position.getZ(1) + position.getZ(2)) / 3
+        );
+        const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 1000);
+        camera.position.set(centre.x, centre.y, centre.z + 20);
+        camera.lookAt(centre);
+        camera.updateMatrixWorld(true);
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const [hit] = raycaster.intersectObject(section.object, false);
+        const report = describeRepresentationHitN(
+          representationHitFromSlicedComplex(section, hit)
+        );
+        assert(report.ambient.claim === 'unique', `claim was ${report.ambient.claim}`);
+        assert(report.source.kind === 'cell', `source kind ${report.source.kind}`);
+        return "claim 'unique', source identity retained";
+      });
+
+      section.dispose();
+
+      const failed = record.filter((entry) => !entry.passed);
+      verdict.className = failed.length === 0 ? 'ok' : 'bad';
+      verdict.textContent =
+        failed.length === 0
+          ? `All ${record.length} checks passed, straight from the CDN.`
+          : `${failed.length} of ${record.length} checks failed.`;
+
+      // A machine-readable signal, so a browser check need not scrape the DOM.
+      globalThis.holotopeCdnCheck = {
+        status: failed.length === 0 ? 'passed' : 'failed',
+        threeRevision: THREE.REVISION,
+        checks: record
+      };
+      document.title = `Holotope from a CDN — ${failed.length === 0 ? 'passed' : 'failed'}`;
+    </script>
+  </body>
+</html>

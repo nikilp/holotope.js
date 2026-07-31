@@ -8,9 +8,11 @@
     "build:examples": "pnpm --filter \"./examples/*\" -r build",
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck",
-    "verify": "pnpm build && pnpm conformance:packed:built && pnpm typecheck && pnpm test && pnpm build:examples && pnpm --filter @holotope/docs build && pnpm --filter @holotope/docs coverage && pnpm --filter @holotope/docs reachability && pnpm --filter @holotope/docs evidence && pnpm --filter @holotope/docs guide && pnpm --filter @holotope/docs doc-examples && pnpm --filter @holotope/docs routes",
+    "verify": "pnpm build && pnpm conformance:packed:built && pnpm typecheck && pnpm test && pnpm check:cdn && pnpm build:examples && pnpm --filter @holotope/docs build && pnpm --filter @holotope/docs coverage && pnpm --filter @holotope/docs reachability && pnpm --filter @holotope/docs evidence && pnpm --filter @holotope/docs guide && pnpm --filter @holotope/docs doc-examples && pnpm --filter @holotope/docs routes",
     "conformance:packed": "pnpm build && pnpm conformance:packed:built",
-    "conformance:packed:built": "node scripts/verify-packed-consumer.mjs"
+    "conformance:packed:built": "node scripts/verify-packed-consumer.mjs",
+    "check:cdn": "node scripts/check-cdn-example.mjs",
+    "check:cdn:online": "node scripts/check-cdn-example.mjs --online"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
