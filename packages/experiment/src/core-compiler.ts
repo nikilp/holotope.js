@@ -9,6 +9,7 @@ import {
   affineSectionMapRecipe4,
   affineSliceChartMapRecipe4,
   createHypercube,
+  createHyperrectangle,
   createRepresentationLineageN,
   projectionMapRecipeN,
   representationLineageCapabilitiesN,
@@ -49,6 +50,7 @@ export function coreExperimentCompilerV0(): ExperimentDescriptorCompilerV0 {
     namespace: 'core',
     kinds: Object.freeze({
       'core.source.hypercube': 0,
+      'core.source.hyperrectangle': 0,
       'core.representation.coordinate': 0,
       'core.representation.perspective': 0,
       'core.representation.section4': 0
@@ -62,7 +64,12 @@ function compileSource(
   descriptor: ExperimentSourceDescriptorV0,
   context: ExperimentCompileContextV0
 ): ExperimentResult<ExperimentCompiledSourceV0> {
-  if (descriptor.kind !== 'core.source.hypercube') {
+  // The two box sources differ only in how their positions are authored, so
+  // they share every refusal and the tetrahedralization step below.
+  const isBox =
+    descriptor.kind === 'core.source.hypercube' ||
+    descriptor.kind === 'core.source.hyperrectangle';
+  if (!isBox) {
     return refused(failure(
       'capability-unavailable',
       `the core capability does not construct ${JSON.stringify(descriptor.kind)}`,
@@ -73,7 +80,7 @@ function compileSource(
   if (descriptor.dim > MAX_HYPERCUBE_DIM) {
     return refused(failure(
       'out-of-range',
-      `hypercube dim ${descriptor.dim} exceeds the supported maximum ` +
+      `source dim ${descriptor.dim} exceeds the supported maximum ` +
         `${MAX_HYPERCUBE_DIM}`,
       `${context.pointer}/dim`,
       { received: descriptor.dim, maximum: MAX_HYPERCUBE_DIM }
@@ -82,16 +89,22 @@ function compileSource(
   if (descriptor.tetrahedralize === true && descriptor.dim < 3) {
     return refused(failure(
       'invalid-value',
-      `tetrahedralize requires cuboid 3-cells, which a ${descriptor.dim}-cube ` +
-        'does not have',
+      `tetrahedralize requires cuboid 3-cells, which a ${descriptor.dim}-dimensional ` +
+        'box does not have',
       `${context.pointer}/tetrahedralize`,
       { dim: descriptor.dim }
     ));
   }
-  const complex = createHypercube({
-    dim: descriptor.dim,
-    size: descriptor.size
-  });
+  const complex =
+    descriptor.kind === 'core.source.hyperrectangle'
+      ? createHyperrectangle({
+          dim: descriptor.dim,
+          edgeLengths: descriptor.edgeLengths
+        })
+      : createHypercube({
+          dim: descriptor.dim,
+          size: descriptor.size
+        });
   if (descriptor.tetrahedralize === true) {
     tetrahedralizeCuboidCells(complex);
   }

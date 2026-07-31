@@ -91,6 +91,37 @@ export interface ExperimentHypercubeSourceV0
   readonly tetrahedralize?: boolean;
 }
 
+/**
+ * Constructs the centered axis-aligned orthotope with the given edge lengths.
+ *
+ * `edgeLengths[i]` is the full extent along source axis `i`, so the body spans
+ * `[-edgeLengths[i]/2, +edgeLengths[i]/2]`. Axes are ordered, which is why two
+ * permutations of the same lengths are different documents with different
+ * digests.
+ *
+ * Topology is identical to the hypercube of the same `dim`, so every
+ * representation and model that accepts a hypercube accepts this without a
+ * second path. Unequal lengths give a body whose six R4 plane inertias differ,
+ * which a cube cannot express.
+ *
+ * `maxCellDimension` is deliberately not in the schema: the compiler already
+ * authors the topology its closed products need, and a second control would
+ * admit documents whose topology no capability consumes.
+ */
+export interface ExperimentHyperrectangleSourceV0
+  extends ExperimentDescriptorBaseV0 {
+  readonly kind: 'core.source.hyperrectangle';
+  /** Ambient and intrinsic dimension of the constructed orthotope. */
+  readonly dim: number;
+  /** One positive full edge length per ambient axis. */
+  readonly edgeLengths: readonly number[];
+  /**
+   * Whether to construct the simplex 3-cell boundary used by sections and R4
+   * mass integration.
+   */
+  readonly tetrahedralize?: boolean;
+}
+
 /** Constructs an N-dimensional regular simplex. */
 export interface ExperimentSimplexSourceV0
   extends ExperimentDescriptorBaseV0 {
@@ -118,6 +149,7 @@ export interface ExperimentPolychoronSourceV0
 /** Closed source vocabulary admitted by experiment schema v0. */
 export type ExperimentSourceDescriptorV0 =
   | ExperimentHypercubeSourceV0
+  | ExperimentHyperrectangleSourceV0
   | ExperimentSimplexSourceV0
   | ExperimentPolychoronSourceV0;
 

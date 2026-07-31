@@ -57,6 +57,7 @@ export type {
   ExperimentFailureCode,
   ExperimentFrameV0,
   ExperimentHypercubeSourceV0,
+  ExperimentHyperrectangleSourceV0,
   ExperimentId,
   ExperimentJsonPrimitive,
   ExperimentJsonSchemaV0,

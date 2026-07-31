@@ -246,6 +246,30 @@ class ExperimentDocumentValidator {
       }
       return object as unknown as ExperimentSourceDescriptorV0;
     }
+    if (kind === 'core.source.hyperrectangle') {
+      const object = this.object(
+        value,
+        pointer,
+        ['kind', 'kindVersion', 'dim', 'edgeLengths', 'tetrahedralize'],
+        ['kind', 'dim', 'edgeLengths']
+      );
+      if (object === null) return null;
+      this.kindVersion(object.kindVersion, `${pointer}/kindVersion`);
+      const dim = this.positiveInteger(object.dim, `${pointer}/dim`);
+      this.edgeLengths(object.edgeLengths, `${pointer}/edgeLengths`, dim);
+      if (object.tetrahedralize !== undefined) {
+        this.boolean(object.tetrahedralize, `${pointer}/tetrahedralize`);
+      }
+      if (dim !== null && ambientDim !== null && dim !== ambientDim) {
+        this.dimensionMismatch(
+          `${pointer}/dim`,
+          dim,
+          ambientDim,
+          'source dimension must equal document ambientDim'
+        );
+      }
+      return object as unknown as ExperimentSourceDescriptorV0;
+    }
     if (kind === 'core.source.simplex') {
       const object = this.object(
         value,
@@ -1901,6 +1925,36 @@ class ExperimentDocumentValidator {
       return null;
     }
     return result;
+  }
+
+  /**
+   * One positive finite length per ambient axis, reported per component.
+   *
+   * The pointer names the offending index rather than the array, because an
+   * author fixing `/sources/body/edgeLengths/2` does not have to count entries
+   * to find which one this is about.
+   */
+  private edgeLengths(value: unknown, pointer: string, dim: number | null): void {
+    if (!Array.isArray(value)) {
+      this.add('invalid-type', 'expected an array of edge lengths', pointer, {
+        received: typeof value
+      });
+      return;
+    }
+    if (dim !== null && value.length !== dim) {
+      this.add(
+        'invalid-value',
+        'expected one edge length per ambient axis',
+        pointer,
+        { received: value.length, expected: dim }
+      );
+      return;
+    }
+    for (let axis = 0; axis < value.length; axis += 1) {
+      // Rejects NaN and the infinities too: valid JSON cannot encode them, but
+      // a document assembled programmatically can.
+      this.positiveNumber(value[axis], `${pointer}/${axis}`);
+    }
   }
 
   private positiveInteger(value: unknown, pointer: string): number | null {
