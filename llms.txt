@@ -31,7 +31,12 @@
   sources, models, and coordinate/perspective/section representations into a
   registry of live objects with derived lineage. It owns live parameter
   reads/writes, bounded action invocation, stamped observations, exact CPU
-  snapshots, traces, and replay. Presentation panes remain document metadata
+  snapshots, traces, and replay. A `probe` action reports `sourceCellStatus`
+  on every path — the reasoned outcome, never an omitted field — with
+  `sourceCell` present exactly when it is `'resolved'`, and
+  `sourceCellPrecision` (`'exact'` or `'renderer'`) naming which bound
+  resolved it. `'renderer'` names the bound, not the provenance of the input
+  point, and a projection still cannot manufacture a unique source point. Presentation panes remain document metadata
   for renderer adapters.
 - `@holotope/three`: Three.js peer-dependency adapters. Products expose an
   ordinary `.object` and must be updated from authoritative source state.

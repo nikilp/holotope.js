@@ -500,8 +500,48 @@ compatibility tetrahedralization discards Kuhn parent provenance, so the
 tetrahedron is the honest headless answer. Parent-cell enrichment is a named
 seam if the tetrahedralizer ever retains that record.
 
+#### The probe reports why, not just what
+
+`sourceCellStatus` is on **every** probe result and is always the reasoned
+outcome. An absent `sourceCell` is not itself the answer — the status is:
+
+- `sourceCell` is present **exactly** when `sourceCellStatus` is `'resolved'`,
+  so branch on the status rather than testing the field for `undefined`;
+- `'not-on-emitted-cell'` means the point missed the section;
+- `'precision-insufficient'` means it landed on an emitted cell whose source
+  coordinate does not reconcile at this evidence. Only this one is recoverable,
+  by re-picking through an adapter that names the primitive;
+- `'ambiguous-primitive'` means more than one source cell matched, and no cell
+  is ever attached to such a point.
+
+Each status is one resolver outcome, not a summary of several. Collapsing them
+into a single "no cell" reading loses the distinction that decides whether
+re-picking would help.
+
+#### Which bound resolved it
+
+When the status is `'resolved'`, `sourceCellPrecision` says which tolerance
+produced the answer:
+
+- `'exact'` — the tight source-coordinate bound resolved it;
+- `'renderer'` — the renderer-scale tolerance resolved one unambiguous source
+  cell. It is the same bound `representationHitFromSlicedComplex` already
+  applies for Float32 geometry.
+
+`'renderer'` names **the bound, not the provenance of the input point**. It
+does not mean the caller supplied a renderer witness, and it is not a weaker
+answer: widening is applied only where the resolver reported exactly one
+matching source cell, so there is no second candidate to misattribute to. A
+point in the ambiguous ribbon answers `'ambiguous-primitive'` instead, and one
+beyond the section answers `'not-on-emitted-cell'`.
+
+No tolerance is accepted from the caller. The condition comes from the
+resolver's own match counts.
+
 For a **perspective or coordinate** representation, `ambientPointStatus` is
-`'unavailable'` and there is no source cell. A projection is many-to-one, and
+`'unavailable'` and there is no source cell. Projection still cannot
+manufacture a globally unique source point, and none of the above changes
+that: `sourceCellPrecision` appears only on a resolved section probe. A projection is many-to-one, and
 headlessly there is no ray and no hit record to disambiguate it — reporting a
 point would upgrade a capability the lineage does not certify. Renderer-ray
 hits belong to the workbench, through the existing `@holotope/three` machinery.

@@ -1900,10 +1900,15 @@ class ExperimentCompilation implements ExperimentCompilationV0 {
  * const output = answered.output as {
  *   readonly sourceCellStatus: experiment.ExperimentProbeSourceCellStatusV0;
  *   readonly sourceCell?: { readonly groupKey: string; readonly ordinal: number };
+ *   readonly sourceCellPrecision?: 'exact' | 'renderer';
  * };
  *
  * if (output.sourceCellStatus === 'resolved') {
  *   log(output.sourceCell?.ordinal);
+ *   // Which bound resolved it. `renderer` names the tolerance, not the
+ *   // provenance of the point: it is applied only where exactly one source
+ *   // cell matched, so there is no second candidate to misattribute to.
+ *   log(output.sourceCellPrecision); // 'exact' | 'renderer'
  * } else if (output.sourceCellStatus === 'precision-insufficient') {
  *   // The point is on the section, but its source coordinate does not
  *   // reconcile at this evidence. A renderer adapter that names the triangle
