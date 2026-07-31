@@ -10,7 +10,9 @@ import {
   BivectorN,
   CellComplex,
   TransformN,
+  VecN,
   createHypercube,
+  createHyperrectangle,
   cuboidCellFacetN,
   describeRepresentationHitN,
   rotorIdentityResidual,
@@ -214,6 +216,96 @@ function firstEmittedSectionPoint(): readonly [number, number, number] {
   ];
   section.dispose();
   return point;
+}
+
+/**
+ * 5. The orthotope source, end to end from packed artifacts.
+ *
+ * Composes all four non-adapter packages: core constructs it, physics
+ * integrates its mass, and the two experiment packages compile a document that
+ * advances it. Its analytic mass is closed-form, so the assertion is against
+ * arithmetic rather than against another call.
+ */
+export async function hyperrectangleComposition(): Promise<void> {
+  const edges = [2, 3, 5, 7];
+  const body = tetrahedralizeCuboidCells(
+    createHyperrectangle({ dim: 4, edgeLengths: edges, maxCellDimension: 3 })
+  );
+
+  const properties = massPropertiesFromCellComplex4(body);
+  const volume = edges.reduce((product, edge) => product * edge, 1);
+  assert(
+    Math.abs(properties.volume - volume) < 1e-6,
+    `volume was ${properties.volume}, expected ${volume}`
+  );
+  // I_ij = m(a_i^2 + a_j^2)/12, so the six plane inertias are all different.
+  const inertia = Array.from(properties.inertiaDiagonal);
+  assert(inertia.length === 6, `expected six plane inertias, got ${inertia.length}`);
+  assert(
+    Math.max(...inertia) - Math.min(...inertia) > 1,
+    'the packed body is isotropic, so it is not the orthotope'
+  );
+
+  const prepared = await prepareExperimentDocumentV0({
+    schema: 'holotope.experiment/0',
+    title: 'Packed orthotope',
+    ambientDim: 4,
+    sources: {
+      body: {
+        kind: 'core.source.hyperrectangle',
+        dim: 4,
+        edgeLengths: edges,
+        tetrahedralize: true
+      }
+    },
+    models: {
+      tumble: {
+        kind: 'physics.model.rigid4',
+        source: 'body',
+        initialAngularMomentum: [0.4, 0.15, 0, 0.9, -0.3, 0],
+        fixedStep: 1 / 120,
+        substeps: 2
+      }
+    },
+    representations: {
+      shadow: {
+        kind: 'core.representation.perspective',
+        source: 'body',
+        fromDim: 4,
+        viewDistance: 14,
+        transform: { fromModel: 'tumble' },
+        product: 'both'
+      }
+    }
+  } as never);
+  assert(prepared.ok, `orthotope document did not prepare: ${describeFailures(prepared)}`);
+
+  const compiled = compileExperimentDocumentV0(prepared.value, {
+    compilers: [coreExperimentCompilerV0(), physicsExperimentCompilerV0()]
+  });
+  assert(compiled.ok, `orthotope document did not compile: ${describeFailures(compiled)}`);
+  const compilation = compiled.value;
+
+  const model = compilation.get('tumble');
+  assert(model.ok && model.value.category === 'model', 'the rigid model did not compile');
+  const runtime = (model as { value: { runtime: unknown } }).value.runtime as {
+    body: { rotation: { left: Float64Array } };
+  };
+  const before = Array.from(runtime.body.rotation.left);
+
+  const advanced = compilation.advance(240);
+  assert(advanced.ok, 'the orthotope model did not advance');
+  assert(advanced.value.step === 240, `advanced ${advanced.value.step} steps`);
+
+  const after = Array.from(runtime.body.rotation.left);
+  assert(
+    after.some((value, index) => value !== before[index]),
+    'the orientation did not change over 240 steps'
+  );
+  assert(after.every((value) => Number.isFinite(value)), 'orientation is not finite');
+
+  compilation.dispose();
+  void VecN;
 }
 
 interface ProbeOutput {

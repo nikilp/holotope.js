@@ -7,6 +7,7 @@
 import {
   experimentProbe,
   geometryComposition,
+  hyperrectangleComposition,
   physicsComposition,
   representationClaims
 } from './checks.js';
@@ -15,7 +16,8 @@ const checks: readonly [name: string, run: () => void | Promise<void>][] = [
   ['geometryComposition', geometryComposition],
   ['representationClaims', representationClaims],
   ['experimentProbe', experimentProbe],
-  ['physicsComposition', physicsComposition]
+  ['physicsComposition', physicsComposition],
+  ['hyperrectangleComposition', hyperrectangleComposition]
 ];
 
 for (const [name, run] of checks) {
