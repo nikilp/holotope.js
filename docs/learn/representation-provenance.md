@@ -173,6 +173,81 @@ when the canonical coordinate-axis ordering changes during animation. Call
 `setNormal(normal, { frame: 'canonical' })` when a reproducible frame derived
 only from the new normal is required instead.
 
+## Taking a chart point back to one source cell
+
+`representationHitFromSlicedComplex` and the headless experiment `probe` both
+answer "which source cell produced this?" through the same mechanism, and it is
+worth knowing what that mechanism refuses.
+
+A cell chart retains one persistent source-cell reference per rendered
+triangle. `SlicedComplex3D.sourceCellChart()` hands you the chart the product
+already built, and `resolveRepresentationChartPointToSourceCellN()` locates a
+chart point in it.
+
+Three outcomes, and the middle one is why the `triangleIndex` option exists:
+
+| point | outcome |
+| --- | --- |
+| inside one triangle | `resolved` |
+| on a vertex where several triangles meet | `unavailable`, `ambiguous-source-cell` |
+| off the section entirely | `unavailable`, `outside-representation` |
+
+```ts
+import {
+  HyperplaneSlice4,
+  TransformN,
+  createHypercube,
+  resolveRepresentationChartPointToSourceCellN,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
+import { SlicedComplex3D } from '@holotope/three';
+
+const sectioned = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+const cut = new SlicedComplex3D(sectioned, HyperplaneSlice4.axisAligned(3, 0));
+cut.update(TransformN.identity(4));
+const chart = cut.sourceCellChart()!;
+const emitted = cut.geometry.getAttribute('position');
+
+// Interior of the first emitted triangle: containment alone is enough.
+const interior = [
+  (emitted.getX(0) + emitted.getX(1) + emitted.getX(2)) / 3,
+  (emitted.getY(0) + emitted.getY(1) + emitted.getY(2)) / 3,
+  (emitted.getZ(0) + emitted.getZ(1) + emitted.getZ(2)) / 3
+];
+log(resolveRepresentationChartPointToSourceCellN(chart, interior).kind); // 'resolved'
+
+// A vertex of that triangle. Six triangles from six different source cells
+// meet there, so the resolver refuses rather than picking one.
+const corner = [emitted.getX(0), emitted.getY(0), emitted.getZ(0)];
+log(resolveRepresentationChartPointToSourceCellN(chart, corner).kind); // 'unavailable'
+
+// The same point resolves once you say which triangle it came from -- which a
+// renderer always knows, because the raycaster reported a faceIndex.
+log(
+  resolveRepresentationChartPointToSourceCellN(chart, corner, { triangleIndex: 0 })
+    .kind
+); // 'resolved'
+```
+
+A resolved answer names the triangle it selected and, when the chart has an
+exact lift, a source-local coordinate. For an unprojected section that
+coordinate is `exact`.
+
+That is the whole reason a renderer pick can answer where a bare coordinate
+cannot: the primitive witness is information the chart point does not carry.
+It is also why the headless `probe` reports `ambiguous-primitive` for such a
+point instead of attaching a cell — see
+[the probe's source-cell contract](/learn/experiment-documents).
+
+A projected chart is different again: it may preserve source identity while
+reporting the coordinate as `projection-ambiguous`, because the map is
+many-to-one. And a non-simplex source cell has no barycentric coordinate to
+return at all.
+
+The core affine-section constructor works in Float64. The Three.js adapter
+applies a Float32-scale tolerance instead, because that is the precision the
+geometry it picked was built at.
+
 ## Source-cell reference lifecycle
 
 Cell-backed hits carry a `SourceCellReferenceN` in addition to the familiar

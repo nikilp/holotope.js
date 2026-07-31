@@ -363,6 +363,47 @@ const current = compilation.readParameter('sliceOffset');
 The returned value is current after direct mutation, restore, or replay; it is
 never the declaration default remembered separately.
 
+Reading never bumps the revision. That is what makes a read safe to do on
+every frame, and what lets a caller compare a revision it remembers against
+the one a record carries to decide whether anything changed.
+
+### A model can expose live fields too
+
+A compiled model may implement `readModelField()` for the fields its capability
+actually owns. The rigid-model capability reads two:
+
+```ts
+const tumble = compilation.get('tumble');
+if (tumble.ok && tumble.value.category === 'model') {
+  const gravity = tumble.value.readModelField?.('gravity');
+  log(gravity); // { ok: true, value: [0, 0, 0, 0] }
+  log(tumble.value.readModelField?.('substeps')); // { ok: true, value: 2 }
+}
+```
+
+It is optional because a capability that owns no live field should not pretend
+to. A field the runtime does not own answers with a typed
+`capability-unavailable` refusal rather than a descriptor default dressed up as
+live state — the same distinction `readParameter()` draws for clock and
+presentation targets.
+
+### Panes are document metadata, not registry entries
+
+Presentation panes validate and survive preparation, and stay on
+`compilation.document`. They are deliberately absent from the headless
+registry, and the consequence is concrete rather than philosophical:
+
+```ts
+log(Array.from(compilation.ids));  // ['body', 'cut', 'tumble'] — no pane id
+const pane = compilation.get('main');
+log(pane.ok); // false
+```
+
+`get(paneId)` refuses with `missing-reference`, because a pane id is a
+document-global id and not a runtime-object id. A tool discovering a document's
+surface should read panes from `compilation.document`, and the registry only
+for things that were actually constructed.
+
 ```ts
 const applied = compilation.setParameter('sliceOffset', 0.62);
 applied.outcome;  // 'applied'
