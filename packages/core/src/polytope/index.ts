@@ -1,4 +1,8 @@
 export { createHypercube, type HypercubeOptions } from './hypercube.js';
+export {
+  createHyperrectangle,
+  type HyperrectangleOptions
+} from './hyperrectangle.js';
 export { createSimplex, type SimplexOptions } from './simplex.js';
 export { createCrossPolytope, type CrossPolytopeOptions } from './cross-polytope.js';
 export { create24Cell, type Cell24Options } from './cell24.js';
