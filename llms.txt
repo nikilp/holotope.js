@@ -11,6 +11,7 @@
 - docs/learn/experiment-documents.md — safe declarative experiment intake and current runtime boundary.
 - docs/learn/cookbook.md — verified task-oriented snippets.
 - docs/learn/representation-provenance.md — what a pick can and cannot recover.
+- docs/learn/representation-claims.md — reading a pick as one claim instead of two fields.
 - docs/learn/physics/ — rigid mechanics, contact capability boundaries, and RN XPBD
   (index page maps the seven task pages).
 
@@ -117,7 +118,21 @@ objects.
 ## Core anchors
 
 - Vectors/transforms: `VecN`, `MatN`, `BivectorN`, `Rotor4`, `TransformN`.
-- Topology: `CellComplex`, cuboid tetrahedralization, source-cell references.
+- Topology: `CellComplex` (`cellsOfDim`, `cellCount`, `vertexCount`,
+  `getPosition` returning a bare `Float64Array`, `groups` of
+  `{ dim, verticesPerCell, kind, indices }` with no cell count of their own),
+  cuboid tetrahedralization, source-cell references.
+- Parent-cell provenance: `tetrahedralizeCuboidCells` is additive and drops the
+  parent map; `simplexizeCuboidGroupN` returns `simplexGroup` beside
+  `sourceCellIndices` and `permutationIndices`, parallel arrays indexed by
+  output-simplex ordinal.
+- Headless slicing: `sliceTetrahedra` (3 numbers per vertex) and
+  `sliceTetrahedraAmbient` (4) take
+  `(positions, indices, slice, out)` and return the vertex count written; size
+  `out` for six vertices per tetrahedron.
+- Reading a pick: `describeRepresentationHitN` returns one claim
+  (`unique`, `on-selected-primitive`, `approximate`, `unavailable`) instead of
+  leaving `ambientPointStatus` and `ambiguity` to be combined by hand.
 - Observation: `PerspectiveProjection`, `CoordinateProjection`,
   `OrthographicProjection`, `HyperplaneSlice4`, inverse fibres and map lineage.
 - Fields: quaternion and bicomplex Julia evaluators, generic samples and
@@ -250,6 +265,11 @@ Incremental objective guide: `docs/learn/theory/incremental-potentials.md`.
 - `ProjectedEdges3D`: projected 1-skeleton render product.
 - `ProjectedSurface3D`: projected 2-face mesh with source-triangle picking.
 - `SlicedComplex3D`: exact 4D section from tetrahedral 3-cells.
+- `SlicedComplex3D.triangleCount`: accessor, not a method; `0` means the cut
+  missed the body entirely.
+- Picking needs geometry and a ray, not a canvas: `update()` builds the
+  `BufferGeometry`, and `product.object` is an ordinary `Mesh`, so a
+  `Raycaster` works headlessly with no `WebGLRenderer`.
 - `SlicedComplex3D.sourceCrossingsOfFace`: the retained source edge and
   parameter behind each corner of a section face. This is the crossing
   evidence, not a parent-cuboid reconstruction.
@@ -362,3 +382,7 @@ if (hit.ambientPointStatus === 'exact') {
 - Do not treat `DragRotation4D` as physical angular velocity or torque.
 - Do not guess exports: inspect the canonical barrel listed above when the
   needed feature is not in this file.
+- Do not expect `tetrahedralizeCuboidCells` to replace the cuboid cells, or to
+  retain the parent-cell map.
+- Do not expect a `CellGroup` to report its own cell count, or cells to carry
+  facet metadata; both are computed from `indices` and positions.

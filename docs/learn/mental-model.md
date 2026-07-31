@@ -89,6 +89,44 @@ When a product was updated with a transform, a lifted ambient point is in that
 transformed R4 frame. Apply the same transform's inverse only if the next
 operation specifically needs the complex's body-local coordinates.
 
+## Reading a `CellComplex`
+
+A `CellComplex` is flat positions plus indexed cell groups, and callers reach
+for it constantly, so the whole surface is worth stating.
+
+```ts
+complex.ambientDim;        // 4 for an R4 source
+complex.vertexCount;       // number of vertices
+complex.positions;         // Float64Array, ambientDim numbers per vertex
+complex.groups;            // every CellGroup, all dimensions
+complex.cellsOfDim(3);     // the groups of one dimension
+complex.cellCount(3);      // cells across those groups
+complex.getPosition(index) // one vertex
+```
+
+A `CellGroup` is a plain record: `{ dim, verticesPerCell, kind, indices, key? }`,
+where `kind` is `'simplex'`, `'cuboid'`, or `'polygon'`, and `indices` is a flat
+`Uint32Array` of `verticesPerCell` vertex indices per cell.
+
+Two things that surprise first-time callers, both worth knowing before you write
+against this:
+
+- **A group carries no cell count.** There is no `group.count`. The number of
+  cells is `group.indices.length / group.verticesPerCell`.
+- **`getPosition` returns a bare `Float64Array`, not a `VecN`.** Ambient points
+  recovered from a pick are `VecN` and are read through `.data`; a raw vertex
+  position is already the array. The two conventions sit next to each other and
+  are not interchangeable.
+
+### `tetrahedralizeCuboidCells` adds, it does not replace
+
+It appends a simplex 3-cell group and **keeps the cuboid group**. After calling
+it on a tesseract, `cellsOfDim(3)` holds both: eight cuboid cells and the 48
+tetrahedra cut from them. A caller expecting the cuboid cells to be gone will
+mis-count, and one expecting the parent map to survive will not find it — the
+wrapper drops `sourceCellIndices`, which is what
+[the cookbook's parent-cell recipe](/learn/cookbook) exists to recover.
+
 ## Coordinate conventions worth memorizing
 
 - `VecN` coordinates are in ordinary source-axis order. In R4: `[x, y, z, w]`.

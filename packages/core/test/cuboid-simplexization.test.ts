@@ -268,3 +268,33 @@ describe('dimension-generic cuboid Kuhn simplexization', () => {
     expect(() => simplexizeCuboidGroupN(cuboid10)).toThrow(/budget/);
   });
 });
+
+describe('documented guarantees the cookbook relies on', () => {
+  /**
+   * The parent-cell recipe tells callers that a tetrahedron ordinal from a
+   * section pick indexes straight into `sourceCellIndices`. That only holds
+   * while both routes emit simplices in the same order, which is a guarantee
+   * the documentation now makes on the library's behalf.
+   */
+  it('emits simplices in the order tetrahedralizeCuboidCells produces', () => {
+    const source = createHypercube({ dim: 4, size: 2 });
+    const cubes = source.cellsOfDim(3).find((group) => group.kind === 'cuboid');
+    expect(cubes).toBeDefined();
+
+    const simplexized = simplexizeCuboidGroupN(cubes!);
+    const wrapped = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+    const tets = wrapped.cellsOfDim(3)
+      .find((group) => group.kind === 'simplex' && group.verticesPerCell === 4);
+
+    expect(tets).toBeDefined();
+    expect([...simplexized.simplexGroup.indices]).toEqual([...tets!.indices]);
+    expect(simplexized.sourceCellIndices.length).toBe(tets!.indices.length / 4);
+  });
+
+  it('keeps the cuboid cells rather than replacing them', () => {
+    const wrapped = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+    const kinds = wrapped.cellsOfDim(3).map((group) => group.kind);
+    expect(kinds).toContain('cuboid');
+    expect(kinds).toContain('simplex');
+  });
+});

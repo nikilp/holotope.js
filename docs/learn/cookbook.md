@@ -138,6 +138,130 @@ the exact ambient point is already in complex-local coordinates. For a
 projected slice or an unsupported projection, expect source identity without
 an exact ambient point.
 
+## Name the parent cell a section triangle came from
+
+`tetrahedralizeCuboidCells` gives a sliceable complex but drops the map from
+each tetrahedron back to the cuboid cell it came from. When a pick must name the
+parent cell, build the simplices with `simplexizeCuboidGroupN` and keep that
+map.
+
+```ts
+import { createHypercube, simplexizeCuboidGroupN } from '@holotope/core';
+
+const complex = createHypercube({ dim: 4, size: 2 });
+const cubes = complex.cellsOfDim(3).find((group) => group.kind === 'cuboid');
+if (cubes === undefined) throw new Error('no cuboid 3-cells');
+
+const simplexization = simplexizeCuboidGroupN(cubes);
+complex.addGroup(simplexization.simplexGroup);
+
+// Parallel arrays, indexed by output-simplex ordinal:
+simplexization.sourceCellIndices;   // Uint32Array: which cuboid cell
+simplexization.permutationIndices;  // Uint32Array: which Kuhn permutation
+simplexization.simplicesPerCell;    // 6 for a 3-cuboid
+simplexization.sourceCellCount;     // 8 for a tesseract
+
+const parentCell = simplexization.sourceCellIndices[tetrahedronIndex];
+```
+
+The ordering is the same one `tetrahedralizeCuboidCells` produces, so a
+tetrahedron ordinal from a section pick indexes straight into
+`sourceCellIndices`.
+
+Cells carry no facet metadata. A cuboid cell of a hypercube lies on the
+hyperplane where one coordinate is constant, so recover the facet from the
+positions rather than from an ordinal:
+
+```ts
+function facetOfCubicCell(cell: number): string {
+  const stride = cubes.verticesPerCell;
+  for (let axis = 0; axis < complex.ambientDim; axis += 1) {
+    for (const sign of [-1, 1]) {
+      let all = true;
+      for (let corner = 0; corner < stride && all; corner += 1) {
+        const vertex = cubes.indices[cell * stride + corner]!;
+        all = Math.abs(complex.getPosition(vertex)[axis]! - sign) <= 1e-12;
+      }
+      if (all) return `${axis}:${sign > 0 ? '+1' : '-1'}`;
+    }
+  }
+  throw new Error('cell does not lie on one facet');
+}
+```
+
+## Ask whether a section is empty
+
+A cut past the body's extent emits nothing. `SlicedComplex3D.triangleCount` is
+an accessor, not a method, and it is the direct answer:
+
+```ts
+const section = new SlicedComplex3D(
+  complex,
+  HyperplaneSlice4.axisAligned(3, offset)
+);
+section.update(pose);
+const empty = section.triangleCount === 0;
+```
+
+Without a render product, slice the tetrahedra yourself. Size the output buffer
+for the worst case: one tetrahedron can emit two triangles, so six vertices.
+
+```ts
+import { sliceTetrahedra, sliceTetrahedraAmbient } from '@holotope/core';
+
+const tets = complex.cellsOfDim(3)
+  .find((group) => group.kind === 'simplex' && group.verticesPerCell === 4)!;
+const tetCount = tets.indices.length / 4;
+
+// Chart coordinates: 3 numbers per emitted vertex.
+const chart = new Float32Array(tetCount * 6 * 3);
+const chartVertices = sliceTetrahedra(
+  complex.positions, tets.indices, slice, chart
+);
+
+// Ambient R4 coordinates: 4 numbers per emitted vertex.
+const ambient = new Float64Array(tetCount * 6 * 4);
+const ambientVertices = sliceTetrahedraAmbient(
+  complex.positions, tets.indices, slice, ambient
+);
+```
+
+Both return the number of vertices written, so an empty section returns `0`.
+
+## Pick headlessly, with no renderer
+
+Picking needs geometry and a ray, not a canvas. A render product builds its
+`BufferGeometry` on `update()`, so a `Raycaster` works in Node with no
+`WebGLRenderer` anywhere — useful for tests, for verification, and for
+answering provenance questions in a script.
+
+```ts
+import { PerspectiveCamera, Raycaster, Vector2 } from 'three';
+import { describeRepresentationHitN } from '@holotope/core';
+import { SlicedComplex3D, representationHitFromSlicedComplex } from '@holotope/three';
+
+const section = new SlicedComplex3D(complex, slice);
+section.update(pose); // builds the geometry a ray can meet
+
+const camera = new PerspectiveCamera(60, 1, 0.1, 100);
+camera.position.set(0, 0, 8);
+camera.lookAt(0, 0, 0);
+
+const raycaster = new Raycaster();
+raycaster.setFromCamera(new Vector2(0, 0), camera);
+
+const [intersection] = raycaster.intersectObject(section.object, false);
+if (intersection !== undefined) {
+  const report = describeRepresentationHitN(
+    representationHitFromSlicedComplex(section, intersection)
+  );
+  report.ambient.claim; // 'unique' for an unprojected section
+}
+```
+
+`section.object` is an ordinary `Mesh`, so nothing else is required. See
+[what a pick may claim](/learn/representation-claims) for reading the result.
+
 ## Apply a world-space R4 impulse or angular velocity
 
 `RigidBody4` is headless. Advance it in `PhysicsWorld4`, then pass its pose to

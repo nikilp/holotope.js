@@ -143,6 +143,7 @@ export default defineConfig({
           text: 'Source and representation',
           items: [
             { text: 'Representation provenance', link: '/learn/representation-provenance' },
+            { text: 'What a pick may claim', link: '/learn/representation-claims' },
             { text: 'Provenance-driven decorations', link: '/learn/couplings' }
           ]
         },
