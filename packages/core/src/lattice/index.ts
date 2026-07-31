@@ -73,6 +73,15 @@ export {
   type AKNPatchOptions,
   type AKNPhasonOffset
 } from './akn.js';
+/**
+ * The golden-ratio ring the AKN and Elser–Sloane constructions are stated over.
+ *
+ * Surfaced here because the coordinates every function above returns are its
+ * values: `phiConjugate` already sits on this barrel, and a caller holding one
+ * without the ring that defines its arithmetic can inspect a coordinate but not
+ * combine two.
+ */
+export { phiRing } from '../coxeter/exact.js';
 export {
   PenroseModelSet,
   createPenroseModelSet,
