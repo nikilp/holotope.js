@@ -53,7 +53,7 @@ const OUT = (() => {
  */
 const CONSUMER_DEPENDENCIES = {
   three: '0.185.1',
-  '@types/three': '^0.185.0',
+  '@types/three': '0.185.1',
   '@types/node': '^22.15.0',
   typescript: '^5.8.3',
   vite: '^6.3.5'

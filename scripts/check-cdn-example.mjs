@@ -19,6 +19,10 @@
  * runtime. This asserts the pins agree in the first place, which is the
  * condition that makes the runtime assertion pass.
  *
+ * It also holds the one place that reasons about which Three.js version this
+ * repository stands behind, so it checks that the runtime and its declarations
+ * are the same release rather than a caret drifting away from a pin.
+ *
  * The static half needs no network and runs in `pnpm verify`. The half that
  * asks jsDelivr what it actually resolves is opt-in, because a CDN outage is
  * not a reason to fail a local build.
@@ -74,9 +78,22 @@ for (const directory of PUBLIC_PACKAGES) {
 }
 
 // The page must pin the Three.js the adapter is built and tested against.
-const peer = JSON.parse(
+const adapterManifest = JSON.parse(
   fs.readFileSync(path.join(REPO, 'packages/three/package.json'), 'utf8')
-).devDependencies?.three;
+);
+const peer = adapterManifest.devDependencies?.three;
+
+// Runtime and declarations must be the same release. A caret on the types
+// against an exact runtime silently drifts: the lockfile froze @types/three at
+// 0.185.0 while three was 0.185.1, so the adapter compiled against
+// declarations for a version nobody ran.
+const typesPin = adapterManifest.devDependencies?.['@types/three'];
+if (peer !== undefined && typesPin !== undefined && typesPin !== peer) {
+  violations.push(
+    `packages/three: three is ${peer} but @types/three is ${typesPin}; ` +
+      'pin both to the same release so the declarations describe what runs'
+  );
+}
 const pinnedThree = pins.get('three') === undefined ? undefined : [...pins.get('three')][0];
 if (pinnedThree === undefined) {
   violations.push(`${relative}: names no three version, so nothing pins the shared copy`);

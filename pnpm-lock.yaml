@@ -58,8 +58,8 @@ importers:
         specifier: ^22.15.0
         version: 22.20.0
       '@types/three':
-        specifier: ^0.185.0
-        version: 0.185.0
+        specifier: 0.185.1
+        version: 0.185.1
       vite:
         specifier: ^6.3.5
         version: 6.4.3(@types/node@22.20.0)(yaml@2.9.0)
@@ -97,8 +97,8 @@ importers:
         version: link:../core
     devDependencies:
       '@types/three':
-        specifier: ^0.185.0
-        version: 0.185.0
+        specifier: 0.185.1
+        version: 0.185.1
       three:
         specifier: 0.185.1
         version: 0.185.1
@@ -776,8 +776,8 @@ packages:
   '@types/stats.js@0.17.4':
     resolution: {integrity: sha512-jIBvWWShCvlBqBNIZt0KAshWpvSjhkwkEu4ZUcASoAvhmrgAUI2t1dXrjSL4xXVLB4FznPrIsX3nKXFl/Dt4vA==}
 
-  '@types/three@0.185.0':
-    resolution: {integrity: sha512-O2Uy8Cj4Nonr8dWUUbifMdPe8B0Mq7EdOHb89S4+kjUw/KhbjTZrUuYlrQ1bpUKG+EP9QJnN7qNxbHGlGoLHMA==}
+  '@types/three@0.185.1':
+    resolution: {integrity: sha512-db1xTb+EgYF2didW+eudSvVPtn75zo+fGsY8ShQrJY/B5ZBmC2Fiaykv3aImHAlCNEGuMPkPGXBJGLwzu5mC7A==}
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
@@ -1970,7 +1970,7 @@ snapshots:
 
   '@types/stats.js@0.17.4': {}
 
-  '@types/three@0.185.0':
+  '@types/three@0.185.1':
     dependencies:
       '@dimforge/rapier3d-compat': 0.12.0
       '@tweenjs/tween.js': 23.1.3

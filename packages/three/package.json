@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "three": "0.185.1",
-    "@types/three": "^0.185.0"
+    "@types/three": "0.185.1"
   },
   "keywords": [
     "three",
