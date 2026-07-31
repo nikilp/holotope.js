@@ -71,12 +71,19 @@ jobs:
       - name: Test
         run: pnpm vitest run
 
+      # Packing and conformance happen once, here, and the publish step below
+      # sends those exact bytes. Repacking after a green check would publish
+      # artifacts nothing verified: "same source state" is a weaker claim than
+      # "the same tarball", and the difference is where packaging defects live.
+      - name: Pack and verify the packaged consumer
+        shell: bash
+        run: node scripts/verify-packed-consumer.mjs --out "$RUNNER_TEMP/packed"
+
       - name: Publish
         # An explicit dependency order keeps first publication auditable. The
         # registry check makes manual dispatches and tag reruns idempotent.
-        # pnpm packs workspace:* dependencies as real release versions. npm
-        # then publishes that immutable tarball through trusted publishing;
-        # packing first avoids repository-state checks on detached tag builds.
+        # Every path published here comes from the manifest conformance just
+        # tested; nothing is packed again.
         shell: bash
         run: |
           # Established packages first. A package that has never been published
@@ -97,16 +104,21 @@ jobs:
           if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs['include-experiment-physics'] }}" == "true" ]]; then
             packages+=(experiment-physics)
           fi
+          manifest="$RUNNER_TEMP/packed/manifest.json"
           for package in "${packages[@]}"; do
-            directory="packages/$package"
-            name=$(node -p "require('./$directory/package.json').name")
-            version=$(node -p "require('./$directory/package.json').version")
+            name=$(node -p "require('./packages/$package/package.json').name")
+            version=$(node -p "require('./packages/$package/package.json').version")
             if npm view "$name@$version" version >/dev/null 2>&1; then
               echo "$name@$version is already published; skipping"
               continue
             fi
-            tarball="$RUNNER_TEMP/$package-$version.tgz"
-            pnpm --dir "$directory" pack --out "$tarball"
+            # The tarball conformance tested, selected by name from its
+            # manifest. A missing entry is a release blocker, not a cue to pack.
+            tarball=$(node -p "
+              const entry = require('$manifest').packages.find(p => p.name === '$name');
+              if (entry === undefined) { console.error('no packed artifact for $name'); process.exit(1); }
+              entry.tarball
+            ")
             npm publish "$tarball" --access public --provenance
           done
 

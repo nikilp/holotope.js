@@ -38,6 +38,11 @@ import {
 const REPO = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const FIXTURE = path.join(REPO, 'fixtures', 'packed-consumer');
 const KEEP = process.argv.includes('--keep');
+/** Where the tarballs and their manifest land; the release job pins this. */
+const OUT = (() => {
+  const at = process.argv.indexOf('--out');
+  return at === -1 ? path.join(REPO, '.packed') : path.resolve(process.argv[at + 1]);
+})();
 
 /**
  * Versions the repository already locks.
@@ -106,7 +111,7 @@ function stageFixture(destination) {
   }
 }
 
-const packed = packPublicPackages(path.join(REPO, '.packed'));
+const packed = packPublicPackages(OUT);
 console.log(`verify-packed-consumer: packed ${packed.packed.length} artifact(s).`);
 
 consumer = fs.mkdtempSync(path.join(os.tmpdir(), 'holotope-packed-consumer-'));
@@ -192,6 +197,7 @@ if (/externalized|could not be resolved/i.test(build.output)) {
 const report = buildReport(packed.packed);
 console.log(`\n${JSON.stringify(report, null, 2)}\n`);
 
+console.log(`Packed manifest: ${path.join(OUT, 'manifest.json')}`);
 if (KEEP) {
   console.log(`Isolated consumer retained at:\n  ${consumer}\n`);
 } else {
