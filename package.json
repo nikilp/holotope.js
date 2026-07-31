@@ -12,7 +12,8 @@
     "conformance:packed": "pnpm build && pnpm conformance:packed:built",
     "conformance:packed:built": "node scripts/verify-packed-consumer.mjs",
     "check:cdn": "node scripts/check-cdn-example.mjs",
-    "check:cdn:online": "node scripts/check-cdn-example.mjs --online"
+    "check:cdn:online": "node scripts/check-cdn-example.mjs --online",
+    "release:preflight": "node scripts/check-release-ready.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
