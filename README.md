@@ -138,6 +138,7 @@ explains why a projected mesh is never the source object — then work from
 | [Mental model](docs/learn/mental-model.md) | How source, representation, interaction, and simulation relate |
 | [Architecture](docs/learn/architecture.md) | The decisions that shape the library, and why |
 | [Experiment documents](docs/learn/experiment-documents.md) | Safe authored recipes and their headless explicit-capability compilation |
+| [Build a dimension bridge](docs/learn/source-retained-dimension-bridge.md) | The complete typed pipeline end to end: one R4 body, a rigid model, three views, and an honest pick |
 | [Cookbook](docs/learn/cookbook.md) | Verified task-oriented recipes |
 | [Representation provenance](docs/learn/representation-provenance.md) | Tracing a 3D pick back to its N-D source |
 | [Mechanics](docs/learn/physics/) | Mass, rigid bodies, collision, contact, constraints, XPBD |

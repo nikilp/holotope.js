@@ -135,6 +135,10 @@ export default defineConfig({
             { text: 'The mental model', link: '/learn/mental-model' },
             { text: 'Architecture', link: '/learn/architecture' },
             { text: 'Experiment documents', link: '/learn/experiment-documents' },
+            {
+              text: 'Build a dimension bridge',
+              link: '/learn/source-retained-dimension-bridge'
+            },
             { text: 'Cookbook', link: '/learn/cookbook' },
             { text: 'Playground', link: '/learn/playground' }
           ]

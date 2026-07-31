@@ -15,6 +15,7 @@ documentation assumes.
 | [The mental model](./mental-model) | How source, representation, interaction, and simulation relate — and why a projected mesh is never the source object |
 | [Architecture](./architecture) | The decisions that shape the library, with their reasoning |
 | [Experiment documents](./experiment-documents) | How authored experiences are validated and identified before runtime compilation |
+| [Build a dimension bridge](./source-retained-dimension-bridge) | The complete typed pipeline: one authoritative R4 body, a rigid model, three views, and an honest pick |
 | [Cookbook](./cookbook) | Verified recipes for concrete tasks |
 | [Playground](./playground) | Run and edit the reference's examples in the browser |
 

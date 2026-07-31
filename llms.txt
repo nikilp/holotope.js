@@ -9,6 +9,9 @@
 - README.md — installation, package overview, runnable public examples.
 - docs/learn/mental-model.md — package responsibilities and the source → representation → interaction loop.
 - docs/learn/experiment-documents.md — safe declarative experiment intake and current runtime boundary.
+- docs/learn/source-retained-dimension-bridge.md — the complete typed pipeline:
+  one authoritative R4 body, a rigid model, three views, render products, and an
+  honest pick. Start here for the minimum end-to-end composition.
 - docs/learn/cookbook.md — verified task-oriented snippets.
 - docs/learn/representation-provenance.md — what a pick can and cannot recover.
 - docs/learn/representation-claims.md — reading a pick as one claim instead of two fields.

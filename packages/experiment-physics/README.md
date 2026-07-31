@@ -30,3 +30,7 @@ never rebased or copied.
 
 See the [experiment document guide](../../docs/learn/experiment-documents.md)
 for the model capability, the pose binding, and the clock.
+
+For the complete pipeline — source, model, three views, render products,
+and an honest pick — see
+[Build a dimension bridge](../../docs/learn/source-retained-dimension-bridge.md).

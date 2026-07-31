@@ -116,3 +116,7 @@ const offset = compilation.readParameter('sliceOffset');
 therefore reflected immediately. A headless-unowned target such as playback
 state or presentation metadata returns a typed `capability-unavailable`
 refusal rather than a descriptor default mistaken for live state.
+
+For the complete pipeline — source, model, three views, render products,
+and an honest pick — see
+[Build a dimension bridge](../../docs/learn/source-retained-dimension-bridge.md).

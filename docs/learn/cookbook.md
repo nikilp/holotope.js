@@ -50,6 +50,49 @@ function render() {
 See it running in the [tesseract demo](https://nikilp.github.io/holotope.js/tesseract.html),
 or read its [full source](https://github.com/nikilp/holotope.js/blob/main/examples/showcase/src/tesseract.ts).
 
+## Compile a whole scene from one document
+
+When a scenario should be reproducible — the same body, motion, and views every
+time, with an identity you can hash — declare it once and compile it, rather
+than constructing the pieces separately and keeping them in agreement by hand.
+
+```ts
+import {
+  compileExperimentDocumentV0,
+  coreExperimentCompilerV0,
+  prepareExperimentDocumentV0
+} from '@holotope/experiment';
+
+const preparedScene = await prepareExperimentDocumentV0({
+  schema: 'holotope.experiment/0',
+  title: 'Tesseract section',
+  ambientDim: 4,
+  sources: {
+    body: { kind: 'core.source.hypercube', dim: 4, size: 2, tetrahedralize: true }
+  },
+  representations: {
+    cut: {
+      kind: 'core.representation.section4',
+      source: 'body',
+      normal: [0, 0, 0, 1],
+      offset: 0,
+      frame: 'canonical'
+    }
+  }
+});
+if (preparedScene.ok) {
+  const compiledScene = compileExperimentDocumentV0(preparedScene.value, {
+    compilers: [coreExperimentCompilerV0()]
+  });
+  log(compiledScene.ok);
+}
+```
+
+The compiled registry hands back the same `CellComplex` and slice objects a
+direct caller builds, so every recipe on this page still applies to them.
+[Build a dimension bridge](/learn/source-retained-dimension-bridge) walks the
+complete pipeline through to render products and picking.
+
 ## Sweep and reorient a 4D slice
 
 Changing `offset` moves the same affine plane. `setNormal()` changes its
