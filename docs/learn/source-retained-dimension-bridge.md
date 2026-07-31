@@ -54,6 +54,16 @@ const document = {
       transform: { fromModel: 'tumble' },
       product: 'both'
     },
+    // An exact coordinate view: keep three axes, drop the fourth. Not a
+    // camera — no foreshortening, and no hidden-axis divide to guard.
+    axes: {
+      kind: 'core.representation.coordinate',
+      source: 'body',
+      fromDim: 4,
+      retainedAxes: [0, 1, 3],
+      transform: { fromModel: 'tumble' },
+      product: 'both'
+    },
     // An exact cross-section in its own 3D chart.
     cut: {
       kind: 'core.representation.section4',
@@ -148,8 +158,10 @@ const runtime = model.runtime as ExperimentRigidModel4RuntimeV0;
 
 const source = sourceById('body');
 const shadowMap = representationById('shadow').map;
+const axesMap = representationById('axes').map;
 const cutMap = representationById('cut').map;
 if (shadowMap.kind !== 'projection') throw new Error('shadow is not a projection');
+if (axesMap.kind !== 'projection') throw new Error('axes is not a projection');
 if (cutMap.kind !== 'slice4') throw new Error('cut is not a slice');
 
 log(source.complex.vertexCount); // 16
@@ -162,12 +174,24 @@ from the same numbers would render something the document does not describe,
 and a pick on it would carry provenance that only looks right.
 
 ```ts
-import { ProjectedSurface3D, SlicedComplex3D } from '@holotope/three';
+import {
+  ProjectedEdges3D,
+  ProjectedSurface3D,
+  SlicedComplex3D
+} from '@holotope/three';
 
+// Two products can share one map: a filled surface and its wireframe are two
+// views of the same projection, not two projections.
 const surface = new ProjectedSurface3D(source.complex, shadowMap.projection);
+const axesSurface = new ProjectedSurface3D(source.complex, axesMap.projection);
+const axesEdges = new ProjectedEdges3D(source.complex, axesMap.projection);
 const section = new SlicedComplex3D(source.complex, cutMap.slice);
-scene.add(surface.object, section.object);
+
+scene.add(surface.object, axesSurface.object, axesEdges.object, section.object);
 ```
+
+All four read the same `source.complex`. Nothing here copies geometry — a
+render product holds a reference and rebuilds only its own output buffers.
 
 ## 5. Advance, parameterize, and reset through the compilation
 
@@ -180,8 +204,9 @@ its clock, revision, and trace stop describing what you see.
 // source geometry was authored, not the body's principal-frame pose.
 compilation.advance(2);
 const pose = model.pose();
-surface.update(pose);
-section.update(pose);
+for (const product of [surface, axesSurface, axesEdges, section]) {
+  product.update(pose);
+}
 
 // Parameters are validated against their declared domain before they apply.
 const applied = compilation.setParameter('sliceOffset', 0.35);
@@ -242,8 +267,9 @@ honest, not a failure. See [what a pick may claim](/learn/representation-claims)
 ## 7. Dispose every owner
 
 ```ts
-surface.dispose();
-section.dispose();
+for (const product of [surface, axesSurface, axesEdges, section]) {
+  product.dispose();
+}
 // Releases the source, body, world, and maps the registry holds.
 compilation.dispose();
 ```
