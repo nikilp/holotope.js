@@ -168,31 +168,60 @@ The ordering is the same one `tetrahedralizeCuboidCells` produces, so a
 tetrahedron ordinal from a section pick indexes straight into
 `sourceCellIndices`.
 
-Cells carry no facet metadata. A cuboid cell of a hypercube lies on the
-hyperplane where one coordinate is constant, so recover the facet from the
-positions rather than from an ordinal:
+## Name the facet a cubic cell lies on
+
+Cells carry no facet metadata: a `CellGroup` is positions plus indices, and
+`createHypercube` records nothing about which side a cell came from. The facet
+is recoverable from the geometry, because a cuboid cell of a hypercube lies on
+the hyperplane where one coordinate is constant — and `cuboidCellFacetN` does
+that recovery:
 
 ```ts
-function facetOfCubicCell(cell: number): string {
-  const stride = cubes.verticesPerCell;
-  for (let axis = 0; axis < complex.ambientDim; axis += 1) {
-    for (const sign of [-1, 1]) {
-      let all = true;
-      for (let corner = 0; corner < stride && all; corner += 1) {
-        const vertex = cubes.indices[cell * stride + corner]!;
-        all = Math.abs(complex.getPosition(vertex)[axis]! - sign) <= 1e-12;
-      }
-      if (all) return `${axis}:${sign > 0 ? '+1' : '-1'}`;
-    }
-  }
-  throw new Error('cell does not lie on one facet');
-}
+import { createHypercube, cuboidCellFacetN } from '@holotope/core';
+
+const complex = createHypercube({ dim: 4, size: 2, maxCellDimension: 3 });
+const cubes = complex.cellsOfDim(3).find((group) => group.kind === 'cuboid')!;
+
+const facet = cuboidCellFacetN(complex, cubes, 0);
+// { axis: 3, sign: -1, coordinate: -1 }  — the w = -1 facet
 ```
+
+Do not hand-roll this from coordinates. The two obvious shortcuts are both
+wrong in ways that stay silent:
+
+- comparing a coordinate against a literal `±1` assumes `size: 2`, and names no
+  facet at all for any other size;
+- taking `Math.sign` of the coordinate assumes the body is centred on the
+  origin, and gives every cell the same sign once it is translated clear of it.
+
+`sign` is resolved against the complex's own extent along the axis, so it
+survives both. `null` comes back when the cell lies on no single facet.
+
+Facet order is a contract, not an accident: cubic cells enumerate axis triples
+`a < b < c` lexicographically, so the omitted axis — the facet normal —
+descends, and the low side precedes the high one. A tesseract gives
+`3:- 3:+ 2:- 2:+ 1:- 1:+ 0:- 0:+`.
 
 ## Ask whether a section is empty
 
 A cut past the body's extent emits nothing. `SlicedComplex3D.triangleCount` is
 an accessor, not a method, and it is the direct answer:
+
+::: warning The two extremes do not agree
+A cut exactly *at* the extent is empty at the minimum and non-empty at the
+maximum. For a `size: 2` tesseract, `w = -1` emits nothing and `w = +1` emits a
+full section.
+
+This is the slicer's tie-break, not a bug. Signed distances within `epsilon`
+snap to zero and count as **non-negative**, so a vertex lying on the plane is
+treated as above it. At the maximum some vertices then fall below the plane and
+the cut emits; at the minimum nothing is below it. The convention is what makes
+on-plane vertices interpolate exactly to themselves and stops a cell lying
+wholly in the hyperplane from being emitted twice.
+
+Do not correct it into symmetry. If you need a symmetric rule, compare the
+offset against the extent yourself before cutting.
+:::
 
 ```ts
 const section = new SlicedComplex3D(
@@ -205,6 +234,19 @@ const empty = section.triangleCount === 0;
 
 Without a render product, slice the tetrahedra yourself. Size the output buffer
 for the worst case: one tetrahedron can emit two triangles, so six vertices.
+
+Both slicers take the same trailing parameters, and their buffer sizes are
+worst-case per source tetrahedron. With `tetCount = tets.length / 4`:
+
+| parameter | default | size |
+| --- | --- | --- |
+| `epsilon` | `1e-9` | snapping distance for the on-plane tie-break above |
+| `outPositions` | — | `tetCount * 18` chart floats; `tetCount * 24` ambient |
+| `outProvenance` | — | `tetCount * 2` — the source tetra index per triangle |
+| `outVertexProvenance.edgeVertices` | — | `tetCount * 12` — two endpoints per vertex |
+| `outVertexProvenance.edgeParameters` | — | `tetCount * 6` — one interpolation parameter per vertex |
+
+Undersized buffers throw rather than truncate.
 
 ```ts
 import { sliceTetrahedra, sliceTetrahedraAmbient } from '@holotope/core';

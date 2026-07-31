@@ -68,10 +68,11 @@ import {
   checkDecorationEquivariance,
   doubledIcosianKey,
   elserSloaneDecorationGenerators,
-  elserSloaneGerm,
   elserSloaneGermParameterDecoration,
   exactParameter4Equals
 } from '@holotope/core/coupling';
+// The germ itself is a lattice construction; the coupling module decorates it.
+import { elserSloaneGerm } from '@holotope/core/lattice';
 
 const sources = elserSloaneGerm().points.map((point) => point.icosian);
 const report = checkDecorationEquivariance({

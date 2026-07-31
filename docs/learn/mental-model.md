@@ -136,6 +136,10 @@ wrapper drops `sourceCellIndices`, which is what
   Axis indices are `0=x`, `1=y`, `2=z`, `3=w`.
 - `CoordinateProjection({ fromDim: 4, axes: [0, 1, 3] })` is an exact XYW
   coordinate view; it is not a perspective camera.
+- `createHypercube`'s `size` is the **edge length**, and the body is centred on
+  the origin — so `size: 2` puts vertices at `±1`, and `size: 3` at `±1.5`. The
+  default is `1`. Nothing in the library assumes the `size: 2` case that most
+  examples use; code that compares a coordinate against a literal `1` does.
 
 ## Exactness and performance
 
