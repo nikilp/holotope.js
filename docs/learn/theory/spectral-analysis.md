@@ -14,10 +14,15 @@ operator and spectrum.
 
 ```ts
 import {
+  createHypercube,
   eigenspaceProjector,
   graphLaplacian,
   graphLaplacianModes
 } from '@holotope/core';
+
+// Any complex with edges; a tesseract's 1-skeleton is 16 vertices and 32 edges.
+const complex = createHypercube({ dim: 4, size: 2 });
+const vertexValues = new Float64Array(complex.vertexCount);
 
 const operator = graphLaplacian(complex);
 const applied = operator.apply(vertexValues); // Lx, sparse O(V + E)

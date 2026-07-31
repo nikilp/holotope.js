@@ -77,7 +77,7 @@ import { fibonacciPatch } from '@holotope/core/lattice';
 
 const patch = fibonacciPatch(34);
 patch.tiles.join(''); // LSLLSLSLLSLLS...
-patch.points[0].coefficients; // exact lattice provenance
+patch.points[0]!.coefficients; // exact lattice provenance
 ```
 
 ## Ammann–Beenker octagonal model set
@@ -108,10 +108,19 @@ The window is the internal projection of the unit four-cube: a centered regular 
 This centered cut is nonsingular. Multiplication by `zeta_8` acts on lattice coefficients as an exact 45-degree symmetry. Silver-mean inflation is another integer provenance map: it multiplies physical coordinates by `1+sqrt(2)` and internal coordinates by the conjugate `1-sqrt(2)`, which contracts them back into the window.
 
 ```ts
-import { ammannBeenkerPatch, ammannBeenkerInflate } from '@holotope/core/lattice';
+import {
+  ammannBeenkerInflate,
+  ammannBeenkerPatch,
+  type AmmannBeenkerCoefficients
+} from '@holotope/core/lattice';
 
 const patch = ammannBeenkerPatch({ physicalRadius: 8 });
-const inflated = ammannBeenkerInflate(patch.points[0].coefficients);
+// A patch point carries `readonly bigint[]`: the generic model-set point type
+// does not record the family's arity, so the family's own operations need the
+// tuple asserted back.
+const inflated = ammannBeenkerInflate(
+  patch.points[0]!.coefficients as AmmannBeenkerCoefficients
+);
 ```
 
 The canonical helper is parameterized by an exact internal offset. The showcase exposes several quarter-unit phason presets; each translates the internal coordinates before window membership and therefore selects a distinct locally related pattern. Arbitrary applications can construct `FlatN` and `ConvexWindow` directly for other exact offsets or window geometries.
@@ -167,13 +176,18 @@ Two signed permutations of the six lattice coefficients pin icosahedral symmetry
 An optional exact internal translation selects regular members of the same hull. The `(1,1,2)/7` preset is globally nonsingular: none of the thirty facet normals pairs to zero with its numerator modulo seven. Shifted patches therefore use the strict `error` boundary policy by default and can expose phason rearrangements without a floating perturbation.
 
 ```ts
-import { aknPatch, aknRotate5, phiRing } from '@holotope/core/lattice';
+import {
+  aknPatch,
+  aknRotate5,
+  phiRing,
+  type AKNCoefficients
+} from '@holotope/core/lattice';
 
 const patch = aknPatch({
   physicalRadius: 5,
   phasonOffsetSevenths: [phiRing.one, phiRing.one, phiRing.fromInt(2)]
 });
-const rotated = aknRotate5(patch.points[0].coefficients);
+const rotated = aknRotate5(patch.points[0]!.coefficients as AKNCoefficients);
 ```
 
 ## Elser-Sloane canonical model set and sections
@@ -232,5 +246,5 @@ import {
 
 const patch = elserSloaneNormPatch({ maxE8Norm: 8 });
 const section = elserSloaneSection(patch.points); // exact fourth coordinate = 0
-const image = elserSloaneInflate(section[0].coefficients);
+const image = elserSloaneInflate(section[0]!.coefficients);
 ```

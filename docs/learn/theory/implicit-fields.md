@@ -9,6 +9,34 @@ The core package currently provides two quadratic families:
 
 Coordinates are explicit throughout: quaternion values use `[i,j,k,real]`; bicomplex values use `[i1,i2,i1*i2,real]`; complex factors use `[imaginary,real]`.
 
+<!-- doc-check: sequential -->
+
+## What the GPU sections require
+
+The headless sections below need nothing but `@holotope/core`. The GPU sections
+need a **compute-capable** renderer — a WebGPU `Renderer`, not the
+`WebGLRenderer` an ordinary Three application holds. Passing the latter is a
+type error rather than a silent fallback.
+
+<!-- doc-check: context -->
+
+```ts
+import { BicomplexJuliaField } from '@holotope/core';
+import type { Renderer } from 'three/webgpu';
+
+// A WebGPU renderer. It satisfies the narrower ComputeCapableRenderer the
+// evaluators take, and the full Renderer the settled pipeline needs.
+declare const gpuRenderer: Renderer;
+
+// The second field the GPU sections compare against: a bicomplex Julia set,
+// which changes to idempotent coordinates and runs two independent orbits.
+const bicomplexField = new BicomplexJuliaField({
+  parameter: [0.156, 0, 0, -0.8],
+  maxIterations: 32,
+  escapeRadius: 4
+});
+```
+
 ## Headless evaluation
 
 The browser is not required to evaluate or inspect a field. `sampleFieldPoints4` probes packed R4 points, while `sampleFieldSlice3` evaluates a regular grid in any affine `HyperplaneSlice4`.
@@ -105,7 +133,7 @@ const points = new Float32Array([
   0.5, 0.25, 0, -0.75
 ]);
 const evaluator = new QuaternionJuliaGPU(field, points);
-const gpuRecords = await evaluator.evaluate(renderer);
+const gpuRecords = await evaluator.evaluate(gpuRenderer);
 const differential = compareQuaternionJuliaGPU(field, points, gpuRecords);
 
 console.log(differential.escapeMismatches, differential.maxDistanceError);
@@ -120,7 +148,7 @@ import {
   compareBicomplexJuliaGPU
 } from '@holotope/three/webgpu';
 
-const productRecords = await new BicomplexJuliaGPU(bicomplexField, points).evaluate(renderer);
+const productRecords = await new BicomplexJuliaGPU(bicomplexField, points).evaluate(gpuRenderer);
 const productDifferential = compareBicomplexJuliaGPU(
   bicomplexField,
   points,
@@ -218,15 +246,15 @@ target until invalidated.
 ```ts
 import { SettledSupersampling3D } from '@holotope/three/webgpu';
 
-const settled = new SettledSupersampling3D(renderer, scene, camera, {
+const settled = new SettledSupersampling3D(gpuRenderer, scene, camera, {
   sampleLevel: 2, // 2^2 = four jittered samples
   settleFrames: 2,
   settleEpsilon: 1e-6,
   revisionSources: [raymarched]
 });
 
-renderer.setAnimationLoop(() => {
-  controls.update();
+gpuRenderer.setAnimationLoop(() => {
+  orbitControls.update();
   settled.render();
 });
 ```

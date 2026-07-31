@@ -19,6 +19,60 @@ Euler in Li et al.,
 with explicit external accelerations absorbed into `qHat` and without that
 paper's contact, friction, or nonlinear-solver layers.
 
+<!-- doc-check: sequential -->
+
+## The system these steps operate on
+
+Every step below runs on one particle system: a small set of degrees of
+freedom, one of them fixed, in R4. The stages then thread through it —
+predict, evaluate, search, curvature, apply.
+
+<!-- doc-check: context -->
+
+```ts
+import {
+  XpbdParticleN,
+  type XpbdConservativeForceProviderN,
+  type XpbdParticleBindingN,
+  type XpbdParticleHyperplaneFamilyN
+} from '@holotope/physics';
+
+const particles = [
+  new XpbdParticleN({ id: 'anchor', position: [0, 0, 0, 0], inverseMass: 0 }),
+  new XpbdParticleN({ id: 'free-a', position: [1, 0, 0, 0] }),
+  new XpbdParticleN({ id: 'free-b', position: [1, 1, 0, 0] })
+];
+
+// A trial configuration the objective is evaluated at: one position per
+// particle, in the same order.
+const candidatePositions = particles.map((particle) => particle.position);
+
+// The conservative providers whose energies make up U(q), and the hyperplane
+// contact set the barrier family is compiled over. Building them is the
+// deformable page's subject; here they are the inputs the steps consume.
+declare const elasticFamily: XpbdConservativeForceProviderN;
+declare const measureBarrierFamily: XpbdConservativeForceProviderN;
+declare const material: XpbdConservativeForceProviderN;
+declare const floorContacts: XpbdParticleHyperplaneFamilyN;
+
+// A single free particle, for the one-barrier examples.
+const particle = particles[1]!;
+
+// The inertial prediction qHat, and the step it was taken over. Later stages
+// evaluate against these; the prediction step above is where they come from.
+const predictedPositions = candidatePositions;
+const deltaTime = 1 / 60;
+
+// Two trial directions in packed free-coordinate space, for the curvature
+// examples: a Hessian-vector product takes one packed vector per apply.
+declare const direction0: Float64Array;
+declare const direction1: Float64Array;
+
+// The binding these particles came from; writing back is how a converged step
+// reaches the source complex.
+declare const binding: XpbdParticleBindingN;
+```
+
 ## Inertial prediction
 
 `predictXpbdInertialStateN()` produces `qHat` without changing the particles:
@@ -342,11 +396,17 @@ const result = minimizeXpbdIncrementalPotentialN({
   maximumIterations: 128
 });
 
-console.log(
-  result.status,
-  result.directionPolicyId,
-  result.final.gradientNorm
-);
+// `final` exists on every outcome except a refused initial state, which never
+// evaluated one. Narrow on `status` rather than reaching through the union.
+if (result.status === 'initial-state-refused') {
+  console.log(result.status, result.problem.dimension);
+} else {
+  console.log(
+    result.status,
+    result.directionPolicyId,
+    result.final.gradientNorm
+  );
+}
 for (const iteration of result.iterations) {
   console.log(
     iteration.index,
@@ -576,14 +636,25 @@ Whole-provider projection can erase useful locality. Providers may therefore
 expose an optional exact additive seam:
 
 ```ts
-interface XpbdConservativeHessianBlockProviderN {
+import type {
+  XpbdConservativeHessianBlockN,
+  XpbdConservativeHessianVectorEvaluationN,
+  XpbdConservativeHessianVectorProviderN,
+  XpbdParticleDirectionQueryN,
+  XpbdParticlePositionQueryN
+} from '@holotope/physics';
+
+interface XpbdConservativeHessianBlockProviderN
+  extends XpbdConservativeHessianVectorProviderN {
+  /** Deterministic authored block order. */
   readonly potentialHessianBlocks:
     readonly XpbdConservativeHessianBlockN[];
 
+  /** Evaluates one exact block contribution at a candidate state. */
   evaluatePotentialHessianBlockVectorAt(
-    block,
-    positionOf,
-    directionOf
+    block: XpbdConservativeHessianBlockN,
+    positionOf: XpbdParticlePositionQueryN,
+    directionOf: XpbdParticleDirectionQueryN
   ): XpbdConservativeHessianVectorEvaluationN;
 }
 ```

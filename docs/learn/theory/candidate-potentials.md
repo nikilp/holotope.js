@@ -6,6 +6,9 @@ an ordered set of `XpbdParticleN` identities paired with finite RN positions.
 A conservative provider evaluates that state without writing the particles:
 
 ```ts
+import type { VecN } from '@holotope/core';
+import type { XpbdForceProviderN, XpbdParticleN } from '@holotope/physics';
+
 type XpbdParticlePositionQueryN = (particle: XpbdParticleN) => VecN;
 
 interface XpbdConservativeForceProviderN extends XpbdForceProviderN {
@@ -26,7 +29,18 @@ $$
 returns the mathematical gradients `∇U`, not forces:
 
 ```ts
-import { evaluateXpbdPotentialStateN } from '@holotope/physics';
+import type { VecN } from '@holotope/core';
+import {
+  evaluateXpbdPotentialStateN,
+  type XpbdConservativeForceProviderN,
+  type XpbdParticleBindingN
+} from '@holotope/physics';
+
+// The system under evaluation and the trial configuration to evaluate it at.
+declare const binding: XpbdParticleBindingN;
+declare const candidatePositions: readonly VecN[];
+declare const elasticFamily: XpbdConservativeForceProviderN;
+declare const measureBarrierFamily: XpbdConservativeForceProviderN;
 
 const trial = evaluateXpbdPotentialStateN({
   dimension: 4,

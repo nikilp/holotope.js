@@ -414,6 +414,14 @@ const options = ts.convertCompilerOptionsFromJson(
       // `three` is a peer dependency installed beside its adapter, not at the
       // repository root, so nothing resolves it from `docs/`.
       three: [path.join(REPO, 'packages/three/node_modules/@types/three/index.d.ts')],
+      // Subpath declarations do not follow the `three/*` wildcard: the WebGPU
+      // and TSL entry points live under build/ with different basenames.
+      'three/webgpu': [
+        path.join(REPO, 'packages/three/node_modules/@types/three/build/three.webgpu.d.ts')
+      ],
+      'three/tsl': [
+        path.join(REPO, 'packages/three/node_modules/@types/three/build/three.tsl.d.ts')
+      ],
       'three/*': [path.join(REPO, 'packages/three/node_modules/@types/three/*')]
     }
   },
