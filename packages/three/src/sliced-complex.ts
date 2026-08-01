@@ -61,6 +61,12 @@ export interface SliceCrossingProvenanceN {
  * hyperplane, and uploads the resulting triangle soup expressed in the
  * slice's own display frame.
  *
+ * That default frame is intentionally **not** the coordinate system of a
+ * projected wireframe. To overlay a section on `ProjectedEdges3D` or
+ * `ProjectedSurface3D`, pass that product's same projection through
+ * `options.projection`; otherwise the two honest representations occupy
+ * different local frames and should be displayed as separate views.
+ *
  * Triangle winding is not globally consistent, so the default material is
  * double-sided; flat normals are recomputed per update.
  */

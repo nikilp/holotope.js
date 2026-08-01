@@ -21,6 +21,8 @@ import {
 } from '@holotope/core';
 
 export interface ProjectedEdges3DOptions {
+  /** Default material colour when `material` is omitted. */
+  color?: number;
   material?: Material;
 }
 
@@ -57,9 +59,10 @@ export class ProjectedEdges3D {
    * @param projection - Map applied on every update. Its `fromDim` must equal
    * the complex's `ambientDim`, and the mismatch is rejected here rather than
    * at the first update.
-   * @param options - Material override. The default is a plain
-   * `LineBasicMaterial`; WebGL ignores line width, so weight is expressed
-   * through colour and opacity.
+   * @param options - A default material colour or a complete material
+   * override. They are mutually exclusive. Unknown keys are rejected;
+   * WebGL ignores line width, so `linewidth` is not an accepted styling
+   * option and visual weight should be expressed through colour and opacity.
    *
    * @example
    * A rotating tesseract. The transform is applied in R⁴ and the projection
@@ -77,6 +80,23 @@ export class ProjectedEdges3D {
    * ```
    */
   constructor(complex: CellComplex, projection: Projection, options: ProjectedEdges3DOptions = {}) {
+    const unknownOptions = Object.keys(options).filter(
+      (key) => key !== 'color' && key !== 'material'
+    );
+    if (unknownOptions.length > 0) {
+      throw new Error(
+        `ProjectedEdges3D: unknown option${unknownOptions.length === 1 ? '' : 's'} ` +
+        unknownOptions.map((key) => `"${key}"`).join(', ')
+      );
+    }
+    if (options.color !== undefined) {
+      if (!Number.isSafeInteger(options.color) || options.color < 0 || options.color > 0xffffff) {
+        throw new Error('ProjectedEdges3D: color must be an integer from 0x000000 to 0xffffff');
+      }
+      if (options.material !== undefined) {
+        throw new Error('ProjectedEdges3D: color and material are mutually exclusive');
+      }
+    }
     if (complex.ambientDim !== projection.fromDim) {
       throw new Error(
         `ProjectedEdges3D: complex ambientDim ${complex.ambientDim} != projection fromDim ${projection.fromDim}`
@@ -117,7 +137,7 @@ export class ProjectedEdges3D {
     this.geometry.setAttribute('position', this.positionAttribute);
     this.geometry.setIndex(new BufferAttribute(index, 1));
 
-    const material = options.material ?? new LineBasicMaterial({ color: 0xffffff });
+    const material = options.material ?? new LineBasicMaterial({ color: options.color ?? 0xffffff });
     this.object = new LineSegments(this.geometry, material);
     this.object.frustumCulled = false; // bounds change every update; skip stale-culling
 

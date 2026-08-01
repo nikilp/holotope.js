@@ -5,7 +5,7 @@
  * drifted from the semantics users already trust.
  */
 import { describe, expect, it } from 'vitest';
-import { Matrix4, Vector3 } from 'three';
+import { LineBasicMaterial, Matrix4, Vector3 } from 'three';
 import {
   MatN,
   OrthographicProjection,
@@ -144,5 +144,23 @@ describe('ProjectedEdges3D', () => {
       before
     );
     edges.dispose();
+  });
+
+  it('applies the explicit color option and rejects unknown or conflicting styling', () => {
+    const cube = createHypercube({ dim: 3 });
+    const projection = new PerspectiveProjection({ fromDim: 3 });
+    const colored = new ProjectedEdges3D(cube, projection, { color: 0x1e293b });
+    expect((colored.object.material as LineBasicMaterial).color.getHex()).toBe(0x1e293b);
+    colored.dispose();
+
+    expect(() => new ProjectedEdges3D(
+      cube,
+      projection,
+      { linewidth: 2 } as never
+    )).toThrow(/unknown option "linewidth"/);
+    expect(() => new ProjectedEdges3D(cube, projection, {
+      color: 0xffffff,
+      material: new LineBasicMaterial()
+    })).toThrow(/mutually exclusive/);
   });
 });
