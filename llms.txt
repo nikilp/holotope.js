@@ -414,6 +414,13 @@ if (hit.ambientPointStatus === 'exact') {
 - Do not expect projected picks to always yield a unique R4 point.
 - Do not create a `SlicedComplex3D` from a raw cuboid complex without the
   required tetrahedral 3-cells.
+- Do not overlay a `SlicedComplex3D` on a projected product without passing
+  that product's projection through `options.projection`. A section is
+  expressed in the cutting hyperplane's own display frame, which is not the
+  projection's output space. The two coincide at `offset: 0`, where the
+  perspective scale is 1, and separate as the offset moves — about 14% at
+  `w = 0.5` for `viewDistance: 4`. Either share the projection or show them as
+  separate views.
 - Do not treat `DragRotation4D` as physical angular velocity or torque.
 - Do not guess exports: inspect the canonical barrel listed above when the
   needed feature is not in this file.

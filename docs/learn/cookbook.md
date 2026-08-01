@@ -47,8 +47,46 @@ function render() {
 }
 ```
 
+Those two products do **not** share a coordinate system. A projection maps R4
+into its own 3D output; a section is expressed in the cutting hyperplane's own
+display frame. Adding both to one scene, as above, shows two honest views that
+happen to sit in different local frames.
+
+At `offset: 0` they coincide, which is why the snippet looks right — the
+perspective scale at `w = 0` is exactly 1. Sweep the offset and they separate:
+at `w = 0.5` the section is 14% wider through the projection than in its own
+frame, and at `w = 0.9` it is 29% wider.
+
+So pick one deliberately:
+
+- **separate views** — keep them in different `Group`s or different parts of
+  the scene, and let each speak in its own frame;
+- **one overlay** — pass the projection to the section so both land in the same
+  space:
+
+```ts
+import {
+  HyperplaneSlice4,
+  PerspectiveProjection,
+  createHypercube,
+  tetrahedralizeCuboidCells
+} from '@holotope/core';
+import { SlicedComplex3D } from '@holotope/three';
+
+const cut = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
+const shared = new PerspectiveProjection({ fromDim: 4, viewDistance: 4 });
+
+const overlaid = new SlicedComplex3D(
+  cut,
+  HyperplaneSlice4.axisAligned(3, 0.5),
+  { projection: shared }
+);
+```
+
 See it running in the [tesseract demo](https://nikilp.github.io/holotope.js/tesseract.html),
-or read its [full source](https://github.com/nikilp/holotope.js/blob/main/examples/showcase/src/tesseract.ts).
+which does both — a section in its own frame and a second one overlaid inside
+the wireframe — or read its
+[full source](https://github.com/nikilp/holotope.js/blob/main/examples/showcase/src/tesseract.ts).
 
 ## Author a small cell complex from literals
 
