@@ -28,6 +28,18 @@ export class XpbdParticleN implements XpbdPointN {
   gravityScale: number;
 
   constructor(options: XpbdParticleNOptions) {
+    if (typeof options !== 'object' || options === null || Array.isArray(options)) {
+      throw new Error('XpbdParticleN: expected an options object');
+    }
+    const unknownOptions = Object.keys(options).filter(
+      (key) => !['id', 'position', 'velocity', 'inverseMass', 'gravityScale'].includes(key)
+    );
+    if (unknownOptions.length > 0) {
+      throw new Error(
+        `XpbdParticleN: unknown option${unknownOptions.length === 1 ? '' : 's'} ` +
+        unknownOptions.sort().map((key) => `"${key}"`).join(', ')
+      );
+    }
     if (typeof options.id !== 'string' || options.id.trim().length === 0) {
       throw new Error('XpbdParticleN: id must be a non-empty string');
     }

@@ -63,6 +63,20 @@ export class CellComplex {
    * ```
    */
   constructor(ambientDim: number, positions: Float64Array, groups: CellGroup[] = []) {
+    if (typeof ambientDim !== 'number') {
+      throw new Error(
+        'CellComplex: expected (ambientDim, packedPositions, groups); received a non-numeric first argument — pass a numeric dimension and a packed Float64Array'
+      );
+    }
+    if (!Number.isSafeInteger(ambientDim) || ambientDim < 1) {
+      throw new Error('CellComplex: ambientDim must be a positive integer');
+    }
+    if (!(positions instanceof Float64Array)) {
+      throw new Error('CellComplex: positions must be a packed Float64Array');
+    }
+    if (!Array.isArray(groups)) {
+      throw new Error('CellComplex: groups must be an array');
+    }
     if (positions.length % ambientDim !== 0) {
       throw new Error(
         `CellComplex: positions length ${positions.length} is not a multiple of ambientDim ${ambientDim}`

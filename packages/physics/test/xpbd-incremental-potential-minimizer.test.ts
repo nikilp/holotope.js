@@ -284,9 +284,8 @@ describe('bounded XPBD incremental-potential minimizer', () => {
       id: 'p',
       position: [0.5, -0.25, 0.75],
       velocity: [0.1, 0.2, -0.3],
-      force: [0.4, -0.5, 0.6],
       inverseMass: 0.75
-    });
+    }).applyForce([0.4, -0.5, 0.6]);
     const before = particleSnapshot([particle]);
     const problem = compileXpbdIncrementalPotentialProblemN({
       dimension: 3,

@@ -266,9 +266,8 @@ describe('XPBD incremental-potential direction policies', () => {
       id: 'p',
       position: [1],
       velocity: [0.5],
-      force: [0.25],
       inverseMass: 0.25
-    });
+    }).applyForce([0.25]);
     const applied = stepXpbdIncrementalPotentialN({
       dimension: 1,
       particles: [particle],

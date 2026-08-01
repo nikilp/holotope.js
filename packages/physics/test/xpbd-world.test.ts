@@ -24,6 +24,15 @@ function coordinates(dimension: number, entries: Readonly<Record<number, number>
 }
 
 describe('XpbdWorldN', () => {
+  it('rejects plausible but unsupported particle option names', () => {
+    expect(() => new XpbdParticleN({
+      id: 'mistyped',
+      position: [1, 2, 3],
+      dimension: 99,
+      mass: 7
+    } as never)).toThrow(/unknown options "dimension", "mass"/);
+  });
+
   it('matches semi-implicit free flight in R2, R4, and R7', () => {
     for (const dimension of [2, 4, 7]) {
       const particle = new XpbdParticleN({
