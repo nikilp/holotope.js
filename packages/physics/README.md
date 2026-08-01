@@ -61,6 +61,12 @@ resistance, and sleeping are not yet part of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
 
+The dimensional boundary is explicit: particle XPBD, broadphase bounds, GJK,
+and linear casts have RN contracts where their names say `N`; rigid-body
+state, penetration/manifold generation, and contact response currently have
+R4 contracts. An N-dimensional query is therefore not evidence of an
+N-dimensional rigid response path.
+
 ```ts
 import {
   ObjectN,
@@ -94,7 +100,9 @@ scene4.updateWorld();
 A browser render loop should keep simulation time fixed and rendering time
 variable. The accumulator below is the complete handoff; the first animation
 frame has zero elapsed time, and `PhysicsWorld4.step(0)` is also defined as a
-no-op for clocks that forward that value directly.
+no-op for clocks that forward that value directly. Seed `previousTime` from
+the first animation-frame timestamp as shown—an earlier `performance.now()`
+can be slightly newer than that timestamp and produce a negative first delta.
 
 ```ts
 const fixedDt = 1 / 120;
@@ -223,6 +231,12 @@ onto the complete RN Coulomb tangent ball. In R4 that is an isotropic
 three-ball, not three scalar clamps. `XpbdExponentialVelocityDampingN` provides
 separate timestep-invariant decay with an inverse-seconds rate. These are not
 deformable surface contact, restitution, or continuous collision.
+
+For one standalone point, construct `XpbdParticleHyperplaneConstraintN`
+directly. The `compile*FamilyN` form intentionally requires a real
+`CellComplex` and one bound particle per source vertex because its additional
+purpose is to preserve that source correspondence; it is not a more general
+single-particle constructor.
 
 `compileXpbdDistanceNetworkN()` turns one explicitly selected two-vertex
 `CellComplex` 1-cell group into distance constraints. It can retain its

@@ -88,6 +88,15 @@ which does both — a section in its own frame and a second one overlaid inside
 the wireframe — or read its
 [full source](https://github.com/nikilp/holotope.js/blob/main/examples/showcase/src/tesseract.ts).
 
+Setting the section material to `wireframe: true` exposes the triangle soup
+produced by marching tetrahedra, including coplanar subdivision edges. It is
+useful for inspecting the algorithm, but it is not a clean outline of the
+section. For a presentation outline, derive a Three.js `EdgesGeometry` from
+only the active `triangleCount * 3` vertices; the product's backing buffer is
+larger than its current draw range and may contain vertices from an earlier
+cut. The result is a floating-point crease visualization, not additional exact
+source topology.
+
 ## Author a small cell complex from literals
 
 `CellComplex` is itself the strict authoring boundary; a factory is not
@@ -199,11 +208,23 @@ function updateSlice(timeSeconds: number, transform: TransformN) {
 }
 ```
 
+The default `continuous` frame policy is load-bearing when `setNormal()` runs
+over time: it transports the preceding display basis so the section does not
+snap between equally valid coordinate frames. Request `frame: 'canonical'`
+when each normal must independently reproduce the same axis-derived frame,
+such as document reconstruction or a stateless comparison.
+
 The returned interval bounds the transformed vertex hull. A disconnected or
 non-convex source can still have empty cuts inside it; the helper prevents the
 universal and confusing case where a slider moves beyond the entire source.
 For an axis-aligned scan, omit `setNormal()` and animate only `offset`.
 `axisAligned(3, offset)` is a W scan; it does not animate a camera.
+
+A Cartesian-product source has a correspondingly repetitive scan. In
+particular, an axis-aligned 4-orthotope is a 3-box times an interval, so every
+interior cut orthogonal to that interval is the same 3-box. Prefer a simplex,
+cross-polytope, or another non-product source when changing section geometry is
+the subject of the visualization.
 
 ## Add visual 4D rotation from pointer drag
 
@@ -273,9 +294,9 @@ const surface = new ProjectedSurface3D(
 surface.update(bodyTransform);
 
 const intersections = raycaster.intersectObject(surface.object, false);
-const intersection = intersections.find((value) => value.faceIndex !== undefined);
+const intersection = intersections.find((value) => value.faceIndex != null);
 
-if (intersection?.faceIndex !== undefined) {
+if (intersection?.faceIndex != null) {
   // A Three Intersection is structurally accepted as-is.
   const hit = representationHitFromProjectedSurface(surface, intersection);
   const report = describeRepresentationHitN(hit);
