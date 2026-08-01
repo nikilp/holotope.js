@@ -133,6 +133,12 @@ interface Halfspace3 {
   sourceIndex: number;
 }
 
+interface ContactCandidate3 {
+  tangent: Float64Array;
+  point: VecN;
+  activeHalfspaces: readonly number[];
+}
+
 /**
  * Enumerates the bounded intersection of R4 halfspaces inside one contact
  * hyperplane. The resulting problem is three-dimensional: every vertex is the
@@ -172,7 +178,7 @@ export function intersectContactHalfspaces4(
     }
   }
 
-  const candidates: { tangent: Float64Array; point: VecN }[] = [];
+  const candidates: ContactCandidate3[] = [];
   let triplesTested = 0;
   let feasibleCandidates = 0;
   for (let i = 0; i < effective.length - 2; i++) {
@@ -192,17 +198,24 @@ export function intersectContactHalfspaces4(
           continue;
         }
         feasibleCandidates++;
+        const activeHalfspaces = activeHalfspacesAt(
+          tangent,
+          constraints,
+          Math.max(options.feasibilityTolerance, options.vertexTolerance)
+        );
         if (
           candidates.some(
             (candidate) =>
-              distance3(candidate.tangent, tangent) <= options.vertexTolerance
+              distance3(candidate.tangent, tangent) <= options.vertexTolerance ||
+              sameVertexWitness(candidate.activeHalfspaces, activeHalfspaces)
           )
         ) {
           continue;
         }
         candidates.push({
           tangent,
-          point: tangentToWorld(tangent, origin, tangentBasis)
+          point: tangentToWorld(tangent, origin, tangentBasis),
+          activeHalfspaces
         });
       }
     }
@@ -217,20 +230,10 @@ export function intersectContactHalfspaces4(
   const tangentPoints = candidates.map(({ tangent }) => tangent);
   const affine = affineBasis3(tangentPoints, options.rankTolerance);
   const intrinsicDim = affine.length as 0 | 1 | 2 | 3;
-  const vertices = candidates.map(({ tangent, point }): ContactPlaneVertex4 => ({
+  const vertices = candidates.map(({ tangent, point, activeHalfspaces }): ContactPlaneVertex4 => ({
     tangent,
     point,
-    activeHalfspaces: constraints
-      .filter((constraint) => {
-        const projection = dot3(constraint.coefficient, tangent);
-        return Math.abs(projection - constraint.bound) <= scaledTolerance(
-          Math.max(options.feasibilityTolerance, options.vertexTolerance),
-          projection,
-          constraint.bound
-        );
-      })
-      .map(({ sourceIndex }) => sourceIndex)
-      .sort((left, right) => left - right)
+    activeHalfspaces
   }));
   const solverIndices = reducedSolverIndices(
     tangentPoints,
@@ -252,6 +255,38 @@ export function intersectContactHalfspaces4(
       solverPoints: solverIndices.length
     }
   };
+}
+
+function activeHalfspacesAt(
+  point: ArrayLike<number>,
+  constraints: readonly Halfspace3[],
+  tolerance: number
+): readonly number[] {
+  return constraints
+    .filter((constraint) => {
+      const projection = dot3(constraint.coefficient, point);
+      return Math.abs(projection - constraint.bound) <= scaledTolerance(
+        tolerance,
+        projection,
+        constraint.bound
+      );
+    })
+    .map(({ sourceIndex }) => sourceIndex)
+    .sort((left, right) => left - right);
+}
+
+/**
+ * Three independent active boundaries determine one vertex in the contact
+ * plane. Near-parallel triples can solve to slightly different coordinates
+ * for that same vertex, so their shared active-boundary witness is stronger
+ * evidence of identity than a second coordinate tolerance alone.
+ */
+function sameVertexWitness(
+  left: readonly number[],
+  right: readonly number[]
+): boolean {
+  if (left.length < 3 || left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
 }
 
 function solveConstraintTriple(

@@ -1,6 +1,7 @@
 import { VecN } from '@holotope/core';
 import {
   intersectContactHalfspaces4,
+  reduceContactPoints4,
   type ContactHalfspace4,
   type ContactPatchKind4
 } from './contact-polyhedron4.js';
@@ -131,7 +132,7 @@ export function hyperboxContactPatch4(
     maxSolverPoints
   });
   const featureTolerance = Math.max(clipTolerance * 4, vertexTolerance * 2);
-  const vertices = intersection.vertices.map((candidate): HyperboxContactVertex4 => {
+  const classified = intersection.vertices.map((candidate): HyperboxContactVertex4 => {
     const featureA = classifyBoundaryFeature(
       candidate.point,
       resolvedCenterA,
@@ -153,13 +154,31 @@ export function hyperboxContactPatch4(
       featureB
     };
   });
-  const solverPoints = intersection.solverIndices.map((index) => vertices[index]!);
+  // Several nearly parallel constraint triples can solve to a numerical cloud
+  // around one exact box-feature intersection. Boundary feature pairs are the
+  // persistent identity of hyperbox vertices, so retain one deterministic
+  // representative for each pair before classifying patch dimension or
+  // handing points to the warm-started solver.
+  const vertices: HyperboxContactVertex4[] = [];
+  const featurePairs = new Set<string>();
+  for (const vertex of classified) {
+    if (featurePairs.has(vertex.id)) continue;
+    featurePairs.add(vertex.id);
+    vertices.push(vertex);
+  }
+  const reduction = reduceContactPoints4(
+    vertices.map(({ point }) => point),
+    normal,
+    maxSolverPoints,
+    rankTolerance
+  );
+  const solverPoints = reduction.solverIndices.map((index) => vertices[index]!);
 
   return {
     sat,
     patch: {
-      kind: intersection.kind,
-      intrinsicDim: intersection.intrinsicDim,
+      kind: reduction.kind,
+      intrinsicDim: reduction.intrinsicDim,
       normal,
       planeOffset,
       penetrationDepth: sat.penetrationDepth,
@@ -169,7 +188,11 @@ export function hyperboxContactPatch4(
       satSource: sat.source,
       vertices,
       solverPoints,
-      diagnostics: intersection.diagnostics
+      diagnostics: {
+        ...intersection.diagnostics,
+        uniqueVertices: vertices.length,
+        solverPoints: solverPoints.length
+      }
     }
   };
 }

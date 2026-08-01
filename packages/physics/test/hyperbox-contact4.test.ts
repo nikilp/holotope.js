@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Rotor4, TransformN, VecN } from '@holotope/core';
+import { MatN, Rotor4, TransformN, VecN } from '@holotope/core';
 import {
   HyperboxSupportShape4,
   hyperboxContactPatch4,
@@ -222,6 +222,46 @@ describe('R4 hyperbox contact patches', () => {
     expect(forward.intrinsicDim).toBe(reverse.intrinsicDim);
     expect(forward.vertices.length).toBe(reverse.vertices.length);
     expect(forward.penetrationDepth).toBeCloseTo(reverse.penetrationDepth, 11);
+  });
+
+  it('collapses near-parallel triple solves carrying one boundary witness', () => {
+    const boxA = new HyperboxSupportShape4(
+      [0.5, 0.5, 0.5, 0.5],
+      new TransformN(
+        4,
+        new MatN(4, [
+          0.9999958692364421, 0.0028742791211123705, -0.0000033033195038661457, -0.000004321392704243257,
+          -0.0028742773457766197, 0.9999876378576404, -0.0028606487462322335, -0.002877386033654994,
+          -0.000004919024481383466, 0.0028606435640489243, 0.9999959083256762, -0.000005109631610644303,
+          -0.000003949072120397977, 0.002877389412269484, -0.000003121607243382991, 0.9999958602938466
+        ]),
+        new VecN([-2.3983161085920037, 1.352523818675245, -2.3983140524943023, 0.0016833451528154718])
+      )
+    );
+    const boxB = new HyperboxSupportShape4(
+      [0.5, 0.5, 0.5, 0.5],
+      new TransformN(
+        4,
+        new MatN(4, [
+          0.9999999999876056, 0.000004775307564892472, 0.000001375632625141748, -3.051967725942484e-7,
+          -0.0000047752947303389165, 0.9999999999305921, -0.000010137266765140156, -0.0000036398602285919157,
+          -0.0000013756815465846586, 0.000010137254077910866, 0.9999999999462593, -0.000001680862144508676,
+          3.051770788565292e-7, 0.0000036398787251037885, 0.0000016808256660364444, 0.9999999999919166
+        ]),
+        new VecN([-2.40462036601452, 2.303047395683621, -2.4046218449743324, -0.00462003961354193])
+      )
+    );
+
+    const patch = hyperboxContactPatch4(boxA, boxB).patch!;
+    expect(patch.kind).toBe('point');
+    expect(patch.intrinsicDim).toBe(0);
+    expect(patch.diagnostics).toMatchObject({
+      feasibleCandidates: 4,
+      uniqueVertices: 1,
+      solverPoints: 1
+    });
+    expect(patch.vertices).toHaveLength(1);
+    expect(new Set(patch.solverPoints.map(({ id }) => id)).size).toBe(1);
   });
 
   it('validates contact-patch numerical policies', () => {
