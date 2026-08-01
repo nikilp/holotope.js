@@ -91,6 +91,41 @@ binding.capture().apply(alpha);
 scene4.updateWorld();
 ```
 
+A browser render loop should keep simulation time fixed and rendering time
+variable. The accumulator below is the complete handoff; the first animation
+frame has zero elapsed time, and `PhysicsWorld4.step(0)` is also defined as a
+no-op for clocks that forward that value directly.
+
+```ts
+const fixedDt = 1 / 120;
+let previousTime: number | undefined;
+let accumulator = 0;
+
+function frame(timeMilliseconds: number) {
+  const elapsed = previousTime === undefined
+    ? 0
+    : Math.min((timeMilliseconds - previousTime) / 1000, 0.25);
+  previousTime = timeMilliseconds;
+  accumulator += elapsed;
+
+  while (accumulator >= fixedDt) {
+    world.step(fixedDt, 2);
+    binding.capture();
+    accumulator -= fixedDt;
+  }
+
+  binding.apply(accumulator / fixedDt);
+  scene4.updateWorld();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+```
+
+The `0.25` clamp prevents a backgrounded tab from demanding an unbounded
+catch-up burst. Forces and torques survive a zero-time no-op and clear only
+after a positive completed step.
+
 `PointJoint4` binds a body-local anchor to another body or a fixed world point.
 Resolve it inside the world's velocity-constraint callback and pass the result
 to `PointJointSolver4`; the solver exposes the complete 4x4 point response and

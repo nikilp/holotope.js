@@ -5,11 +5,14 @@
  * throws on the first violated claim. The verifier runs this file with `node`
  * after a strict typecheck; a thrown error is the failure signal.
  */
-import { PerspectiveCamera, Raycaster, Vector2, type Intersection } from 'three';
+import { LineBasicMaterial, PerspectiveCamera, Raycaster, Vector2, type Intersection } from 'three';
 import {
   BivectorN,
   CellComplex,
+  PerspectiveProjection,
+  Rotor4,
   TransformN,
+  cellComplexBoundsAlongAxisN,
   createHypercube,
   createHyperrectangle,
   cuboidCellFacetN,
@@ -18,6 +21,7 @@ import {
   tetrahedralizeCuboidCells
 } from '@holotope/core';
 import {
+  ProjectedEdges3D,
   representationHitFromProjectedSurface,
   representationHitFromSlicedComplex
 } from '@holotope/three';
@@ -71,6 +75,12 @@ function facetNames(complex: CellComplex): string {
 export function geometryComposition(): void {
   const complex = createHypercube({ dim: 4, size: 3, maxCellDimension: 3 });
   assert(facetNames(complex) === EXPECTED_FACETS, `size-3 facets were ${facetNames(complex)}`);
+  const bounds = cellComplexBoundsAlongAxisN(complex, 3);
+  assert(bounds.min === -1.5 && bounds.max === 1.5, `w bounds were [${bounds.min}, ${bounds.max}]`);
+
+  const relative = Rotor4.fromPlane(0, 3, 0.7);
+  const [major, minor] = Rotor4.principalAnglesBetween(Rotor4.identity(), relative);
+  assert(Math.abs(major - 0.7) < 1e-12 && minor < 1e-12, `principal angles were [${major}, ${minor}]`);
 
   // Translated clear of the origin, every coordinate shares one sign, so a
   // recipe reading `Math.sign` would name the same facet eight times.
@@ -115,6 +125,27 @@ function rayAtFirstTriangle(geometry: {
 export function representationClaims(): void {
   const scenario = buildScenario(2);
 
+  const edges = new ProjectedEdges3D(
+    scenario.complex,
+    new PerspectiveProjection({ fromDim: 4, viewDistance: 4 }),
+    { color: 0x1e293b }
+  );
+  assert(
+    (edges.object.material as LineBasicMaterial).color.getHex() === 0x1e293b,
+    'ProjectedEdges3D ignored its explicit color'
+  );
+  let rejectedUnknownOption = false;
+  try {
+    new ProjectedEdges3D(
+      scenario.complex,
+      new PerspectiveProjection({ fromDim: 4, viewDistance: 4 }),
+      { linewidth: 2 } as never
+    );
+  } catch (error) {
+    rejectedUnknownOption = error instanceof Error && /linewidth/.test(error.message);
+  }
+  assert(rejectedUnknownOption, 'ProjectedEdges3D accepted an unknown linewidth option');
+
   const section = buildSection(scenario);
   section.object.updateMatrixWorld(true);
   const sectionHits: Intersection[] = rayAtFirstTriangle(section.geometry).intersectObject(
@@ -156,6 +187,7 @@ export function representationClaims(): void {
 
   section.dispose();
   surface.dispose();
+  edges.dispose();
 }
 
 /** Euclidean norm over a bivector's plane coefficients. */

@@ -71,6 +71,7 @@
 import {
   VecN, MatN, BivectorN, Rotor4, TransformN,
   CellComplex, createHypercube, createHyperrectangle,
+  cellComplexBoundsAlongAxisN, cellComplexBoundsAlongDirectionN,
   tetrahedralizeCuboidCells,
   PerspectiveProjection, CoordinateProjection, HyperplaneSlice4
 } from '@holotope/core';
@@ -130,10 +131,23 @@ objects.
 ## Core anchors
 
 - Vectors/transforms: `VecN`, `MatN`, `BivectorN`, `Rotor4`, `TransformN`.
+- Rotation queries/sampling: `Rotor4.principalAnglesBetween(a, b)` returns the
+  two physical invariant-plane angles; `Rotor4.geodesicDistanceBetween(a, b)`
+  is their norm and remains defined where `log()` is non-unique;
+  `Rotor4.random(rng?)` samples Haar-uniform SO(4), unlike a uniform bivector.
 - Topology: `CellComplex` (`cellsOfDim`, `cellCount`, `vertexCount`,
   `getPosition` returning a bare `Float64Array`, `groups` of
   `{ dim, verticesPerCell, kind, indices }` with no cell count of their own),
   cuboid tetrahedralization, source-cell references.
+- Hand authoring: `new CellComplex(ambientDim, packedFloat64Positions,
+  cellGroups)` is the strict public constructor. It retains the typed arrays,
+  validates indices, and does not infer missing edge/face groups. See the
+  cookbook's literal-authoring recipe; do not invent a `{ dim, positions,
+  cells }` object shape.
+- Slice ranges: `cellComplexBoundsAlongDirectionN(complex, slice.normal,
+  transform?)` returns the vertex-hull offset interval in source or transformed
+  space. It does not promise every offset inside a non-convex/disconnected
+  source produces a non-empty section.
 - Parent-cell provenance: `tetrahedralizeCuboidCells` is additive and drops the
   parent map; `simplexizeCuboidGroupN` returns `simplexGroup` beside
   `sourceCellIndices` and `permutationIndices`, parallel arrays indexed by
@@ -274,7 +288,9 @@ Incremental objective guide: `docs/learn/theory/incremental-potentials.md`.
 
 ## Three anchors
 
-- `ProjectedEdges3D`: projected 1-skeleton render product.
+- `ProjectedEdges3D`: projected 1-skeleton render product. Its options accept
+  `color` or a complete `material`, not both; unknown keys such as `linewidth`
+  are rejected because WebGL does not reliably implement line width.
 - `ProjectedSurface3D`: projected 2-face mesh with source-triangle picking.
 - `SlicedComplex3D`: exact 4D section from tetrahedral 3-cells.
 - `SlicedComplex3D.triangleCount`: accessor, not a method; `0` means the cut
@@ -308,6 +324,13 @@ const section = new SlicedComplex3D(complex, HyperplaneSlice4.axisAligned(3, 0))
 scene.add(shadow.object, section.object);
 shadow.update(pose);
 section.update(pose);
+```
+
+```ts
+// Keep a slice slider inside the source's vertex-hull interval. The slice
+// normal is normalized, so these values are in source units.
+const range = cellComplexBoundsAlongDirectionN(complex, slice.normal, pose);
+slice.offset = Math.max(range.min, Math.min(range.max, requestedOffset));
 ```
 
 ```ts

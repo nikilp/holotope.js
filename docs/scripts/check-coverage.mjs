@@ -56,7 +56,9 @@ const REFERENCE = 4194304; // a re-export alias; the target carries the docs
 
 const described = (node) =>
   Boolean(node.comment?.summary?.length) ||
-  Boolean(node.signatures?.some((s) => s.comment?.summary?.length));
+  Boolean(node.signatures?.some((s) => s.comment?.summary?.length)) ||
+  Boolean(node.getSignature?.comment?.summary?.length) ||
+  Boolean(node.setSignature?.comment?.summary?.length);
 
 // --- collect ----------------------------------------------------------------
 const violations = [];

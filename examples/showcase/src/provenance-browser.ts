@@ -31,10 +31,12 @@ import {
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   type CellComplex,
+  type CellComplexDirectionalBoundsN,
   HyperplaneSlice4,
   PerspectiveProjection,
   type RepresentationHitN,
   TransformN,
+  cellComplexBoundsAlongAxisN,
   createHypercube,
   rotationFromPlanes,
   tetrahedralizeCuboidCells
@@ -72,6 +74,8 @@ const source: CellComplex = tetrahedralizeCuboidCells(
 
 const projection = new PerspectiveProjection({ fromDim: 4, viewDistance: 3.4 });
 const slice = HyperplaneSlice4.axisAligned(3, 0);
+const sliceOffsetBounds: CellComplexDirectionalBoundsN =
+  cellComplexBoundsAlongAxisN(source, 3);
 
 const wireframe = new ProjectedEdges3D(source, projection, {
   material: new LineBasicMaterial({ color: 0x4a5a80 })
@@ -157,7 +161,14 @@ const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.enableDamping = true;
 
 const PARAMS: readonly Param[] = [
-  { name: 'offset', label: 'cut offset', min: -0.6, max: 0.6, step: 0.02, value: 0 },
+  {
+    name: 'offset',
+    label: 'cut offset',
+    min: sliceOffsetBounds.min,
+    max: sliceOffsetBounds.max,
+    step: 0.02,
+    value: 0
+  },
   { kind: 'toggle', name: 'overlay', label: 'draw in projection', value: false },
   { kind: 'toggle', name: 'spin', label: 'rotate', value: true }
 ];

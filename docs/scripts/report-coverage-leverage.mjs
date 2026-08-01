@@ -47,7 +47,9 @@ const REFERENCE = 4194304;
 
 const described = (node) =>
   Boolean(node.comment?.summary?.length) ||
-  Boolean(node.signatures?.some((s) => s.comment?.summary?.length));
+  Boolean(node.signatures?.some((s) => s.comment?.summary?.length)) ||
+  Boolean(node.getSignature?.comment?.summary?.length) ||
+  Boolean(node.setSignature?.comment?.summary?.length);
 
 /** Undocumented members grouped by the declaration they were inherited from. */
 const sources = new Map();

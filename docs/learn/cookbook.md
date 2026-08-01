@@ -50,6 +50,45 @@ function render() {
 See it running in the [tesseract demo](https://nikilp.github.io/holotope.js/tesseract.html),
 or read its [full source](https://github.com/nikilp/holotope.js/blob/main/examples/showcase/src/tesseract.ts).
 
+## Author a small cell complex from literals
+
+`CellComplex` is itself the strict authoring boundary; a factory is not
+required. Flatten vertex coordinates and each homogeneous cell group
+explicitly so ambient dimension, cell dimension, arity, and interpretation
+remain visible and independently validated.
+
+```ts
+import { CellComplex } from '@holotope/core';
+
+const vertices = [
+  [0, 0, 0, 0],
+  [1, 0, 0, 0],
+  [0, 1, 0, 0],
+  [0, 0, 1, 0]
+];
+const edges = [
+  [0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]
+];
+
+const authored = new CellComplex(
+  4,
+  Float64Array.from(vertices.flat()),
+  [{
+    key: 'tetrahedron-edges',
+    dim: 1,
+    kind: 'simplex',
+    verticesPerCell: 2,
+    indices: Uint32Array.from(edges.flat())
+  }]
+);
+```
+
+The constructor retains the typed arrays rather than copying them: mutating
+`authored.positions` is an explicit source-geometry edit. It validates every
+index immediately. It does not infer missing edges or faces from higher cells;
+that topological derivation needs an explicit policy and remains a separate
+operation.
+
 ## Compile a whole scene from one document
 
 When a scenario should be reproducible — the same body, motion, and views every
@@ -103,6 +142,7 @@ orientation and updates the slice display frame in place, so the existing
 import {
   HyperplaneSlice4,
   TransformN,
+  cellComplexBoundsAlongDirectionN,
   createHypercube,
   tetrahedralizeCuboidCells
 } from '@holotope/core';
@@ -113,12 +153,17 @@ const slice = HyperplaneSlice4.axisAligned(3, 0); // w = 0 initially
 const section = new SlicedComplex3D(complex, slice);
 
 function updateSlice(timeSeconds: number, transform: TransformN) {
-  slice.offset = 0.85 * Math.sin(timeSeconds * 0.7);
   slice.setNormal([0.2 * Math.sin(timeSeconds * 0.3), 0, 0, 1]);
+  const range = cellComplexBoundsAlongDirectionN(complex, slice.normal, transform);
+  const requestedOffset = 0.85 * Math.sin(timeSeconds * 0.7);
+  slice.offset = Math.max(range.min, Math.min(range.max, requestedOffset));
   section.update(transform);
 }
 ```
 
+The returned interval bounds the transformed vertex hull. A disconnected or
+non-convex source can still have empty cuts inside it; the helper prevents the
+universal and confusing case where a slider moves beyond the entire source.
 For an axis-aligned scan, omit `setNormal()` and animate only `offset`.
 `axisAligned(3, offset)` is a W scan; it does not animate a camera.
 
