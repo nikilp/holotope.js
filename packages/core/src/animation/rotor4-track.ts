@@ -17,10 +17,9 @@ export type RotorInterpolation = 'step' | 'linear' | 'cubic';
  *
  * - each key is pair-normalized;
  * - key i is jointly negated iff that shortens the squared geodesic
- *   length acos²(dL) + acos²(dR) to key i−1 — the acos comparison, not
- *   sign(dL + dR), because when the factor dots disagree in sign the
- *   two lifts are genuinely different paths and the linear heuristic
- *   can pick the longer one;
+ *   length acos²(dL) + acos²(dR) to key i−1. The explicit comparison used
+ *   here is exactly equivalent to the pair-level sign of `dL + dR`; it is
+ *   never equivalent to choosing a sign independently for each factor;
  * - any segment still spanning a factor angle ≥ π − margin is
  *   subdivided by pair-slerp midpoints until none does, keeping every
  *   quaternion log downstream away from its q = −1 singularity.

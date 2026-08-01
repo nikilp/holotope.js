@@ -1,4 +1,9 @@
 export { CellComplex, type CellGroup, type CellKind } from './cell-complex.js';
+export {
+  cellComplexBoundsAlongAxisN,
+  cellComplexBoundsAlongDirectionN,
+  type CellComplexDirectionalBoundsN
+} from './cell-complex-bounds.js';
 export { cuboidCellFacetN, type CellFacetN } from './cell-facet.js';
 export { findIncidentCellsN } from './cell-incidence.js';
 export {

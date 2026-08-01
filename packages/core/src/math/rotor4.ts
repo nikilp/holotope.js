@@ -141,6 +141,56 @@ export class Rotor4 {
     return r;
   }
 
+  /**
+   * Haar-uniform random rotation on SO(4).
+   *
+   * Each paired factor is sampled independently and uniformly on S³, then
+   * the pair descends through Spin(4)'s two-to-one cover. This is not the same
+   * as exponentiating six independently uniform bivector coefficients, which
+   * clusters rotations around coordinate-dependent regions.
+   *
+   * @param rng - Source of independent values in `[0, 1)`. Defaults to
+   * `Math.random`; pass a seeded generator for reproducible scenes or tests.
+   */
+  static random(rng: () => number = Math.random): Rotor4 {
+    return new Rotor4(randomUnitQuaternion(rng), randomUnitQuaternion(rng));
+  }
+
+  /**
+   * The two invariant-plane angles of the shortest relative SO(4) rotation.
+   *
+   * The result is `[major, minor]`, both in `[0, π]`. A single-plane rotation
+   * by `theta` reports `[|theta|, 0]`; an isoclinic rotation reports equal
+   * angles; central inversion reports `[π, π]`. The simultaneous cover sign
+   * is selected once for the pair, never independently per quaternion.
+   * Unlike `log()`, this spectrum remains unique at the geodesic cut locus.
+   */
+  static principalAnglesBetween(a: Rotor4, b: Rotor4): readonly [number, number] {
+    assertNormalizedRotor(a, 'a', 'Rotor4.principalAnglesBetween');
+    assertNormalizedRotor(b, 'b', 'Rotor4.principalAnglesBetween');
+    const dotLeft = qdot(a.left, b.left);
+    const dotRight = qdot(a.right, b.right);
+    const sign = dotLeft + dotRight < 0 ? -1 : 1;
+    const factorLeft = Math.acos(clampUnit(sign * dotLeft));
+    const factorRight = Math.acos(clampUnit(sign * dotRight));
+    return Object.freeze([
+      factorLeft + factorRight,
+      Math.abs(factorLeft - factorRight)
+    ]) as readonly [number, number];
+  }
+
+  /**
+   * Bi-invariant SO(4) geodesic distance between two rotations.
+   *
+   * This is the Euclidean norm of `principalAnglesBetween(a, b)`, normalized
+   * so distance from identity to a single-plane rotation by `theta` is
+   * `|theta|`. It is finite at the cut locus even when `log()` is non-unique.
+   */
+  static geodesicDistanceBetween(a: Rotor4, b: Rotor4): number {
+    const [major, minor] = Rotor4.principalAnglesBetween(a, b);
+    return Math.hypot(major, minor);
+  }
+
   clone(): Rotor4 {
     return new Rotor4(this.left.slice(), this.right.slice());
   }
@@ -295,6 +345,47 @@ function qmul(a: ArrayLike<number>, b: ArrayLike<number>): Float64Array {
 function qnormalize(q: Float64Array): void {
   const len = Math.hypot(q[0]!, q[1]!, q[2]!, q[3]!);
   for (let k = 0; k < 4; k++) q[k]! /= len;
+}
+
+function qdot(a: ArrayLike<number>, b: ArrayLike<number>): number {
+  return a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]! + a[3]! * b[3]!;
+}
+
+function clampUnit(value: number): number {
+  return Math.max(-1, Math.min(1, value));
+}
+
+function assertNormalizedRotor(rotor: Rotor4, name: string, owner: string): void {
+  for (const [factorName, factor] of [['left', rotor.left], ['right', rotor.right]] as const) {
+    const length = Math.hypot(factor[0]!, factor[1]!, factor[2]!, factor[3]!);
+    if (!Number.isFinite(length) || Math.abs(length - 1) > 1e-10) {
+      throw new Error(`${owner}: ${name}.${factorName} must be finite and normalized`);
+    }
+  }
+}
+
+function randomUnitQuaternion(rng: () => number): Float64Array {
+  const u1 = randomUnitInterval(rng);
+  const u2 = randomUnitInterval(rng);
+  const u3 = randomUnitInterval(rng);
+  const low = Math.sqrt(1 - u1);
+  const high = Math.sqrt(u1);
+  const angleLow = 2 * Math.PI * u2;
+  const angleHigh = 2 * Math.PI * u3;
+  return Float64Array.of(
+    low * Math.sin(angleLow),
+    low * Math.cos(angleLow),
+    high * Math.sin(angleHigh),
+    high * Math.cos(angleHigh)
+  );
+}
+
+function randomUnitInterval(rng: () => number): number {
+  const value = rng();
+  if (!Number.isFinite(value) || value < 0 || value >= 1) {
+    throw new Error('Rotor4.random: rng must return finite values in [0, 1)');
+  }
+  return value;
 }
 
 /**

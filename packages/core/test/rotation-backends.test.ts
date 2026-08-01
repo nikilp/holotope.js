@@ -156,6 +156,94 @@ describe('Rotor4', () => {
     expect(() => centralInversion.log()).toThrow(/no unique logarithm/);
   });
 
+  it('reports physical principal angles and geodesic distance without taking a log', () => {
+    const single = Rotor4.fromPlane(0, 3, 0.8);
+    expect(Rotor4.principalAnglesBetween(Rotor4.identity(), single)).toEqual([
+      expect.closeTo(0.8, 12),
+      expect.closeTo(0, 12)
+    ]);
+    expect(Rotor4.geodesicDistanceBetween(Rotor4.identity(), single)).toBeCloseTo(0.8, 12);
+
+    const double = Rotor4.fromPlanes([
+      { i: 0, j: 1, angle: 0.9 },
+      { i: 2, j: 3, angle: -0.35 }
+    ]);
+    const [major, minor] = Rotor4.principalAnglesBetween(Rotor4.identity(), double);
+    expect(major).toBeCloseTo(0.9, 12);
+    expect(minor).toBeCloseTo(0.35, 12);
+    expect(Rotor4.geodesicDistanceBetween(Rotor4.identity(), double)).toBeCloseTo(
+      Math.hypot(0.9, 0.35),
+      12
+    );
+  });
+
+  it('is cover-invariant and remains defined at central inversion', () => {
+    const target = Rotor4.fromPlanes([
+      { i: 0, j: 1, angle: 1.1 },
+      { i: 2, j: 3, angle: 0.4 }
+    ]);
+    const negated = target.clone();
+    for (let component = 0; component < 4; component += 1) {
+      negated.left[component]! *= -1;
+      negated.right[component]! *= -1;
+    }
+    expect(Rotor4.principalAnglesBetween(Rotor4.identity(), negated)).toEqual(
+      Rotor4.principalAnglesBetween(Rotor4.identity(), target)
+    );
+
+    const central = Rotor4.fromPlanes([
+      { i: 0, j: 1, angle: Math.PI },
+      { i: 2, j: 3, angle: Math.PI }
+    ]);
+    const [major, minor] = Rotor4.principalAnglesBetween(Rotor4.identity(), central);
+    expect(major).toBeCloseTo(Math.PI, 12);
+    expect(minor).toBeCloseTo(Math.PI, 12);
+    expect(Rotor4.geodesicDistanceBetween(Rotor4.identity(), central)).toBeCloseTo(
+      Math.SQRT2 * Math.PI,
+      12
+    );
+  });
+
+  it('samples deterministic Haar rotations from an authored RNG', () => {
+    const generator = (seed: number): (() => number) => {
+      let state = seed >>> 0;
+      return () => {
+        state = (1664525 * state + 1013904223) >>> 0;
+        return state / 0x1_0000_0000;
+      };
+    };
+    const a = Rotor4.random(generator(1234));
+    const b = Rotor4.random(generator(1234));
+    expect(a.left).toEqual(b.left);
+    expect(a.right).toEqual(b.right);
+    expect(a.toMatrix().orthogonalityError()).toBeLessThan(1e-14);
+    expect(a.toMatrix().determinant()).toBeCloseTo(1, 13);
+    expect(() => Rotor4.random(() => 1)).toThrow(/\[0, 1\)/);
+  });
+
+  it('has the first two Haar column moments under a deterministic sample', () => {
+    let state = 0x5eed1234;
+    const rng = (): number => {
+      state = (1664525 * state + 1013904223) >>> 0;
+      return state / 0x1_0000_0000;
+    };
+    const sums = new Float64Array(4);
+    const squares = new Float64Array(4);
+    const samples = 4096;
+    for (let sample = 0; sample < samples; sample += 1) {
+      const matrix = Rotor4.random(rng).toMatrix();
+      for (let row = 0; row < 4; row += 1) {
+        const value = matrix.get(row, 0);
+        sums[row]! += value;
+        squares[row]! += value * value;
+      }
+    }
+    for (let row = 0; row < 4; row += 1) {
+      expect(Math.abs(sums[row]! / samples)).toBeLessThan(0.035);
+      expect(squares[row]! / samples).toBeCloseTo(0.25, 1);
+    }
+  });
+
   it('factors every SO(4) matrix back into the paired-quaternion cover', () => {
     for (let trial = 0; trial < 25; trial++) {
       const expected = Rotor4.fromBivector(randomBivector(4));
