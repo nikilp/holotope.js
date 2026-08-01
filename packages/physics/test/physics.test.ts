@@ -266,6 +266,48 @@ describe('momentum-primary ballistic dynamics', () => {
     expect(body.angularMomentumWorld.get(0, 1)).toBeCloseTo(1.5, 14);
     expect(Array.from(body.torque.coeffs)).toEqual([0, 0, 0, 0, 0, 0]);
   });
+
+  it('treats a zero elapsed-time world step as a complete no-op', () => {
+    const body = new RigidBody4({
+      mass: 2,
+      inertiaDiagonal: [1, 2, 3, 4, 5, 6],
+      position: [1, 2, 3, 4],
+      linearVelocity: [5, 6, 7, 8]
+    });
+    body.applyForce([9, 10, 11, 12]);
+    body.applyTorque([1, 2, 3, 4, 5, 6]);
+    const rotation = body.rotation.toMatrix().data.slice();
+    const world = new PhysicsWorld4().addBody(body);
+
+    world.step(0);
+
+    expect(body.position.toArray()).toEqual([1, 2, 3, 4]);
+    expect(body.linearVelocity.toArray()).toEqual([5, 6, 7, 8]);
+    expect(body.rotation.toMatrix().data).toEqual(rotation);
+    expect(body.force.toArray()).toEqual([9, 10, 11, 12]);
+    expect(Array.from(body.torque.coeffs)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(() => world.step(-Number.EPSILON)).toThrow(/non-negative/);
+    expect(() => world.step(Number.NaN)).toThrow(/non-negative/);
+  });
+
+  it('keeps mass and principal inertia internally consistent at runtime', () => {
+    const body = new RigidBody4({ mass: 2, inertiaDiagonal: [1, 2, 3, 4, 5, 6] });
+
+    expect(Reflect.set(body, 'mass', 999)).toBe(false);
+    expect(Reflect.set(body, 'invMass', 999)).toBe(false);
+    const inertia = body.inertiaDiagonal;
+    const inverse = body.invInertiaDiagonal;
+    inertia[0] = 999;
+    inverse[1] = 999;
+
+    expect(body.mass).toBe(2);
+    expect(body.invMass).toBe(0.5);
+    expect(Array.from(body.inertiaDiagonal)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(Array.from(body.invInertiaDiagonal)).toEqual([1, 0.5, 1 / 3, 0.25, 0.2, 1 / 6]);
+
+    body.applyImpulseAtWorldPoint([2, 0, 0, 0], body.position);
+    expect(body.linearVelocity.data[0]).toBe(1);
+  });
 });
 
 describe('simulation to scene synchronization', () => {

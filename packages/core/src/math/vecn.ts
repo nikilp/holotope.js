@@ -14,7 +14,19 @@ export class VecN {
   constructor(dim: number);
   constructor(values: ArrayLike<number>);
   constructor(arg: number | ArrayLike<number>) {
-    this.data = typeof arg === 'number' ? new Float64Array(arg) : Float64Array.from(arg);
+    if (arguments.length !== 1) {
+      throw new Error(
+        'VecN: expected exactly one argument — pass either a dimension or an array of values'
+      );
+    }
+    if (typeof arg === 'number') {
+      if (!Number.isSafeInteger(arg) || arg < 0) {
+        throw new Error('VecN: dimension must be a non-negative safe integer');
+      }
+      this.data = new Float64Array(arg);
+    } else {
+      this.data = Float64Array.from(arg);
+    }
   }
 
   get dim(): number {

@@ -21,6 +21,14 @@ describe('VecN', () => {
     expect(() => new VecN(3).add(new VecN(4))).toThrow(/dimension mismatch/);
   });
 
+  it('rejects extra constructor arguments instead of silently returning zeros', () => {
+    expect(() => Reflect.construct(VecN, [4, [1, 2, 3, 4]])).toThrow(
+      /exactly one argument/
+    );
+    expect(() => new VecN(Number.NaN)).toThrow(/dimension/);
+    expect(() => new VecN(2.5)).toThrow(/dimension/);
+  });
+
   it('normalizes and rejects zero vectors', () => {
     expect(new VecN([0, 5, 0, 0]).normalize().toArray()).toEqual([0, 1, 0, 0]);
     expect(() => new VecN(4).normalize()).toThrow();

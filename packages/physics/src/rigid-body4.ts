@@ -21,10 +21,10 @@ export type RigidBody4StateOptions = Omit<RigidBody4Options, 'mass' | 'inertiaDi
  * part of this ballistic-stage type yet.
  */
 export class RigidBody4 {
-  readonly mass: number;
-  readonly invMass: number;
-  readonly inertiaDiagonal: Float64Array;
-  readonly invInertiaDiagonal: Float64Array;
+  readonly #mass: number;
+  readonly #invMass: number;
+  readonly #inertiaDiagonal: Float64Array;
+  readonly #invInertiaDiagonal: Float64Array;
   readonly position: VecN;
   rotation: Rotor4;
   readonly linearVelocity: VecN;
@@ -40,16 +40,16 @@ export class RigidBody4 {
     if (options.inertiaDiagonal.length !== 6) {
       throw new Error('RigidBody4: inertiaDiagonal must contain six plane inertias');
     }
-    this.inertiaDiagonal = Float64Array.from(options.inertiaDiagonal);
-    if (Array.from(this.inertiaDiagonal).some((value) => !Number.isFinite(value) || value <= 0)) {
+    this.#inertiaDiagonal = Float64Array.from(options.inertiaDiagonal);
+    if (Array.from(this.#inertiaDiagonal).some((value) => !Number.isFinite(value) || value <= 0)) {
       throw new Error('RigidBody4: all principal inertias must be finite and positive');
     }
-    this.invInertiaDiagonal = Float64Array.from(
-      this.inertiaDiagonal,
+    this.#invInertiaDiagonal = Float64Array.from(
+      this.#inertiaDiagonal,
       (value) => 1 / value
     );
-    this.mass = options.mass;
-    this.invMass = 1 / options.mass;
+    this.#mass = options.mass;
+    this.#invMass = 1 / options.mass;
     this.position = vector4(options.position, 'position');
     this.rotation = options.rotation?.clone() ?? Rotor4.identity();
     this.linearVelocity = vector4(options.linearVelocity, 'linearVelocity');
@@ -63,6 +63,29 @@ export class RigidBody4 {
     if (!Number.isFinite(this.gravityScale)) {
       throw new Error('RigidBody4: gravityScale must be finite');
     }
+  }
+
+  /** Immutable physical mass. Construct another body to change mass properties. */
+  get mass(): number {
+    return this.#mass;
+  }
+
+  /** Reciprocal of `mass`, kept consistent with it for the body's lifetime. */
+  get invMass(): number {
+    return this.#invMass;
+  }
+
+  /**
+   * Detached snapshot of principal-frame inertia in `[xy,xz,xw,yz,yw,zw]`
+   * order. Mutating the returned array cannot alter the body's dynamics.
+   */
+  get inertiaDiagonal(): Float64Array {
+    return this.#inertiaDiagonal.slice();
+  }
+
+  /** Detached snapshot of the reciprocal principal inertias. */
+  get invInertiaDiagonal(): Float64Array {
+    return this.#invInertiaDiagonal.slice();
   }
 
   /** Creates a body whose principal frame initially reproduces the source pose. */
@@ -110,7 +133,7 @@ export class RigidBody4 {
   angularVelocityBody(rotation = this.rotation): BivectorN {
     const velocity = this.angularMomentumBody(rotation);
     for (let component = 0; component < 6; component++) {
-      velocity.coeffs[component]! *= this.invInertiaDiagonal[component]!;
+      velocity.coeffs[component]! *= this.#invInertiaDiagonal[component]!;
     }
     return velocity;
   }
@@ -147,7 +170,7 @@ export class RigidBody4 {
     }
     const body = inverseRotateBivector4(angularImpulseWorld, rotation);
     for (let component = 0; component < 6; component++) {
-      body.coeffs[component]! *= this.invInertiaDiagonal[component]!;
+      body.coeffs[component]! *= this.#invInertiaDiagonal[component]!;
     }
     return rotateBivector4(body, rotation);
   }
@@ -184,7 +207,7 @@ export class RigidBody4 {
     const velocityBody = inverseRotateBivector4(velocityWorld, this.rotation);
     const momentumBody = velocityBody.clone();
     for (let component = 0; component < 6; component++) {
-      momentumBody.coeffs[component]! *= this.inertiaDiagonal[component]!;
+      momentumBody.coeffs[component]! *= this.#inertiaDiagonal[component]!;
     }
     this.angularMomentumWorld.coeffs.set(
       rotateBivector4(momentumBody, this.rotation).coeffs
@@ -202,7 +225,7 @@ export class RigidBody4 {
     for (let component = 0; component < 6; component++) {
       energy +=
         0.5 * momentumBody.coeffs[component]! ** 2 *
-        this.invInertiaDiagonal[component]!;
+        this.#invInertiaDiagonal[component]!;
     }
     return energy;
   }

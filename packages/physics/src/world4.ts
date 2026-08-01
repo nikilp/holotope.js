@@ -72,17 +72,25 @@ export class PhysicsWorld4 {
 
   /**
    * Advances force, momentum, velocity, position, and Spin(4) orientation.
-   * Forces and torques are held constant across substeps, then cleared.
+   * Forces and torques are held constant across substeps, then cleared. A
+   * finite `dt` of zero is a complete no-op, including accumulator retention;
+   * this makes the first zero delta from a renderer clock safe to forward.
    */
   step(
     dt: number,
     substeps = 1,
     solveVelocityConstraints?: PhysicsWorld4VelocityConstraintCallback
   ): void {
-    assertPositiveStep(dt, 'PhysicsWorld4.step');
+    if (!Number.isFinite(dt) || dt < 0) {
+      throw new Error('PhysicsWorld4.step: dt must be finite and non-negative');
+    }
     if (!Number.isSafeInteger(substeps) || substeps < 1) {
       throw new Error('PhysicsWorld4.step: substeps must be a positive integer');
     }
+    // A renderer clock may report zero before its first elapsed frame. Treat
+    // that as no elapsed simulation time, preserving both state and pending
+    // force/torque accumulators for the first positive step.
+    if (dt === 0) return;
     const substep = dt / substeps;
     for (let iteration = 0; iteration < substeps; iteration++) {
       this.integrateVelocities(substep);
