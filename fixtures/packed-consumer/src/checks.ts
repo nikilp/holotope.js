@@ -12,6 +12,7 @@ import {
   PerspectiveProjection,
   Rotor4,
   TransformN,
+  VecN,
   cellComplexBoundsAlongAxisN,
   createHypercube,
   createHyperrectangle,
@@ -28,6 +29,11 @@ import {
 import {
   PhysicsWorld4,
   RigidBody4,
+  XpbdParticleN,
+  XpbdPotentialDomainErrorN,
+  compileXpbdIncrementalPotentialProblemN,
+  recoverXpbdIncrementalPotentialFeasibleBaseN,
+  type XpbdConservativeForceProviderN,
   massPropertiesFromCellComplex4
 } from '@holotope/physics';
 import {
@@ -164,6 +170,22 @@ export function representationClaims(): void {
     sectionReport.source.kind === 'cell',
     `section source kind was ${sectionReport.source.kind}`
   );
+  const firstTet = section.sourceTetOfFace(0);
+  assert(
+    section.facesOfSourceTet(firstTet).includes(0),
+    'the source-tetrahedron inverse did not return its rendered face'
+  );
+  const chartPoint: [number, number, number] = [0.1, -0.2, 0.3];
+  const roundTrip = section.slice.projectPointToChart(
+    section.slice.embedPoint(chartPoint)
+  );
+  assert(
+    Math.abs(roundTrip.signedDistance) < 1e-12 &&
+      roundTrip.coordinates.every((value, axis) =>
+        Math.abs(value - chartPoint[axis]!) < 1e-12
+      ),
+    'the slice chart round trip did not preserve its point and residual'
+  );
 
   const surface = buildSurface(scenario);
   surface.object.updateMatrixWorld(true);
@@ -237,6 +259,47 @@ export function physicsComposition(): void {
   assert(
     Math.abs(bivectorNorm(body.angularVelocityWorld()) - bivectorNorm(spin)) < 1e-6,
     'angular velocity magnitude drifted under a torque-free interval'
+  );
+
+  // Compose the open-domain initialization query through packed public
+  // artifacts. The target is refused, the anchor is feasible, and the first
+  // feasible geometric sample is alpha = 0.5.
+  const particle = new XpbdParticleN({
+    id: 'packed-open-domain',
+    position: [0.2],
+    inverseMass: 1
+  });
+  const provider: XpbdConservativeForceProviderN = {
+    id: 'packed-positive-gap',
+    dimension: 1,
+    particles: [particle],
+    evaluate: () => ({ potentialEnergy: 0, forces: [new VecN([0])] }),
+    evaluateAt: (positionOf) => {
+      if (!(positionOf(particle).data[0]! > 0.1)) {
+        throw new XpbdPotentialDomainErrorN(
+          'packed-positive-gap',
+          'outside-open-domain',
+          'the packed coordinate must exceed 0.1'
+        );
+      }
+      return { potentialEnergy: 0, forces: [new VecN([0])] };
+    }
+  };
+  const problem = compileXpbdIncrementalPotentialProblemN({
+    dimension: 1,
+    particles: [particle],
+    predictedPositions: [new VecN([0.05])],
+    deltaTime: 0.1,
+    providers: [provider]
+  });
+  const recovery = recoverXpbdIncrementalPotentialFeasibleBaseN({
+    problem,
+    anchorCoordinates: [0.2],
+    targetCoordinates: [0.05]
+  });
+  assert(
+    recovery.status === 'recovered' && recovery.fraction === 0.5,
+    `feasible-base recovery returned ${recovery.status}`
   );
 }
 
