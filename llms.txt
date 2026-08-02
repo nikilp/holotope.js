@@ -245,6 +245,12 @@ windows.
   or explicitly refuses an initial particle-space search segment.
   `XpbdParticleHyperplaneBarrierStepFilterN` supplies the exact RN
   point-static-plane specialization and retains impact evidence.
+- Finite source features: `XpbdParticleSourceSimplexBarrierN` evaluates
+  unsigned point-to-closed-simplex distance while retaining the closest
+  barycentric source coordinate. Pair it with
+  `XpbdParticleSourceSimplexBarrierStepFilterN`, whose `certifiedFraction` is
+  a conservative convexity/Lipschitz certificate, not an exact impact time.
+  It does not generate mesh candidates or supply analytic provider curvature.
 - Source-indexed contact barriers:
   `compileXpbdParticleHyperplaneBarrierFamilyN` reuses an
   `XpbdParticleHyperplaneFamilyN` source/particle/plane mapping and compiles

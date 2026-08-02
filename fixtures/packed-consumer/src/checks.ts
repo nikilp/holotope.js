@@ -14,6 +14,8 @@ import {
   TransformN,
   VecN,
   cellComplexBoundsAlongAxisN,
+  createSourceCellReferenceN,
+  createSourceSimplexReferenceN,
   createHypercube,
   createHyperrectangle,
   cuboidCellFacetN,
@@ -30,10 +32,19 @@ import {
   PhysicsWorld4,
   RigidBody4,
   XpbdParticleN,
+  XpbdParticleSourceSimplexBarrierN,
+  XpbdParticleSourceSimplexBarrierStepFilterN,
   XpbdPotentialDomainErrorN,
   compileXpbdIncrementalPotentialProblemN,
   recoverXpbdIncrementalPotentialFeasibleBaseN,
   type XpbdConservativeForceProviderN,
+  type XpbdParticleSourceSimplexBarrierDomainReasonN,
+  type XpbdParticleSourceSimplexBarrierEvaluationN,
+  type XpbdParticleSourceSimplexBarrierNOptions,
+  type XpbdParticleSourceSimplexBarrierStepFilterEvaluationN,
+  type XpbdParticleSourceSimplexBarrierStepFilterEvidenceN,
+  type XpbdParticleSourceSimplexBarrierStepFilterNOptions,
+  type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN,
   massPropertiesFromCellComplex4
 } from '@holotope/physics';
 import {
@@ -300,6 +311,86 @@ export function physicsComposition(): void {
   assert(
     recovery.status === 'recovered' && recovery.fraction === 0.5,
     `feasible-base recovery returned ${recovery.status}`
+  );
+
+  // The finite R4 source feature remains authoritative through the physics
+  // package: the closest point reports barycentric source coordinates, while
+  // its paired filter certifies a prefix rather than inventing an impact time.
+  const simplexGroup = {
+    dim: 3,
+    verticesPerCell: 4,
+    kind: 'simplex' as const,
+    indices: new Uint32Array([0, 1, 2, 3])
+  };
+  const simplexSource = new CellComplex(4, new Float64Array([
+    0, 0, 0, 0,
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0
+  ]), [simplexGroup]);
+  const simplexReference = createSourceSimplexReferenceN(
+    createSourceCellReferenceN(simplexSource, simplexGroup, 0)
+  );
+  const simplexParticle = new XpbdParticleN({
+    id: 'packed-simplex-point', position: [0.2, 0.2, 0.2, 0.5]
+  });
+  const simplexBarrierOptions: XpbdParticleSourceSimplexBarrierNOptions = {
+    id: 'packed-simplex-barrier',
+    particle: simplexParticle,
+    simplex: simplexReference,
+    minimumDistance: 0.05,
+    activationDistance: 0.8,
+    stiffness: 1
+  };
+  const simplexBarrier = new XpbdParticleSourceSimplexBarrierN(
+    simplexBarrierOptions
+  );
+  const simplexEvaluation: XpbdParticleSourceSimplexBarrierEvaluationN =
+    simplexBarrier.evaluate();
+  assert(
+    Math.abs(simplexEvaluation.barrierCoordinate - 0.45) < 1e-12 &&
+      Math.abs(simplexEvaluation.barrierActivation - 0.75) < 1e-12 &&
+      Math.abs(simplexEvaluation.separationNormal.data[3]! - 1) < 1e-12,
+    'the finite source-simplex barrier lost its distance differential'
+  );
+  assert(
+    simplexEvaluation.projection.coordinate.reference === simplexReference,
+    'the finite source-simplex barrier lost source identity'
+  );
+
+  const simplexFilterOptions:
+    XpbdParticleSourceSimplexBarrierStepFilterNOptions = {
+      id: 'packed-simplex-filter', barrier: simplexBarrier
+    };
+  const simplexFilter = new XpbdParticleSourceSimplexBarrierStepFilterN(
+    simplexFilterOptions
+  );
+  const simplexFilterEvaluation:
+    XpbdParticleSourceSimplexBarrierStepFilterEvaluationN =
+      simplexFilter.evaluate({
+        dimension: 4,
+        requestedStepLength: 1,
+        positionBefore: () => new VecN([0.2, 0.2, 0.2, 0.5]),
+        positionAfter: () => new VecN([0.2, 0.2, 0.2, -0.5])
+      });
+  const simplexFilterEvidence:
+    XpbdParticleSourceSimplexBarrierStepFilterEvidenceN =
+      simplexFilterEvaluation;
+  assert(
+    simplexFilterEvaluation.status === 'limited' &&
+      simplexFilterEvidence.certification === 'global-lipschitz' &&
+      simplexFilterEvidence.certifiedFraction > 0 &&
+      simplexFilterEvidence.certifiedFraction < 0.5,
+    'the finite source-simplex segment was not conservatively limited'
+  );
+  const domainReason: XpbdParticleSourceSimplexBarrierDomainReasonN =
+    'at-or-below-minimum-distance';
+  const filterReason:
+    XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN =
+      'initial-domain-violation';
+  assert(
+    domainReason !== filterReason,
+    'potential and step-filter refusal vocabularies collapsed together'
   );
 }
 

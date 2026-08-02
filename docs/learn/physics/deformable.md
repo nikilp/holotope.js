@@ -229,6 +229,13 @@ of impact. Results remain on the search evidence. `indeterminate` becomes
 `line-search-refused`; neither state is a collision miss or ordinary line
 search exhaustion.
 
+For one authored finite obstacle feature,
+`XpbdParticleSourceSimplexBarrierN` instead uses unsigned distance to a
+persistent closed source simplex and retains its closest barycentric source
+coordinate. Its paired step filter certifies a complete non-closing segment or
+a conservative Lipschitz prefix. That prefix is not an exact impact time, and
+neither class discovers candidate pairs from a mesh.
+
 `compileXpbdParticleHyperplaneBarrierFamilyN()` expands the same pair over the
 source-vertex mapping retained by `XpbdParticleHyperplaneFamilyN`. Per-vertex
 activation distance, stiffness, and conservative scale may be uniform or
@@ -272,8 +279,9 @@ not fabricate `XpbdWorldN` constraint-solve evidence, so velocity responses,
 accepted-state guards, adaptive retry, material-Hessian directions, and
 automatic collision candidate generation remain outside this step. Authored
 step filters and source-indexed point–plane barrier families can protect
-registered point–plane segments, but absent filters carry no implied
-collision-free guarantee.
+registered pairs; the finite point–simplex pair can protect one explicit
+source feature. Absent candidates or filters carry no implied collision-free
+guarantee.
 
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';

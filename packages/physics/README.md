@@ -59,6 +59,13 @@ typed-domain-refused trial and makes no depenetration, nearest-point, global
 feasibility, or performance claim. It exists to initialize open-domain
 objectives without turning a solver policy into hidden behavior.
 
+Its authored obstacle terms include both an oriented infinite hyperplane and
+one finite persistent source simplex. The latter retains the closest
+barycentric source coordinate and pairs its unsigned barrier with a
+conservative convexity/Lipschitz segment certificate. It is not candidate
+generation, inside/outside classification, moving-simplex contact, or a claim
+of mesh self-collision.
+
 World-frame angular momentum is authoritative. Free flight therefore does not
 numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the

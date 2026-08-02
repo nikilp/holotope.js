@@ -189,6 +189,17 @@ export {
   type XpbdParticleHyperplaneBarrierNOptions
 } from './xpbd-hyperplane-barrier.js';
 export {
+  XpbdParticleSourceSimplexBarrierN,
+  XpbdParticleSourceSimplexBarrierStepFilterN,
+  type XpbdParticleSourceSimplexBarrierDomainReasonN,
+  type XpbdParticleSourceSimplexBarrierEvaluationN,
+  type XpbdParticleSourceSimplexBarrierNOptions,
+  type XpbdParticleSourceSimplexBarrierStepFilterEvaluationN,
+  type XpbdParticleSourceSimplexBarrierStepFilterEvidenceN,
+  type XpbdParticleSourceSimplexBarrierStepFilterNOptions,
+  type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN
+} from './xpbd-source-simplex-barrier.js';
+export {
   XpbdParticleHyperplaneBarrierFamilyN,
   compileXpbdParticleHyperplaneBarrierFamilyN,
   type CompileXpbdParticleHyperplaneBarrierFamilyNOptions,

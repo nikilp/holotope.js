@@ -334,6 +334,125 @@ It does not generate missing collision pairs or certify unregistered geometry.
 A global collision-free claim still requires a valid initial state and a
 complete set of relevant filters.
 
+### Finite source-simplex proximity
+
+`XpbdParticleSourceSimplexBarrierN` replaces the infinite plane with one
+persistent finite source simplex. For its closed convex hull $C$, it uses
+
+$$
+\delta(q)=\lVert q-\Pi_C(q)\rVert,
+\qquad
+U(q)=b(\delta(q)-d_{\min};d_{\mathrm{active}}-d_{\min}).
+$$
+
+The closest point $\Pi_C(q)$ is returned with its barycentric coordinate and
+source-cell reference. Thus the same evaluation records whether the nearest
+part is the simplex interior, an edge, or a vertex instead of discarding that
+transition. In R4, a point and a tetrahedron form the complementary
+zero-dimensional/three-dimensional contact-feature pair.
+
+```ts
+import {
+  CellComplex,
+  createSourceCellReferenceN,
+  createSourceSimplexReferenceN
+} from '@holotope/core';
+import {
+  XpbdParticleN,
+  XpbdParticleSourceSimplexBarrierN,
+  XpbdParticleSourceSimplexBarrierStepFilterN,
+  type XpbdParticleSourceSimplexBarrierDomainReasonN,
+  type XpbdParticleSourceSimplexBarrierEvaluationN,
+  type XpbdParticleSourceSimplexBarrierNOptions,
+  type XpbdParticleSourceSimplexBarrierStepFilterEvaluationN,
+  type XpbdParticleSourceSimplexBarrierStepFilterEvidenceN,
+  type XpbdParticleSourceSimplexBarrierStepFilterNOptions,
+  type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN
+} from '@holotope/physics';
+
+const finiteSimplexGroup = {
+  dim: 3,
+  verticesPerCell: 4,
+  kind: 'simplex' as const,
+  indices: new Uint32Array([0, 1, 2, 3])
+};
+const finiteSimplexSource = new CellComplex(4, new Float64Array([
+  0, 0, 0, 0,
+  1, 0, 0, 0,
+  0, 1, 0, 0,
+  0, 0, 1, 0
+]), [finiteSimplexGroup]);
+const finiteSimplexReference = createSourceSimplexReferenceN(
+  createSourceCellReferenceN(finiteSimplexSource, finiteSimplexGroup, 0)
+);
+const finiteSimplexParticle = new XpbdParticleN({
+  id: 'probe', position: [0.2, 0.2, 0.2, 0.4]
+});
+const finiteSimplexBarrierOptions:
+  XpbdParticleSourceSimplexBarrierNOptions = {
+  id: 'obstacle/tetrahedron',
+  particle: finiteSimplexParticle,
+  simplex: finiteSimplexReference,
+  minimumDistance: 0.01,
+  activationDistance: 0.1,
+  stiffness: 250
+};
+const finiteSimplexBarrier = new XpbdParticleSourceSimplexBarrierN(
+  finiteSimplexBarrierOptions
+);
+const finiteSimplexFilterOptions:
+  XpbdParticleSourceSimplexBarrierStepFilterNOptions = {
+    id: 'obstacle/tetrahedron/filter',
+    barrier: finiteSimplexBarrier
+  };
+const finiteSimplexFilter =
+  new XpbdParticleSourceSimplexBarrierStepFilterN(
+    finiteSimplexFilterOptions
+  );
+
+const finiteSimplexSample:
+  XpbdParticleSourceSimplexBarrierEvaluationN =
+    finiteSimplexBarrier.evaluate();
+const finiteSimplexStep:
+  XpbdParticleSourceSimplexBarrierStepFilterEvaluationN =
+    finiteSimplexFilter.evaluate({
+      dimension: 4,
+      requestedStepLength: 1,
+      positionBefore: () => finiteSimplexParticle.position.clone(),
+      positionAfter: () => finiteSimplexParticle.position.clone()
+    });
+const finiteSimplexStepEvidence:
+  XpbdParticleSourceSimplexBarrierStepFilterEvidenceN = finiteSimplexStep;
+const finiteSimplexDomainReason:
+  XpbdParticleSourceSimplexBarrierDomainReasonN =
+    'at-or-below-minimum-distance';
+const finiteSimplexFilterReason:
+  XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN =
+    'initial-domain-violation';
+console.log(
+  finiteSimplexSample.distance,
+  finiteSimplexSample.projection.coordinate.weights,
+  finiteSimplexSample.barrierCoordinate,
+  finiteSimplexSample.barrierActivation,
+  finiteSimplexSample.separationNormal,
+  finiteSimplexStepEvidence.certifiedFraction,
+  finiteSimplexDomainReason,
+  finiteSimplexFilterReason
+);
+```
+
+The paired filter makes a different claim from the plane filter. Distance to a
+closed convex simplex is convex and 1-Lipschitz, so it can prove a complete
+non-closing segment safe or retain a conservative strict prefix of a closing
+segment. It reports `certifiedFraction`, never `impactFraction`: it has not
+solved the piecewise closest-feature impact time exactly.
+
+The barrier is unsigned and two-sided. It is not an inside/outside predicate,
+does not move the simplex, does not generate point--simplex pairs from a mesh,
+and does not supply analytic Hessian-vector products. A Newton-CG solve over a
+provider mixture containing it therefore reports the existing
+`unsupported-provider` evidence; first-order minimization remains available.
+
 ### Source-indexed point–plane families
 
 `XpbdParticleHyperplaneBarrierFamilyN` lifts the single-point construction over

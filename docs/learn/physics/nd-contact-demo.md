@@ -111,19 +111,21 @@ coordinate, and the barrier was evaluated on the first.
 
 Read this part before generalising anything above.
 
-**Contact is point–hyperplane only.** `XpbdParticleHyperplaneBarrierN` is the only
-barrier the demo uses. There is no point–triangle contact, no edge–edge contact,
-and no self-collision anywhere in `@holotope/physics`. Every scene in the demo is
-particles against static planes.
+**This demo is point–hyperplane only.** `XpbdParticleHyperplaneBarrierN` is the
+only barrier it uses. The package also exposes an authored point–finite-source-
+simplex proximity pair, but this demo has no finite-feature candidate
+generation, edge–edge contact, or self-collision. Every scene here is particles
+against static planes.
 
 **The `indeterminate` step-filter verdict never occurs.** The three-valued
 `safe` / `limited` / `indeterminate` vocabulary is real and is a genuine
 improvement on implementations that conflate "no collision found" with "the test
 gave up". But `XpbdParticleHyperplaneBarrierStepFilterN` is an exact predicate: it
 always either certifies a whole segment or limits it to a computable prefix, and
-never has to decline. Reaching `indeterminate` requires inexact continuous
-collision detection on mesh primitives. The demo shows `limited` instead, which is
-frequent and does show the collision-aware line search restricting a step.
+never has to decline for an admissible start. The finite-simplex filter can
+likewise refuse an already inadmissible start, but automatic mesh candidate
+generation is not present. The demo shows `limited` instead, which is frequent
+and does show the collision-aware line search restricting a step.
 
 **Friction is not at the fidelity the literature's benchmarks need.** The
 mollified static friction with a velocity bound, and the lagged solves that go
