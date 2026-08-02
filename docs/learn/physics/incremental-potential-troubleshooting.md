@@ -70,6 +70,45 @@ begins. That returns `initial-state-refused`. Select
 `warmStart: 'previous-positions'` to begin at the last admissible live state
 while retaining the inertial prediction as the objective's target.
 
+When retaining some of the inertial prediction matters, select the opt-in
+`feasible-inertial-prediction` policy. It evaluates the prediction, validates
+the previous positions as an anchor, and samples geometrically decreasing
+fractions of the chord between them until the complete objective accepts one:
+
+```ts
+const recovered = stepXpbdIncrementalPotentialN({
+  dimension,
+  particles,
+  providers,
+  stepFilters,
+  deltaTime: 1 / 120,
+  gravity,
+  warmStart: 'feasible-inertial-prediction',
+  feasibleWarmStart: {
+    contractionFactor: 0.5,
+    maximumTrials: 24
+  },
+  minimization: {
+    directionPolicy: 'newton-cg'
+  }
+});
+
+console.log(recovered.feasibleBaseRecovery?.status);
+console.log(recovered.feasibleBaseRecovery?.trials);
+```
+
+The retained trials distinguish a feasible target, a recovered fraction, an
+anchor-only result, and refusal of both target and anchor. This is a bounded
+initialization search, not depenetration, collision response, a nearest-point
+projection, or proof that the unsampled chord is feasible. Step filters still
+certify every later Armijo segment.
+
+Repository measurements found genuine but contextual value: recovery rescued
+one first-order open-domain solve that exhausted its budget from the previous
+positions, while adding work to a simpler isolated barrier and to the same
+scene under Newton-CG. Choose it when preserving an admissible part of the
+prediction is useful; do not assume it is faster than `previous-positions`.
+
 An explicit `initialPositions` array always wins over `warmStart`. It is suitable
 for a caller with a more informed feasible initial guess, and for exact fixtures.
 
@@ -93,7 +132,7 @@ scene supplies that intent; the solver cannot infer it.
 
 | Condition | What it establishes | Levers the helper may name |
 | --- | --- | --- |
-| `initial-state-refused` | The base is outside an open potential domain | Previous-position warm start; repair the authored state |
+| `initial-state-refused` | The base is outside an open potential domain | Previous-position warm start; bounded feasible-prediction recovery; repair the authored state |
 | `converged-without-iteration` | The authored tolerance was satisfied at the base | Lower the tolerance only when the scene was expected to keep solving |
 | `iteration-limit` | The accepted-step budget ended before convergence | Newton or mass-diagonal direction; larger iteration budget |
 | `line-search-exhausted` | Armijo trials found no acceptable step | Newton or mass-diagonal direction |

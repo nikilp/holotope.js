@@ -15,6 +15,12 @@ import {
   type XpbdIncrementalPotentialMinimizationResultN
 } from './xpbd-incremental-potential-minimizer.js';
 import {
+  recoverXpbdIncrementalPotentialFeasibleBaseN,
+  type RecoverXpbdIncrementalPotentialFeasibleBaseNOptions,
+  type XpbdIncrementalPotentialFeasibleWarmStartNOptions,
+  type XpbdIncrementalPotentialFeasibleBaseResultN
+} from './xpbd-incremental-potential-feasible-base.js';
+import {
   type XpbdIncrementalPotentialDirectionPolicyN,
   type XpbdIncrementalPotentialDirectionPolicyNameN
 } from './xpbd-incremental-potential-direction.js';
@@ -99,8 +105,18 @@ export interface StepXpbdIncrementalPotentialNOptions {
    * `inertial-prediction` preserves the historical default.
    * `previous-positions` keeps the base at the last admissible live state while
    * the inertial prediction still defines the objective's inertia term.
+   * `feasible-inertial-prediction` explicitly searches the chord from those
+   * previous positions toward the prediction and retains every sampled result.
    */
-  readonly warmStart?: 'inertial-prediction' | 'previous-positions';
+  readonly warmStart?:
+    | 'inertial-prediction'
+    | 'previous-positions'
+    | 'feasible-inertial-prediction';
+  /**
+   * Sampling controls used only by `feasible-inertial-prediction`.
+   * Supplying them with another policy is rejected rather than ignored.
+   */
+  readonly feasibleWarmStart?: XpbdIncrementalPotentialFeasibleWarmStartNOptions;
   readonly minimization?: XpbdIncrementalPotentialMinimizationPolicyN;
   readonly application?: XpbdIncrementalPotentialApplicationPolicyN;
 }
@@ -126,6 +142,11 @@ interface XpbdIncrementalPotentialStepBaseN<
   readonly minimization: Minimization;
   /** One decision-ready summary of whether the minimizer made progress. */
   readonly progress: XpbdIncrementalPotentialStepProgressN;
+  /**
+   * Complete initialization evidence when feasible chord recovery was run.
+   * Absent for unchanged warm starts and when explicit positions bypass it.
+   */
+  readonly feasibleBaseRecovery?: XpbdIncrementalPotentialFeasibleBaseResultN;
 }
 
 export interface XpbdIncrementalPotentialStepAppliedN
@@ -213,12 +234,15 @@ export function stepXpbdIncrementalPotentialN(
   if (
     options.warmStart !== undefined &&
     options.warmStart !== 'inertial-prediction' &&
-    options.warmStart !== 'previous-positions'
+    options.warmStart !== 'previous-positions' &&
+    options.warmStart !== 'feasible-inertial-prediction'
   ) {
     throw new Error(
-      `${caller}: warmStart must be "inertial-prediction" or "previous-positions"`
+      `${caller}: warmStart must be "inertial-prediction", ` +
+        `"previous-positions", or "feasible-inertial-prediction"`
     );
   }
+  validateFeasibleWarmStart(options.feasibleWarmStart, options.warmStart, caller);
 
   const rollback = options.particles.map(snapshotRuntimeParticle);
   try {
@@ -238,12 +262,40 @@ export function stepXpbdIncrementalPotentialN(
         ? {}
         : { stepFilters: options.stepFilters })
     });
-    const warmStartPositions = options.warmStart === 'previous-positions'
-      ? rollback.map((snapshot) => new VecN(snapshot.positionCoordinates))
-      : prediction.positions;
-    const initialCoordinates = problem.packPositions(
-      options.initialPositions ?? warmStartPositions
-    );
+    let feasibleBaseRecovery: XpbdIncrementalPotentialFeasibleBaseResultN | undefined;
+    let initialCoordinates: Float64Array;
+    if (options.initialPositions !== undefined) {
+      // Explicit coordinates remain authoritative and bypass automatic
+      // recovery even when the feasible policy was also named.
+      initialCoordinates = problem.packPositions(options.initialPositions);
+    } else if (options.warmStart === 'feasible-inertial-prediction') {
+      const anchorCoordinates = problem.packPositions(
+        rollback.map((snapshot) => new VecN(snapshot.positionCoordinates))
+      );
+      const targetCoordinates = problem.packPositions(prediction.positions);
+      const recoveryOptions: RecoverXpbdIncrementalPotentialFeasibleBaseNOptions = {
+        problem,
+        anchorCoordinates,
+        targetCoordinates,
+        ...(options.feasibleWarmStart?.contractionFactor === undefined
+          ? {}
+          : { contractionFactor: options.feasibleWarmStart.contractionFactor }),
+        ...(options.feasibleWarmStart?.maximumTrials === undefined
+          ? {}
+          : { maximumTrials: options.feasibleWarmStart.maximumTrials })
+      };
+      feasibleBaseRecovery = recoverXpbdIncrementalPotentialFeasibleBaseN(
+        recoveryOptions
+      );
+      initialCoordinates = feasibleBaseRecovery.status === 'anchor-refused'
+        ? anchorCoordinates
+        : feasibleBaseRecovery.evaluation.coordinates.slice();
+    } else {
+      const warmStartPositions = options.warmStart === 'previous-positions'
+        ? rollback.map((snapshot) => new VecN(snapshot.positionCoordinates))
+        : prediction.positions;
+      initialCoordinates = problem.packPositions(warmStartPositions);
+    }
     const policy = options.minimization;
     const directionPolicy = resolveXpbdIncrementalPotentialStepDirectionN(
       policy,
@@ -274,7 +326,14 @@ export function stepXpbdIncrementalPotentialN(
       ...(directionPolicy === undefined ? {} : { directionPolicy })
     });
     const progress = summarizeStepProgress(minimization);
-    const base = { prediction, problem, progress } as const;
+    const base = {
+      prediction,
+      problem,
+      progress,
+      ...(feasibleBaseRecovery === undefined
+        ? {}
+        : { feasibleBaseRecovery })
+    } as const;
 
     if (minimization.status !== 'converged') {
       restoreRuntimeParticles(rollback);
@@ -363,6 +422,44 @@ function validatePolicyObject(
 ): void {
   if (value !== undefined && (typeof value !== 'object' || value === null)) {
     throw new Error(`${caller}: ${name} must be an object`);
+  }
+}
+
+function validateFeasibleWarmStart(
+  value: XpbdIncrementalPotentialFeasibleWarmStartNOptions | undefined,
+  warmStart: StepXpbdIncrementalPotentialNOptions['warmStart'],
+  caller: string
+): void {
+  if (value === undefined) return;
+  if (typeof value !== 'object' || value === null) {
+    throw new Error(`${caller}: feasibleWarmStart must be an object`);
+  }
+  if (warmStart !== 'feasible-inertial-prediction') {
+    throw new Error(
+      `${caller}: feasibleWarmStart requires warmStart "feasible-inertial-prediction"`
+    );
+  }
+  const unknown = Object.keys(value).filter(
+    (key) => key !== 'contractionFactor' && key !== 'maximumTrials'
+  );
+  if (unknown.length > 0) {
+    throw new Error(
+      `${caller}: feasibleWarmStart has unknown option${unknown.length === 1 ? '' : 's'} ` +
+        unknown.map((key) => `"${key}"`).join(', ')
+    );
+  }
+  if (value.contractionFactor !== undefined &&
+    (!Number.isFinite(value.contractionFactor) ||
+      value.contractionFactor <= 0 || value.contractionFactor >= 1)) {
+    throw new Error(
+      `${caller}: feasibleWarmStart.contractionFactor must be finite and in (0, 1)`
+    );
+  }
+  if (value.maximumTrials !== undefined &&
+    (!Number.isSafeInteger(value.maximumTrials) || value.maximumTrials < 1)) {
+    throw new Error(
+      `${caller}: feasibleWarmStart.maximumTrials must be a positive integer`
+    );
   }
 }
 

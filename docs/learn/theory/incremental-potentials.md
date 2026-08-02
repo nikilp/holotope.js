@@ -957,8 +957,14 @@ if (step.status === 'applied') {
 
 The default initial iterate is the inertial prediction. `initialPositions`
 provides an explicit warm start in particle order; fixed entries must still
-equal their prescribed prediction. Application defaults remain
-`backward-euler` velocity reconstruction and force clearing.
+equal their prescribed prediction. Two named opt-in alternatives remain
+explicit: `previous-positions` uses the last live state, while
+`feasible-inertial-prediction` validates that state as an anchor and samples a
+bounded geometric chord toward the prediction. The latter retains every
+objective evaluation in `feasibleBaseRecovery`; it is initialization evidence,
+not a collision response or a claim that the chord is globally feasible.
+Application defaults remain `backward-euler` velocity reconstruction and force
+clearing.
 
 This is a transaction over the complete authored particle state. A typed
 minimization or application refusal restores the state from before prediction.

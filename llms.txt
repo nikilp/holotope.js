@@ -85,6 +85,7 @@ import {
   compileXpbdIncrementalPotentialProblemN,
   searchXpbdIncrementalPotentialArmijoN,
   minimizeXpbdIncrementalPotentialN,
+  recoverXpbdIncrementalPotentialFeasibleBaseN,
   xpbdMassPreconditionedDirectionN,
   xpbdSteepestDescentDirectionN,
   applyXpbdIncrementalPotentialResultN,
@@ -265,6 +266,13 @@ windows.
   prediction, compilation, bounded minimization, verification, and application.
   It retains each intermediate result and restores the complete pre-step
   particle state on typed refusal or thrown failure.
+- Open-domain initialization: the default remains `warmStart:
+  'inertial-prediction'`; `'previous-positions'` uses the last live state.
+  Opt-in `'feasible-inertial-prediction'` samples a bounded chord between them
+  and retains `feasibleBaseRecovery` evidence. The standalone
+  `recoverXpbdIncrementalPotentialFeasibleBaseN` exposes the same headless
+  query. Neither API performs depenetration, nearest-point projection, or
+  collision response, and measured iteration savings are scene-dependent.
 - A measure barrier can be compiled as a second generic constitutive family on
   the same simplex group and exact particles. It is a proactive force, not an
   inversion guarantee; retain endpoint and signed/intrinsic chord guards.
@@ -301,10 +309,21 @@ Incremental objective guide: `docs/learn/theory/incremental-potentials.md`.
 - `SlicedComplex3D.sourceCrossingsOfFace`: the retained source edge and
   parameter behind each corner of a section face. This is the crossing
   evidence, not a parent-cuboid reconstruction.
+- `SlicedComplex3D.facesOfSourceTet`: current section faces produced by one
+  source tetrahedron; useful for exact source-linked highlighting.
+- `SlicedComplex3D.colorForTet` builds a palette once. Call
+  `recolorBySourceTet()` explicitly when application state changes; `update()`
+  does not reevaluate the callback.
+- `HyperplaneSlice4.projectPointToChart`: orthogonally express an ambient R4
+  point in a slice chart and retain the discarded signed normal distance.
+  `embedPoint(coordinates)` recovers the original only when that distance is
+  zero.
 - `SampledSlicedField3D`, `FieldRelief3D`: field visualization products.
 - `DragRotation4D`: pointer deltas → visual `Rotor4`, default Alt drag in xw/yw.
 - `representationHitFrom…`: map a Three ray intersection to source-aware
-  `RepresentationHitN`.
+  `RepresentationHitN`. An exact section hit's ambient point is in the posed
+  ambient frame used for the product's latest update, not the unposed complex
+  frame.
 
 Canonical complete Three export barrel: `packages/three/src/index.ts`.
 

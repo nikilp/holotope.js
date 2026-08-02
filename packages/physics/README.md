@@ -51,6 +51,14 @@ ordinary errors or provide a continuous no-inversion proof. Its first responses
 provide exact particle–plane Coulomb friction over the complete RN tangent ball
 and named timestep-invariant exponential damping.
 
+The separate incremental-potential reference step is transactional and keeps
+its minimizer base explicit. Its historical default is the inertial prediction;
+callers may instead select the previous live positions or opt into bounded
+feasible-prediction chord sampling. That recovery retains every accepted or
+typed-domain-refused trial and makes no depenetration, nearest-point, global
+feasibility, or performance claim. It exists to initialize open-domain
+objectives without turning a solver policy into hidden behavior.
+
 World-frame angular momentum is authoritative. Free flight therefore does not
 numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the

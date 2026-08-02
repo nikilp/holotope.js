@@ -333,6 +333,14 @@ export {
   type XpbdSteepestDescentIterationN
 } from './xpbd-incremental-potential-minimizer.js';
 export {
+  recoverXpbdIncrementalPotentialFeasibleBaseN,
+  type RecoverXpbdIncrementalPotentialFeasibleBaseNOptions,
+  type XpbdFeasibleBaseDomainRefusalN,
+  type XpbdFeasibleBaseTrialN,
+  type XpbdIncrementalPotentialFeasibleWarmStartNOptions,
+  type XpbdIncrementalPotentialFeasibleBaseResultN
+} from './xpbd-incremental-potential-feasible-base.js';
+export {
   applyXpbdIncrementalPotentialResultN,
   type ApplyXpbdIncrementalPotentialResultNOptions,
   type XpbdIncrementalPotentialApplicationRefusedN,

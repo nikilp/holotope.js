@@ -1,6 +1,9 @@
 import { VecN } from '@holotope/core';
 import { describe, expect, it } from 'vitest';
 import {
+  HyperplaneColliderN,
+  XpbdParticleHyperplaneBarrierN,
+  XpbdParticleHyperplaneBarrierStepFilterN,
   XpbdParticleN,
   stepXpbdIncrementalPotentialN,
   type XpbdConservativeForceProviderN,
@@ -265,8 +268,130 @@ describe('integrated XPBD incremental-potential step', () => {
       providers: [],
       deltaTime: 0.5,
       warmStart: 'current' as never
-    })).toThrow(/warmStart must be "inertial-prediction" or "previous-positions"/);
+    })).toThrow(/warmStart must be "inertial-prediction"/);
     expect(snapshot([particle])).toEqual(before);
+  });
+
+  it('keeps the omitted and explicit inertial-prediction paths identical', () => {
+    const run = (explicit: boolean) => {
+      const particle = new XpbdParticleN({
+        id: 'unchanged-default',
+        position: [1, -0.5],
+        velocity: [0.2, 0.1],
+        inverseMass: 0.5
+      });
+      particle.applyForce([0.3, -0.4]);
+      const result = stepXpbdIncrementalPotentialN({
+        dimension: 2,
+        particles: [particle],
+        providers: [],
+        deltaTime: 0.125,
+        ...(explicit ? { warmStart: 'inertial-prediction' as const } : {})
+      });
+      return {
+        status: result.status,
+        position: Array.from(particle.position.data),
+        velocity: Array.from(particle.velocity.data),
+        force: Array.from(particle.force.data),
+        initial: Array.from(result.minimization.initial.coordinates),
+        final: Array.from(result.minimization.final.coordinates),
+        progress: result.progress,
+        hasRecovery: 'feasibleBaseRecovery' in result
+      };
+    };
+
+    expect(run(false)).toEqual(run(true));
+  });
+
+  it('recovers an inadmissible inertial prediction from a valid barrier state', () => {
+    const run = (
+      warmStart: 'inertial-prediction' | 'previous-positions' | 'feasible-inertial-prediction'
+    ) => {
+      const particle = new XpbdParticleN({
+        id: warmStart,
+        position: [0.2],
+        velocity: [-1.5],
+        inverseMass: 1
+      });
+      const barrier = new XpbdParticleHyperplaneBarrierN({
+        id: `floor/${warmStart}`,
+        particle,
+        plane: new HyperplaneColliderN([1], 0),
+        minimumDistance: 0.1,
+        activationDistance: 0.8,
+        stiffness: 1
+      });
+      return {
+        particle,
+        result: stepXpbdIncrementalPotentialN({
+          dimension: 1,
+          particles: [particle],
+          providers: [barrier],
+          stepFilters: [new XpbdParticleHyperplaneBarrierStepFilterN({
+            id: `floor-filter/${warmStart}`,
+            barrier
+          })],
+          deltaTime: 0.1,
+          warmStart
+        })
+      };
+    };
+
+    const inertial = run('inertial-prediction');
+    expect(inertial.result).toMatchObject({
+      status: 'refused',
+      minimization: { status: 'initial-state-refused' }
+    });
+    expect(inertial.particle.position.data[0]).toBe(0.2);
+
+    const previous = run('previous-positions');
+    const recovered = run('feasible-inertial-prediction');
+    expect(previous.result.status).toBe('applied');
+    expect(recovered.result.status).toBe('applied');
+    expect(recovered.result.feasibleBaseRecovery).toMatchObject({
+      status: 'recovered',
+      fraction: 0.5
+    });
+    expect(recovered.result.feasibleBaseRecovery?.trials.map((trial) =>
+      trial.status
+    )).toEqual(['domain-refused', 'feasible', 'feasible']);
+    expect(recovered.particle.position.data[0]).toBeCloseTo(
+      previous.particle.position.data[0]!,
+      8
+    );
+  });
+
+  it('keeps explicit positions authoritative and rejects ignored recovery options', () => {
+    const particle = new XpbdParticleN({ id: 'explicit-recovery', position: [0] });
+    const explicit = stepXpbdIncrementalPotentialN({
+      dimension: 1,
+      particles: [particle],
+      providers: [],
+      deltaTime: 0.1,
+      warmStart: 'feasible-inertial-prediction',
+      feasibleWarmStart: { contractionFactor: 0.25, maximumTrials: 4 },
+      initialPositions: [new VecN([0.3])]
+    });
+    expect(explicit.status).toBe('applied');
+    expect('feasibleBaseRecovery' in explicit).toBe(false);
+    expect(explicit.minimization.initial.coordinates[0]).toBe(0.3);
+
+    expect(() => stepXpbdIncrementalPotentialN({
+      dimension: 1,
+      particles: [new XpbdParticleN({ id: 'ignored', position: [0] })],
+      providers: [],
+      deltaTime: 0.1,
+      warmStart: 'previous-positions',
+      feasibleWarmStart: {}
+    })).toThrow(/requires warmStart "feasible-inertial-prediction"/);
+    expect(() => stepXpbdIncrementalPotentialN({
+      dimension: 1,
+      particles: [new XpbdParticleN({ id: 'unknown', position: [0] })],
+      providers: [],
+      deltaTime: 0.1,
+      warmStart: 'feasible-inertial-prediction',
+      feasibleWarmStart: { mystery: 1 } as never
+    })).toThrow(/unknown option/);
   });
 
   it('returns bounded non-convergence without changing any particle state', () => {

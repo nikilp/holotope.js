@@ -5,6 +5,10 @@ import type {
 import type {
   XpbdIncrementalPotentialInitialStateRefusedN
 } from './xpbd-incremental-potential-minimizer.js';
+import type {
+  XpbdFeasibleBaseDomainRefusalN,
+  XpbdFeasibleBaseTrialN
+} from './xpbd-incremental-potential-feasible-base.js';
 
 /** Decision-ready condition classified from retained incremental-step evidence. */
 export type XpbdIncrementalPotentialDiagnosisConditionN =
@@ -26,6 +30,7 @@ export type XpbdIncrementalPotentialDiagnosisConditionN =
  */
 export type XpbdIncrementalPotentialDiagnosisLeverN =
   | 'warm-start-previous-positions'
+  | 'warm-start-feasible-inertial-prediction'
   | 'repair-initial-state'
   | 'newton-direction-policy'
   | 'mass-diagonal-policy'
@@ -68,15 +73,36 @@ export function diagnoseXpbdIncrementalPotentialStepN(
     objectiveDecrease: progress.objectiveDecrease,
     directionPolicyId: minimization.directionPolicyId,
     gradientTolerance: minimization.gradientTolerance,
-    maximumIterations: minimization.maximumIterations
+    maximumIterations: minimization.maximumIterations,
+    ...(result.feasibleBaseRecovery === undefined
+      ? {}
+      : {
+          feasibleBaseRecoveryStatus: result.feasibleBaseRecovery.status,
+          feasibleBaseRecoveryTrials: result.feasibleBaseRecovery.trials.length,
+          ...feasibleBaseTrialFacts(result.feasibleBaseRecovery.trials),
+          ...(result.feasibleBaseRecovery.status === 'anchor-refused'
+            ? {}
+            : { feasibleBaseRecoveryFraction: result.feasibleBaseRecovery.fraction })
+        })
   };
 
   if (minimization.status === 'initial-state-refused') {
+    const anchorRefused = result.feasibleBaseRecovery?.status === 'anchor-refused';
     return diagnosis(
       'initial-state-refused',
-      ['warm-start-previous-positions', 'repair-initial-state'],
-      'The minimizer base lies outside a potential law’s open domain. Start ' +
-        'from the previous admissible positions or repair the authored state.',
+      anchorRefused
+        ? ['repair-initial-state']
+        : [
+            'warm-start-previous-positions',
+            'warm-start-feasible-inertial-prediction',
+            'repair-initial-state'
+          ],
+      anchorRefused
+        ? 'Both the requested prediction and authored anchor lie outside a ' +
+          'potential law’s open domain. Repair the authored state.'
+        : 'The minimizer base lies outside a potential law’s open domain. ' +
+          'Start from the previous positions, recover a sampled feasible ' +
+          'prediction chord, or repair the authored state.',
       {
         ...commonFacts,
         ...initialStateRefusalFacts(minimization)
@@ -186,6 +212,32 @@ export function diagnoseXpbdIncrementalPotentialStepN(
         'diagnoseXpbdIncrementalPotentialStepN: converged minimization has no matching step terminal'
       );
   }
+}
+
+function feasibleBaseTrialFacts(
+  trials: readonly XpbdFeasibleBaseTrialN[]
+): Record<string, number | string> {
+  let feasibleTrials = 0;
+  let domainRefusals = 0;
+  let lastRefusal: XpbdFeasibleBaseDomainRefusalN | undefined;
+  for (const trial of trials) {
+    if (trial.status === 'feasible') {
+      feasibleTrials++;
+    } else {
+      domainRefusals++;
+      lastRefusal = trial.refusal;
+    }
+  }
+  return {
+    feasibleBaseFeasibleTrials: feasibleTrials,
+    feasibleBaseDomainRefusals: domainRefusals,
+    ...(lastRefusal === undefined
+      ? {}
+      : {
+          feasibleBaseLastRefusalLawId: lastRefusal.lawId,
+          feasibleBaseLastRefusalReason: lastRefusal.reason
+        })
+  };
 }
 
 function initialStateRefusalFacts(

@@ -61,8 +61,44 @@ describe('incremental-potential step diagnosis', () => {
     expect(particle.position.toArray()).toEqual([0.1]);
     expect(diagnoseXpbdIncrementalPotentialStepN(result)).toMatchObject({
       condition: 'initial-state-refused',
-      levers: ['warm-start-previous-positions', 'repair-initial-state']
+      levers: [
+        'warm-start-previous-positions',
+        'warm-start-feasible-inertial-prediction',
+        'repair-initial-state'
+      ]
     });
+  });
+
+  it('reports that an invalid authored anchor requires repair', () => {
+    const particle = new XpbdParticleN({
+      id: 'invalid-anchor',
+      position: [-0.1],
+      inverseMass: 1
+    });
+    const result = stepXpbdIncrementalPotentialN({
+      dimension: 1,
+      particles: [particle],
+      providers: [openHalfLineProvider(particle)],
+      deltaTime: 0.1,
+      warmStart: 'feasible-inertial-prediction'
+    });
+    const diagnosis = diagnoseXpbdIncrementalPotentialStepN(result);
+
+    expect(result.minimization.status).toBe('initial-state-refused');
+    expect(result.feasibleBaseRecovery?.status).toBe('anchor-refused');
+    expect(diagnosis).toMatchObject({
+      condition: 'initial-state-refused',
+      levers: ['repair-initial-state'],
+      facts: {
+        feasibleBaseRecoveryStatus: 'anchor-refused',
+        feasibleBaseRecoveryTrials: 2,
+        feasibleBaseFeasibleTrials: 0,
+        feasibleBaseDomainRefusals: 2,
+        feasibleBaseLastRefusalLawId: 'open-half-line',
+        feasibleBaseLastRefusalReason: 'non-positive-coordinate'
+      }
+    });
+    expect(particle.position.data[0]).toBe(-0.1);
   });
 
   it('lets previous positions or explicit positions replace the inadmissible base', () => {
