@@ -124,10 +124,12 @@ export {
 } from './map-capabilities.js';
 export {
   createAffineSectionCellChart4N,
-  resolveRepresentationChartPointToSourceCellN,
-  type RepresentationCellChartN,
-  type RepresentationChartSourceCellResolutionN
+  resolveRepresentationChartPointToSourceCellN
 } from './chart-source-cell.js';
+export type {
+  RepresentationCellChartN,
+  RepresentationChartSourceCellResolutionN
+} from './chart-source-cell-types.js';
 export {
   evaluateRepresentationLineagePointN,
   type ExactRepresentationLineagePointN,

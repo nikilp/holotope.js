@@ -94,6 +94,40 @@ describe('HyperplaneSlice4', () => {
     }
   });
 
+  it('projects ambient points to the chart without hiding the normal component', () => {
+    const slice = new HyperplaneSlice4({ normal: [1, -2, 0.5, 3], offset: 0.37 });
+    const chartPoint: [number, number, number] = [0.4, -0.7, 1.2];
+    const onPlane = slice.embedPoint(chartPoint);
+    const exact = slice.projectPointToChart(onPlane);
+    for (let axis = 0; axis < 3; axis++) {
+      expect(exact.coordinates[axis]).toBeCloseTo(chartPoint[axis]!, 13);
+    }
+    expect(exact.signedDistance).toBeCloseTo(0, 13);
+
+    const distance = -0.63;
+    const offPlane = onPlane.map((coordinate, axis) =>
+      coordinate + distance * slice.normal.data[axis]!
+    );
+    const projected = slice.projectPointToChart(offPlane);
+    expect(projected.signedDistance).toBeCloseTo(distance, 13);
+    for (let axis = 0; axis < 3; axis++) {
+      expect(projected.coordinates[axis]).toBeCloseTo(chartPoint[axis]!, 13);
+    }
+
+    const embedded = slice.embedPoint(projected.coordinates);
+    for (let axis = 0; axis < 4; axis++) {
+      expect(
+        embedded[axis]! + projected.signedDistance * slice.normal.data[axis]!
+      ).toBeCloseTo(offPlane[axis]!, 13);
+    }
+  });
+
+  it('rejects malformed ambient points before projecting them to a chart', () => {
+    const slice = HyperplaneSlice4.axisAligned();
+    expect(() => slice.projectPointToChart([1, 2, 3])).toThrow(/expected a 4D point/);
+    expect(() => slice.projectPointToChart([1, 2, Number.NaN, 4])).toThrow(/finite/);
+  });
+
   it('canonical setNormal matches a fresh instance and keeps frame references', () => {
     const slice = HyperplaneSlice4.axisAligned(3, 0.1);
     const normalRef = slice.normal;

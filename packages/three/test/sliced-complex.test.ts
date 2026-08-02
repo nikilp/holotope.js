@@ -4,6 +4,7 @@ import {
   MatN,
   TransformN,
   createHypercube,
+  resolveRepresentationChartPointToSourceCellN,
   tetrahedralizeCuboidCells
 } from '@holotope/core';
 import { SlicedComplex3D } from '@holotope/three';
@@ -222,6 +223,47 @@ describe('SlicedComplex3D picking provenance', () => {
     sliced.dispose();
   });
 
+  it('inverts one source tet to its currently rendered faces', () => {
+    const slice = HyperplaneSlice4.axisAligned(3, 0.3);
+    const sliced = new SlicedComplex3D(makeTesseract(), slice);
+    const tetCount = 48;
+    for (let tet = 0; tet < tetCount; tet++) {
+      const expected: number[] = [];
+      for (let face = 0; face < sliced.triangleCount; face++) {
+        if (sliced.sourceTetOfFace(face) === tet) expected.push(face);
+      }
+      expect(sliced.facesOfSourceTet(tet)).toEqual(expected);
+    }
+    expect(() => sliced.facesOfSourceTet(tetCount)).toThrow(/tetIndex/);
+
+    slice.offset = 1.5;
+    sliced.update();
+    expect(sliced.facesOfSourceTet(0)).toEqual([]);
+    sliced.dispose();
+  });
+
+  it('lets a renderer chart carry Float32-appropriate resolver defaults', () => {
+    const sliced = new SlicedComplex3D(
+      makeTesseract(),
+      new HyperplaneSlice4({ normal: [0.2, -0.3, 0.4, 1], offset: 0.137 })
+    );
+    const chart = sliced.sourceCellChart();
+    expect(chart.defaultTolerances).toEqual({ chart: 1e-6, source: 1e-6 });
+    const positions = sliced.geometry.getAttribute('position');
+    const point = [
+      (positions.getX(0) + positions.getX(1) + positions.getX(2)) / 3,
+      (positions.getY(0) + positions.getY(1) + positions.getY(2)) / 3,
+      (positions.getZ(0) + positions.getZ(1) + positions.getZ(2)) / 3
+    ];
+    const resolved = resolveRepresentationChartPointToSourceCellN(
+      chart,
+      point,
+      { triangleIndex: 0 }
+    );
+    expect(resolved.kind).toBe('resolved');
+    sliced.dispose();
+  });
+
   it('colorForTet paints every triangle with its source cell color', () => {
     // Color by cube: 6 Kuhn tets per cube share a color.
     const palette = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffffff, 0x808080];
@@ -239,6 +281,47 @@ describe('SlicedComplex3D picking provenance', () => {
         }
       }
     }
+    sliced.dispose();
+  });
+
+  it('caches construction colors and recolors explicitly without remarching', () => {
+    let calls = 0;
+    const sliced = new SlicedComplex3D(makeTesseract(), HyperplaneSlice4.axisAligned(3, 0.3), {
+      colorForTet: () => {
+        calls++;
+        return 0x112233;
+      }
+    });
+    expect(calls).toBe(48);
+    const positionsBefore = Array.from(
+      sliced.geometry.getAttribute('position').array as Float32Array
+    );
+
+    sliced.update();
+    expect(calls).toBe(48);
+
+    sliced.recolorBySourceTet(() => {
+      calls++;
+      return 0xa0b0c0;
+    });
+    expect(calls).toBe(96);
+    expect(Array.from(
+      sliced.geometry.getAttribute('position').array as Float32Array
+    )).toEqual(positionsBefore);
+    const colors = sliced.geometry.getAttribute('color');
+    expect(colors.getX(0)).toBeCloseTo(0xa0 / 0xff, 6);
+    expect(colors.getY(0)).toBeCloseTo(0xb0 / 0xff, 6);
+    expect(colors.getZ(0)).toBeCloseTo(0xc0 / 0xff, 6);
+
+    expect(() => sliced.recolorBySourceTet(() => Number.NaN)).toThrow(/must return an integer/);
+    // Invalid replacement is transactional: the existing palette remains.
+    expect(colors.getX(0)).toBeCloseTo(0xa0 / 0xff, 6);
+    sliced.dispose();
+  });
+
+  it('refuses recoloring when no vertex-color buffer was authored', () => {
+    const sliced = new SlicedComplex3D(makeTesseract(), HyperplaneSlice4.axisAligned());
+    expect(() => sliced.recolorBySourceTet(() => 0xffffff)).toThrow(/construct with colorForTet/);
     sliced.dispose();
   });
 });

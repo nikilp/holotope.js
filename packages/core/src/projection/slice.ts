@@ -85,6 +85,45 @@ export class HyperplaneSlice4 {
     return n[0]! * x0 + n[1]! * x1 + n[2]! * x2 + n[3]! * x3 - this.offset;
   }
 
+  /**
+   * Orthogonally project an ambient R4 point into this slice's 3D display
+   * chart while retaining the discarded normal component explicitly.
+   *
+   * For a point on the hyperplane, `embedPoint(result.coordinates)` recovers
+   * the input. For an arbitrary point, add
+   * `result.signedDistance * normal` to that embedded point to reconstruct it.
+   */
+  projectPointToChart(point: ArrayLike<number>): {
+    /** Coordinates of the point's orthogonal projection in the slice basis. */
+    readonly coordinates: [number, number, number];
+    /** Signed ambient distance from the point to this hyperplane. */
+    readonly signedDistance: number;
+  } {
+    if (point.length !== 4) {
+      throw new Error(
+        `HyperplaneSlice4.projectPointToChart: expected a 4D point, got ${point.length}D`
+      );
+    }
+    if (![point[0], point[1], point[2], point[3]].every(
+      (coordinate) => Number.isFinite(coordinate)
+    )) {
+      throw new Error('HyperplaneSlice4.projectPointToChart: coordinates must be finite');
+    }
+    const coordinates: [number, number, number] = [0, 0, 0];
+    for (let axis = 0; axis < 3; axis++) {
+      const basis = this.basis[axis]!;
+      coordinates[axis] =
+        basis[0]! * point[0]! +
+        basis[1]! * point[1]! +
+        basis[2]! * point[2]! +
+        basis[3]! * point[3]!;
+    }
+    return {
+      coordinates,
+      signedDistance: this.signedDistance(point[0]!, point[1]!, point[2]!, point[3]!)
+    };
+  }
+
   /** Embed one point from this slice's 3D display frame back into ambient R4. */
   embedPoint(point: ArrayLike<number>): [number, number, number, number] {
     if (point.length !== 3) {

@@ -113,7 +113,9 @@ export function representationHitFromProjectedSurface(
 /**
  * Map a picked section triangle to its source tetrahedron. An unprojected
  * slice is an affine coordinate chart and therefore also yields an exact R4
- * point. A section rendered through a projection retains only source identity.
+ * point in the **posed ambient source frame used for the latest update**. It
+ * is not already transformed back into the complex's unposed local frame. A
+ * section rendered through a projection retains only source identity.
  */
 export function representationHitFromSlicedComplex(
   product: SlicedComplex3D,
@@ -125,19 +127,12 @@ export function representationHitFromSlicedComplex(
   );
   const pointLocal = representationPointLocal(product.object, intersection.point);
   const chart = product.sourceCellChart();
-  const chartTolerance = chart.trianglePositions instanceof Float32Array
-    ? 1e-6
-    : 1e-9;
   const resolved: RepresentationChartSourceCellResolutionN =
     resolveRepresentationChartPointToSourceCellN(
       chart,
       pointLocal.toArray(),
       {
-        triangleIndex: faceIndex,
-        // Three.js geometry stores chart vertices as Float32 today; retaining
-        // the check keeps a future Float64 adapter on the tighter path.
-        chartTolerance,
-        sourceTolerance: chartTolerance
+        triangleIndex: faceIndex
       }
     );
   if (resolved.kind !== 'resolved') {

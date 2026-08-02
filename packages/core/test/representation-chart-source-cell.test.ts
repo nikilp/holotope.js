@@ -40,6 +40,7 @@ function fixture(transform?: TransformN): {
 describe('representation chart source-cell resolution', () => {
   it('resolves an interior section point to one source tetrahedron and coordinate', () => {
     const { chart, point } = fixture();
+    expect(chart.defaultTolerances).toEqual({ chart: 1e-6, source: 1e-9 });
     const result = resolveRepresentationChartPointToSourceCellN(
       chart,
       point,
@@ -63,6 +64,19 @@ describe('representation chart source-cell resolution', () => {
         0
       )
     ).toBeCloseTo(1, 14);
+  });
+
+  it('validates chart-owned default tolerances', () => {
+    const { chart, point } = fixture();
+    const malformed: RepresentationCellChartN = {
+      ...chart,
+      defaultTolerances: { chart: 1e-6, source: 0 }
+    };
+    expect(() => resolveRepresentationChartPointToSourceCellN(
+      malformed,
+      point,
+      { triangleIndex: 0 }
+    )).toThrow(/chart default source tolerance/);
   });
 
   it('inverts the authored source pose before constructing local coordinates', () => {

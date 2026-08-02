@@ -127,7 +127,10 @@ The contract is deliberately capability-sensitive. `ambientPoint` is optional;
 projection overlap, derived from a sampled surface, or the first surface found
 along a field ray.
 
-`ProjectedEdges3D` preserves source vertex order. For a picked line segment,
+`ProjectedEdges3D` preserves source vertex order. Its `BufferGeometry` is
+indexed: the position attribute contains one projected entry per source vertex,
+while the index buffer contains the segment endpoints. Do not read adjacent
+position entries as one edge. For a picked line segment,
 `edgeVertices(segmentIndex)` returns the two source-complex vertex indices.
 
 `ProjectedSurface3D` expands source faces into a triangle soup while retaining
@@ -140,6 +143,8 @@ both mappings needed for inspection:
 `SlicedComplex3D` retains the source tetrahedron for every emitted triangle:
 
 - `sourceTetOfFace(faceIndex)` returns the source tetrahedron;
+- `facesOfSourceTet(tetIndex)` returns every current section face produced by
+  that tetrahedron, or an empty array when it does not meet the current cut;
 - `sourceTetVertices(tetIndex)` returns its four source vertex indices.
 
 Retained vertex ids also let separate observations meet again in source
@@ -164,8 +169,24 @@ provenance buffers.
 A slice has a stronger coordinate property than a projection. Its display
 frame is an affine coordinate system for one hyperplane, so
 `HyperplaneSlice4.embedPoint(point3)` lifts a point in that frame uniquely back
-to ambient R4. `sliceTetrahedraAmbient()` exposes the actual R4 intersection
-vertices when a downstream product needs them before projection.
+to ambient R4. In the other direction,
+`HyperplaneSlice4.projectPointToChart(point4)` returns both the chart
+coordinates of the point's orthogonal projection and its signed distance from
+the hyperplane. The distance is essential: chart coordinates alone cannot say
+whether an arbitrary ambient point actually belongs to the section.
+`sliceTetrahedraAmbient()` exposes the actual R4 intersection vertices when a
+downstream product needs them before projection.
+
+`SlicedComplex3D.sourceCellChart()` also carries numerical defaults appropriate
+to its stored representation. A Three.js product uses Float32 chart positions,
+so its source-coordinate tolerance is looser than the headless Float64 chart's.
+`resolveRepresentationChartPointToSourceCellN()` uses those chart-owned
+defaults unless a caller explicitly overrides them.
+
+When a section is constructed with `colorForTet`, that callback builds a
+source-tetrahedron palette once; remarching does not reevaluate application
+state. Call `recolorBySourceTet()` to replace the palette and recolor the
+current faces without rebuilding the section geometry.
 
 Changing a live slice normal transports its preceding in-plane basis into the
 new hyperplane by default. This prevents display coordinates from snapping

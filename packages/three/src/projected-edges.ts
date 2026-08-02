@@ -32,9 +32,11 @@ export interface ProjectedEdges3DOptions {
  *
  * This is the CPU "golden path": N-D transform and projection happen in
  * Float64 on the CPU each update; only the final 3D positions are uploaded
- * to the GPU. Vertex order is preserved 1:1 through projection, so the
- * i-th rendered vertex always corresponds to source vertex i (provenance
- * for picking and debugging).
+ * to the GPU. The geometry is indexed: its position attribute contains one
+ * projected entry per source vertex, while its index buffer contains the
+ * segment endpoints. It is not a flattened endpoint list. Vertex order is
+ * preserved 1:1 through projection, so the i-th position still corresponds
+ * to source vertex i (provenance for picking and debugging).
  */
 export class ProjectedEdges3D {
   readonly complex: CellComplex;

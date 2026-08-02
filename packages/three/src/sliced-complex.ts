@@ -35,11 +35,12 @@ export interface SlicedComplex3DOptions {
    */
   projection?: Projection;
   /**
-   * Per-cell coloring: hex color for each source tetrahedron, refreshed
-   * from provenance after every remarch. Map tets to the polytope's own
-   * cells (e.g. `Math.floor(tet / tetsPerCell)`) to paint the section as
-   * an assembly of cells. Requires a material with `vertexColors: true`
-   * to be visible; results are cached per tet index.
+   * Construction-time palette: one hex color is requested for each source
+   * tetrahedron and cached. Remarching reuses that palette; it does not call
+   * this function again. Use `recolorBySourceTet()` when selection or other
+   * application state changes. Map tets to the polytope's own cells (e.g.
+   * `Math.floor(tet / tetsPerCell)`) to paint the section as an assembly of
+   * cells. Requires a material with `vertexColors: true` to be visible.
    */
   colorForTet?: (tetIndex: number) => number;
 }
@@ -178,16 +179,8 @@ export class SlicedComplex3D {
     );
 
     if (options.colorForTet) {
-      // Bake the per-tet palette once — provenance then indexes straight
-      // into it on every remarch.
       const tetCount = this.tets.length / 4;
-      this.tetColors = new Float32Array(tetCount * 3);
-      for (let t = 0; t < tetCount; t++) {
-        const hex = options.colorForTet(t);
-        this.tetColors[t * 3] = ((hex >> 16) & 0xff) / 255;
-        this.tetColors[t * 3 + 1] = ((hex >> 8) & 0xff) / 255;
-        this.tetColors[t * 3 + 2] = (hex & 0xff) / 255;
-      }
+      this.tetColors = buildTetColorPalette(options.colorForTet, tetCount);
       this.colorAttribute = new BufferAttribute(new Float32Array(maxVertices * 3), 3);
       this.colorAttribute.setUsage(DynamicDrawUsage);
       this.geometry.setAttribute('color', this.colorAttribute);
@@ -257,17 +250,42 @@ export class SlicedComplex3D {
     if (vertexCount > 0) this.computeFlatNormals(vertexCount);
 
     if (this.colorAttribute && this.tetColors) {
-      const colors = this.colorAttribute.array as Float32Array;
-      for (let f = 0; f < vertexCount / 3; f++) {
-        const c = this.provenance[f]! * 3;
-        for (let v = 0; v < 3; v++) {
-          colors[f * 9 + v * 3] = this.tetColors[c]!;
-          colors[f * 9 + v * 3 + 1] = this.tetColors[c + 1]!;
-          colors[f * 9 + v * 3 + 2] = this.tetColors[c + 2]!;
-        }
-      }
-      this.colorAttribute.needsUpdate = true;
+      this.applyActiveColors(vertexCount);
     }
+  }
+
+  /**
+   * Rebuild the cached source-tetrahedron palette and recolor the current
+   * section without remarching its geometry.
+   *
+   * The product must have been constructed with `colorForTet`, which opts it
+   * into a vertex-color buffer. The callback is evaluated exactly once per
+   * source tetrahedron; invalid colors are rejected before the existing
+   * palette is changed.
+   */
+  recolorBySourceTet(colorForTet: (tetIndex: number) => number): void {
+    if (this.tetColors === undefined || this.colorAttribute === undefined) {
+      throw new Error(
+        'SlicedComplex3D.recolorBySourceTet: construct with colorForTet to allocate vertex colors'
+      );
+    }
+    const replacement = buildTetColorPalette(colorForTet, this.tets.length / 4);
+    this.tetColors.set(replacement);
+    this.applyActiveColors(this.geometry.drawRange.count);
+  }
+
+  /** Write cached source-tet colors onto the current triangle soup. */
+  private applyActiveColors(vertexCount: number): void {
+    const colors = this.colorAttribute!.array as Float32Array;
+    for (let face = 0; face < vertexCount / 3; face++) {
+      const color = this.provenance[face]! * 3;
+      for (let vertex = 0; vertex < 3; vertex++) {
+        colors[face * 9 + vertex * 3] = this.tetColors![color]!;
+        colors[face * 9 + vertex * 3 + 1] = this.tetColors![color + 1]!;
+        colors[face * 9 + vertex * 3 + 2] = this.tetColors![color + 2]!;
+      }
+    }
+    this.colorAttribute!.needsUpdate = true;
   }
 
   /** Per-face normals over the active draw range only. */
@@ -319,6 +337,23 @@ export class SlicedComplex3D {
     return this.provenance[faceIndex]!;
   }
 
+  /**
+   * Current rendered face indices produced by one source tetrahedron.
+   *
+   * The result reflects the latest `update()` and is empty when that
+   * tetrahedron does not intersect the current slice. This is the inverse of
+   * `sourceTetOfFace()` for the current remarch, not a general visibility
+   * abstraction shared with projections.
+   */
+  facesOfSourceTet(tetIndex: number): number[] {
+    this.sourceTetVertices(tetIndex);
+    const faces: number[] = [];
+    for (let face = 0; face < this.triangleCount; face++) {
+      if (this.provenance[face] === tetIndex) faces.push(face);
+    }
+    return faces;
+  }
+
   /** The four source-complex vertex indices of a tetrahedron by index. */
   sourceTetVertices(tetIndex: number): [number, number, number, number] {
     if (!Number.isSafeInteger(tetIndex) || tetIndex < 0 || tetIndex >= this.tets.length / 4) {
@@ -366,6 +401,10 @@ export class SlicedComplex3D {
       triangleCount: this.triangleCount,
       sourceCellIndices: this.provenance,
       sourceCells: this.tetReferences,
+      // The visible chart is uploaded and read back as Float32. Its source
+      // reconstruction must therefore use a tolerance appropriate to those
+      // stored coordinates rather than the headless Float64 default.
+      defaultTolerances: { chart: 1e-6, source: 1e-6 },
       pointLift,
       ...(this.sourceTransform === undefined
         ? {}
@@ -409,4 +448,23 @@ export class SlicedComplex3D {
     if (Array.isArray(material)) material.forEach((m) => m.dispose());
     else material.dispose();
   }
+}
+
+function buildTetColorPalette(
+  colorForTet: (tetIndex: number) => number,
+  tetCount: number
+): Float32Array {
+  const colors = new Float32Array(tetCount * 3);
+  for (let tet = 0; tet < tetCount; tet++) {
+    const hex = colorForTet(tet);
+    if (!Number.isSafeInteger(hex) || hex < 0 || hex > 0xffffff) {
+      throw new Error(
+        `SlicedComplex3D: colorForTet(${tet}) must return an integer from 0x000000 to 0xffffff`
+      );
+    }
+    colors[tet * 3] = ((hex >> 16) & 0xff) / 255;
+    colors[tet * 3 + 1] = ((hex >> 8) & 0xff) / 255;
+    colors[tet * 3 + 2] = (hex & 0xff) / 255;
+  }
+  return colors;
 }

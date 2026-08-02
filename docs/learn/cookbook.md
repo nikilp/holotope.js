@@ -484,6 +484,32 @@ const ambientVertices = sliceTetrahedraAmbient(
 
 Both return the number of vertices written, so an empty section returns `0`.
 
+## Move one ambient point between a slice and its chart
+
+An ambient point does not necessarily lie on the slice. Preserve that fact
+when expressing it in the slice's 3D frame:
+
+```ts
+import { HyperplaneSlice4 } from '@holotope/core';
+
+const slice = new HyperplaneSlice4({
+  normal: [1, -2, 0.5, 3],
+  offset: 0.2
+});
+const observation = slice.projectPointToChart([0.4, -0.1, 0.7, 0.3]);
+
+observation.coordinates;  // orthogonal projection in the slice display frame
+observation.signedDistance; // zero only when the R4 point belongs to the slice
+
+const projectedR4 = slice.embedPoint(observation.coordinates);
+```
+
+Do not describe `projectedR4` as the original point unless
+`signedDistance === 0` within an authored tolerance. For source-linked section
+highlighting, `section.facesOfSourceTet(tetIndex)` gives the current rendered
+faces of one known source tetrahedron; it returns an empty array when that cell
+does not intersect the present cut.
+
 ## Pick headlessly, with no renderer
 
 Picking needs geometry and a ray, not a canvas. A render product builds its
