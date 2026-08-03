@@ -1,0 +1,274 @@
+import type { VecN } from '@holotope/core';
+import {
+  diagnoseXpbdIncrementalPotentialStepN,
+  type XpbdIncrementalPotentialDiagnosisN
+} from './xpbd-incremental-potential-diagnosis.js';
+import {
+  stepXpbdIncrementalPotentialN,
+  type XpbdIncrementalPotentialApplicationPolicyN,
+  type XpbdIncrementalPotentialMinimizationPolicyN,
+  type XpbdIncrementalPotentialStepResultN
+} from './xpbd-incremental-potential-step.js';
+import type { XpbdIncrementalPotentialFeasibleWarmStartNOptions } from './xpbd-incremental-potential-feasible-base.js';
+import type { XpbdIncrementalPotentialStepFilterN } from './xpbd-incremental-potential-step-filter.js';
+import type {
+  XpbdConservativeForceProviderN,
+  XpbdWorldN
+} from './xpbd-world.js';
+
+/**
+ * One nonlinear advance of an authored world through the incremental-potential
+ * transaction.
+ *
+ * The world is authoritative for dimension, particle order, gravity, and the
+ * force-provider registry, so a caller stops repeating those four at every
+ * step and they cannot drift from the world being rendered or inspected.
+ *
+ * Step filters stay explicit. `XpbdWorldN` owns no filter registry, and
+ * inventing an implicit global one would make an ordered policy invisible at
+ * the call site.
+ */
+export interface StepXpbdIncrementalPotentialWorldNOptions {
+  /** Authoritative dimension, particle order, gravity, and provider registry. */
+  readonly world: XpbdWorldN;
+  /** Ordered admissible-segment filters; no implicit world registry exists. */
+  readonly stepFilters?: readonly XpbdIncrementalPotentialStepFilterN[];
+  /**
+   * Physical interval, finite and strictly positive.
+   *
+   * A zero interval is not a cheap no-op step: it is not a physical
+   * optimization step at all, and it is rejected exactly as negative and
+   * non-finite intervals are. A render loop that can produce a zero elapsed
+   * time should skip that frame rather than ask for a step of it.
+   */
+  readonly deltaTime: number;
+  readonly initialPositions?: readonly VecN[];
+  readonly warmStart?:
+    | 'inertial-prediction'
+    | 'previous-positions'
+    | 'feasible-inertial-prediction';
+  readonly feasibleWarmStart?: XpbdIncrementalPotentialFeasibleWarmStartNOptions;
+  readonly minimization?: XpbdIncrementalPotentialMinimizationPolicyN;
+  readonly application?: XpbdIncrementalPotentialApplicationPolicyN;
+}
+
+/**
+ * What the world contributed, captured before delegation.
+ *
+ * Identifiers rather than live objects: this is evidence about which registry
+ * entries the step ran against, and it must stay readable after the particles
+ * it names have moved.
+ */
+export interface XpbdIncrementalPotentialWorldSelectionN {
+  readonly dimension: number;
+  readonly particleIds: readonly string[];
+  readonly providerIds: readonly string[];
+  readonly stepFilterIds: readonly string[];
+}
+
+/**
+ * The complete result of one world-scoped advance.
+ *
+ * `step` is the unchanged lower-level result, not a simplified success flag —
+ * every feasible-base trial, candidate record, Newton evidence, minimizer
+ * terminal, and application refusal remains reachable through it.
+ */
+export interface XpbdIncrementalPotentialWorldStepN {
+  readonly selection: XpbdIncrementalPotentialWorldSelectionN;
+  readonly step: XpbdIncrementalPotentialStepResultN;
+  readonly diagnosis: XpbdIncrementalPotentialDiagnosisN;
+}
+
+const KNOWN_OPTION_KEYS: ReadonlySet<string> = new Set([
+  'world',
+  'stepFilters',
+  'deltaTime',
+  'initialPositions',
+  'warmStart',
+  'feasibleWarmStart',
+  'minimization',
+  'application'
+]);
+
+/**
+ * Registries the incremental-potential transaction cannot represent.
+ *
+ * Projected scalar constraints, velocity responses, and state guards belong to
+ * the world's own `step()` path. Running the optimization path while they are
+ * registered would advance the scene as though they had been applied, so their
+ * presence is a configuration error rather than something to ignore.
+ */
+const UNSUPPORTED_REGISTRIES = [
+  { kind: 'scalar constraint', read: (world: XpbdWorldN) => world.constraints },
+  { kind: 'velocity response', read: (world: XpbdWorldN) => world.velocityResponses },
+  { kind: 'state guard', read: (world: XpbdWorldN) => world.stateGuards }
+] as const;
+
+/**
+ * Advances one authored `XpbdWorldN` through the incremental-potential
+ * transaction, once.
+ *
+ * This is orchestration, not a second solver. It derives the four
+ * authoritative inputs from the world, refuses the registries the optimization
+ * path cannot honor, delegates exactly once to
+ * {@link stepXpbdIncrementalPotentialN}, and diagnoses that result once. Every
+ * numeric decision — prediction, compilation, feasible-base recovery,
+ * minimization, verification, application, rollback — belongs to the delegated
+ * step and is unchanged here.
+ *
+ * A world has two solver paths and they are not interchangeable for one
+ * physical interval. `world.step()` and `world.stepAdaptive()` run projected
+ * XPBD with the registered constraints, responses, and guards; this runs the
+ * nonlinear optimization transaction with conservative potentials only.
+ * Choose one per interval. This function never calls either of the others.
+ *
+ * Configuration problems throw, because no physical step was attempted:
+ * unknown option keys, an empty world, an unsupported registry, a
+ * non-conservative provider. Mathematical and algorithmic outcomes stay typed
+ * in the returned `step`, including every refusal — they are results, not
+ * errors.
+ *
+ * @param options - The world, an explicit filter order, the interval, and the
+ * warm-start/minimization/application policies the lower-level step accepts.
+ * @returns Frozen selection evidence, the unchanged lower-level step, and its
+ * diagnosis.
+ * @throws If the options or the world's registries cannot express a legal
+ * optimization step. Thrown before any particle is touched.
+ *
+ * @example
+ * One R4 point falling onto a finite static tetrahedron. The world supplies
+ * dimension, particle order, gravity, and the contact provider; only the
+ * ordered filter and the interval are named at the call site.
+ * ```ts
+ * const point = new CellComplex(4, Float64Array.from([0.25, 0.25, 0.25, 0.06]), []);
+ * const binding = compileXpbdParticleBindingN({ id: 'point', source: point });
+ * for (const particle of binding.particles) particle.velocity.data[3] = -6;
+ *
+ * const face = {
+ *   key: 'obstacle', dim: 3, verticesPerCell: 4, kind: 'simplex' as const,
+ *   indices: Uint32Array.from([0, 1, 2, 3])
+ * };
+ * const obstacle = new CellComplex(
+ *   4,
+ *   Float64Array.from([0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]),
+ *   [face]
+ * );
+ * const contact = compileXpbdParticleSourceSimplexBarrierFamilyN({
+ *   id: 'contact', binding, obstacle, simplexGroup: face,
+ *   minimumDistance: 0.05, activationDistance: 0.8, stiffness: 1.7
+ * });
+ *
+ * const world = new XpbdWorldN({ dimension: 4, gravity: [0, 0, 0, -9.81] });
+ * binding.addToWorld(world);
+ * contact.addToWorld(world);
+ *
+ * const advance = stepXpbdIncrementalPotentialWorldN({
+ *   world,
+ *   deltaTime: 1 / 120,
+ *   stepFilters: [contact.stepFilter],
+ *   warmStart: 'feasible-inertial-prediction',
+ *   minimization: { directionPolicy: 'steepest-descent' }
+ * });
+ *
+ * log(advance.selection.providerIds);  // ['contact'] — authored world order
+ * log(advance.step.status);            // 'applied', or a typed refusal
+ * log(advance.diagnosis.condition);    // why, without parsing a message
+ * ```
+ */
+export function stepXpbdIncrementalPotentialWorldN(
+  options: StepXpbdIncrementalPotentialWorldNOptions
+): XpbdIncrementalPotentialWorldStepN {
+  const caller = 'stepXpbdIncrementalPotentialWorldN';
+  if (typeof options !== 'object' || options === null) {
+    throw new Error(`${caller}: options must be an object`);
+  }
+  for (const key of Object.keys(options)) {
+    if (!KNOWN_OPTION_KEYS.has(key)) {
+      throw new Error(`${caller}: unknown option "${key}"`);
+    }
+  }
+
+  const world = options.world;
+  if (typeof world !== 'object' || world === null ||
+    !Array.isArray(world.particles) ||
+    typeof world.dimension !== 'number') {
+    throw new Error(`${caller}: world must be an XpbdWorldN`);
+  }
+  const particles = world.particles;
+  if (particles.length === 0) {
+    throw new Error(`${caller}: world has no registered particles`);
+  }
+
+  // Refuse before anything is derived, so an unsupported world never reaches
+  // the point of looking like a step that merely failed.
+  for (const registry of UNSUPPORTED_REGISTRIES) {
+    const entries = registry.read(world);
+    const first = entries[0];
+    if (first !== undefined) {
+      throw new Error(
+        `${caller}: the incremental-potential path cannot apply a registered ` +
+          `${registry.kind} ("${first.id}"). Registered ${registry.kind}s run ` +
+          'through world.step(); use one solver path per interval.'
+      );
+    }
+  }
+
+  // Authored order is preserved, and a mixed registry is a configuration
+  // error rather than a silent selection of the conservative subset.
+  const providers: XpbdConservativeForceProviderN[] = [];
+  for (const provider of world.forceProviders) {
+    if (typeof (provider as Partial<XpbdConservativeForceProviderN>).evaluateAt
+      !== 'function') {
+      throw new Error(
+        `${caller}: registered force provider "${provider.id}" is not ` +
+          'conservative — it defines no evaluateAt(positionOf), so the ' +
+          'optimization path cannot represent it. Remove it or use world.step().'
+      );
+    }
+    providers.push(provider as XpbdConservativeForceProviderN);
+  }
+
+  const stepFilters = options.stepFilters ?? [];
+  if (!Array.isArray(stepFilters)) {
+    throw new Error(`${caller}: stepFilters must be an array`);
+  }
+
+  // Snapshotted before delegation and frozen, so a caller mutating its own
+  // filter array afterwards cannot reshape the returned evidence. Duplicate
+  // filter IDs are left for the existing compiler refusal rather than being
+  // deduplicated here.
+  const selection: XpbdIncrementalPotentialWorldSelectionN = Object.freeze({
+    dimension: world.dimension,
+    particleIds: Object.freeze(particles.map((particle) => particle.id)),
+    providerIds: Object.freeze(providers.map((provider) => provider.id)),
+    stepFilterIds: Object.freeze(stepFilters.map((filter) => filter.id))
+  });
+
+  const step = stepXpbdIncrementalPotentialN({
+    dimension: world.dimension,
+    particles,
+    providers,
+    gravity: world.gravity,
+    stepFilters: stepFilters.slice(),
+    deltaTime: options.deltaTime,
+    ...(options.initialPositions === undefined
+      ? {}
+      : { initialPositions: options.initialPositions }),
+    ...(options.warmStart === undefined ? {} : { warmStart: options.warmStart }),
+    ...(options.feasibleWarmStart === undefined
+      ? {}
+      : { feasibleWarmStart: options.feasibleWarmStart }),
+    ...(options.minimization === undefined
+      ? {}
+      : { minimization: options.minimization }),
+    ...(options.application === undefined
+      ? {}
+      : { application: options.application })
+  });
+
+  return Object.freeze({
+    selection,
+    step,
+    diagnosis: diagnoseXpbdIncrementalPotentialStepN(step)
+  });
+}

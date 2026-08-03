@@ -401,6 +401,12 @@ export {
   type XpbdIncrementalPotentialStepResultN
 } from './xpbd-incremental-potential-step.js';
 export {
+  stepXpbdIncrementalPotentialWorldN,
+  type StepXpbdIncrementalPotentialWorldNOptions,
+  type XpbdIncrementalPotentialWorldSelectionN,
+  type XpbdIncrementalPotentialWorldStepN
+} from './xpbd-incremental-potential-world-step.js';
+export {
   XpbdExponentialVelocityDampingN,
   type XpbdExponentialVelocityDampingEvaluationN,
   type XpbdExponentialVelocityDampingNOptions
