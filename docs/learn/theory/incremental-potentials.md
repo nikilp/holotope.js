@@ -1315,7 +1315,10 @@ Three things stay the caller's:
   interval is not a cheap no-op the way `PhysicsWorld4.step(0)` is; it is not
   a physical optimization step at all, and it is rejected exactly as negative
   and non-finite intervals are. A render loop that can produce a zero elapsed
-  time should skip that frame.
+  time should skip that frame. `XpbdWorldN.step()` and `stepAdaptive()` reject
+  a zero interval too, so falling back to the XPBD path on an idle frame does
+  not avoid the rule — the rigid `PhysicsWorld4` is the one class in the
+  library whose zero step is defined.
 - **Which solver path.** See below.
 
 ### One solver path per interval

@@ -181,9 +181,13 @@ after a positive completed step.
 The optimization path uses the same accumulator, with two differences. Its
 `deltaTime` must be strictly positive — a zero interval is not a physical
 optimization step, so the `while` guard is what skips it rather than a no-op
-inside the step — and a refusal is a typed result to read, not an exception to
-catch. An `XpbdWorldN` has two solver paths, and running both over one
-interval integrates that interval twice; pick one per frame.
+inside the step — and a *mathematical* refusal is a typed result to read
+rather than an exception to catch, while a configuration problem still throws.
+`XpbdWorldN.step()` and `stepAdaptive()` also reject a zero interval, so the
+guard is the policy for both of an `XpbdWorldN`'s paths; only the rigid
+`PhysicsWorld4.step(0)` above is a defined no-op. And an `XpbdWorldN` has two
+solver paths, so running both over one interval integrates that interval
+twice; pick one per frame.
 
 ```ts
 import {
