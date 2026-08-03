@@ -92,6 +92,27 @@ indexed, and refuses a moved source by naming the vertex and axis rather than
 rebuilding itself. Its diagnostics are operation counts; on an obstacle it
 cannot separate, work is linear and the counts say so.
 
+`compileXpbdSourceSimplexCosineBendingFamilyN()` adds source-retained extrinsic
+stiffness over adjacent simplices. **It is a discrete cosine-fold stiffness,
+not a continuum shell calibration.** The coordinate is `c = -uA . uB` over the
+shared-face conormals — the orientation-neutral cosine of the fold from flat,
+never a signed dihedral — and the energy `0.5 k (c - cRest)^2` is therefore
+quartic in the fold angle where a continuum bending energy is quadratic. It is
+not mesh-convergent: a fixed strip refined in place has its total fall as
+`n^-2.99`, so stiffness values are discretization-dependent and do not transfer
+to a refinement. At a flat rest the first derivative vanishes, so small folds
+produce a weak restoring force.
+
+Only unit weighting exists. The gradient is closed-form over all `d+2` hinge
+vertices with exact translation and rotation null modes, and the family is
+first-order only, so Newton-CG refuses the mixture with named
+unsupported-provider evidence rather than dropping bending curvature silently.
+Its paired filter is not optional: a search segment can begin and end with
+valid hinges while passing through zero conormal height in between, so the
+filter reuses `analyzeLinearSimplexMeasureN` over each distinct source simplex
+to certify a conservative admissible prefix. That prefix is an intrinsic-rank
+certificate, not an exact collapse time.
+
 World-frame angular momentum is authoritative. Free flight therefore does not
 numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the

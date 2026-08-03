@@ -1249,3 +1249,92 @@ obstacle's current coordinates on every query and needs no rebuild at all.
 
 Moving obstacles, incremental refit, and a revision protocol are a separate
 stage; this API is a static reference.
+
+## Give a flat membrane bending stiffness and step it
+
+A stretch material resists deforming each simplex, but not folding *between*
+simplices — a sheet creased along an edge has every triangle undeformed. That
+missing extrinsic term is what a bending family supplies.
+
+Before the code: this is a **discrete cosine-fold stiffness, not a shell
+model**. The energy is quartic in the fold angle, does not converge under mesh
+refinement, and the stiffness below belongs to this mesh rather than to a
+material.
+
+```ts
+import { CellComplex } from '@holotope/core';
+import {
+  XpbdWorldN,
+  compileXpbdParticleBindingN,
+  compileXpbdSourceSimplexCosineBendingFamilyN,
+  stepXpbdIncrementalPotentialWorldN
+} from '@holotope/physics';
+
+// A 3x3 R4 sheet, creased along its middle row.
+const sheetPositions: number[] = [];
+for (let row = 0; row < 3; row += 1) {
+  for (let column = 0; column < 3; column += 1) {
+    sheetPositions.push(column, row, row === 1 ? 0.45 : 0, 0);
+  }
+}
+const sheetIndices: number[] = [];
+for (let row = 0; row < 2; row += 1) {
+  for (let column = 0; column < 2; column += 1) {
+    const at = row * 3 + column;
+    sheetIndices.push(at, at + 1, at + 3, at + 1, at + 4, at + 3);
+  }
+}
+const sheetGroup = {
+  key: 'sheet', dim: 2, verticesPerCell: 3, kind: 'simplex' as const,
+  indices: Uint32Array.from(sheetIndices)
+};
+const sheet = new CellComplex(4, Float64Array.from(sheetPositions), [sheetGroup]);
+const sheetBinding = compileXpbdParticleBindingN({
+  id: 'sheet-points', source: sheet
+});
+
+const sheetBending = compileXpbdSourceSimplexCosineBendingFamilyN({
+  id: 'sheet-bending',
+  binding: sheetBinding,
+  simplexGroup: sheetGroup,
+  stiffness: 25,
+  restCoordinate: 1,        // flat, so the crease is a deformation to resist
+  minimumMeasureRatio: 0.05
+});
+
+console.log(
+  sheetBending.hinges.length,        // 8 interior hinges, found from the source
+  sheetBending.boundaryFaceCount,    // 8 boundary edges, counted and skipped
+  sheetBending.evaluate().potentialEnergy > 0   // true: the crease costs energy
+);
+
+const sheetWorld = new XpbdWorldN({ dimension: 4 });
+sheetBinding.addToWorld(sheetWorld);
+sheetBending.addToWorld(sheetWorld);
+
+const advance = stepXpbdIncrementalPotentialWorldN({
+  world: sheetWorld,
+  deltaTime: 1 / 120,
+  stepFilters: [sheetBending.stepFilter],   // never omit this
+  warmStart: 'feasible-inertial-prediction',
+  minimization: { directionPolicy: 'steepest-descent' }
+});
+console.log(advance.step.status, advance.diagnosis.condition);
+```
+
+Omitting `restCoordinate` captures each hinge's fold from the authored
+geometry instead, so the mesh as drawn becomes its own relaxed shape and the
+family resists deviation from *that*. Writing new coordinates through
+`sheetBinding.writeSourcePositions()` afterwards does not retarget the captured
+rest — that would silently redefine the shape being resisted. Recompile to
+change it.
+
+`stepFilters: [sheetBending.stepFilter]` is load-bearing rather than
+decorative. A search segment can begin and end with valid hinges while passing
+through zero conormal height in between, where the fold coordinate does not
+exist; only the filter sees that crossing.
+
+Two behaviours worth expecting rather than debugging: a flat rest has a
+vanishing first derivative, so small folds produce very little restoring
+force; and `'newton-cg'` will refuse a mixture containing this provider, with
+named unsupported-provider evidence, because it exposes no analytic curvature.

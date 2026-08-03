@@ -46,9 +46,13 @@ export type SimplexHingeCosineRefusalReasonN =
 
 /** Evidence available before a refusal, so the caller can see how close it was. */
 export interface SimplexHingeCosineRefusalN {
+  /** Discriminant; no coordinate or gradient exists on this branch. */
   readonly status: 'refused';
+  /** Which degeneracy was found. */
   readonly reason: SimplexHingeCosineRefusalReasonN;
+  /** Ambient dimension `N` the hinge was evaluated in. */
   readonly ambientDimension: number;
+  /** Intrinsic simplex dimension `d`, the shared-face vertex count. */
   readonly simplexDimension: number;
   /** Independent shared-face edge directions actually found. */
   readonly rank: number;
@@ -56,29 +60,37 @@ export interface SimplexHingeCosineRefusalN {
   readonly requiredRank: number;
   /** Smallest Gram-Schmidt residual relative to the largest edge. */
   readonly conditioning: number;
-  /** Conormal heights, or `null` when rank failed before they were reachable. */
+  /** First apex height, or `null` when rank failed before it was reachable. */
   readonly heightA: number | null;
+  /** Second apex height, or `null` for the same reason. */
   readonly heightB: number | null;
   /** Local length scale the relative tolerance was applied against. */
   readonly scale: number;
+  /** The relative tolerance in force; the threshold is `tolerance * scale`. */
   readonly tolerance: number;
 }
 
 /** A defined fold coordinate with its complete first-derivative evidence. */
 export interface SimplexHingeCosineEvaluationN {
+  /** Discriminant; the coordinate and gradient are present on this branch. */
   readonly status: 'evaluated';
+  /** Ambient dimension `N` the hinge was evaluated in. */
   readonly ambientDimension: number;
+  /** Intrinsic simplex dimension `d`, the shared-face vertex count. */
   readonly simplexDimension: number;
   /** `-uA · uB`, in `[-1, 1]`; `1` is flat. */
   readonly coordinate: number;
+  /** Independent shared-face edge directions found; equals `d - 1` when valid. */
   readonly rank: number;
   /** Smallest Gram-Schmidt residual over the largest edge; small is ill-posed. */
   readonly conditioning: number;
   /** Distance from `oppositeA` to the shared face's affine hull. */
   readonly heightA: number;
+  /** Distance from `oppositeB` to the same affine hull. */
   readonly heightB: number;
-  /** Unit conormals; both orthogonal to the shared-face span. */
+  /** Unit conormal at `oppositeA`, orthogonal to the shared-face span. */
   readonly conormalA: VecN;
+  /** Unit conormal at `oppositeB`; `c` is the negated dot of the two. */
   readonly conormalB: VecN;
   /**
    * `∂c/∂vertex`, one per hinge vertex, in the caller's input order
@@ -90,6 +102,7 @@ export interface SimplexHingeCosineEvaluationN {
   readonly gradient: readonly VecN[];
 }
 
+/** Either a defined fold coordinate or a typed geometric refusal. */
 export type SimplexHingeCosineResultN =
   | SimplexHingeCosineEvaluationN
   | SimplexHingeCosineRefusalN;

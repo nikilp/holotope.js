@@ -53,12 +53,16 @@ export interface XpbdSourceSimplexBendingHingeN {
   /** Persistent reference to the higher-ordinal incident simplex. */
   readonly cellB: SourceCellReferenceN;
   /** Structural ids, stable across order-independent regeneration. */
+  /** Structural id of the lower-ordinal incident cell. */
   readonly cellIdA: SourceCellIdN;
+  /** Structural id of the higher-ordinal incident cell. */
   readonly cellIdB: SourceCellIdN;
   /** Fold coordinate captured from the source at compilation. */
   readonly restCoordinate: number;
   /** Conormal heights at rest, for auditing a near-degenerate rest shape. */
+  /** First apex conormal height at rest. */
   readonly restHeightA: number;
+  /** Second apex conormal height at rest. */
   readonly restHeightB: number;
   /** Shared-face conditioning at rest. */
   readonly restConditioning: number;
@@ -66,6 +70,7 @@ export interface XpbdSourceSimplexBendingHingeN {
 
 /** One hinge's contribution at a candidate state. */
 export interface XpbdSourceSimplexBendingHingeEvaluationN {
+  /** The compiled hinge this record belongs to. */
   readonly hinge: XpbdSourceSimplexBendingHingeN;
   /** Complete P48 geometry, including the per-vertex gradient. */
   readonly geometry: SimplexHingeCosineEvaluationN;
@@ -110,7 +115,9 @@ export interface XpbdSourceSimplexCosineBendingFamilyEvaluationN
 
 /** Provider and its paired filter, accepted together by a compiled problem. */
 export interface XpbdSourceSimplexCosineBendingFamilyTermsN {
+  /** Existing providers followed by this bending family provider. */
   readonly providers: readonly XpbdConservativeForceProviderN[];
+  /** Existing filters followed by this family's paired segment certificate. */
   readonly stepFilters: readonly XpbdIncrementalPotentialStepFilterN[];
 }
 
@@ -121,8 +128,11 @@ export type XpbdSourceSimplexCosineBendingFilterRefusalReasonN =
 
 /** One inspected source simplex paired with its measure analysis. */
 export interface XpbdSourceSimplexBendingCellAnalysisN {
+  /** Persistent reference to the inspected source simplex. */
   readonly cell: SourceCellReferenceN;
+  /** Its ordinal within the compiled simplex group. */
   readonly cellIndex: number;
+  /** Complete polynomial enclosure evidence for this cell over the segment. */
   readonly analysis: LinearSimplexMeasureAnalysisN;
 }
 
@@ -173,9 +183,11 @@ export interface CompileXpbdSourceSimplexCosineBendingFamilyNOptions {
   readonly tolerance?: number;
   /** Fraction of a certified prefix retained. Default `0.9`. */
   readonly conservativeScale?: number;
-  /** Forwarded to `analyzeLinearSimplexMeasureN`. */
+  /** Bracket resolution forwarded to `analyzeLinearSimplexMeasureN`. */
   readonly timeTolerance?: number;
+  /** Subdivision depth bound forwarded to `analyzeLinearSimplexMeasureN`. */
   readonly maximumDepth?: number;
+  /** Relative coefficient tolerance forwarded to the same analysis. */
   readonly relativeCoefficientTolerance?: number;
 }
 
@@ -226,12 +238,17 @@ interface CompiledCellN {
  */
 export class XpbdSourceSimplexCosineBendingFamilyN
 implements XpbdConservativeForceProviderN {
+  /** Stable provider identity and hinge-ID prefix. */
   readonly id: string;
+  /** Ambient dimension `N`, taken from the binding. */
   readonly dimension: number;
+  /** Authoritative source-vertex to particle mapping. */
   readonly binding: XpbdParticleBindingN;
+  /** Bound particles in source-vertex order. */
   readonly particles: readonly XpbdParticleN[];
   /** Source complex owning the indexed simplex group. */
   readonly source: CellComplex;
+  /** Compiled simplex group; identity, not structural equality, is required. */
   readonly simplexGroup: CellGroup;
   /** Intrinsic simplex dimension `d`, with `1 <= d < dimension`. */
   readonly simplexDimension: number;
@@ -239,9 +256,13 @@ implements XpbdConservativeForceProviderN {
   readonly hinges: readonly XpbdSourceSimplexBendingHingeN[];
   /** Codimension-one faces with exactly one incident cell. */
   readonly boundaryFaceCount: number;
+  /** Uniform stiffness; discretization-dependent, not a material constant. */
   readonly stiffness: number;
+  /** Relative rank/height tolerance used by every hinge evaluation. */
   readonly tolerance: number;
+  /** Minimum current/rest measure ratio the paired filter certifies. */
   readonly minimumMeasureRatio: number;
+  /** Fraction of a certified prefix the filter retains. */
   readonly conservativeScale: number;
   /** Paired continuous-domain filter; pass it to every incremental solve. */
   readonly stepFilter: XpbdSourceSimplexCosineBendingFamilyStepFilterN;
@@ -499,6 +520,11 @@ implements XpbdIncrementalPotentialStepFilterN {
   readonly particles: readonly XpbdParticleN[];
   private readonly family: XpbdSourceSimplexCosineBendingFamilyN;
 
+  /**
+   * Binds one filter to its family; the family constructs its own.
+   *
+   * @param family - The compiled family whose source cells this certifies.
+   */
   constructor(family: XpbdSourceSimplexCosineBendingFamilyN) {
     this.family = family;
     this.id = `${family.id}/bending-measure-filter`;

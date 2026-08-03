@@ -41,6 +41,8 @@ import {
   compileXpbdParticleBindingN,
   compileXpbdParticleSourceSimplexBarrierFamilyN,
   compileXpbdSourceSimplexAabbHierarchyN,
+  compileXpbdSourceSimplexCosineBendingFamilyN,
+  evaluateSimplexHingeCosineN,
   recoverXpbdIncrementalPotentialFeasibleBaseN,
   stepXpbdIncrementalPotentialWorldN,
   type XpbdConservativeForceProviderN,
@@ -48,6 +50,9 @@ import {
   type XpbdIncrementalPotentialWorldSelectionN,
   type XpbdIncrementalPotentialWorldStepN,
   type XpbdSourceSimplexAabbQueryDiagnosticsN,
+  type XpbdSourceSimplexBendingHingeN,
+  type XpbdSourceSimplexCosineBendingFamilyEvaluationN,
+  type XpbdSourceSimplexCosineBendingFamilyTermsN,
   type XpbdSourceSimplexAabbQueryN,
   type XpbdVelocityResponseN,
   type XpbdParticleSourceSimplexBarrierDomainReasonN,
@@ -615,6 +620,113 @@ export function physicsComposition(): void {
       .queryAt((particle) => particle.position.clone())
       .candidates.length === exhaustiveIds.length,
     'restoring the packed obstacle did not restore the candidate set'
+  );
+
+  // Source-retained cosine-fold bending must compile and evaluate from the
+  // packed graph, with its filter travelling alongside the provider.
+  const bendPositions: number[] = [];
+  for (let row = 0; row < 3; row += 1) {
+    for (let column = 0; column < 3; column += 1) {
+      bendPositions.push(column, row, row === 1 ? 0.45 : 0, 0);
+    }
+  }
+  const bendIndices: number[] = [];
+  for (let row = 0; row < 2; row += 1) {
+    for (let column = 0; column < 2; column += 1) {
+      const at = row * 3 + column;
+      bendIndices.push(at, at + 1, at + 3, at + 1, at + 4, at + 3);
+    }
+  }
+  const bendGroup = {
+    key: 'packed-membrane', dim: 2, verticesPerCell: 3, kind: 'simplex' as const,
+    indices: new Uint32Array(bendIndices)
+  };
+  const membrane = new CellComplex(
+    4, new Float64Array(bendPositions), [bendGroup]
+  );
+  const membraneBinding = compileXpbdParticleBindingN({
+    id: 'packed-membrane-points', source: membrane
+  });
+  const bending = compileXpbdSourceSimplexCosineBendingFamilyN({
+    id: 'packed-membrane-bending',
+    binding: membraneBinding,
+    simplexGroup: bendGroup,
+    stiffness: 25,
+    restCoordinate: 1,
+    minimumMeasureRatio: 0.05
+  });
+  const bendingEvaluation: XpbdSourceSimplexCosineBendingFamilyEvaluationN =
+    bending.evaluate();
+  const firstBendHinge: XpbdSourceSimplexBendingHingeN | undefined =
+    bending.hinges[0];
+  assert(
+    bendingEvaluation.hingeCount === 8 &&
+      bendingEvaluation.boundaryFaceCount === 8 &&
+      firstBendHinge !== undefined,
+    'the packed bending family lost its interior/boundary accounting'
+  );
+  assert(
+    bendingEvaluation.potentialEnergy > 0,
+    'the packed creased membrane reported no bending energy'
+  );
+  assert(
+    bendingEvaluation.netForceResidual < 1e-12 &&
+      bendingEvaluation.rotationalFirstMomentResidual < 1e-12,
+    'the packed bending gradient lost its rigid null modes'
+  );
+  assert(
+    bendingEvaluation.weighting === 'unit-discrete' &&
+      bendingEvaluation.weight === 1,
+    'the packed bending family hid its weighting policy'
+  );
+
+  // The pure evaluator reproduces any hinge exactly.
+  const reproduced = evaluateSimplexHingeCosineN({
+    sharedFace: firstBendHinge!.sharedVertices.map(
+      (vertex) => membraneBinding.particles[vertex]!.position.clone()
+    ),
+    oppositeA:
+      membraneBinding.particles[firstBendHinge!.oppositeVertexA]!.position.clone(),
+    oppositeB:
+      membraneBinding.particles[firstBendHinge!.oppositeVertexB]!.position.clone()
+  });
+  assert(
+    reproduced.status === 'evaluated' &&
+      reproduced.coordinate === bendingEvaluation.hinges[0]!.geometry.coordinate,
+    'the packed pure evaluator disagreed with the family'
+  );
+
+  const bendingTerms: XpbdSourceSimplexCosineBendingFamilyTermsN =
+    bending.incrementalPotentialTerms();
+  assert(
+    bendingTerms.providers.length === 1 && bendingTerms.stepFilters.length === 1 &&
+      bendingTerms.stepFilters[0] === bending.stepFilter,
+    'the packed bending provider arrived without its paired filter'
+  );
+
+  const bendingWorld = new XpbdWorldN({ dimension: 4 });
+  membraneBinding.addToWorld(bendingWorld);
+  bending.addToWorld(bendingWorld);
+  const membraneBefore = membraneBinding.particles.map(
+    (particle) => particle.position.toArray().join()
+  );
+  const membraneStep = stepXpbdIncrementalPotentialWorldN({
+    world: bendingWorld,
+    deltaTime: 1 / 120,
+    stepFilters: [bending.stepFilter],
+    warmStart: 'feasible-inertial-prediction',
+    minimization: { directionPolicy: 'steepest-descent' }
+  });
+  const membraneAfter = membraneBinding.particles.map(
+    (particle) => particle.position.toArray().join()
+  );
+  assert(
+    membraneStep.step.status === 'applied',
+    `the packed membrane step reported ${membraneStep.step.status}`
+  );
+  assert(
+    membraneBefore.join('|') !== membraneAfter.join('|'),
+    'the packed membrane step advanced nothing'
   );
 }
 

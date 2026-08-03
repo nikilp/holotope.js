@@ -524,7 +524,59 @@ and static during a solve. It does not implement moving--moving pairs,
 self-contact, edge--edge candidates, exact finite-feature impact, or analytic
 curvature.
 
-#### Selecting a static AABB hierarchy
+#### Extrinsic bending is a first-order provider
+
+`compileXpbdSourceSimplexCosineBendingFamilyN()` supplies a conservative
+provider for the fold between adjacent source simplices — a **discrete
+cosine-fold stiffness, not a continuum shell**; see
+[the deformable page](../physics/deformable.md#extrinsic-stiffness-discrete-cosine-fold-bending)
+for the coordinate and its measured non-convergence.
+
+Two facts matter at this boundary. It implements the first-derivative seam
+only, so a mixture containing it makes `'newton-cg'` refuse with named
+unsupported-provider evidence rather than dropping the bending block and
+returning a direction that ignores it. And it carries a paired step filter
+that must travel with it:
+
+```ts
+import { CellComplex } from '@holotope/core';
+import {
+  compileXpbdParticleBindingN,
+  compileXpbdSourceSimplexCosineBendingFamilyN
+} from '@holotope/physics';
+
+const foldGroup = {
+  key: 'fold', dim: 2, verticesPerCell: 3, kind: 'simplex' as const,
+  indices: Uint32Array.from([0, 1, 2, 1, 3, 2])
+};
+const foldSource = new CellComplex(4, Float64Array.from([
+  0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0.4, 0, 1, 1, 0, 0
+]), [foldGroup]);
+const foldBinding = compileXpbdParticleBindingN({
+  id: 'fold-points', source: foldSource
+});
+const bending = compileXpbdSourceSimplexCosineBendingFamilyN({
+  id: 'fold-bending', binding: foldBinding, simplexGroup: foldGroup,
+  stiffness: 25, restCoordinate: 1, minimumMeasureRatio: 0.05
+});
+
+const bendingProblem = compileXpbdIncrementalPotentialProblemN({
+  dimension: 4,
+  particles: foldBinding.particles,
+  predictedPositions: foldBinding.particles.map(
+    (particle) => particle.position.clone()
+  ),
+  deltaTime: 1 / 60,
+  ...bending.incrementalPotentialTerms()
+});
+console.log(bendingProblem.stepFilters[0]?.id);
+```
+
+Spreading `incrementalPotentialTerms()` is what keeps the pairing honest.
+Passing `bending` as a bare provider compiles and runs, and leaves every
+search segment uncertified against a hinge collapsing mid-chord.
+
+### Selecting a static AABB hierarchy
 
 The scan above visits every dynamic vertex against every obstacle simplex. That
 is what makes it the oracle, and it stays the default. When the obstacle is

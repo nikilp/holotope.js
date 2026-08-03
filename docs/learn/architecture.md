@@ -201,6 +201,21 @@ Provider, constraint, or response failure rolls the complete particle state
 back. It remains distinct from `PhysicsWorld4`, whose generalized coordinates
 include Spin(4) orientation and bivector momentum.
 
+Extrinsic stiffness is a separate layer from the intrinsic constitutive laws
+above, and its coordinate is deliberately modest: the orientation-neutral
+cosine of the fold between adjacent simplices, `c = -uA . uB` over the
+shared-face conormals. That choice avoids `acos`, whose derivative is singular
+exactly at the flat and fully folded configurations where meshes sit, and it
+generalizes to any `1 <= d < N` without a cross product. It is not a signed
+dihedral and cannot distinguish a mountain fold from a valley one, because the
+convention that would give it a sign is specific to R3. Its gradient is
+closed-form over all `d+2` hinge vertices and sums to zero identically, so
+translation is a null mode by construction rather than numerically. The
+resulting energy is a measured discrete stiffness and not a continuum shell:
+quadratic in the cosine is quartic in the angle, and refinement drives the
+total to zero. That was measured before the API existed, and unit weighting is
+the only policy exposed because no weight repairs it.
+
 The candidate search above is exhaustive by design, and stays the default
 because it is the oracle every acceleration is tested against. An optional
 immutable AABB hierarchy over the static obstacle is selected explicitly, never

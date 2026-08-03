@@ -282,6 +282,19 @@ windows.
   prediction, compilation, bounded minimization, verification, and application.
   It retains each intermediate result and restores the complete pre-step
   particle state on typed refusal or thrown failure.
+- Discrete cosine-fold bending: `compileXpbdSourceSimplexCosineBendingFamilyN`
+  adds extrinsic stiffness over adjacent source simplices, with
+  `evaluateSimplexHingeCosineN` as its pure per-hinge evaluator. The coordinate
+  is `c = -uA . uB` over the shared-face conormals — the orientation-neutral
+  cosine of the fold from flat, `1` flat and `-1` fully folded. **It is not a
+  signed dihedral and not a shell model.** The energy `0.5 k (c - cRest)^2` is
+  quartic in the fold angle, is not mesh-convergent (`~n^-2.99` under
+  refinement), and its stiffness is discretization-dependent. Flat rest has a
+  vanishing first derivative, so small folds respond weakly. Only unit
+  weighting exists. First-order only: Newton-CG refuses the mixture with named
+  unsupported-provider evidence. Always pass `family.stepFilter` alongside the
+  provider — a segment can start and end valid while crossing zero conormal
+  height in between, and only the filter sees that.
 - Static-obstacle candidate acceleration: `compileXpbdSourceSimplexAabbHierarchyN`
   builds an immutable AABB tree over one static source-simplex obstacle. Select
   it by passing the compiled hierarchy as `candidateHierarchy` to
@@ -449,6 +462,19 @@ if (step.status === 'applied') {
 ```
 
 ```ts
+// Discrete cosine-fold bending. The filter travels with the provider.
+const bending = compileXpbdSourceSimplexCosineBendingFamilyN({
+  id: 'membrane-bending',
+  binding: membraneBinding,
+  simplexGroup: membraneGroup,
+  stiffness: 25,          // discretization-dependent; not a material constant
+  restCoordinate: 1,      // flat
+  minimumMeasureRatio: 0.05
+});
+const bendingTerms = bending.incrementalPotentialTerms();
+```
+
+```ts
 // Same transaction, with the authored world as the single source of truth for
 // dimension, particle order, gravity, and providers.
 const advance = stepXpbdIncrementalPotentialWorldN({
@@ -501,6 +527,9 @@ if (hit.ambientPointStatus === 'exact') {
   constraints, responses, and guards, while the optimization path cannot
   represent any of them and rejects their presence. Running both integrates
   the interval twice. Pick one per frame.
+- Do not pass a bending provider to an incremental solve without its paired
+  `stepFilter`, treat the cosine coordinate as a signed dihedral, expect
+  mesh-convergent or transferable stiffness, or expect Newton-CG support.
 - Do not treat a hierarchy-retained pair as contact, cache a candidate set
   across a changed point or segment, expect an automatic rebuild after moving
   the obstacle, assume sublinear worst-case work, or omit the paired step

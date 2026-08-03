@@ -295,6 +295,116 @@ family can protect the pairs they describe. Moving--moving mesh candidates,
 self-contact, and pair refresh outside the candidate-aware family still carry
 no implied collision-free guarantee.
 
+## Extrinsic stiffness: discrete cosine-fold bending
+
+The constitutive families above resist stretching within a simplex. They do
+not resist *folding* between adjacent simplices, because an intrinsic metric
+cannot see it — a sheet folded along an edge has every triangle undeformed.
+
+`compileXpbdSourceSimplexCosineBendingFamilyN()` supplies that missing
+extrinsic term. **Read this before the first snippet: it is a discrete
+cosine-fold stiffness, not a shell model.** The coordinate is the
+orientation-neutral cosine of the fold from flat,
+
+$$
+c=-u_A\cdot u_B,\qquad u_A=\frac{(I-QQ^{T})(a-f_0)}{\lVert(I-QQ^{T})(a-f_0)\rVert},
+$$
+
+with `Q` spanning the shared face's edge directions. Flat is `c = 1`, fully
+folded is `c = -1`, and for an R3 triangle hinge `c = -cos(φ)` for the
+conventional interior dihedral. It is **unsigned**: it cannot distinguish a
+mountain fold from a valley fold, because the convention that would give it a
+sign is specific to R3.
+
+The energy is `0.5 · stiffness · (c - cRest)²`. Quadratic in the cosine is
+**quartic in the fold angle**, which has two consequences worth knowing before
+you tune anything:
+
+- **It is not mesh-convergent.** Refining a fixed cylindrical strip in place
+  drives the total energy to zero as `n^-2.99`. No weighting repairs this —
+  the Discrete Shells face/height weight was measured too and still gives
+  `n^-2.00` — which is why only unit weighting is exposed. A stiffness tuned
+  on one mesh does not transfer to a refinement of it.
+- **Flat rest responds weakly to small folds.** At `c = 1` the first
+  derivative vanishes, so this resists large folds firmly and barely notices
+  small ones.
+
+```ts
+import { CellComplex } from '@holotope/core';
+import {
+  compileXpbdParticleBindingN,
+  compileXpbdSourceSimplexCosineBendingFamilyN
+} from '@holotope/physics';
+
+// Two R4 triangles sharing one edge, creased out of plane.
+const membraneGroup = {
+  key: 'membrane', dim: 2, verticesPerCell: 3, kind: 'simplex' as const,
+  indices: Uint32Array.from([0, 1, 2, 1, 3, 2])
+};
+const membrane = new CellComplex(4, Float64Array.from([
+  0, 0, 0, 0,
+  1, 0, 0, 0,
+  0, 1, 0.4, 0,
+  1, 1, 0, 0
+]), [membraneGroup]);
+const membraneBinding = compileXpbdParticleBindingN({
+  id: 'membrane-points', source: membrane
+});
+
+const bending = compileXpbdSourceSimplexCosineBendingFamilyN({
+  id: 'membrane-bending',
+  binding: membraneBinding,
+  simplexGroup: membraneGroup,
+  stiffness: 25,          // discretization-dependent, not a material constant
+  restCoordinate: 1,      // flat; omit to capture the authored shape instead
+  minimumMeasureRatio: 0.05
+});
+
+const bendingEvaluation = bending.evaluate();
+console.log(
+  bending.hinges.length,                 // interior hinges found
+  bending.boundaryFaceCount,             // faces with one incident cell
+  bendingEvaluation.weighting,           // 'unit-discrete'
+  bendingEvaluation.netForceResidual     // ~0: no net force from bending
+);
+```
+
+Hinges are discovered from the source, not authored: every codimension-one
+face with exactly two incident cells becomes one. Boundary faces are counted
+and skipped. A face with three or more incident cells refuses the whole
+compilation rather than pairing two of them and inventing an adjacency the
+mesh never had.
+
+Rest geometry is snapshotted at compilation, exactly as
+`compileSimplexConstitutiveFamilyN()` snapshots rest positions. Writing new
+coordinates through `binding.writeSourcePositions()` therefore deforms the
+mesh *against* its captured rest shape rather than silently redefining it.
+Changing the rest state is a recompilation.
+
+### The paired filter is not optional
+
+```ts
+const bendingTerms = bending.incrementalPotentialTerms();
+// bendingTerms.providers -> [bending]
+// bendingTerms.stepFilters -> [bending.stepFilter]
+```
+
+Endpoint evaluation cannot protect this coordinate on its own. A linear search
+segment can begin and end with perfectly good hinges while passing through
+zero conormal height in between — at that instant the fold coordinate does not
+exist, and both endpoints look finite. The paired filter reuses
+`analyzeLinearSimplexMeasureN` over each distinct source simplex, because
+non-zero intrinsic measure on both incident cells implies a full-rank shared
+face and a non-zero apex conormal. What it returns is a conservative
+admissible prefix and an intrinsic-rank certificate, never an exact collapse
+time.
+
+Always pass `bending.stepFilter` to the solve alongside the provider.
+
+This family is first-order only. It exposes no Hessian, so Newton-CG refuses
+the provider mixture with named unsupported-provider evidence rather than
+quietly dropping the bending block.
+
 When that obstacle grows large enough for the pair scan to dominate, compile a
 static AABB hierarchy over it and pass it as `candidateHierarchy`. It is opt-in
 and object-bound: nothing switches strategy by mesh size, and a tree over a
