@@ -200,6 +200,27 @@ export {
   type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN
 } from './xpbd-source-simplex-barrier.js';
 export {
+  evaluateSimplexHingeCosineN,
+  type SimplexHingeCosineEvaluationN,
+  type SimplexHingeCosineNOptions,
+  type SimplexHingeCosineRefusalN,
+  type SimplexHingeCosineRefusalReasonN,
+  type SimplexHingeCosineResultN
+} from './simplex-hinge-cosine.js';
+export {
+  XpbdSourceSimplexCosineBendingFamilyN,
+  XpbdSourceSimplexCosineBendingFamilyStepFilterN,
+  compileXpbdSourceSimplexCosineBendingFamilyN,
+  type CompileXpbdSourceSimplexCosineBendingFamilyNOptions,
+  type XpbdSourceSimplexBendingCellAnalysisN,
+  type XpbdSourceSimplexBendingHingeEvaluationN,
+  type XpbdSourceSimplexBendingHingeN,
+  type XpbdSourceSimplexCosineBendingFamilyEvaluationN,
+  type XpbdSourceSimplexCosineBendingFamilyStepFilterEvaluationN,
+  type XpbdSourceSimplexCosineBendingFamilyTermsN,
+  type XpbdSourceSimplexCosineBendingFilterRefusalReasonN
+} from './xpbd-source-simplex-cosine-bending.js';
+export {
   XpbdSourceSimplexAabbHierarchyN,
   compileXpbdSourceSimplexAabbHierarchyN,
   type CompileXpbdSourceSimplexAabbHierarchyNOptions,
