@@ -13,6 +13,14 @@ import {
 } from './xpbd-incremental-potential-step-filter.js';
 import { XpbdParticleBindingN } from './xpbd-particle-binding.js';
 import {
+  XpbdSourceSimplexAabbHierarchyN,
+  xpbdSourceSimplexBoundsN,
+  xpbdSourceSimplexBoundsOverlapN,
+  xpbdSweptPointBoundsN,
+  type XpbdSourceSimplexAabbQueryDiagnosticsN,
+  type XpbdSourceSimplexBoundsN
+} from './xpbd-source-simplex-aabb-hierarchy.js';
+import {
   XpbdParticleSourceSimplexBarrierN,
   XpbdParticleSourceSimplexBarrierStepFilterN,
   type XpbdParticleSourceSimplexBarrierEvaluationN,
@@ -40,10 +48,19 @@ export interface XpbdParticleSourceSimplexCandidateN {
   readonly simplex: SourceSimplexReferenceN;
 }
 
-/** Counts behind one exhaustive swept-AABB candidate query. */
+/** How one candidate query was organized, and what it cost. */
 export interface XpbdParticleSourceSimplexCandidateDiagnosticsN {
-  /** Query implementation; no spatial hierarchy is implied. */
-  readonly provider: 'exhaustive-swept-aabb';
+  /**
+   * Rejection rule and search organization.
+   *
+   * `'exhaustive-swept-aabb'` remains the default and the correctness oracle.
+   * `'hierarchical-swept-aabb'` applies the identical inclusive AABB rule to
+   * the identical per-simplex bounds, reached through a compiled static
+   * hierarchy instead of a full scan.
+   */
+  readonly provider: 'exhaustive-swept-aabb' | 'hierarchical-swept-aabb';
+  /** The selected search strategy, stated separately from the rejection rule. */
+  readonly strategy: 'exhaustive' | 'static-aabb-hierarchy';
   /** Dynamic source vertices considered. */
   readonly sourceVertexCount: number;
   /** Static obstacle simplices considered. */
@@ -56,6 +73,13 @@ export interface XpbdParticleSourceSimplexCandidateDiagnosticsN {
   readonly rejectedPairs: number;
   /** Coordinate interval comparisons performed before early exits. */
   readonly axisTests: number;
+  /**
+   * Per-query hierarchy work, summed over dynamic vertices.
+   *
+   * Absent under the exhaustive default, where no hierarchy ran. Present
+   * counts are operations, never times.
+   */
+  readonly hierarchy?: XpbdSourceSimplexAabbQueryDiagnosticsN;
 }
 
 /** Immutable candidate set valid only for the point or segment queried. */
@@ -94,6 +118,19 @@ export interface CompileXpbdParticleSourceSimplexBarrierFamilyNOptions {
   readonly rankTolerance?: number;
   /** Bound on exact active-face candidates per simplex query. Default `262143`. */
   readonly maxCandidateFaces?: number;
+  /**
+   * Optional precompiled static hierarchy over the same obstacle and group.
+   *
+   * Omitting it keeps the exhaustive scan, which stays the default and the
+   * oracle. When supplied it must index the exact `obstacle` and
+   * `simplexGroup` objects this family indexes — a structurally identical
+   * hierarchy over a different source is not interchangeable, because the
+   * bounds it cached describe different coordinates.
+   *
+   * There is no `'fast'` string and no size threshold. A hierarchy is a thing
+   * the caller compiled and can inspect, not a mode the library picks.
+   */
+  readonly candidateHierarchy?: XpbdSourceSimplexAabbHierarchyN;
 }
 
 /** One active pair's finite-distance barrier evidence. */
@@ -164,11 +201,6 @@ interface PositionSnapshotN {
   readonly after: readonly VecN[];
 }
 
-interface BoundsN {
-  readonly min: Float64Array;
-  readonly max: Float64Array;
-}
-
 interface CandidateQueryInternalN {
   readonly query: XpbdParticleSourceSimplexCandidateQueryN;
   readonly positions: PositionSnapshotN;
@@ -219,6 +251,13 @@ implements XpbdConservativeForceProviderN {
   readonly maxCandidateFaces: number;
   /** Strict prefix scale shared by pair filters. */
   readonly conservativeScale: number;
+  /**
+   * Selected static hierarchy, or `null` for the exhaustive default.
+   *
+   * Public so the chosen strategy is inspectable from the family itself, not
+   * only from a query it happened to run.
+   */
+  readonly candidateHierarchy: XpbdSourceSimplexAabbHierarchyN | null;
   /** Candidate-aware admissible-segment filter paired with this provider. */
   readonly stepFilter: XpbdParticleSourceSimplexBarrierFamilyStepFilterN;
   private attachedWorld: XpbdWorldN | null = null;
@@ -246,6 +285,7 @@ implements XpbdConservativeForceProviderN {
     this.rankTolerance = rankTolerance;
     this.maxCandidateFaces = maxCandidateFaces;
     this.conservativeScale = conservativeScale;
+    this.candidateHierarchy = options.candidateHierarchy ?? null;
     this.stepFilter = new XpbdParticleSourceSimplexBarrierFamilyStepFilterN(this);
   }
 
@@ -475,7 +515,8 @@ function validateCompilerInput(
   const allowed = [
     'id', 'binding', 'obstacle', 'simplexGroup', 'minimumDistance',
     'activationDistance', 'stiffness', 'conservativeScale',
-    'projectionTolerance', 'rankTolerance', 'maxCandidateFaces'
+    'projectionTolerance', 'rankTolerance', 'maxCandidateFaces',
+    'candidateHierarchy'
   ];
   const unknown = Object.keys(options).filter((key) => !allowed.includes(key));
   if (unknown.length > 0) {
@@ -546,6 +587,29 @@ function validateCompilerInput(
   if (!Number.isSafeInteger(maxCandidateFaces) || maxCandidateFaces < 1) {
     throw new Error(`${caller}: maxCandidateFaces must be a positive safe integer`);
   }
+  const candidateHierarchy = options.candidateHierarchy;
+  if (candidateHierarchy !== undefined) {
+    if (!(candidateHierarchy instanceof XpbdSourceSimplexAabbHierarchyN)) {
+      throw new Error(
+        `${caller}: candidateHierarchy must be an XpbdSourceSimplexAabbHierarchyN`
+      );
+    }
+    // Object identity, not structural equality. A hierarchy caches bounds for
+    // the coordinates it indexed; another source's tree would answer confidently
+    // about geometry this family never sees.
+    if (candidateHierarchy.obstacle !== options.obstacle) {
+      throw new Error(`${caller}: candidateHierarchy indexes a different obstacle`);
+    }
+    if (candidateHierarchy.simplexGroup !== group) {
+      throw new Error(`${caller}: candidateHierarchy indexes a different simplex group`);
+    }
+    if (candidateHierarchy.dimension !== options.binding.dimension) {
+      throw new Error(
+        `${caller}: candidateHierarchy is R${candidateHierarchy.dimension}, ` +
+        `binding is R${options.binding.dimension}`
+      );
+    }
+  }
   assertCurrentBinding(options.binding, caller);
   assertFiniteObstacle(options.obstacle, group, caller);
   return {
@@ -612,49 +676,110 @@ function queryCandidates(
   positions: PositionSnapshotN,
   scope: 'point' | 'segment'
 ): CandidateQueryInternalN {
-  assertCurrentFamily(family, 'XpbdParticleSourceSimplexBarrierFamilyN candidate query');
-  const obstacleBounds = family.simplices.map(simplexBounds);
+  const caller = 'XpbdParticleSourceSimplexBarrierFamilyN candidate query';
+  assertCurrentFamily(family, caller);
+  const hierarchy = family.candidateHierarchy;
+  // Checked once per query rather than once per dynamic vertex: the obstacle
+  // cannot change between two vertices of the same query, and paying
+  // O(coordinates) per vertex would undo what the tree buys.
+  if (hierarchy !== null) hierarchy.assertSourceCurrent(caller);
+
   const candidates: XpbdParticleSourceSimplexCandidateN[] = [];
+  const push = (sourceVertexIndex: number, obstacleCellIndex: number): void => {
+    candidates.push(Object.freeze({
+      id: `${family.id}/source-vertex/${sourceVertexIndex}/obstacle-cell/${obstacleCellIndex}`,
+      sourceVertexIndex,
+      particle: family.particles[sourceVertexIndex]!,
+      obstacleCellIndex,
+      simplex: family.simplices[obstacleCellIndex]!
+    }));
+  };
+
+  // Recomputed per query under the exhaustive default because the obstacle is
+  // only assumed static by the hierarchy, which pays for that assumption with
+  // its staleness check.
+  const obstacleBounds = hierarchy === null
+    ? family.simplices.map(xpbdSourceSimplexBoundsN)
+    : null;
   let axisTests = 0;
+  let hierarchyDiagnostics: XpbdSourceSimplexAabbQueryDiagnosticsN | null = null;
+
   for (let sourceVertexIndex = 0;
     sourceVertexIndex < family.particles.length;
     sourceVertexIndex++) {
-    const pointBounds = sweptPointBounds(
+    const pointBounds: XpbdSourceSimplexBoundsN = xpbdSweptPointBoundsN(
       positions.before[sourceVertexIndex]!,
       positions.after[sourceVertexIndex]!,
       family.activationDistance
     );
-    for (let obstacleCellIndex = 0;
-      obstacleCellIndex < family.simplices.length;
-      obstacleCellIndex++) {
-      const overlap = overlaps(pointBounds, obstacleBounds[obstacleCellIndex]!);
-      axisTests += overlap.axisTests;
-      if (!overlap.overlaps) continue;
-      candidates.push(Object.freeze({
-        id: `${family.id}/source-vertex/${sourceVertexIndex}/obstacle-cell/${obstacleCellIndex}`,
-        sourceVertexIndex,
-        particle: family.particles[sourceVertexIndex]!,
-        obstacleCellIndex,
-        simplex: family.simplices[obstacleCellIndex]!
-      }));
+    if (hierarchy === null) {
+      for (let obstacleCellIndex = 0;
+        obstacleCellIndex < family.simplices.length;
+        obstacleCellIndex++) {
+        const overlap = xpbdSourceSimplexBoundsOverlapN(
+          pointBounds, obstacleBounds![obstacleCellIndex]!
+        );
+        axisTests += overlap.axisTests;
+        if (!overlap.overlaps) continue;
+        push(sourceVertexIndex, obstacleCellIndex);
+      }
+      continue;
+    }
+    // The tree applies the identical rule to the identical bounds and returns
+    // ascending cell order, so the emitted sequence is the exhaustive one.
+    const retained = hierarchy.queryChecked(pointBounds);
+    axisTests += retained.diagnostics.axisTests;
+    hierarchyDiagnostics = accumulateHierarchyDiagnostics(
+      hierarchyDiagnostics, retained.diagnostics
+    );
+    for (const obstacleCellIndex of retained.cellIndices) {
+      push(sourceVertexIndex, obstacleCellIndex);
     }
   }
+
   const possiblePairs = family.particles.length * family.simplices.length;
   const query = Object.freeze({
     scope,
     activationDistance: family.activationDistance,
     candidates: Object.freeze(candidates),
     diagnostics: Object.freeze({
-      provider: 'exhaustive-swept-aabb' as const,
+      provider: (hierarchy === null
+        ? 'exhaustive-swept-aabb'
+        : 'hierarchical-swept-aabb') as
+        XpbdParticleSourceSimplexCandidateDiagnosticsN['provider'],
+      strategy: (hierarchy === null
+        ? 'exhaustive'
+        : 'static-aabb-hierarchy') as
+        XpbdParticleSourceSimplexCandidateDiagnosticsN['strategy'],
       sourceVertexCount: family.particles.length,
       obstacleSimplexCount: family.simplices.length,
       possiblePairs,
       candidatePairs: candidates.length,
       rejectedPairs: possiblePairs - candidates.length,
-      axisTests
+      axisTests,
+      ...(hierarchyDiagnostics === null
+        ? {}
+        : { hierarchy: Object.freeze(hierarchyDiagnostics) })
     })
   });
   return { query, positions };
+}
+
+/** Sums per-vertex hierarchy work into one per-query record. */
+function accumulateHierarchyDiagnostics(
+  total: XpbdSourceSimplexAabbQueryDiagnosticsN | null,
+  next: XpbdSourceSimplexAabbQueryDiagnosticsN
+): XpbdSourceSimplexAabbQueryDiagnosticsN {
+  if (total === null) return next;
+  return {
+    // Constant across vertices; the others accumulate.
+    totalSimplices: next.totalSimplices,
+    visitedNodes: total.visitedNodes + next.visitedNodes,
+    visitedLeaves: total.visitedLeaves + next.visitedLeaves,
+    testedSimplexBounds: total.testedSimplexBounds + next.testedSimplexBounds,
+    retainedSimplices: total.retainedSimplices + next.retainedSimplices,
+    axisTests: total.axisTests + next.axisTests
+  };
 }
 
 function barrierForCandidate(
@@ -672,53 +797,6 @@ function barrierForCandidate(
     rankTolerance: family.rankTolerance,
     maxCandidateFaces: family.maxCandidateFaces
   });
-}
-
-function sweptPointBounds(before: VecN, after: VecN, padding: number): BoundsN {
-  const min = new Float64Array(before.dim);
-  const max = new Float64Array(before.dim);
-  for (let axis = 0; axis < before.dim; axis++) {
-    const start = before.data[axis]!;
-    const end = after.data[axis]!;
-    const roundoff = boundsRoundoff(start, end, padding);
-    min[axis] = Math.min(start, end) - padding - roundoff;
-    max[axis] = Math.max(start, end) + padding + roundoff;
-  }
-  return { min, max };
-}
-
-function simplexBounds(reference: SourceSimplexReferenceN): BoundsN {
-  const dim = reference.complex.ambientDim;
-  const min = new Float64Array(dim).fill(Number.POSITIVE_INFINITY);
-  const max = new Float64Array(dim).fill(Number.NEGATIVE_INFINITY);
-  for (const vertex of reference.vertexIndices) {
-    const point = reference.complex.getPosition(vertex);
-    for (let axis = 0; axis < dim; axis++) {
-      min[axis] = Math.min(min[axis]!, point[axis]!);
-      max[axis] = Math.max(max[axis]!, point[axis]!);
-    }
-  }
-  for (let axis = 0; axis < dim; axis++) {
-    const roundoff = boundsRoundoff(min[axis]!, max[axis]!);
-    min[axis]! -= roundoff;
-    max[axis]! += roundoff;
-  }
-  return { min, max };
-}
-
-function overlaps(left: BoundsN, right: BoundsN): {
-  readonly overlaps: boolean;
-  readonly axisTests: number;
-} {
-  let axisTests = 0;
-  for (let axis = 0; axis < left.min.length; axis++) {
-    axisTests++;
-    if (left.max[axis]! < right.min[axis]! ||
-      right.max[axis]! < left.min[axis]!) {
-      return { overlaps: false, axisTests };
-    }
-  }
-  return { overlaps: true, axisTests };
 }
 
 function assertCurrentFamily(
@@ -805,6 +883,3 @@ function finitePosition(value: VecN, dimension: number, label: string): VecN {
   return value.clone();
 }
 
-function boundsRoundoff(...values: number[]): number {
-  return 16 * Number.EPSILON * Math.max(1, ...values.map(Math.abs));
-}

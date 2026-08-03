@@ -200,6 +200,13 @@ export {
   type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN
 } from './xpbd-source-simplex-barrier.js';
 export {
+  XpbdSourceSimplexAabbHierarchyN,
+  compileXpbdSourceSimplexAabbHierarchyN,
+  type CompileXpbdSourceSimplexAabbHierarchyNOptions,
+  type XpbdSourceSimplexAabbQueryDiagnosticsN,
+  type XpbdSourceSimplexAabbQueryN
+} from './xpbd-source-simplex-aabb-hierarchy.js';
+export {
   XpbdParticleSourceSimplexBarrierFamilyN,
   XpbdParticleSourceSimplexBarrierFamilyStepFilterN,
   compileXpbdParticleSourceSimplexBarrierFamilyN,
