@@ -453,6 +453,77 @@ and does not supply analytic Hessian-vector products. A Newton-CG solve over a
 provider mixture containing it therefore reports the existing
 `unsupported-provider` evidence; first-order minimization remains available.
 
+### Source-indexed finite-obstacle candidates
+
+`XpbdParticleSourceSimplexBarrierFamilyN` lifts that exact pair over a dynamic
+source-vertex binding and a separate static simplex group. The family does not
+precompile every possible barrier. At each point evaluation it exhaustively
+visits the bipartite source-feature space, rejects pairs only when a point AABB
+expanded by `activationDistance` is separated from the simplex AABB, and
+evaluates P44 barriers for the retained pairs. Its paired filter repeats the
+same conservative query over the complete proposed segment.
+
+```ts
+import {
+  compileXpbdParticleBindingN,
+  compileXpbdParticleSourceSimplexBarrierFamilyN,
+  type XpbdParticleSourceSimplexBarrierFamilyEvaluationN,
+  type XpbdParticleSourceSimplexCandidateQueryN
+} from '@holotope/physics';
+
+const candidateDynamicSource = new CellComplex(
+  4,
+  new Float64Array([0.2, 0.2, 0.2, 0.4]),
+  []
+);
+const candidateBinding = compileXpbdParticleBindingN({
+  id: 'dynamic-points', source: candidateDynamicSource
+});
+const finiteObstacleFamily =
+  compileXpbdParticleSourceSimplexBarrierFamilyN({
+    id: 'finite-obstacle',
+    binding: candidateBinding,
+    obstacle: finiteSimplexSource,
+    simplexGroup: finiteSimplexGroup,
+    minimumDistance: 0.01,
+    activationDistance: 0.1,
+    stiffness: 250
+  });
+const finiteObstacleEvaluation:
+  XpbdParticleSourceSimplexBarrierFamilyEvaluationN =
+    finiteObstacleFamily.evaluate();
+const finiteObstacleCandidates: XpbdParticleSourceSimplexCandidateQueryN =
+  finiteObstacleEvaluation.candidateQuery;
+
+const finiteObstacleProblem = compileXpbdIncrementalPotentialProblemN({
+  dimension: 4,
+  particles: candidateBinding.particles,
+  predictedPositions: candidateBinding.particles.map(
+    (particle) => particle.position.clone()
+  ),
+  deltaTime: 1 / 60,
+  ...finiteObstacleFamily.incrementalPotentialTerms()
+});
+console.log(
+  finiteObstacleCandidates.diagnostics.possiblePairs,
+  finiteObstacleCandidates.diagnostics.candidatePairs,
+  finiteObstacleEvaluation.activeCandidates.map(({ candidate }) => candidate.id),
+  finiteObstacleProblem.stepFilters[0]?.id
+);
+```
+
+The query reports three separate quantities: all possible pairs, conservative
+AABB candidates, and exact active barriers. A candidate ID combines the
+dynamic source vertex with the persistent obstacle cell; it is stable across
+queries, while the candidate set itself is valid only for the point or segment
+that produced it. `indeterminate` remains a refusal and names its blocking
+candidate rather than becoming a collision miss.
+
+This is the auditable Float64 reference active set, not yet a spatial tree.
+Its obstacle is one-sided and static during a solve. It does not implement
+moving--moving pairs, self-contact, edge--edge candidates, exact finite-feature
+impact, or analytic curvature.
+
 ### Source-indexed point–plane families
 
 `XpbdParticleHyperplaneBarrierFamilyN` lifts the single-point construction over

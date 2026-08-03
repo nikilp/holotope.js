@@ -36,6 +36,8 @@ import {
   XpbdParticleSourceSimplexBarrierStepFilterN,
   XpbdPotentialDomainErrorN,
   compileXpbdIncrementalPotentialProblemN,
+  compileXpbdParticleBindingN,
+  compileXpbdParticleSourceSimplexBarrierFamilyN,
   recoverXpbdIncrementalPotentialFeasibleBaseN,
   type XpbdConservativeForceProviderN,
   type XpbdParticleSourceSimplexBarrierDomainReasonN,
@@ -45,6 +47,8 @@ import {
   type XpbdParticleSourceSimplexBarrierStepFilterEvidenceN,
   type XpbdParticleSourceSimplexBarrierStepFilterNOptions,
   type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN,
+  type XpbdParticleSourceSimplexBarrierFamilyEvaluationN,
+  type XpbdParticleSourceSimplexBarrierFamilyStepFilterEvaluationN,
   massPropertiesFromCellComplex4
 } from '@holotope/physics';
 import {
@@ -389,8 +393,58 @@ export function physicsComposition(): void {
     XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN =
       'initial-domain-violation';
   assert(
-    domainReason !== filterReason,
+    String(domainReason) !== String(filterReason),
     'potential and step-filter refusal vocabularies collapsed together'
+  );
+
+  // The packed graph must also compose the source-indexed candidate layer.
+  // A far dynamic source point is culled while the near point retains the
+  // same obstacle reference and the crossing segment names its blocker.
+  const candidateSource = new CellComplex(4, new Float64Array([
+    0.2, 0.2, 0.2, 0.5,
+    5, 5, 5, 5
+  ]), []);
+  const candidateBinding = compileXpbdParticleBindingN({
+    id: 'packed-candidates', source: candidateSource
+  });
+  const candidateFamily = compileXpbdParticleSourceSimplexBarrierFamilyN({
+    id: 'packed-finite-obstacle',
+    binding: candidateBinding,
+    obstacle: simplexSource,
+    simplexGroup,
+    minimumDistance: 0.05,
+    activationDistance: 0.8,
+    stiffness: 1
+  });
+  const candidateEvaluation:
+    XpbdParticleSourceSimplexBarrierFamilyEvaluationN =
+      candidateFamily.evaluate();
+  assert(
+    candidateEvaluation.candidateQuery.diagnostics.possiblePairs === 2 &&
+      candidateEvaluation.candidateQuery.diagnostics.candidatePairs === 1 &&
+      candidateEvaluation.activeCandidates.length === 1,
+    'the packed finite-obstacle family lost candidate reduction'
+  );
+  assert(
+    candidateEvaluation.activeCandidates[0]!.candidate.simplex ===
+      candidateFamily.simplices[0],
+    'the packed finite-obstacle family lost source identity'
+  );
+  const candidateStep:
+    XpbdParticleSourceSimplexBarrierFamilyStepFilterEvaluationN =
+      candidateFamily.stepFilter.evaluate({
+        dimension: 4,
+        requestedStepLength: 1,
+        positionBefore: (candidate) => candidate.position.clone(),
+        positionAfter: (candidate) => candidate === candidateBinding.particles[0]
+          ? new VecN([0.2, 0.2, 0.2, -0.5])
+          : candidate.position.clone()
+      });
+  assert(
+    candidateStep.status === 'limited' &&
+      candidateStep.blockingCandidateId ===
+        'packed-finite-obstacle/source-vertex/0/obstacle-cell/0',
+    'the packed finite-obstacle family lost its segment blocker'
   );
 }
 

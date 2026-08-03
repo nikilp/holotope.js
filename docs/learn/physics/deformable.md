@@ -236,6 +236,18 @@ coordinate. Its paired step filter certifies a complete non-closing segment or
 a conservative Lipschitz prefix. That prefix is not an exact impact time, and
 neither class discovers candidate pairs from a mesh.
 
+For a bounded dynamic-source/static-obstacle scene,
+`compileXpbdParticleSourceSimplexBarrierFamilyN()` adds that missing discovery
+layer without changing the pair law. It keeps the dynamic source vertex and
+static source simplex in every candidate ID, culls only through a conservative
+swept-AABB envelope, evaluates exact P44 barriers for point-query-active pairs,
+and aggregates the per-pair prefix certificates through one paired step
+filter. The diagnostics keep possible, retained, and exact-active counts
+separate. This remains an exhaustive reference query rather than a spatial
+hierarchy, and it deliberately refuses to present a same-source mesh as
+self-contact because obstacle reaction and moving simplex geometry are not yet
+part of the contract.
+
 `compileXpbdParticleHyperplaneBarrierFamilyN()` expands the same pair over the
 source-vertex mapping retained by `XpbdParticleHyperplaneFamilyN`. Per-vertex
 activation distance, stiffness, and conservative scale may be uniform or
@@ -277,11 +289,11 @@ the inertial prediction, with an explicit particle-ordered warm start
 available. This remains a small-system first-order golden path. It does
 not fabricate `XpbdWorldN` constraint-solve evidence, so velocity responses,
 accepted-state guards, adaptive retry, material-Hessian directions, and
-automatic collision candidate generation remain outside this step. Authored
-step filters and source-indexed point–plane barrier families can protect
-registered pairs; the finite point–simplex pair can protect one explicit
-source feature. Absent candidates or filters carry no implied collision-free
-guarantee.
+automatic world-level collision orchestration remain outside this step.
+Authored point–plane families and the dynamic-point/static-simplex candidate
+family can protect the pairs they describe. Moving--moving mesh candidates,
+self-contact, and pair refresh outside the candidate-aware family still carry
+no implied collision-free guarantee.
 
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';

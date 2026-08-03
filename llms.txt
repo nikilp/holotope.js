@@ -251,6 +251,14 @@ windows.
   `XpbdParticleSourceSimplexBarrierStepFilterN`, whose `certifiedFraction` is
   a conservative convexity/Lipschitz certificate, not an exact impact time.
   It does not generate mesh candidates or supply analytic provider curvature.
+- Finite obstacle families:
+  `compileXpbdParticleSourceSimplexBarrierFamilyN` combines an
+  `XpbdParticleBindingN` with a separate static simplex group. It reports all
+  possible pairs, conservative swept-AABB candidates, exact active barriers,
+  and the blocking candidate of its paired aggregate step filter. Spread
+  `...family.incrementalPotentialTerms()` into a problem or step. Candidate
+  sets are valid only for the queried point/segment; this is an exhaustive CPU
+  reference, not self-contact, moving--moving contact, or a spatial tree.
 - Source-indexed contact barriers:
   `compileXpbdParticleHyperplaneBarrierFamilyN` reuses an
   `XpbdParticleHyperplaneFamilyN` source/particle/plane mapping and compiles

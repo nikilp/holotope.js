@@ -62,17 +62,21 @@ objectives without turning a solver policy into hidden behavior.
 Its authored obstacle terms include both an oriented infinite hyperplane and
 one finite persistent source simplex. The latter retains the closest
 barycentric source coordinate and pairs its unsigned barrier with a
-conservative convexity/Lipschitz segment certificate. It is not candidate
-generation, inside/outside classification, moving-simplex contact, or a claim
-of mesh self-collision.
+conservative convexity/Lipschitz segment certificate. A source-indexed family
+now lifts that pair over dynamic bound vertices and a separate static simplex
+mesh: exhaustive swept-AABB rejection keeps possible, retained, exact-active,
+and blocking-pair evidence separate while presenting one stable provider and
+one paired filter to the solver. It is not a spatial tree, inside/outside
+classification, moving-simplex contact, or a claim of mesh self-collision.
 
 World-frame angular momentum is authoritative. Free flight therefore does not
 numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
-Spatial-tree broadphases, moving infinite-plane pose policies, distance servos, rolling
-resistance, and sleeping are not yet part of this package. R4 Coulomb
+Spatial-tree broadphases for deformable feature candidates, moving infinite-plane
+pose policies, distance servos, rolling resistance, and sleeping are not yet
+part of this package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
 

@@ -200,6 +200,21 @@ export {
   type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN
 } from './xpbd-source-simplex-barrier.js';
 export {
+  XpbdParticleSourceSimplexBarrierFamilyN,
+  XpbdParticleSourceSimplexBarrierFamilyStepFilterN,
+  compileXpbdParticleSourceSimplexBarrierFamilyN,
+  type CompileXpbdParticleSourceSimplexBarrierFamilyNOptions,
+  type XpbdParticleSourceSimplexActiveCandidateN,
+  type XpbdParticleSourceSimplexBarrierFamilyEvaluationN,
+  type XpbdParticleSourceSimplexBarrierFamilyStepFilterEvaluationN,
+  type XpbdParticleSourceSimplexBarrierFamilyStepFilterRefusalReasonN,
+  type XpbdParticleSourceSimplexBarrierFamilyTermsN,
+  type XpbdParticleSourceSimplexCandidateDiagnosticsN,
+  type XpbdParticleSourceSimplexCandidateN,
+  type XpbdParticleSourceSimplexCandidateQueryN,
+  type XpbdParticleSourceSimplexSegmentCandidateN
+} from './xpbd-source-simplex-barrier-family.js';
+export {
   XpbdParticleHyperplaneBarrierFamilyN,
   compileXpbdParticleHyperplaneBarrierFamilyN,
   type CompileXpbdParticleHyperplaneBarrierFamilyNOptions,
