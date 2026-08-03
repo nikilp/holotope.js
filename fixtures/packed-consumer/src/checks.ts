@@ -35,11 +35,17 @@ import {
   XpbdParticleSourceSimplexBarrierN,
   XpbdParticleSourceSimplexBarrierStepFilterN,
   XpbdPotentialDomainErrorN,
+  XpbdWorldN,
   compileXpbdIncrementalPotentialProblemN,
   compileXpbdParticleBindingN,
   compileXpbdParticleSourceSimplexBarrierFamilyN,
   recoverXpbdIncrementalPotentialFeasibleBaseN,
+  stepXpbdIncrementalPotentialWorldN,
   type XpbdConservativeForceProviderN,
+  type XpbdIncrementalPotentialDiagnosisN,
+  type XpbdIncrementalPotentialWorldSelectionN,
+  type XpbdIncrementalPotentialWorldStepN,
+  type XpbdVelocityResponseN,
   type XpbdParticleSourceSimplexBarrierDomainReasonN,
   type XpbdParticleSourceSimplexBarrierEvaluationN,
   type XpbdParticleSourceSimplexBarrierNOptions,
@@ -445,6 +451,91 @@ export function physicsComposition(): void {
       candidateStep.blockingCandidateId ===
         'packed-finite-obstacle/source-vertex/0/obstacle-cell/0',
     'the packed finite-obstacle family lost its segment blocker'
+  );
+
+  // The world-scoped nonlinear advance must be reachable from the packed
+  // graph by package name alone, with the world supplying dimension, particle
+  // order, gravity, and providers. Registered projected-XPBD features are not
+  // representable by this path and must be named rather than skipped.
+  const worldSource = new CellComplex(
+    4, new Float64Array([0.25, 0.25, 0.25, 0.06]), []
+  );
+  const worldBinding = compileXpbdParticleBindingN({
+    id: 'packed-world-dynamic', source: worldSource
+  });
+  for (const bound of worldBinding.particles) bound.velocity.data[3] = -6;
+  const worldFamily = compileXpbdParticleSourceSimplexBarrierFamilyN({
+    id: 'packed-world-contact',
+    binding: worldBinding,
+    obstacle: simplexSource,
+    simplexGroup,
+    minimumDistance: 0.05,
+    activationDistance: 0.8,
+    stiffness: 1.7
+  });
+  const optimizationWorld = new XpbdWorldN({
+    dimension: 4, gravity: [0, 0, 0, -9.81]
+  });
+  worldBinding.addToWorld(optimizationWorld);
+  worldFamily.addToWorld(optimizationWorld);
+
+  const advance: XpbdIncrementalPotentialWorldStepN =
+    stepXpbdIncrementalPotentialWorldN({
+      world: optimizationWorld,
+      deltaTime: 1 / 120,
+      stepFilters: [worldFamily.stepFilter],
+      warmStart: 'feasible-inertial-prediction',
+      minimization: { directionPolicy: 'steepest-descent' }
+    });
+  const selection: XpbdIncrementalPotentialWorldSelectionN = advance.selection;
+  assert(
+    selection.dimension === 4 &&
+      selection.particleIds.length === 1 &&
+      selection.providerIds.join() === 'packed-world-contact' &&
+      selection.stepFilterIds.join() === worldFamily.stepFilter.id,
+    'the packed world-scoped step lost its registration evidence'
+  );
+  const worldDiagnosis: XpbdIncrementalPotentialDiagnosisN = advance.diagnosis;
+  assert(
+    advance.step.status === 'applied' && worldDiagnosis.condition === 'progressed',
+    `the packed world-scoped step reported ${advance.step.status}`
+  );
+  const worldRecovery = advance.step.feasibleBaseRecovery;
+  assert(
+    worldRecovery !== undefined &&
+      worldRecovery.status === 'recovered' &&
+      worldRecovery.fraction === 0.125,
+    'the packed world-scoped step lost its feasible-base evidence'
+  );
+
+  // The same world with a projected velocity response registered is refused
+  // by name, and nothing is advanced.
+  const beforeRefusal = optimizationWorld.particles[0]!.position.toArray();
+  const response: XpbdVelocityResponseN = {
+    id: 'packed-damping',
+    dimension: 4,
+    particles: optimizationWorld.particles,
+    apply: () => ({})
+  };
+  optimizationWorld.addVelocityResponse(response);
+  let refusal = '';
+  try {
+    stepXpbdIncrementalPotentialWorldN({
+      world: optimizationWorld,
+      deltaTime: 1 / 120,
+      stepFilters: [worldFamily.stepFilter]
+    });
+  } catch (error) {
+    refusal = error instanceof Error ? error.message : String(error);
+  }
+  assert(
+    refusal.includes('velocity response ("packed-damping")'),
+    `an unsupported registry was not named: ${refusal || '(no error thrown)'}`
+  );
+  assert(
+    optimizationWorld.particles[0]!.position.toArray().join() ===
+      beforeRefusal.join(),
+    'a refused world-scoped configuration still advanced the scene'
   );
 }
 
