@@ -83,7 +83,11 @@ function digest(
   const recovery = result.feasibleBaseRecovery;
   if (recovery !== undefined) {
     lines.push(`recoveryStatus=${recovery.status}`);
-    lines.push(`recoveryFraction=${String(recovery.fraction)}`);
+    // `anchor-refused` reports no fraction; there was no feasible base.
+    lines.push(
+      'recoveryFraction=' +
+        (recovery.status === 'anchor-refused' ? '-' : exact(recovery.fraction))
+    );
     lines.push(`recoveryTrials=${recovery.trials.length}`);
     for (const trial of recovery.trials) {
       lines.push(
@@ -369,11 +373,15 @@ describe('stepXpbdIncrementalPotentialWorldN — retained evidence', () => {
 
     const recovery = advance.step.feasibleBaseRecovery;
     expect(recovery).toBeDefined();
-    expect(recovery!.status).toBe('recovered');
-    expect(recovery!.fraction).toBeGreaterThan(0);
-    expect(recovery!.fraction).toBeLessThan(1);
+    if (recovery === undefined || recovery.status !== 'recovered') {
+      throw new Error(`expected a recovered base, got ${recovery?.status}`);
+    }
+    // A strict interior fraction: the anchor was feasible and the target was
+    // not, so neither endpoint could have been the answer.
+    expect(recovery.fraction).toBeGreaterThan(0);
+    expect(recovery.fraction).toBeLessThan(1);
     // Every sampled chord point is retained, not just the accepted one.
-    expect(recovery!.trials.length).toBeGreaterThan(1);
+    expect(recovery.trials.length).toBeGreaterThan(1);
 
     // The diagnosis is computed from that same result, once.
     expect(advance.diagnosis.condition).toBe('progressed');
@@ -465,7 +473,7 @@ describe('stepXpbdIncrementalPotentialWorldN — refusal stays typed', () => {
       particle.velocity.toArray(),
       particle.force.toArray()
     ];
-    world.addForceProvider({
+    const mutating: XpbdConservativeForceProviderN = {
       id: 'mutating',
       dimension: 1,
       particles: [particle],
@@ -475,7 +483,8 @@ describe('stepXpbdIncrementalPotentialWorldN — refusal stays typed', () => {
         particle.velocity.data[0] = -77;
         return { potentialEnergy: 0, forces: [new VecN([0])] };
       }
-    } satisfies XpbdConservativeForceProviderN);
+    };
+    world.addForceProvider(mutating);
 
     const advance = stepXpbdIncrementalPotentialWorldN({
       world,
