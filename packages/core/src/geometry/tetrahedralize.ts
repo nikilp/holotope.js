@@ -141,7 +141,9 @@ export function simplexizeCuboidGroupN(
  * const complex = tetrahedralizeCuboidCells(createHypercube({ dim: 4, size: 2 }));
  *
  * // Provenance: go to the producer, which keeps the parent-cell map.
- * const cuboids = complex.cellsOfDim(3)[0]!;
+ * const [cuboids] = complex.cellsOfDim(3);
+ * if (!cuboids) throw new Error('no 3-cells to trace');
+ *
  * const simplexization = simplexizeCuboidGroupN(cuboids);
  * const parentCell = simplexization.sourceCellIndices[0];
  * ```

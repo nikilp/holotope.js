@@ -381,13 +381,17 @@ const lookupKey = (vertices: ArrayLike<number>): string => {
  * @example
  * ```ts
  * const complex = createHypercube({ dim: 4, size: 2 });
- * const edges = complex.cellsOfDim(1)[0]!;
+ * const [edges] = complex.cellsOfDim(1);
+ * if (!edges) throw new Error('no edge group to index');
+ *
  * const index = createSourceCellLookupN(edges);
  *
  * // A section vertex reported by `sliceTetrahedra` as lying `t` of the way
- * // from source vertex `from` to source vertex `to`.
- * const from = edges.indices[2]!;
- * const to = edges.indices[3]!;
+ * // from source vertex `from` to source vertex `to`. The second edge, so
+ * // indices 2 and 3; a group carries no cell count, only this buffer.
+ * const [from, to] = edges.indices.subarray(2, 4);
+ * if (from === undefined || to === undefined) throw new Error('no second edge');
+ *
  * const t = 0.25;
  *
  * const found = index.find([from, to]);

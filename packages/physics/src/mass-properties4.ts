@@ -263,7 +263,8 @@ export function massPropertiesFromTetrahedralization4(
  * const body = tetrahedralizeCuboidCells(
  *   createHyperrectangle({ dim: 4, edgeLengths: [2, 3, 5, 7], maxCellDimension: 3 })
  * );
- * const properties: physics.MassProperties4 = massPropertiesFromCellComplex4(body);
+ * // MassProperties4.
+ * const properties = massPropertiesFromCellComplex4(body);
  *
  * log(properties.volume); // 210
  * // One per principal axis, ordered by the eigensolver.

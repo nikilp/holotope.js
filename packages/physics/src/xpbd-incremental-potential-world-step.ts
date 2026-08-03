@@ -164,15 +164,17 @@ const UNSUPPORTED_REGISTRIES = [
  * const binding = compileXpbdParticleBindingN({ id: 'point', source: point });
  * for (const particle of binding.particles) particle.velocity.data[3] = -6;
  *
- * const face = {
- *   key: 'obstacle', dim: 3, verticesPerCell: 4, kind: 'simplex' as const,
- *   indices: Uint32Array.from([0, 1, 2, 3])
- * };
  * const obstacle = new CellComplex(
  *   4,
  *   Float64Array.from([0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]),
- *   [face]
+ *   [{
+ *     key: 'obstacle', dim: 3, verticesPerCell: 4, kind: 'simplex',
+ *     indices: Uint32Array.from([0, 1, 2, 3])
+ *   }]
  * );
+ * const [face] = obstacle.cellsOfDim(3);
+ * if (!face) throw new Error('the obstacle has no 3-cells');
+ *
  * const contact = compileXpbdParticleSourceSimplexBarrierFamilyN({
  *   id: 'contact', binding, obstacle, simplexGroup: face,
  *   minimumDistance: 0.05, activationDistance: 0.8, stiffness: 1.7

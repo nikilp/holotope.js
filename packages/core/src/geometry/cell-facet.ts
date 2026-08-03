@@ -38,14 +38,16 @@ export interface CellFacetN {
  * Name every facet of a tesseract without assuming its size or centre:
  * ```ts
  * const tesseract = createHypercube({ dim: 4, size: 2, maxCellDimension: 3 });
- * const cubes = tesseract.cellsOfDim(3).find((group) => group.kind === 'cuboid')!;
+ * const cubes = tesseract.cellsOfDim(3).find((group) => group.kind === 'cuboid');
+ * if (!cubes) throw new Error('no cuboid 3-cells; raise maxCellDimension');
  *
  * // A group carries no cell count; derive it from the index buffer.
  * const cellCount = cubes.indices.length / cubes.verticesPerCell;
  *
  * const facets = [];
  * for (let cell = 0; cell < cellCount; cell += 1) {
- *   const facet: core.CellFacetN | null = cuboidCellFacetN(tesseract, cubes, cell);
+ *   // CellFacetN, or null for a cell that is not on the boundary.
+ *   const facet = cuboidCellFacetN(tesseract, cubes, cell);
  *   facets.push(facet === null ? 'none' : `${facet.axis}:${facet.sign > 0 ? '+' : '-'}`);
  * }
  * log(facets.join(' ')); // 3:- 3:+ 2:- 2:+ 1:- 1:+ 0:- 0:+

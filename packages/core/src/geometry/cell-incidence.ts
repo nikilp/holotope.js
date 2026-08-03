@@ -25,7 +25,8 @@ import type { CellGroup } from './cell-complex.js';
  * );
  * const tetrahedra = solid
  *   .cellsOfDim(3)
- *   .find((group) => group.kind === 'simplex')!;
+ *   .find((group) => group.kind === 'simplex');
+ * if (!tetrahedra) throw new Error('nothing was tetrahedralized');
  *
  * // Local tetrahedron ordinals incident to this retained source triangle.
  * const incident = findIncidentCellsN(tetrahedra, [0, 1, 3]);

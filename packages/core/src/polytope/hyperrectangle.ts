@@ -56,7 +56,8 @@ export interface HyperrectangleOptions {
  * @example
  * A 4D body whose plane inertias are all different:
  * ```ts
- * const options: core.HyperrectangleOptions = {
+ * // HyperrectangleOptions.
+ * const options = {
  *   dim: 4,
  *   edgeLengths: [2, 3, 5, 7],
  *   maxCellDimension: 3
@@ -69,8 +70,9 @@ export interface HyperrectangleOptions {
  * @example
  * Equal lengths are a hypercube, byte for byte:
  * ```ts
- * const box: core.CellComplex = createHyperrectangle({ dim: 4, edgeLengths: [2, 2, 2, 2] });
- * const cube: core.CellComplex = createHypercube({ dim: 4, size: 2 });
+ * // Both are a CellComplex.
+ * const box = createHyperrectangle({ dim: 4, edgeLengths: [2, 2, 2, 2] });
+ * const cube = createHypercube({ dim: 4, size: 2 });
  * log(box.positions.every((value, index) => value === cube.positions[index])); // true
  * ```
  */

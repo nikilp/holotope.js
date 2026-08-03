@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const SHOWCASE = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const REPO = path.dirname(path.dirname(SHOWCASE));
@@ -94,9 +95,68 @@ fs.mkdirSync(path.dirname(OUT), { recursive: true });
 const playable = Object.fromEntries(
   Object.entries(examples).filter(([symbol]) => !compileOnly.has(symbol))
 );
+
+// --- the playground runs JavaScript ------------------------------------------
+/**
+ * A playable snippet must parse as JavaScript, because that is how it runs.
+ *
+ * These blocks have two consumers with different requirements, and for a long
+ * time only one of them was enforced. `generated-example-check.ts` below is
+ * compiled as TypeScript, which catches a wrong method name or a bad arity.
+ * The playground instead `eval`s the same text verbatim, so a non-null `!`, an
+ * `as` cast, or a type annotation is a SyntaxError the reader meets and no
+ * gate ever saw.
+ *
+ * The two requirements actively pull apart. `noUncheckedIndexedAccess` is on,
+ * so `group.indices[0]` is `number | undefined` and the compile gate *demands*
+ * a `!` that the runtime then rejects. Authors were being pushed toward
+ * breakage by the only check that existed. Hence this one: parse each playable
+ * snippet the way the browser will, and fail the build rather than ship a dead
+ * example.
+ *
+ * `new vm.Script` parses and throws `SyntaxError`; it never runs the snippet,
+ * and nothing here is callable afterwards. Free names — `log`, `scene`, the
+ * library exports — are injected by the playground at call time and are not
+ * resolved, so this cannot disagree with the compile gate about meaning. It
+ * only asks whether the text is JavaScript at all.
+ */
+const notJavaScript = [];
+for (const [symbol, entry] of Object.entries(playable)) {
+  for (const [index, code] of [entry.code, ...entry.alternatives].entries()) {
+    try {
+      new vm.Script(code, { filename: `${symbol}.example.js` });
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      notJavaScript.push({ symbol, index, message: error.message });
+    }
+  }
+}
+if (notJavaScript.length > 0) {
+  console.error(
+    `\nextract-examples: ${notJavaScript.length} playable @example block(s) ` +
+      'are not valid JavaScript.\n'
+  );
+  for (const { symbol, index, message } of notJavaScript) {
+    console.error(`  ${symbol}${index ? ` (alternative ${index})` : ''}`);
+    console.error(`    ${message}`);
+  }
+  console.error(
+    '\nThe playground evaluates these verbatim, so TypeScript-only syntax —' +
+      '\nnon-null `!`, `as` casts, type annotations, `satisfies` — throws for' +
+      '\nthe reader. Rewrite the block so it is valid in both, for instance by' +
+      '\nnarrowing with a runtime check instead of asserting.\n' +
+      '\nAn example that genuinely cannot be plain JavaScript belongs to a' +
+      '\npackage marked `playground: false` above, where it is compiled but' +
+      '\nnot offered for running.\n'
+  );
+  process.exit(1);
+}
+
 fs.writeFileSync(OUT, JSON.stringify(playable, null, 2) + '\n');
 console.log(
-  `extract-examples: ${Object.keys(examples).length} symbols with examples -> ${path.relative(SHOWCASE, OUT)}`
+  `extract-examples: ${Object.keys(examples).length} symbols with examples ` +
+    `(${Object.keys(playable).length} playable, all valid JavaScript) -> ` +
+    path.relative(SHOWCASE, OUT)
 );
 
 // --- a file the compiler can check ------------------------------------------

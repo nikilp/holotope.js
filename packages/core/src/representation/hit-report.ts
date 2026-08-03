@@ -96,14 +96,16 @@ export interface RepresentationHitReportN {
  *   (positions.getZ(0) + positions.getZ(1) + positions.getZ(2)) / 3
  * );
  *
- * const report: core.RepresentationHitReportN = describeRepresentationHitN(
+ * // RepresentationHitReportN.
+ * const report = describeRepresentationHitN(
  *   representationHitFromSlicedComplex(section, { point, faceIndex: 0 })
  * );
  *
  * log(report.source.kind); // identity always survives
  * log(report.lineageKinds); // why the claim is what it is
  *
- * const ambient: core.RepresentationAmbientClaimN = report.ambient;
+ * // RepresentationAmbientClaimN — a discriminated union on `claim`.
+ * const ambient = report.ambient;
  * if (ambient.claim === 'unique') {
  *   log(ambient.point.data); // safe to present as the source point
  * } else if (ambient.claim === 'on-selected-primitive') {
