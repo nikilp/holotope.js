@@ -104,9 +104,12 @@ to a refinement. At a flat rest the first derivative vanishes, so small folds
 produce a weak restoring force.
 
 Only unit weighting exists. The gradient is closed-form over all `d+2` hinge
-vertices with exact translation and rotation null modes, and the family is
-first-order only, so Newton-CG refuses the mixture with named
-unsupported-provider evidence rather than dropping bending curvature silently.
+vertices and cancels the translation and rotation modes algebraically, so
+`netForceResidual` and `rotationalFirstMomentResidual` are roundoff-scale
+evidence to compare against a tolerance rather than quantities guaranteed to be
+bitwise zero. The family is first-order only, so Newton-CG refuses the mixture
+with named unsupported-provider evidence rather than dropping bending curvature
+silently.
 Its paired filter is not optional: a search segment can begin and end with
 valid hinges while passing through zero conormal height in between, so the
 filter reuses `analyzeLinearSimplexMeasureN` over each distinct source simplex

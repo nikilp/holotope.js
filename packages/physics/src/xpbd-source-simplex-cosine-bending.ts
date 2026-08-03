@@ -532,7 +532,15 @@ implements XpbdIncrementalPotentialStepFilterN {
     this.particles = family.particles;
   }
 
-  /** Certifies the complete segment, a strict prefix, or refuses. */
+  /**
+   * Certifies the complete segment, a strict prefix, or refuses.
+   *
+   * This is {@link evaluateSegment} under the narrower solver-seam type. The
+   * two are one computation returning one object: nothing is recomputed and
+   * nothing is stripped, so `cells` and `blockingCellIndex` are present on this
+   * result at runtime even though the seam type does not declare them. Call
+   * {@link evaluateSegment} to have them typed rather than to obtain them.
+   */
   evaluate(
     context: XpbdIncrementalPotentialStepFilterContextN
   ): XpbdIncrementalPotentialStepFilterEvaluationN {
@@ -540,7 +548,14 @@ implements XpbdIncrementalPotentialStepFilterN {
       XpbdIncrementalPotentialStepFilterEvaluationN;
   }
 
-  /** The same query with the family's own richer per-cell evidence retained. */
+  /**
+   * The same query, returning the family's own per-cell evidence as its type.
+   *
+   * Identical work and an identical object to {@link evaluate} — the difference
+   * is static only. The seam type cannot carry per-cell records, and widening
+   * it is not this slice's business, so the richer type lives here instead of
+   * the evidence being discarded to fit.
+   */
   evaluateSegment(
     context: XpbdIncrementalPotentialStepFilterContextN
   ): XpbdSourceSimplexCosineBendingFamilyStepFilterEvaluationN {

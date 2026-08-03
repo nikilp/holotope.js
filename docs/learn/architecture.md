@@ -209,8 +209,10 @@ exactly at the flat and fully folded configurations where meshes sit, and it
 generalizes to any `1 <= d < N` without a cross product. It is not a signed
 dihedral and cannot distinguish a mountain fold from a valley one, because the
 convention that would give it a sign is specific to R3. Its gradient is
-closed-form over all `d+2` hinge vertices and sums to zero identically, so
-translation is a null mode by construction rather than numerically. The
+closed-form over all `d+2` hinge vertices and cancels to zero algebraically, so
+translation is a null mode of the derivation rather than an artefact of the
+arithmetic. The returned Float64 slots still sum to roundoff, which is why the
+residuals are gated against a tolerance and not against zero. The
 resulting energy is a measured discrete stiffness and not a continuum shell:
 quadratic in the cosine is quartic in the angle, and refinement drives the
 total to zero. That was measured before the API existed, and unit weighting is

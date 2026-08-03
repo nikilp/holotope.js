@@ -96,8 +96,15 @@ export interface SimplexHingeCosineEvaluationN {
    * `∂c/∂vertex`, one per hinge vertex, in the caller's input order
    * `[...sharedFace, oppositeA, oppositeB]`.
    *
-   * The entries sum to exactly zero, so translation is a null mode by
-   * construction rather than numerically.
+   * Translation is a null mode by construction: the `f_0` slot is written as
+   * the exact algebraic complement of the others, so the entries cancel
+   * symbolically rather than by cancelling error.
+   *
+   * That is a statement about the algebra, not about the returned Float64
+   * values. The complement is one rounded expression and the slots it cancels
+   * are another, so summing them lands at roundoff — order-dependently, since
+   * no summation order is privileged. Compare against a tolerance near
+   * `1e-12`, never against zero.
    */
   readonly gradient: readonly VecN[];
 }
@@ -214,9 +221,15 @@ function finiteVector(value: unknown, dimension: number, label: string): VecN {
  * ∂c/∂f_0 = -[(Σ αA - 1) wA + (Σ αB - 1) wB]
  * ```
  *
- * Verified against central differences to 1.16e-10 over 320 coordinates from
- * R2 to R7 in the P48 measurement, with net-force residual 5.55e-17 and
- * rotational first moment exactly zero.
+ * The `f_0` slot is the algebraic complement of the rest, so the slots cancel
+ * symbolically. In Float64 they cancel to roundoff instead, because the
+ * complement and the terms it cancels are separately rounded expressions.
+ *
+ * Verified against central differences to 1.16e-10 over 320 coordinates
+ * sampling `(N, d)` pairs from R2 to R7 in the P48 measurement, whose net-force
+ * residual was 5.55e-17 and whose rotational first-moment residual came out at
+ * 0.00e+00. Those are that fixture's numbers, not guarantees — a bitwise zero
+ * there does not generalize, and other geometry puts both at roundoff scale.
  *
  * @param options - Shared-face positions in source order, the two opposite
  * positions, and an optional positive relative tolerance.
