@@ -642,6 +642,22 @@ describe('stepXpbdIncrementalPotentialWorldN — configuration refusal', () => {
       } as never)
     ).toThrow(/unknown option "substeps"/);
 
+    const worldShapedObject = {
+      dimension: world.dimension,
+      gravity: world.gravity,
+      particles: world.particles,
+      constraints: world.constraints,
+      forceProviders: world.forceProviders,
+      velocityResponses: world.velocityResponses,
+      stateGuards: world.stateGuards
+    };
+    expect(() =>
+      stepXpbdIncrementalPotentialWorldN({
+        world: worldShapedObject as never,
+        deltaTime: 1 / 120
+      })
+    ).toThrow(/world must be an XpbdWorldN/);
+
     expect(() =>
       stepXpbdIncrementalPotentialWorldN({
         world: new XpbdWorldN({ dimension: 3 }),

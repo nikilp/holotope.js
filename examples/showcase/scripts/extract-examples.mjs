@@ -115,16 +115,20 @@ const playable = Object.fromEntries(
  * example.
  *
  * `new vm.Script` parses and throws `SyntaxError`; it never runs the snippet,
- * and nothing here is callable afterwards. Free names — `log`, `scene`, the
- * library exports — are injected by the playground at call time and are not
- * resolved, so this cannot disagree with the compile gate about meaning. It
- * only asks whether the text is JavaScript at all.
+ * and nothing here is callable afterwards. The playground's containing
+ * function is strict, so the parser prepends the same directive rather than
+ * accepting syntax such as `with` which the browser later refuses. Free names
+ * — `log`, `scene`, the library exports — are injected by the playground at
+ * call time and are not resolved, so this cannot disagree with the compile
+ * gate about meaning. It only asks whether the text is JavaScript at all.
  */
 const notJavaScript = [];
 for (const [symbol, entry] of Object.entries(playable)) {
   for (const [index, code] of [entry.code, ...entry.alternatives].entries()) {
     try {
-      new vm.Script(code, { filename: `${symbol}.example.js` });
+      new vm.Script(`"use strict";\n${code}`, {
+        filename: `${symbol}.example.js`
+      });
     } catch (error) {
       if (!(error instanceof SyntaxError)) throw error;
       notJavaScript.push({ symbol, index, message: error.message });

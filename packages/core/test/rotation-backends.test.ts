@@ -8,9 +8,23 @@ function expectMatricesClose(a: MatN, b: MatN, digits = 12): void {
   }
 }
 
-function randomBivector(n: number, magnitude = 2): BivectorN {
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x1_0000_0000;
+  };
+}
+
+function randomBivector(
+  n: number,
+  magnitude = 2,
+  random: () => number = Math.random
+): BivectorN {
   const b = new BivectorN(n);
-  for (let k = 0; k < b.coeffs.length; k++) b.coeffs[k] = (Math.random() * 2 - 1) * magnitude;
+  for (let k = 0; k < b.coeffs.length; k++) {
+    b.coeffs[k] = (random() * 2 - 1) * magnitude;
+  }
   return b;
 }
 
@@ -317,12 +331,13 @@ describe('Rotor4.slerp', () => {
 
   it('follows the geodesic: slerp(I, exp(B), t) = exp(t·B)', async () => {
     const { expBivector: exp } = await import('@holotope/core');
+    const random = seededRandom(0x5e1f_4d2b);
     for (let trial = 0; trial < 10; trial++) {
       // Keep the left/right generator norms below π/2 (coefficients ≤ 0.8
       // give |u| ≤ 0.8√3 ≈ 1.39): past that, the quaternion shortest-arc
       // flip makes slerp take a genuinely shorter path than exp(t·B), and
       // the identity only holds on the short arc.
-      const b = randomBivector(4, 0.8);
+      const b = randomBivector(4, 0.8, random);
       const target = Rotor4.fromBivector(b);
       for (const t of [0.2, 0.5, 0.77]) {
         expectMatricesClose(

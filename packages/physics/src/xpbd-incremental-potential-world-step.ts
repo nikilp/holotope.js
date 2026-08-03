@@ -11,9 +11,9 @@ import {
 } from './xpbd-incremental-potential-step.js';
 import type { XpbdIncrementalPotentialFeasibleWarmStartNOptions } from './xpbd-incremental-potential-feasible-base.js';
 import type { XpbdIncrementalPotentialStepFilterN } from './xpbd-incremental-potential-step-filter.js';
-import type {
-  XpbdConservativeForceProviderN,
-  XpbdWorldN
+import {
+  XpbdWorldN,
+  type XpbdConservativeForceProviderN
 } from './xpbd-world.js';
 
 /**
@@ -211,9 +211,7 @@ export function stepXpbdIncrementalPotentialWorldN(
   }
 
   const world = options.world;
-  if (typeof world !== 'object' || world === null ||
-    !Array.isArray(world.particles) ||
-    typeof world.dimension !== 'number') {
+  if (!(world instanceof XpbdWorldN)) {
     throw new Error(`${caller}: world must be an XpbdWorldN`);
   }
   const particles = world.particles;
