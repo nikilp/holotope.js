@@ -1163,6 +1163,93 @@ state before escaping. This outer boundary protects callers even when a
 malformed conservative provider mutates a live particle during an early trial
 evaluation.
 
+## Step an authored world
+
+The call above names four things the caller must keep correct by hand:
+`dimension`, `particles`, `gravity`, and `providers`. An authored `XpbdWorldN`
+already holds all four. Passing them separately makes the world's registry and
+the solver's inputs two sources of truth for the same facts, and nothing in
+the type system notices when they diverge — a particle added to the world but
+omitted from the array is solved as though it were not there, and the scene
+being rendered stops being the scene being solved.
+
+`stepXpbdIncrementalPotentialWorldN()` reads those four from the world and
+delegates once:
+
+```ts
+import {
+  XpbdWorldN,
+  stepXpbdIncrementalPotentialWorldN
+} from '@holotope/physics';
+
+const contactTerms = floorBarriers.incrementalPotentialTerms();
+
+const world = new XpbdWorldN({ dimension: 4, gravity: [0, -9.81, 0, 0] });
+for (const p of particles) world.addParticle(p);
+world.addForceProvider(material);
+for (const provider of contactTerms.providers) world.addForceProvider(provider);
+
+const advance = stepXpbdIncrementalPotentialWorldN({
+  world,
+  deltaTime: 1 / 120,
+  stepFilters: contactTerms.stepFilters,
+  warmStart: 'feasible-inertial-prediction'
+});
+
+if (advance.step.status === 'applied') {
+  binding.writeSourcePositions();
+} else {
+  console.log(advance.diagnosis.condition, advance.diagnosis.levers);
+}
+```
+
+`advance.step` is the same result the direct call returns — not a simplified
+success flag. Feasible-base trials, candidate identity, per-filter records,
+Newton evidence, minimizer terminals, and application refusals are all still
+reachable through it. `advance.diagnosis` is
+`diagnoseXpbdIncrementalPotentialStepN()` applied to that result, computed
+once. `advance.selection` records which registry entries the step actually ran
+against, by identifier, so the evidence stays readable after the particles it
+names have moved.
+
+Three things stay the caller's:
+
+- **Step filters.** `XpbdWorldN` owns no filter registry. An implicit global
+  one would make an ordered policy invisible at the call site, so they are
+  passed explicitly and are not reordered or deduplicated.
+- **The interval.** `deltaTime` must be finite and strictly positive. A zero
+  interval is not a cheap no-op the way `PhysicsWorld4.step(0)` is; it is not
+  a physical optimization step at all, and it is rejected exactly as negative
+  and non-finite intervals are. A render loop that can produce a zero elapsed
+  time should skip that frame.
+- **Which solver path.** See below.
+
+### One solver path per interval
+
+A world carries two, and they are not interchangeable:
+
+| | `world.step()` / `stepAdaptive()` | `stepXpbdIncrementalPotentialWorldN()` |
+| --- | --- | --- |
+| method | projected XPBD | nonlinear optimization |
+| uses | constraints, responses, guards, providers | conservative providers only |
+| contact | position projection | barrier potentials and step filters |
+
+Running both over one physical interval integrates that interval twice. The
+optimization path therefore never calls either of the others, and the choice
+is not made for you.
+
+It also cannot represent three of the world's five registries. Registered
+scalar constraints, velocity responses, and state guards have no
+incremental-potential encoding, so their presence is a configuration error
+that names the first offending entry and its registry kind rather than a
+silent skip. The same holds for a registered force provider without
+`evaluateAt(positionOf)`: it is not conservative, and quietly solving the
+conservative subset would advance a scene nobody authored.
+
+Configuration errors throw, because no physical step was attempted.
+Mathematical and algorithmic outcomes — every refusal the direct call can
+produce — stay typed in `advance.step`.
+
 ## Capability boundary
 
 These APIs provide a deterministic Float64 objective, packed first derivative,
@@ -1181,8 +1268,9 @@ reference step. They do not:
 - cache projected blocks across linearization coordinates or provide a
   scalable sparse large-mesh modified-Newton backend;
 - provide quasi-Newton or trust-region directions;
-- apply `XpbdWorldN` velocity responses or state guards to the optimization
-  path;
+- apply `XpbdWorldN` scalar constraints, velocity responses, or state guards
+  to the optimization path — the world-scoped step rejects them by name
+  instead;
 - perform mesh-wide continuous-collision-filtered search automatically;
 - build mesh-wide active collision sets from edge or face stencils;
 - certify an intersection-free trajectory; or

@@ -90,6 +90,7 @@ there is improved here.
 | [`findIncidentCellsN`](/api/core/geometry/functions/findIncidentCellsN) | [open](https://nikilp.github.io/holotope.js/playground.html#findIncidentCellsN) |
 | [`massPropertiesFromCellComplex4`](/api/physics/functions/massPropertiesFromCellComplex4) | [open](https://nikilp.github.io/holotope.js/playground.html#massPropertiesFromCellComplex4) |
 | [`solveXpbdIncrementalPotentialNewtonDirectionN`](/api/physics/functions/solveXpbdIncrementalPotentialNewtonDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#solveXpbdIncrementalPotentialNewtonDirectionN) |
+| [`stepXpbdIncrementalPotentialWorldN`](/api/physics/functions/stepXpbdIncrementalPotentialWorldN) | [open](https://nikilp.github.io/holotope.js/playground.html#stepXpbdIncrementalPotentialWorldN) |
 | [`tetrahedralizeCuboidCells`](/api/core/geometry/functions/tetrahedralizeCuboidCells) | [open](https://nikilp.github.io/holotope.js/playground.html#tetrahedralizeCuboidCells) |
 | [`xpbdMassPreconditionedDirectionN`](/api/physics/variables/xpbdMassPreconditionedDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#xpbdMassPreconditionedDirectionN) |
 | [`xpbdNewtonDirectionPolicyN`](/api/physics/functions/xpbdNewtonDirectionPolicyN) | [open](https://nikilp.github.io/holotope.js/playground.html#xpbdNewtonDirectionPolicyN) |

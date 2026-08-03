@@ -42,13 +42,26 @@ export interface StepXpbdIncrementalPotentialWorldNOptions {
    * time should skip that frame rather than ask for a step of it.
    */
   readonly deltaTime: number;
+  /**
+   * Explicit minimizer base in the world's particle order.
+   *
+   * Takes precedence over `warmStart` and bypasses feasible-base recovery
+   * entirely, so a step given one returns no `feasibleBaseRecovery` evidence.
+   */
   readonly initialPositions?: readonly VecN[];
+  /** Minimizer base when `initialPositions` is absent; see the lower step. */
   readonly warmStart?:
     | 'inertial-prediction'
     | 'previous-positions'
     | 'feasible-inertial-prediction';
+  /**
+   * Chord-sampling controls belonging to `feasible-inertial-prediction`.
+   * Supplying them with another warm start is rejected, not ignored.
+   */
   readonly feasibleWarmStart?: XpbdIncrementalPotentialFeasibleWarmStartNOptions;
+  /** Direction policy, tolerances, and budgets for the bounded minimizer. */
   readonly minimization?: XpbdIncrementalPotentialMinimizationPolicyN;
+  /** Velocity-reconstruction and force-clearing policy for a converged step. */
   readonly application?: XpbdIncrementalPotentialApplicationPolicyN;
 }
 
@@ -60,9 +73,13 @@ export interface StepXpbdIncrementalPotentialWorldNOptions {
  * it names have moved.
  */
 export interface XpbdIncrementalPotentialWorldSelectionN {
+  /** Ambient dimension read from the world, not from the options. */
   readonly dimension: number;
+  /** Every registered particle, in world registration order. */
   readonly particleIds: readonly string[];
+  /** Every registered force provider, in authored world order. */
   readonly providerIds: readonly string[];
+  /** The supplied filters, in supplied order; never sorted or deduplicated. */
   readonly stepFilterIds: readonly string[];
 }
 
@@ -74,8 +91,11 @@ export interface XpbdIncrementalPotentialWorldSelectionN {
  * terminal, and application refusal remains reachable through it.
  */
 export interface XpbdIncrementalPotentialWorldStepN {
+  /** Which registry entries this step ran against, captured before it ran. */
   readonly selection: XpbdIncrementalPotentialWorldSelectionN;
+  /** The unchanged lower-level transaction result, refusals included. */
   readonly step: XpbdIncrementalPotentialStepResultN;
+  /** That same result classified once, so no caller parses a message. */
   readonly diagnosis: XpbdIncrementalPotentialDiagnosisN;
 }
 

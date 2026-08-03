@@ -451,7 +451,6 @@
   "physics:XpbdIncrementalPotentialAnalyticHessianVectorResultN",
   "physics:XpbdIncrementalPotentialAnalyticHessianVectorUnsupportedN",
   "physics:XpbdIncrementalPotentialAnalyticHessianVectorZeroDirectionN",
-  "physics:XpbdIncrementalPotentialApplicationPolicyN",
   "physics:XpbdIncrementalPotentialApplicationResultN",
   "physics:XpbdIncrementalPotentialAppliedParticleN",
   "physics:XpbdIncrementalPotentialDirectionRefusedN",

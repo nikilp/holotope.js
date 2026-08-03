@@ -295,6 +295,24 @@ family can protect the pairs they describe. Moving--moving mesh candidates,
 self-contact, and pair refresh outside the candidate-aware family still carry
 no implied collision-free guarantee.
 
+`stepXpbdIncrementalPotentialWorldN()` advances that same transaction from an
+authored `XpbdWorldN`. Everything on this page adds its provider to a world
+with `addToWorld()`, so the world already holds the dimension, the particle
+order, the gravity vector, and the provider registry the step needs; passing
+them separately makes the solved system and the authored one two different
+things that nothing checks. The world-scoped call reads all four from the
+registry and delegates once, and `result.step` is the unchanged result
+described above.
+
+It does not soften the boundary this section states — it makes it enforceable.
+A state guard registered on the same world, as below, is exactly what the
+optimization path cannot apply; rather than being quietly ignored, its
+presence is a configuration error naming the guard. The same holds for a
+scalar constraint, a velocity response, and a force provider that is not
+conservative. So a world authored for `stepAdaptive()` is not silently
+accepted by the optimization path, and choosing between the two paths stays a
+decision the caller makes for each physical interval.
+
 ```ts
 import { simplexizeCuboidGroupN } from '@holotope/core';
 import {

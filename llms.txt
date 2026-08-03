@@ -89,7 +89,8 @@ import {
   xpbdMassPreconditionedDirectionN,
   xpbdSteepestDescentDirectionN,
   applyXpbdIncrementalPotentialResultN,
-  stepXpbdIncrementalPotentialN
+  stepXpbdIncrementalPotentialN,
+  stepXpbdIncrementalPotentialWorldN
 } from '@holotope/physics';
 
 // @holotope/three
@@ -280,6 +281,16 @@ windows.
   prediction, compilation, bounded minimization, verification, and application.
   It retains each intermediate result and restores the complete pre-step
   particle state on typed refusal or thrown failure.
+- World-scoped entry point: `stepXpbdIncrementalPotentialWorldN` is the
+  first-choice call when the scene is an authored `XpbdWorldN`. The world
+  supplies `dimension`, `particles`, `gravity`, and the conservative provider
+  registry; the caller supplies only the ordered `stepFilters`, `deltaTime`,
+  and the warm-start/minimization/application policies. It delegates exactly
+  once and returns `{ selection, step, diagnosis }`, where `step` is the
+  unchanged lower-level result. Registered scalar constraints, velocity
+  responses, state guards, and non-conservative force providers are named as
+  configuration errors, never skipped; `deltaTime` must be finite and strictly
+  positive.
 - Open-domain initialization: the default remains `warmStart:
   'inertial-prediction'`; `'previous-positions'` uses the last live state.
   Opt-in `'feasible-inertial-prediction'` samples a bounded chord between them
@@ -424,6 +435,22 @@ if (step.status === 'applied') {
 ```
 
 ```ts
+// Same transaction, with the authored world as the single source of truth for
+// dimension, particle order, gravity, and providers.
+const advance = stepXpbdIncrementalPotentialWorldN({
+  world,
+  deltaTime: 1 / 120,
+  stepFilters: contactTerms.stepFilters,
+  warmStart: 'feasible-inertial-prediction'
+});
+if (advance.step.status === 'applied') {
+  binding.writeSourcePositions();
+} else {
+  inspectRefusal(advance.diagnosis.condition, advance.diagnosis.levers);
+}
+```
+
+```ts
 // Pick a projected triangle. Identity, precision, and uniqueness are separate
 // questions; a Three intersection is passed straight through.
 const hit = representationHitFromProjectedSurface(surface, intersection);
@@ -454,6 +481,12 @@ if (hit.ambientPointStatus === 'exact') {
   perspective scale is 1, and separate as the offset moves — about 14% at
   `w = 0.5` for `viewDistance: 4`. Either share the projection or show them as
   separate views.
+- Do not call both `world.step()`/`world.stepAdaptive()` and
+  `stepXpbdIncrementalPotentialWorldN()` for one physical interval. They are
+  alternative solvers, not stages: projected XPBD applies the registered
+  constraints, responses, and guards, while the optimization path cannot
+  represent any of them and rejects their presence. Running both integrates
+  the interval twice. Pick one per frame.
 - Do not treat `DragRotation4D` as physical angular velocity or torque.
 - Do not guess exports: inspect the canonical barrel listed above when the
   needed feature is not in this file.

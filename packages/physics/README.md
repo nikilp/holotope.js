@@ -51,6 +51,17 @@ ordinary errors or provide a continuous no-inversion proof. Its first responses
 provide exact particle–plane Coulomb friction over the complete RN tangent ball
 and named timestep-invariant exponential damping.
 
+`stepXpbdIncrementalPotentialWorldN()` advances one authored `XpbdWorldN`
+through that transaction. The world is authoritative for dimension, particle
+order, gravity, and the conservative provider registry, so those four stop
+being repeated at every call site where they could drift from the scene being
+rendered. Step filters stay explicit because the base world owns no filter
+registry. Registered scalar constraints, velocity responses, state guards, and
+non-conservative force providers cannot be represented by this path and are
+named as configuration errors rather than skipped. The return carries the
+complete lower-level step alongside its diagnosis and an immutable
+registration snapshot — not a success boolean.
+
 The separate incremental-potential reference step is transactional and keeps
 its minimizer base explicit. Its historical default is the inertial prediction;
 callers may instead select the previous live positions or opt into bounded
@@ -152,6 +163,52 @@ requestAnimationFrame(frame);
 The `0.25` clamp prevents a backgrounded tab from demanding an unbounded
 catch-up burst. Forces and torques survive a zero-time no-op and clear only
 after a positive completed step.
+
+The optimization path uses the same accumulator, with two differences. Its
+`deltaTime` must be strictly positive — a zero interval is not a physical
+optimization step, so the `while` guard is what skips it rather than a no-op
+inside the step — and a refusal is a typed result to read, not an exception to
+catch. An `XpbdWorldN` has two solver paths, and running both over one
+interval integrates that interval twice; pick one per frame.
+
+```ts
+import {
+  stepXpbdIncrementalPotentialWorldN
+} from '@holotope/physics';
+
+function optimizationFrame(timeMilliseconds: number) {
+  const elapsed = previousTime === undefined
+    ? 0
+    : Math.min((timeMilliseconds - previousTime) / 1000, 0.25);
+  previousTime = timeMilliseconds;
+  accumulator += elapsed;
+
+  // The guard is the zero-interval policy: `accumulator >= fixedDt` is never
+  // true for an idle frame, so no step of length zero is ever requested.
+  while (accumulator >= fixedDt) {
+    const advance = stepXpbdIncrementalPotentialWorldN({
+      world: particleWorld,          // never particleWorld.step() as well
+      deltaTime: fixedDt,
+      stepFilters: contactTerms.stepFilters,
+      warmStart: 'feasible-inertial-prediction'
+    });
+    if (advance.step.status !== 'applied') {
+      // Nothing moved and nothing threw. The diagnosis names the condition
+      // and the caller-controlled levers that legitimately address it.
+      reportStall(advance.diagnosis.condition, advance.diagnosis.levers);
+      accumulator = 0;
+      break;
+    }
+    binding.writeSourcePositions();
+    accumulator -= fixedDt;
+  }
+
+  scene4.updateWorld();
+  renderer.render(scene, camera);
+  requestAnimationFrame(optimizationFrame);
+}
+requestAnimationFrame(optimizationFrame);
+```
 
 `PointJoint4` binds a body-local anchor to another body or a fixed world point.
 Resolve it inside the world's velocity-constraint callback and pass the result

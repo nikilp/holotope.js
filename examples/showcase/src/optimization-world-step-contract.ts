@@ -19,6 +19,7 @@ import {
   compileXpbdParticleBindingN,
   compileXpbdParticleSourceSimplexBarrierFamilyN,
   stepXpbdIncrementalPotentialWorldN,
+  type StepXpbdIncrementalPotentialWorldNOptions,
   type XpbdIncrementalPotentialDiagnosisN,
   type XpbdIncrementalPotentialFeasibleBaseResultN,
   type XpbdIncrementalPotentialWorldSelectionN,
@@ -75,14 +76,17 @@ export function optimizationWorldStepContractExample(): string {
   binding.addToWorld(world);
   contact.addToWorld(world);
 
+  // Only the interval, the ordered filters, and the policies. The world
+  // supplies the rest, which is the whole point of this entry point.
+  const stepOptions: StepXpbdIncrementalPotentialWorldNOptions = {
+    world,
+    deltaTime: 1 / 120,
+    stepFilters: [contact.stepFilter],
+    warmStart: 'feasible-inertial-prediction',
+    minimization: { directionPolicy: 'steepest-descent' }
+  };
   const advance: XpbdIncrementalPotentialWorldStepN =
-    stepXpbdIncrementalPotentialWorldN({
-      world,
-      deltaTime: 1 / 120,
-      stepFilters: [contact.stepFilter],
-      warmStart: 'feasible-inertial-prediction',
-      minimization: { directionPolicy: 'steepest-descent' }
-    });
+    stepXpbdIncrementalPotentialWorldN(stepOptions);
 
   const selection: XpbdIncrementalPotentialWorldSelectionN = advance.selection;
   const diagnosis: XpbdIncrementalPotentialDiagnosisN = advance.diagnosis;
