@@ -666,11 +666,41 @@ describe('stepXpbdIncrementalPotentialWorldN — configuration refusal', () => {
     ).toThrow(/no registered particles/);
 
     for (const deltaTime of [0, -1 / 120, Number.NaN, Number.POSITIVE_INFINITY]) {
+      // The message must name the entry point the caller used. Delegating far
+      // enough to name `predictXpbdInertialStateN` sent readers to an internal
+      // helper they never called.
       expect(
         () => stepXpbdIncrementalPotentialWorldN({ world, deltaTime }),
         String(deltaTime)
-      ).toThrow(/deltaTime must be finite and positive/);
+      ).toThrow(
+        /^stepXpbdIncrementalPotentialWorldN: deltaTime must be finite and positive$/
+      );
     }
+
+    // And it must refuse before any provider is evaluated or particle touched.
+    const watched = simpleWorld(3);
+    const provider =
+      watched.forceProviders[0] as XpbdConservativeForceProviderN;
+    const evaluateAt = vi.spyOn(
+      provider as { evaluateAt: XpbdConservativeForceProviderN['evaluateAt'] },
+      'evaluateAt'
+    );
+    const before = watched.particles.map((particle) => [
+      particle.position.toArray(),
+      particle.velocity.toArray(),
+      particle.force.toArray()
+    ]);
+    for (const deltaTime of [0, -1 / 120, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() =>
+        stepXpbdIncrementalPotentialWorldN({ world: watched, deltaTime })
+      ).toThrow(/stepXpbdIncrementalPotentialWorldN/);
+    }
+    expect(evaluateAt).not.toHaveBeenCalled();
+    expect(watched.particles.map((particle) => [
+      particle.position.toArray(),
+      particle.velocity.toArray(),
+      particle.force.toArray()
+    ])).toEqual(before);
 
     // Feasible sampling controls belong to one warm start; supplying them with
     // another is rejected by the existing contract rather than ignored here.

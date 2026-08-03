@@ -218,6 +218,14 @@ export function stepXpbdIncrementalPotentialWorldN(
   if (particles.length === 0) {
     throw new Error(`${caller}: world has no registered particles`);
   }
+  // Validated here as well as lower down. Delegating this one reached far
+  // enough that the thrown message named `predictXpbdInertialStateN`, an
+  // internal helper the caller never mentioned — so the first thing a reader
+  // saw when asking for a zero-length step was a function they had not called.
+  // The lower-level check stays; it guards the standalone entry point.
+  if (!Number.isFinite(options.deltaTime) || options.deltaTime <= 0) {
+    throw new Error(`${caller}: deltaTime must be finite and positive`);
+  }
 
   // Refuse before anything is derived, so an unsupported world never reaches
   // the point of looking like a step that merely failed.
