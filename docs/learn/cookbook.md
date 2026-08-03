@@ -1147,3 +1147,105 @@ Register friction after its normal family. Register damping after friction when
 you want the contact evidence to describe the undamped reconstructed velocity.
 The friction response acts on the complete RN tangent vector; it does not pick
 visible axes or inspect a rendered floor.
+
+## Accelerate a large static obstacle without changing what contact means
+
+A source-simplex candidate family scans every dynamic vertex against every
+obstacle simplex. That scan is the correctness oracle and stays the default.
+When the obstacle is large enough for it to dominate, compile a hierarchy over
+it **once** and query it many times:
+
+```ts
+import { CellComplex } from '@holotope/core';
+import {
+  compileXpbdParticleBindingN,
+  compileXpbdParticleSourceSimplexBarrierFamilyN,
+  compileXpbdSourceSimplexAabbHierarchyN
+} from '@holotope/physics';
+
+// A static obstacle: two well-separated R4 tetrahedra.
+const obstacleGroup = {
+  key: 'terrain', dim: 3, verticesPerCell: 4, kind: 'simplex' as const,
+  indices: Uint32Array.from([0, 1, 2, 3, 4, 5, 6, 7])
+};
+const obstacleComplex = new CellComplex(4, Float64Array.from([
+  0, 0, 0, 0, 0.7, 0, 0, 0, 0, 0.7, 0, 0, 0, 0, 0.7, 0,
+  9, 0, 0, 0, 9.7, 0, 0, 0, 9, 0.7, 0, 0, 9, 0, 0.7, 0
+]), [obstacleGroup]);
+
+const contactBinding = compileXpbdParticleBindingN({
+  id: 'contact-points',
+  source: new CellComplex(4, Float64Array.from([0.2, 0.2, 0.2, 0.05]), [])
+});
+
+// Compiled once, outside the step loop. Building it per frame would pay the
+// construction cost the tree exists to avoid.
+const obstacleHierarchy = compileXpbdSourceSimplexAabbHierarchyN({
+  obstacle: obstacleComplex,
+  simplexGroup: obstacleGroup,
+  leafSize: 8
+});
+
+const contact = compileXpbdParticleSourceSimplexBarrierFamilyN({
+  id: 'terrain-contact',
+  binding: contactBinding,
+  obstacle: obstacleComplex,
+  simplexGroup: obstacleGroup,
+  minimumDistance: 0.01,
+  activationDistance: 0.1,
+  stiffness: 250,
+  candidateHierarchy: obstacleHierarchy
+});
+
+// Queried many times: every point evaluation and every segment filter reuses
+// the same tree.
+const candidates = contact.evaluate().candidateQuery;
+console.log(
+  candidates.diagnostics.strategy,                       // 'static-aabb-hierarchy'
+  candidates.diagnostics.hierarchy?.testedSimplexBounds, // work actually done
+  candidates.diagnostics.hierarchy?.totalSimplices
+);
+```
+
+Pass the same `obstacle` and `simplexGroup` **objects** to both calls. A
+structurally identical hierarchy built from a different complex is refused,
+because the bounds it cached describe coordinates this family never sees.
+
+Candidate identities and their order are exactly what the exhaustive scan
+returns, so nothing downstream can tell which strategy ran except by reading
+`diagnostics`. Retention is still not contact: the exact barrier measures the
+distance and the paired step filter certifies the admissible prefix. Keep
+passing `contact.stepFilter` to the solver — a hierarchy narrows which pairs
+are asked and answers none of them.
+
+## Rebuild a hierarchy after the obstacle moves
+
+The hierarchy computes its bounds once, so it requires the obstacle to hold
+still. Move the source and the next query throws rather than answering from
+stale geometry:
+
+```ts
+const movedCoordinate = obstacleComplex.positions[0];
+if (movedCoordinate === undefined) throw new Error('empty obstacle');
+obstacleComplex.positions[0] = movedCoordinate + 0.5;
+
+let refusal = '';
+try {
+  contact.evaluate();
+} catch (error) {
+  refusal = error instanceof Error ? error.message : String(error);
+}
+// "…the indexed obstacle moved — vertex 0 axis 0 is …, was …. This hierarchy
+//  indexes a static obstacle and is not rebuilt automatically; compile a new
+//  one after moving the source."
+console.log(refusal.includes('indexed obstacle moved'));
+```
+
+There is no automatic rebuild, and that is deliberate: a rebuild that happens
+by itself is indistinguishable from a tree that was never stale, which is
+exactly the failure worth being loud about. Compile a new hierarchy and a new
+family after moving the source, or use the exhaustive default — it reads the
+obstacle's current coordinates on every query and needs no rebuild at all.
+
+Moving obstacles, incremental refit, and a revision protocol are a separate
+stage; this API is a static reference.

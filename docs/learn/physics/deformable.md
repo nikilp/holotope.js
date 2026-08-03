@@ -295,6 +295,16 @@ family can protect the pairs they describe. Moving--moving mesh candidates,
 self-contact, and pair refresh outside the candidate-aware family still carry
 no implied collision-free guarantee.
 
+When that obstacle grows large enough for the pair scan to dominate, compile a
+static AABB hierarchy over it and pass it as `candidateHierarchy`. It is opt-in
+and object-bound: nothing switches strategy by mesh size, and a tree over a
+structurally identical but different source is refused. Candidate identity and
+order are unchanged, and the exact barrier and paired filter still decide
+contact — the tree narrows which pairs are asked and answers none of them. It
+also requires the obstacle to hold still: it snapshots the coordinates it
+indexed and refuses a moved source by name instead of rebuilding itself. See
+[the theory page](../theory/incremental-potentials.md#selecting-a-static-aabb-hierarchy).
+
 `stepXpbdIncrementalPotentialWorldN()` advances that same transaction from an
 authored `XpbdWorldN`. Everything on this page adds its provider to a world
 with `addToWorld()`, so the world already holds the dimension, the particle

@@ -35,16 +35,20 @@ import {
   XpbdParticleSourceSimplexBarrierN,
   XpbdParticleSourceSimplexBarrierStepFilterN,
   XpbdPotentialDomainErrorN,
+  XpbdSourceSimplexAabbHierarchyN,
   XpbdWorldN,
   compileXpbdIncrementalPotentialProblemN,
   compileXpbdParticleBindingN,
   compileXpbdParticleSourceSimplexBarrierFamilyN,
+  compileXpbdSourceSimplexAabbHierarchyN,
   recoverXpbdIncrementalPotentialFeasibleBaseN,
   stepXpbdIncrementalPotentialWorldN,
   type XpbdConservativeForceProviderN,
   type XpbdIncrementalPotentialDiagnosisN,
   type XpbdIncrementalPotentialWorldSelectionN,
   type XpbdIncrementalPotentialWorldStepN,
+  type XpbdSourceSimplexAabbQueryDiagnosticsN,
+  type XpbdSourceSimplexAabbQueryN,
   type XpbdVelocityResponseN,
   type XpbdParticleSourceSimplexBarrierDomainReasonN,
   type XpbdParticleSourceSimplexBarrierEvaluationN,
@@ -536,6 +540,81 @@ export function physicsComposition(): void {
     optimizationWorld.particles[0]!.position.toArray().join() ===
       beforeRefusal.join(),
     'a refused world-scoped configuration still advanced the scene'
+  );
+
+  // The static candidate hierarchy must compile and run from the packed graph,
+  // must agree with the exhaustive oracle on identity and order, and must
+  // refuse a moved obstacle rather than answering from stale bounds.
+  const hierarchy: XpbdSourceSimplexAabbHierarchyN =
+    compileXpbdSourceSimplexAabbHierarchyN({
+      obstacle: simplexSource, simplexGroup, leafSize: 1
+    });
+  const hierarchyQuery: XpbdSourceSimplexAabbQueryN = hierarchy.query({
+    min: [-0.5, -0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5, 0.5]
+  });
+  const hierarchyDiagnostics: XpbdSourceSimplexAabbQueryDiagnosticsN =
+    hierarchyQuery.diagnostics;
+  assert(
+    hierarchyQuery.cellIndices.join() === '0' &&
+      hierarchyDiagnostics.totalSimplices === 1 &&
+      hierarchyQuery.simplices[0] === hierarchy.simplices[0],
+    'the packed hierarchy lost source identity or cell order'
+  );
+
+  const acceleratedBinding = compileXpbdParticleBindingN({
+    id: 'packed-accelerated', source: candidateSource
+  });
+  const acceleratedFamily = compileXpbdParticleSourceSimplexBarrierFamilyN({
+    id: 'packed-finite-obstacle',
+    binding: acceleratedBinding,
+    obstacle: simplexSource,
+    simplexGroup,
+    minimumDistance: 0.05,
+    activationDistance: 0.8,
+    stiffness: 1,
+    candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({
+      obstacle: simplexSource, simplexGroup, leafSize: 1
+    })
+  });
+  const exhaustiveIds = candidateFamily
+    .queryAt((particle) => particle.position.clone())
+    .candidates.map((candidate) => candidate.id);
+  const acceleratedQuery = acceleratedFamily
+    .queryAt((particle) => particle.position.clone());
+  assert(
+    exhaustiveIds.length > 0,
+    'the packed differential compared two empty candidate sets'
+  );
+  assert(
+    acceleratedQuery.candidates.map((candidate) => candidate.id).join('|') ===
+      exhaustiveIds.join('|'),
+    'the packed hierarchy changed candidate identity or order'
+  );
+  assert(
+    acceleratedQuery.diagnostics.strategy === 'static-aabb-hierarchy' &&
+      candidateEvaluation.candidateQuery.diagnostics.strategy === 'exhaustive',
+    'the packed strategy evidence was not inspectable'
+  );
+
+  // A moved static obstacle is a loud refusal, not a silent rebuild.
+  const originalCoordinate = simplexSource.positions[0]!;
+  simplexSource.positions[0] = originalCoordinate + 1;
+  let staleRefusal = '';
+  try {
+    acceleratedFamily.queryAt((particle) => particle.position.clone());
+  } catch (error) {
+    staleRefusal = error instanceof Error ? error.message : String(error);
+  }
+  simplexSource.positions[0] = originalCoordinate;
+  assert(
+    staleRefusal.includes('indexed obstacle moved'),
+    `a moved packed obstacle was not refused: ${staleRefusal || '(no error)'}`
+  );
+  assert(
+    acceleratedFamily
+      .queryAt((particle) => particle.position.clone())
+      .candidates.length === exhaustiveIds.length,
+    'restoring the packed obstacle did not restore the candidate set'
   );
 }
 

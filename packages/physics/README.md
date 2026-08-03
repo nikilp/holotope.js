@@ -77,17 +77,31 @@ conservative convexity/Lipschitz segment certificate. A source-indexed family
 now lifts that pair over dynamic bound vertices and a separate static simplex
 mesh: exhaustive swept-AABB rejection keeps possible, retained, exact-active,
 and blocking-pair evidence separate while presenting one stable provider and
-one paired filter to the solver. It is not a spatial tree, inside/outside
-classification, moving-simplex contact, or a claim of mesh self-collision.
+one paired filter to the solver. It is not inside/outside classification, moving-simplex contact, or a claim of
+mesh self-collision.
+
+That candidate scan stays the default and the oracle. `XpbdSourceSimplexAabbHierarchyN`
+is an opt-in immutable AABB tree over the same static obstacle, selected by
+passing it as `candidateHierarchy` — never by mesh size or a mode string, and
+only when it indexes the same obstacle and group objects the family does. It
+changes which pairs are asked, not what a retained pair means: candidate
+identity and order are exactly the exhaustive ones, and the exact barrier and
+paired prefix filter still decide contact. Because it caches bounds at
+compilation it requires a static obstacle, snapshots the coordinates it
+indexed, and refuses a moved source by naming the vertex and axis rather than
+rebuilding itself. Its diagnostics are operation counts; on an obstacle it
+cannot separate, work is linear and the counts say so.
 
 World-frame angular momentum is authoritative. Free flight therefore does not
 numerically integrate a gyroscopic force or silently lose momentum; angular
 velocity is derived through the body's principal inertia each step and the
 orientation remains on Spin(4) through paired-quaternion normalization.
 
-Spatial-tree broadphases for deformable feature candidates, moving infinite-plane
-pose policies, distance servos, rolling resistance, and sleeping are not yet
-part of this package. R4 Coulomb
+The static source-simplex hierarchy above is the only deformable-candidate
+spatial index: it covers one unmoving obstacle and is opt-in. Refit for moving
+obstacles, moving--moving candidate trees, moving infinite-plane pose policies,
+distance servos, rolling resistance, and sleeping are not yet part of this
+package. R4 Coulomb
 friction is represented by one rotationally symmetric three-dimensional
 tangent ball, never by three independent scalar clamps.
 

@@ -28,7 +28,7 @@ export interface XpbdSourceSimplexBoundsN {
  * pair the exact barrier then rejects, while one that is slightly too small
  * could drop a real contact.
  */
-export function xpbdSourceSimplexBoundsRoundoffN(...values: number[]): number {
+function boundsRoundoffN(...values: number[]): number {
   return 16 * Number.EPSILON * Math.max(1, ...values.map(Math.abs));
 }
 
@@ -47,7 +47,7 @@ export function xpbdSourceSimplexBoundsN(
     }
   }
   for (let axis = 0; axis < dim; axis++) {
-    const roundoff = xpbdSourceSimplexBoundsRoundoffN(min[axis]!, max[axis]!);
+    const roundoff = boundsRoundoffN(min[axis]!, max[axis]!);
     min[axis]! -= roundoff;
     max[axis]! += roundoff;
   }
@@ -65,7 +65,7 @@ export function xpbdSweptPointBoundsN(
   for (let axis = 0; axis < before.dim; axis++) {
     const start = before.data[axis]!;
     const end = after.data[axis]!;
-    const roundoff = xpbdSourceSimplexBoundsRoundoffN(start, end, padding);
+    const roundoff = boundsRoundoffN(start, end, padding);
     min[axis] = Math.min(start, end) - padding - roundoff;
     max[axis] = Math.max(start, end) + padding + roundoff;
   }
@@ -364,6 +364,11 @@ export class XpbdSourceSimplexAabbHierarchyN {
    * The candidate family calls this once per dynamic vertex after checking the
    * obstacle once per query, so a hundred vertices do not pay for a hundred
    * identical snapshot comparisons.
+   *
+   * Internal precisely because it skips that check: reaching it directly would
+   * be a way to query a stale tree without being told. Use {@link query}.
+   *
+   * @internal
    */
   queryChecked(box: XpbdSourceSimplexBoundsN): XpbdSourceSimplexAabbQueryN {
     const cellIndices: number[] = [];

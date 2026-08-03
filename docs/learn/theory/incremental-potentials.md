@@ -519,10 +519,104 @@ queries, while the candidate set itself is valid only for the point or segment
 that produced it. `indeterminate` remains a refusal and names its blocking
 candidate rather than becoming a collision miss.
 
-This is the auditable Float64 reference active set, not yet a spatial tree.
-Its obstacle is one-sided and static during a solve. It does not implement
-moving--moving pairs, self-contact, edge--edge candidates, exact finite-feature
-impact, or analytic curvature.
+This is the auditable Float64 reference active set. Its obstacle is one-sided
+and static during a solve. It does not implement moving--moving pairs,
+self-contact, edge--edge candidates, exact finite-feature impact, or analytic
+curvature.
+
+#### Selecting a static AABB hierarchy
+
+The scan above visits every dynamic vertex against every obstacle simplex. That
+is what makes it the oracle, and it stays the default. When the obstacle is
+large enough for the scan to dominate, compile a hierarchy over it and pass it
+in:
+
+```ts
+import {
+  compileXpbdSourceSimplexAabbHierarchyN
+} from '@holotope/physics';
+
+const acceleratedFamily = compileXpbdParticleSourceSimplexBarrierFamilyN({
+  id: 'finite-obstacle-accelerated',
+  binding: candidateBinding,
+  obstacle: finiteSimplexSource,
+  simplexGroup: finiteSimplexGroup,
+  minimumDistance: 0.01,
+  activationDistance: 0.1,
+  stiffness: 250,
+  candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({
+    obstacle: finiteSimplexSource,
+    simplexGroup: finiteSimplexGroup,
+    leafSize: 8
+  })
+});
+
+const accelerated = acceleratedFamily.evaluate().candidateQuery;
+console.log(
+  accelerated.diagnostics.strategy,                    // 'static-aabb-hierarchy'
+  accelerated.diagnostics.hierarchy?.testedSimplexBounds,
+  accelerated.diagnostics.hierarchy?.totalSimplices
+);
+```
+
+Nothing selects this for you. There is no `'fast'` string and no mesh-size
+threshold, because a strategy the library picks silently is one you cannot
+audit when it retains the wrong set. The hierarchy must index the same
+`obstacle` and `simplexGroup` **objects** the family does; a structurally
+identical tree over a different source is refused, since the bounds it cached
+describe coordinates this family never sees.
+
+What changes is which pairs get asked. What does not change:
+
+- **Candidate identity and order.** The tree traverses in its own order and
+  restores the persistent obstacle-cell order before returning, so
+  `candidates` is the sequence the exhaustive scan produces. Tree shape is not
+  observable downstream.
+- **Conservatism.** Node bounds are the componentwise union of their
+  descendants, so a node separated from the query on one axis is a proof about
+  every simplex beneath it. Retention is still decided by the same inclusive
+  AABB rule against the same per-simplex bounds.
+- **Who decides contact.** Retention is not contact. The P44 exact barrier
+  still measures the distance, and the paired step filter still certifies the
+  admissible prefix — a hierarchy narrows the question and never answers it.
+  Omitting the filter because a hierarchy exists loses the segment guarantee
+  entirely.
+
+`diagnostics.hierarchy` reports operations, not time: nodes and leaves visited,
+individual simplex bounds tested, and simplices retained. On an obstacle whose
+simplices cannot be separated — coincident geometry, or a query box covering
+everything — `testedSimplexBounds` equals the simplex count and the ratio is
+1.0. The hierarchy buys nothing there and says so rather than averaging it
+away; worst-case work is linear, not sublinear.
+
+##### The obstacle must not move
+
+The hierarchy computes every bound once, so a later coordinate change would
+invalidate all of them at once. It therefore snapshots the coordinates it
+indexed and compares them before each query, refusing by naming the moved
+vertex and axis:
+
+```ts
+const firstCoordinate = finiteSimplexSource.positions[0];
+if (firstCoordinate === undefined) throw new Error('empty obstacle');
+finiteSimplexSource.positions[0] = firstCoordinate + 1;
+
+// The next query throws rather than answering:
+//
+//   XpbdParticleSourceSimplexBarrierFamilyN candidate query: the indexed
+//   obstacle moved — vertex 0 axis 0 is …, was …. This hierarchy indexes a
+//   static obstacle and is not rebuilt automatically; compile a new one
+//   after moving the source.
+```
+
+There is no automatic rebuild. A rebuild that happens by itself is
+indistinguishable from a tree that was never stale, and the failure it hides —
+plausible candidates from geometry that has since moved — is exactly the one
+worth being loud about. Compile a new hierarchy after moving the source.
+
+The check is `O(indexed source coordinates)`, which is why it is affordable: it
+is cheaper than the `O(dynamic vertices × simplices)` search it guards. Moving
+obstacles, refit, and a revision protocol are a separate commissioned stage.
 
 ### Source-indexed point–plane families
 

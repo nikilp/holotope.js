@@ -90,7 +90,8 @@ import {
   xpbdSteepestDescentDirectionN,
   applyXpbdIncrementalPotentialResultN,
   stepXpbdIncrementalPotentialN,
-  stepXpbdIncrementalPotentialWorldN
+  stepXpbdIncrementalPotentialWorldN,
+  compileXpbdSourceSimplexAabbHierarchyN
 } from '@holotope/physics';
 
 // @holotope/three
@@ -281,6 +282,19 @@ windows.
   prediction, compilation, bounded minimization, verification, and application.
   It retains each intermediate result and restores the complete pre-step
   particle state on typed refusal or thrown failure.
+- Static-obstacle candidate acceleration: `compileXpbdSourceSimplexAabbHierarchyN`
+  builds an immutable AABB tree over one static source-simplex obstacle. Select
+  it by passing the compiled hierarchy as `candidateHierarchy` to
+  `compileXpbdParticleSourceSimplexBarrierFamilyN`. Exhaustive search remains
+  the default and the oracle; there is no `'fast'` string and no automatic
+  switch by mesh size. The hierarchy must index the same `obstacle` and
+  `simplexGroup` **objects** as the family. Candidate identities and their order
+  are exactly the exhaustive ones, so only `diagnostics.strategy` and
+  `diagnostics.hierarchy` reveal which ran. Retention is not contact: the exact
+  P44 barrier and the paired step filter still decide. The obstacle must not
+  move — the hierarchy snapshots its indexed coordinates and throws
+  "the indexed obstacle moved" rather than rebuilding; compile a new one after
+  moving the source. Worst-case work is linear, and the diagnostics report it.
 - World-scoped entry point: `stepXpbdIncrementalPotentialWorldN` is the
   first-choice call when the scene is an authored `XpbdWorldN`. The world
   supplies `dimension`, `particles`, `gravity`, and the conservative provider
@@ -487,6 +501,11 @@ if (hit.ambientPointStatus === 'exact') {
   constraints, responses, and guards, while the optimization path cannot
   represent any of them and rejects their presence. Running both integrates
   the interval twice. Pick one per frame.
+- Do not treat a hierarchy-retained pair as contact, cache a candidate set
+  across a changed point or segment, expect an automatic rebuild after moving
+  the obstacle, assume sublinear worst-case work, or omit the paired step
+  filter because a hierarchy exists. A different tree shape never changes
+  source identity or candidate order.
 - Do not treat `DragRotation4D` as physical angular velocity or torque.
 - Do not guess exports: inspect the canonical barrel listed above when the
   needed feature is not in this file.
