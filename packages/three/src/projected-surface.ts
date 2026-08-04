@@ -284,6 +284,10 @@ export class ProjectedSurface3D {
       }
     }
     this.normalAttribute.needsUpdate = true;
+    // Raycasting rejects against the bounding sphere before it tests a single
+    // triangle, so a sphere left at the shape the geometry had on construction
+    // silently makes moved parts unpickable while they stay visible.
+    this.geometry.computeBoundingSphere();
   }
 
   private homogeneousVertex(vertex: number): HomogeneousSimplexVertexN {

@@ -247,6 +247,14 @@ export class SlicedComplex3D {
     }
     this.geometry.setDrawRange(0, vertexCount);
     this.positionAttribute.needsUpdate = true;
+    // Turning off frustum culling above keeps the section drawn, but raycasting
+    // rejects against the bounding sphere independently of that flag. A sphere
+    // left at the shape the first cut happened to have makes a section that has
+    // travelled since then unpickable while it stays perfectly visible. The
+    // sphere spans the whole buffer, including slots past the draw range that
+    // still hold earlier cuts, so it is if anything too generous — which costs
+    // nothing here and never rejects a hit that a triangle test would accept.
+    this.geometry.computeBoundingSphere();
     if (vertexCount > 0) this.computeFlatNormals(vertexCount);
 
     if (this.colorAttribute && this.tetColors) {

@@ -182,6 +182,9 @@ export class ProjectedEdges3D {
       this.homogeneousValidity.fill(0);
     }
     this.positionAttribute.needsUpdate = true;
+    // Same reason as the surface product: a stale sphere silently drops
+    // intersections against geometry that has moved.
+    this.geometry.computeBoundingSphere();
   }
 
   /**
