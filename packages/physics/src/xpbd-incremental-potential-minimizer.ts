@@ -1,6 +1,6 @@
 import {
   XpbdIncrementalPotentialProblemN,
-  searchXpbdIncrementalPotentialArmijoN,
+  searchXpbdIncrementalPotentialArmijoFromBaseN,
   type XpbdArmijoAcceptedN,
   type XpbdArmijoExhaustedN,
   type XpbdArmijoNotDescentN,
@@ -342,7 +342,10 @@ export function minimizeXpbdIncrementalPotentialN(
       });
     }
     const { direction, evidence: directionEvidence } = proposal;
-    const search = searchXpbdIncrementalPotentialArmijoN({
+    // `current` is by construction the evaluation of `current.coordinates` —
+    // it is either the initial evaluation or a previously accepted trial — so
+    // the search does not need to re-derive it.
+    const search = searchXpbdIncrementalPotentialArmijoFromBaseN({
       problem: options.problem,
       coordinates: current.coordinates,
       direction,
@@ -350,7 +353,7 @@ export function minimizeXpbdIncrementalPotentialN(
       contractionFactor,
       sufficientDecrease,
       maximumTrials: maximumLineSearchTrials
-    });
+    }, current);
     if (search.status === 'not-descent') {
       return resultBase({
         status: 'stalled',

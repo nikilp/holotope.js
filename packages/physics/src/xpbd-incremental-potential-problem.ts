@@ -488,6 +488,25 @@ export function searchXpbdIncrementalPotentialArmijoN(
   options: SearchXpbdIncrementalPotentialArmijoNOptions
 ): XpbdArmijoSearchResultN {
   const caller = 'searchXpbdIncrementalPotentialArmijoN';
+  const resolved = resolveArmijoOptionsN(options, caller);
+  // A base-state domain refusal is not recoverable: the search has no valid
+  // point from which to establish sufficient decrease.
+  const base = options.problem.evaluate(options.coordinates);
+  return armijoSearchFromBaseN(options, resolved, base, caller);
+}
+
+/** Validated Armijo controls, resolved once for either entry point. */
+interface ResolvedArmijoOptionsN {
+  readonly initialStep: number;
+  readonly contractionFactor: number;
+  readonly sufficientDecrease: number;
+  readonly maximumTrials: number;
+}
+
+function resolveArmijoOptionsN(
+  options: SearchXpbdIncrementalPotentialArmijoNOptions,
+  caller: string
+): ResolvedArmijoOptionsN {
   if (typeof options !== 'object' || options === null) {
     throw new Error(`${caller}: options must be an object`);
   }
@@ -512,10 +531,46 @@ export function searchXpbdIncrementalPotentialArmijoN(
   if (!Number.isSafeInteger(maximumTrials) || maximumTrials < 1) {
     throw new Error(`${caller}: maximumTrials must be a positive integer`);
   }
+  return { initialStep, contractionFactor, sufficientDecrease, maximumTrials };
+}
 
-  // A base-state domain refusal is not recoverable: the search has no valid
-  // point from which to establish sufficient decrease.
-  const base = options.problem.evaluate(options.coordinates);
+/**
+ * The same search, from a base state the caller has already evaluated.
+ *
+ * The minimizer holds the evaluation of its current iterate — that is what
+ * `current` *is* — so letting the search re-derive it costs one full pass over
+ * every registered provider per accepted iteration, for a value already in
+ * hand. On a contact-dense scene that is the largest single duplication in the
+ * step.
+ *
+ * This is deliberately not a public option. A caller who supplies a base that
+ * is not the evaluation of `options.coordinates` gets a silently wrong search,
+ * and that invariant is not expressible in the signature. Inside this package
+ * it is guaranteed: the minimizer only ever passes an evaluation it obtained
+ * from these exact coordinates.
+ *
+ * `caller` is reported as the public entry point on both paths, so an error
+ * message never names an internal a caller did not invoke.
+ *
+ * @internal
+ */
+export function searchXpbdIncrementalPotentialArmijoFromBaseN(
+  options: SearchXpbdIncrementalPotentialArmijoNOptions,
+  base: XpbdPackedIncrementalPotentialEvaluationN
+): XpbdArmijoSearchResultN {
+  const caller = 'searchXpbdIncrementalPotentialArmijoN';
+  const resolved = resolveArmijoOptionsN(options, caller);
+  return armijoSearchFromBaseN(options, resolved, base, caller);
+}
+
+function armijoSearchFromBaseN(
+  options: SearchXpbdIncrementalPotentialArmijoNOptions,
+  resolved: ResolvedArmijoOptionsN,
+  base: XpbdPackedIncrementalPotentialEvaluationN,
+  caller: string
+): XpbdArmijoSearchResultN {
+  const { initialStep, contractionFactor, sufficientDecrease, maximumTrials } =
+    resolved;
   const direction = finiteCoordinates(
     options.direction,
     options.problem.variableCount,
