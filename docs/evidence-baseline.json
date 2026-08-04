@@ -202,7 +202,6 @@
   "ExperimentSnapshotV0.documentHash",
   "ExperimentTraceV0.documentHash",
   "ExperimentTraceV0.events",
-  "FibonacciPatch.tiles",
   "GjkMarginResult.contactPoint",
   "GjkResult.simplexCertificate",
   "GlomeGlomeContactResultN.effectiveRadiusA",

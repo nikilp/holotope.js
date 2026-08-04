@@ -34,6 +34,7 @@ export default defineConfig({
         ndContact: local('./nd-contact.html'),
         playground: local('./playground.html'),
         dimensionBridge: local('./dimension-bridge.html'),
+        sourceLinkedSheet: local('./source-linked-sheet.html'),
         mechanicsWorkbench: local('./mechanics-workbench.html'),
         tesseract: local('./tesseract.html'),
         polychora: local('./polychora.html'),

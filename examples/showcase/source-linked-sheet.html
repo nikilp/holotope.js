@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Source-linked R4 sheet</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        --ink: #edf3ff;
+        --dim: #93a4c4;
+        --faint: #6a7b9c;
+        --line: #232c46;
+        --panel: rgba(8, 11, 22, .94);
+        --accent: #72dcff;
+        --amber: #ffc247;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #05070f; color: var(--dim); }
+      body { display: flex; flex-direction: column; overflow: hidden; }
+
+      header {
+        flex: 0 0 auto;
+        padding: 14px 20px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      header h1 {
+        margin: 0 0 6px;
+        color: var(--ink);
+        font: 600 16px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      header p { margin: 0 0 8px; max-width: 96ch; font-size: 12px; line-height: 1.6; }
+      header a { color: var(--accent); text-decoration: none; }
+      header a:hover { text-decoration: underline; }
+      .boundary {
+        margin: 0 0 10px;
+        max-width: 96ch;
+        color: #ffd48a;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .boundary strong { color: #ffe6b8; }
+
+      #controls { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+      button {
+        padding: 6px 11px;
+        border: 1px solid #33405f;
+        border-radius: 6px;
+        background: #131b30;
+        color: #cfdcfb;
+        font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        cursor: pointer;
+      }
+      button:hover { border-color: #4f6a9e; color: #fff; }
+      button[aria-pressed="true"] { border-color: #2a7d66; color: #7ce7c0; }
+      .control-note { margin-left: 4px; color: var(--faint); font-size: 11px; }
+
+      main {
+        flex: 1 1 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr 340px;
+        min-height: 0;
+      }
+      .pane {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        border-right: 1px solid var(--line);
+      }
+      .pane canvas { display: block; }
+      .pane-label {
+        position: absolute;
+        top: 10px;
+        left: 12px;
+        right: 12px;
+        z-index: 2;
+        pointer-events: none;
+      }
+      .pane-label b {
+        color: #7ce7c0;
+        font-size: 11px;
+        letter-spacing: .11em;
+        text-transform: uppercase;
+      }
+      .pane-label span {
+        display: block;
+        margin-top: 3px;
+        max-width: 52ch;
+        color: var(--faint);
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
+      #inspector {
+        overflow-y: auto;
+        padding: 12px 14px 18px;
+        background: var(--panel);
+        font-size: 11.5px;
+      }
+      .panel-heading {
+        margin: 12px 0 5px;
+        color: #8496b8;
+        font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+      .panel-heading:first-child { margin-top: 0; }
+      /* Fixed row height and tabular numerals: a value gaining a digit must
+         not move anything a reader is watching. */
+      .panel-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        height: 19px;
+      }
+      .panel-label { color: var(--faint); white-space: nowrap; }
+      .panel-value {
+        flex: 0 0 auto;
+        min-width: 13ch;
+        color: #dbe6ff;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .panel-sentence {
+        margin: 12px 0 0;
+        padding: 9px 10px;
+        border-left: 2px solid var(--amber);
+        background: rgba(255, 194, 71, .07);
+        color: #e6ecfb;
+        font-size: 11.5px;
+        line-height: 1.55;
+      }
+      .panel-legend {
+        margin: 10px 0 0;
+        color: var(--faint);
+        font-size: 11px;
+        line-height: 1.55;
+      }
+
+      @media (max-width: 1180px) {
+        main { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+        #inspector { grid-column: 1 / -1; max-height: 40vh; border-top: 1px solid var(--line); }
+      }
+      @media (max-width: 720px) {
+        /* The page scrolls here, so `main` must size to its content. Left
+           flex-constrained it keeps the grid's auto row at a few pixels while
+           the inspector holds several hundred. */
+        body { overflow-y: auto; height: auto; min-height: 100%; }
+        main {
+          flex: 0 0 auto;
+          grid-template-columns: 1fr;
+          grid-template-rows: 52vh 52vh auto;
+        }
+        .pane { border-right: none; border-bottom: 1px solid var(--line); }
+        #inspector { max-height: none; overflow-y: visible; }
+        header { padding: 12px 14px 10px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Source-linked R4 sheet</h1>
+      <p>
+        One four-dimensional triangular sheet is the model. It stretches, folds, and rests
+        on a separate finite obstacle, and everything below is a <em>view</em> of it — the
+        two canvases are two lossy maps of the same R4 state, not two simulations. Selecting
+        in either canvas names the source triangle that produced the pixel, and says plainly
+        whether that pixel determines a point in R4 at all.
+        <a href="./docs/learn/physics/deformable">Deformable materials</a> ·
+        <a href="./docs/learn/theory/incremental-potentials">Incremental potentials</a> ·
+        <a href="./docs/learn/representation-provenance">Representation provenance</a>
+      </p>
+      <p class="boundary">
+        <strong>Discrete cosine-fold bending — not a shell model.</strong>
+        The fold stiffness here is an unsigned, mesh-dependent discrete term whose energy is
+        quartic in the fold angle. It does not converge to a continuum bending energy under
+        refinement, and its stiffness is not a transferable material constant. This page is a
+        demonstration of source-retained geometry, mechanics, representation, and selection —
+        not a cloth or shell simulator.
+      </p>
+      <div id="controls">
+        <button id="control-run" type="button" aria-pressed="false">Run</button>
+        <button id="control-step" type="button">Step</button>
+        <button id="control-reset" type="button">Reset</button>
+        <button id="control-reset-views" type="button">Reset views</button>
+        <button id="control-search" type="button" aria-pressed="false">Search: exhaustive</button>
+        <span class="control-note">
+          The search switch changes broadphase work only — same ordered candidates, same
+          trajectory. It restarts the scene so both settings start from the same state.
+        </span>
+      </div>
+    </header>
+
+    <main>
+      <section class="pane" id="view-perspective">
+        <div class="pane-label">
+          <b>Perspective R4 → R3</b>
+          <span>
+            Shows X, Y, Z. W is <em>spent</em>, not dropped: distance along W scales apparent
+            size through the perspective divide, so W affects every pixel here but cannot be
+            read back off the picture.
+          </span>
+        </div>
+      </section>
+
+      <section class="pane" id="view-coordinate">
+        <div class="pane-label">
+          <b>Coordinate X / W / Y</b>
+          <span>
+            Shows X, W, Y — W becomes a directly legible screen axis. The cost is Z, which
+            this view omits entirely. Same source, a different loss.
+          </span>
+        </div>
+      </section>
+
+      <aside id="inspector"></aside>
+    </main>
+
+    <script type="module" src="./src/source-linked-sheet/index.ts"></script>
+  </body>
+</html>
