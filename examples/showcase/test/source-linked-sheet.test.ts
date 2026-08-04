@@ -56,6 +56,42 @@ describe('source-linked sheet — scene', () => {
     expect(target.obstacle.cellsOfDim(2).length).toBe(1);
   });
 
+  it('refines the mesh without growing the sheet', () => {
+    // Raising the resolution must add elements over the same patch of R4. A
+    // sheet whose spacing were fixed instead would grow with its resolution,
+    // walking out of frame and off an obstacle that had not moved with it.
+    const extent = (resolution: number): {
+      span: [number, number]; corner: number; vertices: number;
+    } => {
+      const target = buildSheetScene({
+        resolution, tiles: TILES, search: 'exhaustive', id: `refine-${resolution}`
+      });
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (let vertex = 0; vertex < target.sheet.vertexCount; vertex++) {
+        maxX = Math.max(maxX, target.sheet.positions[vertex * 4]!);
+        maxY = Math.max(maxY, target.sheet.positions[vertex * 4 + 1]!);
+      }
+      const pinned = target.fixedVertices[1]!;
+      return {
+        span: [maxX, maxY],
+        corner: target.sheet.positions[pinned * 4]!,
+        vertices: target.sheet.vertexCount
+      };
+    };
+
+    const coarse = extent(5);
+    for (const resolution of [8, 12, 16]) {
+      const finer = extent(resolution);
+      expect(finer.span[0], `${resolution} width`).toBeCloseTo(coarse.span[0], 12);
+      expect(finer.span[1], `${resolution} depth`).toBeCloseTo(coarse.span[1], 12);
+      // The free pin stays where it was, so the sheet hangs from the same place.
+      expect(finer.corner, `${resolution} pin`).toBeCloseTo(coarse.corner, 12);
+      // Liveness: something did change, or the span check proves nothing.
+      expect(finer.vertices).toBeGreaterThan(coarse.vertices);
+    }
+  });
+
   it('starts folded, loads under deformation, and reaches the obstacle', { timeout: 60_000 }, () => {
     const target = scene('exhaustive', 'liveness');
 

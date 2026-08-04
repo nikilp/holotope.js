@@ -27,12 +27,29 @@ export interface SheetPanelFacts {
   readonly stepFilterIds: readonly string[];
 }
 
+/**
+ * Which step the panel is describing, when that is not the live one.
+ *
+ * Scrubbing shows a *recorded* step. Every number below it was produced by the
+ * solver at that step and stored, not recomputed now — so the panel says which
+ * step it is reading rather than letting a reader assume the scene is live.
+ */
+export interface SheetReplayPosition {
+  /** One-based applied step being shown. */
+  readonly frame: number;
+  /** How many applied steps are held. */
+  readonly recorded: number;
+  /** True once the recording stopped accepting frames. */
+  readonly truncated: boolean;
+}
+
 /** A live inspector bound to one DOM subtree. */
 export interface SheetPanel {
   readonly element: HTMLElement;
   /** Rewrites every value in place. */
   update(report: SheetStepReport | null, selection: SheetSelection | null,
-    appliedSteps: number, search: string): void;
+    appliedSteps: number, search: string,
+    replay?: SheetReplayPosition | null): void;
   /** Scene facts that do not change between steps. */
   describeScene(facts: SheetPanelFacts): void;
 }
@@ -151,6 +168,7 @@ export function createSheetPanel(): SheetPanel {
   const applied = makeRow(element, 'applied steps');
   const simulated = makeRow(element, 'simulated time');
   stepRow('minimizer iterations');
+  const showing = makeRow(element, 'showing');
 
   element.appendChild(section('potential energy'));
   stepRow('intrinsic stretch');
@@ -216,7 +234,7 @@ export function createSheetPanel(): SheetPanel {
       filters.value.textContent = String(facts.stepFilterIds.length);
       filters.value.title = facts.stepFilterIds.join('  •  ');
     },
-    update(report, selection, appliedSteps, searchMode) {
+    update(report, selection, appliedSteps, searchMode, replay = null) {
       search.value.textContent = searchMode;
       applied.value.textContent = String(appliedSteps);
       // Stated rather than left for a reader to infer from a step count: the
@@ -224,6 +242,17 @@ export function createSheetPanel(): SheetPanel {
       // are not the same quantity and the page should not imply they are.
       simulated.value.textContent =
         `${(appliedSteps * SHEET_TIME_STEP).toFixed(3)} s`;
+      // Which step every number below belongs to. A scrubbed frame is a
+      // recording, and a panel that looked identical either way would invite a
+      // reader to take a replayed number for the state the solver is holding.
+      showing.value.textContent = replay === null
+        ? 'live state'
+        : `step ${replay.frame} of ${replay.recorded}` +
+          `${replay.truncated ? ' (recording full)' : ''}`;
+      showing.value.title = replay === null
+        ? 'The configuration the solver is currently holding.'
+        : 'A recorded step. These values were produced when that step was ' +
+          'solved, and are replayed, not recomputed.';
       // One assignment path for both cases, so a reset cannot leave a value
       // from the previous scene behind.
       for (const [label, text] of Object.entries(stepScopedValues(report))) {

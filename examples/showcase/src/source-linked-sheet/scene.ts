@@ -120,8 +120,17 @@ export interface SheetStepReport {
 const CREASE = 0.35;
 const START_W = 0.9;
 const START_VELOCITY_W = -1.6;
-const COLUMN_SPACING = 0.6;
-const ROW_SPACING = 0.45;
+/**
+ * The sheet's extent, which does not depend on its resolution.
+ *
+ * Raising the resolution is mesh *refinement*: more elements over the same
+ * patch of R4. Deriving the spacing from a fixed span rather than fixing the
+ * spacing is what makes that true — the alternative grows the sheet, so a
+ * refined run would be a differently sized scene wandering out of frame and off
+ * an obstacle that had not moved.
+ */
+const SHEET_WIDTH = 2.4;
+const SHEET_DEPTH = 1.8;
 /**
  * The one authoritative simulated timestep for this page.
  *
@@ -144,11 +153,14 @@ function sheetPatch(resolution: number): {
 } {
   const positions: number[] = [];
   const creaseRow = Math.floor(resolution / 2);
+  // Spacing follows from the span, so every resolution covers the same patch.
+  const columnSpacing = SHEET_WIDTH / (resolution - 1);
+  const rowSpacing = SHEET_DEPTH / (resolution - 1);
   for (let row = 0; row < resolution; row++) {
     for (let column = 0; column < resolution; column++) {
       positions.push(
-        column * COLUMN_SPACING,
-        row * ROW_SPACING,
+        column * columnSpacing,
+        row * rowSpacing,
         row === creaseRow ? CREASE : 0,
         START_W
       );
