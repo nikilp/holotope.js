@@ -1,3 +1,4 @@
+import { classifyContactForce } from './contact-overlay.js';
 import { SHEET_TIME_STEP, type SheetStepReport } from './scene.js';
 import type { SheetSelection } from './selection.js';
 
@@ -91,18 +92,37 @@ export const STEP_SCOPED_LABELS = [
   'intrinsic stretch', 'discrete cosine fold', 'contact barrier', 'total',
   'possible pairs', 'broadphase retained', 'exactly active barriers',
   'hierarchy bound tests',
-  'fold hinges', 'stretch elements', 'min fold height', 'W range'
+  'fold hinges', 'stretch elements', 'min fold height', 'W range',
+  'held by contact', 'pushed aside', 'no active barrier', 'peak lateral share'
 ] as const;
 
+/** Contact-role populations for one report, from the barrier's own forces. */
+function roles(report: SheetStepReport): {
+  held: number; pushedAside: number; free: number; peakLateralFraction: number;
+} {
+  let held = 0;
+  let pushedAside = 0;
+  let free = 0;
+  let peakLateralFraction = 0;
+  for (const force of report.contactForces) {
+    const { role, lateralFraction } = classifyContactForce(force);
+    if (role === 'held') held++;
+    else if (role === 'pushed-aside') pushedAside++;
+    else free++;
+    if (lateralFraction > peakLateralFraction) peakLateralFraction = lateralFraction;
+  }
+  return { held, pushedAside, free, peakLateralFraction };
+}
+
 /**
- * Every step-scoped value for one report, or all `'—'` when there is no step.
+ * Every step-scoped value for one report, or all `'\u2014'` when there is no step.
  *
  * One function rather than a populate branch beside a clear branch. The original
  * code had both and they disagreed: the clear branch listed three labels while
  * the populate branch wrote fifteen, so a reset left twelve rows showing a
  * previous scene's energies, contact counts, fold height and W range beside
- * `applied steps: 0`. After a search-mode switch it was worse than stale — the
- * panel read `static-hierarchy` next to `hierarchy bound tests: n/a —
+ * `applied steps: 0`. After a search-mode switch it was worse than stale \u2014 the
+ * panel read `static-hierarchy` next to `hierarchy bound tests: n/a \u2014
  * exhaustive`, contradicting itself on screen.
  *
  * Deriving both cases here makes that class of drift unrepresentable, and makes
@@ -116,6 +136,7 @@ export function stepScopedValues(
       Object.fromEntries(STEP_SCOPED_LABELS.map((label) => [label, '—']))
     );
   }
+  const contact = roles(report);
   return Object.freeze({
     'status': report.refusalReason === null
       ? report.status
@@ -135,7 +156,16 @@ export function stepScopedValues(
     'fold hinges': String(report.hingeCount),
     'stretch elements': String(report.elementCount),
     'min fold height': number(report.minimumConormalHeight, 4),
-    'W range': `${number(report.wRange[0], 2)} … ${number(report.wRange[1], 2)}`
+    'W range': `${number(report.wRange[0], 2)} … ${number(report.wRange[1], 2)}`,
+    // Direction, not magnitude. A support pushes along its surface normal; a
+    // sum of per-cell barriers generally does not, and the difference is what
+    // decides whether the obstacle is holding the sheet or sliding it off.
+    'held by contact': String(contact.held),
+    'pushed aside': String(contact.pushedAside),
+    'no active barrier': String(contact.free),
+    'peak lateral share': Number.isFinite(contact.peakLateralFraction)
+      ? contact.peakLateralFraction.toFixed(2)
+      : '∞'
   });
 }
 
@@ -190,6 +220,10 @@ export function createSheetPanel(): SheetPanel {
   stepRow('stretch elements');
   stepRow('min fold height');
   stepRow('W range');
+  stepRow('held by contact');
+  stepRow('pushed aside');
+  stepRow('no active barrier');
+  stepRow('peak lateral share');
 
   element.appendChild(section('selection'));
   const cell = makeRow(element, 'source triangle');

@@ -107,6 +107,15 @@ export interface SheetStepReport {
   /** Range of the hidden coordinate across the sheet. */
   readonly wRange: readonly [number, number];
   /**
+   * Accumulated barrier force per bound source vertex, in source order.
+   *
+   * The contact model constrains vertices, not the surface between them, and
+   * these are the only forces it produces. Their *direction* is the diagnostic
+   * worth reading: a support pushes along the surface normal, while a sum of
+   * per-cell barriers generally does not.
+   */
+  readonly contactForces: readonly SheetContactForce[];
+  /**
    * Which state these energies and populations describe.
    *
    * `'applied-iterate'` reuses the evaluations the solver already made at the
@@ -115,6 +124,11 @@ export interface SheetStepReport {
    * on — not a state anything moved to.
    */
   readonly diagnosticsSource: 'applied-iterate' | 'unchanged-live-state';
+}
+
+/** A per-vertex barrier force, as the physics package returns it. */
+export interface SheetContactForce {
+  readonly data: Float64Array;
 }
 
 const CREASE = 0.35;
@@ -492,6 +506,7 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
     elementCount: scene.material.elements.length,
     minimumConormalHeight: bending.minimumConormalHeight,
     wRange: [low, high],
+    contactForces: contact.forces,
     diagnosticsSource: reused === null ? 'unchanged-live-state' : 'applied-iterate'
   };
 }

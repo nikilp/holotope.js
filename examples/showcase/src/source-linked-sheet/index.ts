@@ -66,9 +66,11 @@ interface PageState {
 const host = {
   perspective: document.getElementById('view-perspective'),
   coordinate: document.getElementById('view-coordinate'),
+  slice: document.getElementById('view-slice'),
   panel: document.getElementById('inspector')
 };
-if (host.perspective === null || host.coordinate === null || host.panel === null) {
+if (host.perspective === null || host.coordinate === null
+  || host.slice === null || host.panel === null) {
   throw new Error('source-linked sheet: page is missing its view or panel hosts');
 }
 
@@ -78,8 +80,13 @@ host.panel.appendChild(panel.element);
 function build(search: CandidateSearch, resolution: number): PageState {
   const scene = buildSheetScene({ resolution, tiles: TILES, search, id: 'sheet' });
   const views = createSheetViews(
-    { perspective: host.perspective!, coordinate: host.coordinate! },
+    {
+      perspective: host.perspective!,
+      coordinate: host.coordinate!,
+      slice: host.slice!
+    },
     scene.sheet,
+    scene.sheetGroup,
     scene.obstacle
   );
   panel.describeScene({
@@ -127,10 +134,15 @@ function leaveReview(): void {
 /** Redraws both views and the selection outline from whatever the source holds. */
 function refreshSource(): void {
   state.views.refresh();
+  // The overlay is coloured from the forces the step already produced, so a
+  // scrubbed frame shows that frame's contact roles rather than the live ones.
+  const shown = state.reviewing === null ? state.report : state.reviewReport;
+  if (shown !== null) state.views.showContact(shown.contactForces);
   // The selection follows the moving source: same triangle, new position.
   if (state.selection !== null) {
     state.views.showSelection(state.selection.sourceVertices);
   }
+  syncSliceControl();
 }
 
 function advance(): void {
@@ -184,11 +196,14 @@ function reset(
   resolution: number = state.resolution
 ): void {
   const wasRunning = state.running;
+  const wasShowingContact = state.views.contactVisible;
   state.views.dispose();
   state = build(search, resolution);
   state.running = wasRunning;
+  state.views.contactVisible = wasShowingContact;
   state.views.resize();
   syncReplayControl();
+  syncSliceControl();
   redraw();
 }
 
@@ -224,6 +239,9 @@ const replayLabel = control('control-replay-label');
 const playButton = control('control-play');
 const restartButton = control('control-replay-restart');
 const speedButton = control('control-replay-speed');
+const contactButton = control('control-contact');
+const sliceSlider = control('control-slice') as HTMLInputElement;
+const sliceLabel = control('control-slice-label');
 
 function syncControls(): void {
   runButton.textContent = state.running ? 'Pause' : 'Run';
@@ -240,6 +258,19 @@ function syncControls(): void {
   playButton.textContent = state.playing ? '❚❚ Pause' : '▶ Play';
   playButton.setAttribute('aria-pressed', String(state.playing));
   speedButton.textContent = `×${state.speed}`;
+  contactButton.setAttribute('aria-pressed', String(state.views.contactVisible));
+}
+
+/** Keeps the section control inside the range the source actually spans. */
+function syncSliceControl(): void {
+  const [low, high] = state.views.slice.range;
+  sliceSlider.min = low.toFixed(3);
+  sliceSlider.max = high.toFixed(3);
+  sliceSlider.step = ((high - low) / 200 || 0.001).toFixed(5);
+  sliceSlider.value = state.views.slice.offset.toFixed(3);
+  sliceLabel.textContent =
+    `Z = ${state.views.slice.offset.toFixed(2)} · ` +
+    `${state.views.slice.segmentCount} segments`;
 }
 
 /**
@@ -323,6 +354,16 @@ speedButton.addEventListener('click', () => {
   syncControls();
 });
 
+contactButton.addEventListener('click', () => {
+  state.views.contactVisible = !state.views.contactVisible;
+  syncControls();
+});
+
+sliceSlider.addEventListener('input', () => {
+  state.views.slice.setOffset(Number(sliceSlider.value));
+  syncSliceControl();
+});
+
 control('control-reset-views').addEventListener('click', () => {
   state.views.resetCameras();
 });
@@ -352,6 +393,7 @@ window.addEventListener('resize', () => { state.views.resize(); });
 state.views.resize();
 syncControls();
 syncReplayControl();
+syncSliceControl();
 redraw();
 
 function frame(): void {

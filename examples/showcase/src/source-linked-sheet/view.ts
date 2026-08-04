@@ -21,10 +21,17 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   CellComplex,
   CoordinateProjection,
+  HyperplaneSlice4,
   PerspectiveProjection,
+  type CellGroup,
   type Projection
 } from '@holotope/core';
-import { ProjectedSurface3D } from '@holotope/three';
+import { ProjectedSurface3D, SlicedComplex3D } from '@holotope/three';
+import {
+  createContactOverlay, type ContactOverlay
+} from './contact-overlay.js';
+import { SLICE_AXIS, sliceRange, sliceSurface } from './slice.js';
+import type { SheetContactForce } from './scene.js';
 
 /**
  * The two explicit R4 → R3 representations, and everything three.js.
@@ -65,6 +72,8 @@ export interface SheetView {
   readonly selectionOutline: LineSegments;
   /** Filled overlay of the same triangle, so the selection reads at a glance. */
   readonly selectionFill: Mesh;
+  /** The vertices contact actually constrains, drawn on request. */
+  readonly contact: ContactOverlay;
   render(): void;
   resize(): void;
   resetCamera(): void;
@@ -164,7 +173,8 @@ function createView(
     })
   });
   const colour = attachWColour(sheet);
-  scene.add(sheet.object, obstacle.object);
+  const contact = createContactOverlay(sheetComplex, spec.projection);
+  scene.add(sheet.object, obstacle.object, contact.object);
 
   // A filled overlay plus its outline. Line width is not portable in WebGL, so
   // the fill is what makes the selected triangle legible; depth testing is off
@@ -216,6 +226,7 @@ function createView(
       obstacle,
       selectionOutline,
       selectionFill,
+      contact,
       render: () => { controls.update(); renderer.render(scene, camera); },
       resize,
       resetCamera: () => {
@@ -227,6 +238,7 @@ function createView(
         controls.dispose();
         sheet.dispose();
         obstacle.dispose();
+        contact.dispose();
         outlineGeometry.dispose();
         selectionOutline.material.dispose();
         fillGeometry.dispose();
@@ -238,12 +250,152 @@ function createView(
   };
 }
 
+/** An injective section of the same source, rather than a picture of it. */
+export interface SheetSliceView {
+  /** Where along Z the hyperplane currently sits. */
+  readonly offset: number;
+  /** The Z range the source spans, so a control can follow the geometry. */
+  readonly range: readonly [number, number];
+  /** Segments the sheet contributed to the current section. */
+  readonly segmentCount: number;
+  setOffset(offset: number): void;
+  refresh(): void;
+  render(): void;
+  resize(): void;
+  resetCamera(): void;
+  dispose(): void;
+}
+
+/**
+ * Builds the Z-section view.
+ *
+ * The obstacle spans Z, so a hyperplane at `Z = c` genuinely cuts it and its
+ * cross-section is drawn as a surface. The sheet is a 2-manifold, so the same
+ * hyperplane meets it in curves — that dimensional drop is the honest cost of
+ * a section, and is why this view sits beside the projections rather than
+ * replacing them.
+ */
+function createSliceView(
+  host: HTMLElement,
+  sheetComplex: CellComplex,
+  sheetGroup: CellGroup,
+  obstacleComplex: CellComplex
+): SheetSliceView {
+  const renderer = new WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  host.appendChild(renderer.domElement);
+
+  const scene = new Scene();
+  const camera = new PerspectiveCamera(50, 1, 0.01, 200);
+  const home = { x: 4.4, y: 3.3, z: 4.4 };
+  camera.position.set(home.x, home.y, home.z);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  const target = { x: 1.2, y: 0.45, z: 0.9 };
+  controls.target.set(target.x, target.y, target.z);
+
+  scene.add(new AmbientLight(0x93a6cc, 1.9));
+  const key = new DirectionalLight(0xffffff, 0.9);
+  key.position.set(4, 7, 5);
+  scene.add(key);
+
+  // The offset starts where the *sheet* is, not at the midpoint of everything.
+  // The obstacle is much the deeper of the two along Z, so splitting their
+  // union puts the first section above the sheet entirely and cuts nothing.
+  const sheetRange = sliceRange([sheetComplex]);
+  let range = sliceRange([sheetComplex, obstacleComplex]);
+  let offset = (sheetRange[0] + sheetRange[1]) / 2;
+
+  // X, Y, W: the section's own three coordinates, with Z held fixed. This is
+  // injective, which is the whole reason the view exists.
+  const slice = HyperplaneSlice4.axisAligned(SLICE_AXIS, offset);
+  const section = new SlicedComplex3D(obstacleComplex, slice, {
+    projection: new CoordinateProjection({ fromDim: 4, axes: [0, 1, 3] }),
+    material: new MeshStandardMaterial({
+      color: OBSTACLE_COLOUR, side: DoubleSide, roughness: 1, metalness: 0,
+      transparent: true, opacity: 0.55
+    })
+  });
+  scene.add(section.object);
+
+  const curveGeometry = new BufferGeometry();
+  const capacity = (sheetGroup.indices.length / sheetGroup.verticesPerCell) * 6;
+  const curvePositions = new BufferAttribute(new Float32Array(capacity), 3);
+  curveGeometry.setAttribute('position', curvePositions);
+  const curve = new LineSegments(
+    curveGeometry, new LineBasicMaterial({ color: 0x7ce7ff })
+  );
+  curve.frustumCulled = false;
+  scene.add(curve);
+
+  let segmentCount = 0;
+
+  const refresh = (): void => {
+    // The sheet travels a long way along Z, so the reachable range is a fact
+    // about the current state rather than about the scene as it was authored.
+    range = sliceRange([sheetComplex, obstacleComplex]);
+    slice.offset = offset;
+    section.update();
+    const cut = sliceSurface(
+      sheetComplex, sheetGroup, offset, curvePositions.array as Float32Array
+    );
+    segmentCount = cut.count;
+    curveGeometry.setDrawRange(0, cut.count * 2);
+    curvePositions.needsUpdate = true;
+    curveGeometry.computeBoundingSphere();
+  };
+  refresh();
+
+  const resize = (): void => {
+    const width = host.clientWidth;
+    const height = host.clientHeight;
+    if (width === 0 || height === 0) return;
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  };
+
+  return {
+    get offset() { return offset; },
+    get range() { return range; },
+    get segmentCount() { return segmentCount; },
+    setOffset(next) { offset = next; refresh(); },
+    refresh,
+    render: () => { controls.update(); renderer.render(scene, camera); },
+    resize,
+    resetCamera: () => {
+      camera.position.set(home.x, home.y, home.z);
+      controls.target.set(target.x, target.y, target.z);
+      controls.update();
+    },
+    dispose: () => {
+      controls.dispose();
+      section.dispose();
+      curveGeometry.dispose();
+      curve.material.dispose();
+      renderer.dispose();
+      renderer.domElement.remove();
+    }
+  };
+}
+
 /** Both representations of one source, kept in step with each other. */
 export interface SheetViews {
   readonly perspective: SheetView;
   readonly coordinate: SheetView;
+  /** The injective Z-section, beside the two projections. */
+  readonly slice: SheetSliceView;
   /** Redraws both products from the current source, including the W ramp. */
   refresh(): void;
+  /**
+   * Recolours the contact overlay from the barrier's own accumulated forces.
+   *
+   * Separate from {@link SheetViews.refresh} because it needs an evaluation the
+   * step already produced, and a page that has not stepped has none.
+   */
+  showContact(forces: readonly SheetContactForce[]): void;
+  /** Whether the contact primitives are drawn. */
+  contactVisible: boolean;
   /** Outlines one source triangle in both views, or clears when `null`. */
   showSelection(vertices: readonly number[] | null): void;
   render(): void;
@@ -258,12 +410,16 @@ export interface SheetViews {
  *
  * @param hosts - The elements each renderer's canvas is appended to.
  * @param sheetComplex - The authoritative R4 sheet both views represent.
+ * @param sheetGroup - The sheet's 2-cell group, which the section cuts.
  * @param obstacleComplex - The static obstacle, drawn from its face group.
  * @returns Both views plus the operations that keep them coordinated.
  */
 export function createSheetViews(
-  hosts: { perspective: HTMLElement; coordinate: HTMLElement },
+  hosts: {
+    perspective: HTMLElement; coordinate: HTMLElement; slice: HTMLElement;
+  },
   sheetComplex: CellComplex,
+  sheetGroup: CellGroup,
   obstacleComplex: CellComplex
 ): SheetViews {
   const perspective = createView({
@@ -280,6 +436,10 @@ export function createSheetViews(
     projection: new CoordinateProjection({ fromDim: 4, axes: [0, 3, 1] }),
     distance: 5.5
   }, sheetComplex, obstacleComplex);
+
+  const slice = createSliceView(
+    hosts.slice, sheetComplex, sheetGroup, obstacleComplex
+  );
 
   const raycaster = new Raycaster();
   const pointer = new Vector2();
@@ -298,6 +458,8 @@ export function createSheetViews(
       entry.view.obstacle.update();
       refreshWColour(entry.view.sheet, entry.colour, sheetComplex, low, high);
     }
+    // The section reads the same moved source, so it has to be recut.
+    slice.refresh();
   };
 
   const showSelection = (vertices: readonly number[] | null): void => {
@@ -344,11 +506,28 @@ export function createSheetViews(
   return {
     perspective: perspective.view,
     coordinate: coordinate.view,
+    slice,
     refresh,
     showSelection,
-    render: () => { for (const entry of all) entry.view.render(); },
-    resize: () => { for (const entry of all) entry.view.resize(); },
-    resetCameras: () => { for (const entry of all) entry.view.resetCamera(); },
+    showContact: (forces) => {
+      for (const entry of all) entry.view.contact.update(forces);
+    },
+    get contactVisible() { return perspective.view.contact.visible; },
+    set contactVisible(value: boolean) {
+      for (const entry of all) entry.view.contact.visible = value;
+    },
+    render: () => {
+      for (const entry of all) entry.view.render();
+      slice.render();
+    },
+    resize: () => {
+      for (const entry of all) entry.view.resize();
+      slice.resize();
+    },
+    resetCameras: () => {
+      for (const entry of all) entry.view.resetCamera();
+      slice.resetCamera();
+    },
     pick: (view, event) => {
       const bounds = view.renderer.domElement.getBoundingClientRect();
       pointer.set(
@@ -362,6 +541,9 @@ export function createSheetViews(
         ? null
         : { surface: view.sheet, intersection: first };
     },
-    dispose: () => { for (const entry of all) entry.view.dispose(); }
+    dispose: () => {
+      for (const entry of all) entry.view.dispose();
+      slice.dispose();
+    }
   };
 }

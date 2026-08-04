@@ -109,6 +109,8 @@
       .control-note { color: var(--faint); font-size: 11px; }
 
       #control-replay { width: 190px; accent-color: #7ce7c0; cursor: pointer; }
+      #control-slice { width: 150px; accent-color: #72dcff; cursor: pointer; }
+      #control-slice-label { min-width: 17ch; font-variant-numeric: tabular-nums; }
       #control-replay:disabled { cursor: default; opacity: 0.4; }
       #control-replay-label {
         min-width: 15ch;
@@ -118,7 +120,7 @@
       main {
         flex: 1 1 auto;
         display: grid;
-        grid-template-columns: 1fr 1fr 340px;
+        grid-template-columns: 1fr 1fr 1fr 340px;
         min-height: 0;
       }
       .pane {
@@ -213,10 +215,15 @@
       }
 
       @media (max-width: 1180px) {
-        main { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+        main {
+          grid-template-columns: 1fr 1fr 1fr;
+          grid-template-rows: minmax(0, 1fr) auto;
+        }
         #inspector { grid-column: 1 / -1; max-height: 40vh; border-top: 1px solid var(--line); }
       }
-      @media (max-width: 720px) {
+      /* Three panes need real width before they are worth keeping side by side;
+         below this they are narrower than their own labels. */
+      @media (max-width: 980px) {
         /* The page scrolls here, so `main` must size to its content. Left
            flex-constrained it keeps the grid's auto row at a few pixels while
            the inspector holds several hundred. */
@@ -224,7 +231,7 @@
         main {
           flex: 0 0 auto;
           grid-template-columns: 1fr;
-          grid-template-rows: 52vh 52vh auto;
+          grid-template-rows: 52vh 52vh 52vh auto;
         }
         .pane { border-right: none; border-bottom: 1px solid var(--line); }
         #inspector { max-height: none; overflow-y: visible; }
@@ -310,7 +317,14 @@
           <span class="group-label">Scene</span>
           <button id="control-search" type="button" aria-pressed="false">Search: exhaustive</button>
           <button id="control-resolution" type="button">5&times;5 &middot; 32 tri</button>
+          <button id="control-contact" type="button" aria-pressed="false">Contact points</button>
           <button id="control-reset-views" type="button">Reset views</button>
+        </div>
+        <div class="control-group">
+          <span class="group-label">Section</span>
+          <input id="control-slice" type="range" min="0" max="1" value="0.5" step="0.01"
+                 aria-label="Section offset along Z" aria-describedby="control-slice-label" />
+          <span id="control-slice-label" class="control-note">Z = 0.00</span>
         </div>
       </div>
     </header>
@@ -333,6 +347,18 @@
           <span>
             Shows X, W, Y — W becomes a directly legible screen axis. The cost is Z, which
             this view omits entirely. Same source, a different loss.
+          </span>
+        </div>
+      </section>
+
+      <section class="pane" id="view-slice">
+        <div class="pane-label">
+          <b>Section at fixed Z</b>
+          <span>
+            Not a projection. Holding Z fixed and showing X, Y, W is <em>injective</em>: two
+            points that land on the same pixel are the same point, so an overlap here is real.
+            The price is dimension — the sheet is a surface, so a hyperplane meets it in the
+            curve drawn here, not a surface. Less shown, nothing false.
           </span>
         </div>
       </section>
