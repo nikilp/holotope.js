@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSheetScene,
   candidateIdentities,
+  isRefusedReport,
   sourceDigest,
   stepSheetScene,
   type CandidateSearch,
   type SheetScene
 } from '../src/source-linked-sheet/scene.js';
 import { cellVertices, readSheetSelection } from '../src/source-linked-sheet/selection.js';
+import {
+  STEP_SCOPED_LABELS,
+  stepScopedValues
+} from '../src/source-linked-sheet/panel.js';
 
 /**
  * The page's physics and its reading of a pick, exercised without a browser.
@@ -202,5 +207,66 @@ describe('source-linked sheet — selection', () => {
     expect(candidates[0]).toMatch(/source-vertex/);
     expect(candidates[0]).toMatch(/obstacle-cell/);
     expect(cellVertices(target.sheetGroup, 0).length).toBe(3);
+  });
+  it('classifies an applied step and a typed refusal apart', { timeout: 60_000 }, () => {
+    const target = scene('exhaustive', 'refusal-predicate');
+    const applied = stepSheetScene(target);
+    // Liveness: the fixture must actually apply, or the negative case below is
+    // comparing against nothing.
+    expect(applied.status).toBe('applied');
+    expect(isRefusedReport(applied)).toBe(false);
+
+    // Every non-applied status is a refusal the page must stop on. Synthesised
+    // rather than driven, because reaching the real one takes ~2,775 steps.
+    for (const status of ['refused', 'rejected', 'not-converged']) {
+      expect(isRefusedReport({ ...applied, status })).toBe(true);
+    }
+  });
+
+  it('advances the source on an applied step, which is why a refusal is idempotent', () => {
+    // The pause rule rests on two facts. This one is cheap: an applied step
+    // moves the source, so the next step solves a different configuration.
+    const target = scene('exhaustive', 'refusal-rationale');
+    const before = sourceDigest(target);
+    const report = stepSheetScene(target);
+    expect(report.status).toBe('applied');
+    expect(sourceDigest(target)).not.toBe(before);
+
+    // The other fact is the contrapositive: a refusal applies nothing, so the
+    // source is unchanged and re-solving it must refuse the same way. Reaching
+    // a real refusal on this scene takes ~2,775 steps (~80 s), which is too
+    // slow for the suite; it is measured and recorded in the independent-review
+    // closure note instead, where re-stepping the refused state six times
+    // returned `refused / iteration-limit / 128` every time.
+    expect(isRefusedReport({ ...report, status: 'refused' })).toBe(true);
+  }, 60_000);
+
+  it('clears every step-scoped inspector value when there is no step', () => {
+    // The reset defect: twelve of these fifteen rows kept a previous scene's
+    // numbers, because the clearing branch enumerated three of them by hand.
+    const cleared = stepScopedValues(null);
+    expect(Object.keys(cleared).sort()).toEqual([...STEP_SCOPED_LABELS].sort());
+    for (const label of STEP_SCOPED_LABELS) {
+      expect(cleared[label], label).toBe('—');
+    }
+  });
+
+  it('populates exactly the same labels it clears', { timeout: 60_000 }, () => {
+    const target = scene('static-hierarchy', 'panel-labels');
+    run(target, 6);
+    const report = stepSheetScene(target);
+    const populated = stepScopedValues(report);
+
+    // Same key set in both directions, so neither branch can gain or lose a row
+    // without the other. This is what drifted.
+    expect(Object.keys(populated).sort())
+      .toEqual(Object.keys(stepScopedValues(null)).sort());
+
+    // Liveness: a populated report must not look like a cleared one, or the
+    // assertion above would pass on an all-dashes result.
+    const dashes = STEP_SCOPED_LABELS.filter((l) => populated[l] === '—');
+    expect(dashes).toEqual([]);
+    // And the hierarchy row must reflect this run's mode, not a remembered one.
+    expect(populated['hierarchy bound tests']).not.toBe('n/a — exhaustive');
   });
 });

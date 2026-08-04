@@ -2,6 +2,7 @@ import { describeRepresentationHitN } from '@holotope/core';
 import { representationHitFromProjectedSurface } from '@holotope/three';
 import {
   buildSheetScene,
+  isRefusedReport,
   stepSheetScene,
   type CandidateSearch,
   type SheetScene,
@@ -77,6 +78,10 @@ function redraw(): void {
 function advance(): void {
   state.report = stepSheetScene(state.scene);
   if (state.report.status === 'applied') state.applied++;
+  // A refusal leaves the configuration untouched, so continuing would re-solve
+  // the same state and refuse identically — burning a full iteration budget per
+  // frame while nothing moves. Stop, and let the status row say why.
+  if (isRefusedReport(state.report)) state.running = false;
   state.views.refresh();
   // The selection follows the moving source: same triangle, new position.
   if (state.selection !== null) {
@@ -183,6 +188,9 @@ function frame(): void {
   if (state.running) {
     advance();
     redraw();
+    // `advance` clears `running` on a refusal. Resync so the Run control does
+    // not keep claiming the scene is playing after it has stopped itself.
+    if (!state.running) syncControls();
   }
   state.views.render();
   requestAnimationFrame(frame);

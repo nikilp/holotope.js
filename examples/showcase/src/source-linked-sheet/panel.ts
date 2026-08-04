@@ -65,6 +65,63 @@ function makeRow(host: HTMLElement, label: string): Row {
 const number = (value: number, digits = 3): string =>
   Number.isFinite(value) ? value.toFixed(digits) : '—';
 
+/** The scene's fixed physics interval, so simulated time is stated, not implied. */
+const DELTA_TIME = 1 / 240;
+
+/** Inspector labels whose value belongs to one particular step. */
+export const STEP_SCOPED_LABELS = [
+  'status', 'diagnosis', 'minimizer iterations',
+  'intrinsic stretch', 'discrete cosine fold', 'contact barrier', 'total',
+  'possible pairs', 'broadphase retained', 'exactly active barriers',
+  'hierarchy bound tests',
+  'fold hinges', 'stretch elements', 'min fold height', 'W range'
+] as const;
+
+/**
+ * Every step-scoped value for one report, or all `'—'` when there is no step.
+ *
+ * One function rather than a populate branch beside a clear branch. The original
+ * code had both and they disagreed: the clear branch listed three labels while
+ * the populate branch wrote fifteen, so a reset left twelve rows showing a
+ * previous scene's energies, contact counts, fold height and W range beside
+ * `applied steps: 0`. After a search-mode switch it was worse than stale — the
+ * panel read `static-hierarchy` next to `hierarchy bound tests: n/a —
+ * exhaustive`, contradicting itself on screen.
+ *
+ * Deriving both cases here makes that class of drift unrepresentable, and makes
+ * the guarantee testable without a DOM.
+ */
+export function stepScopedValues(
+  report: SheetStepReport | null
+): Readonly<Record<string, string>> {
+  if (report === null) {
+    return Object.freeze(
+      Object.fromEntries(STEP_SCOPED_LABELS.map((label) => [label, '—']))
+    );
+  }
+  return Object.freeze({
+    'status': report.refusalReason === null
+      ? report.status
+      : `${report.status} · ${report.refusalReason}`,
+    'diagnosis': report.condition,
+    'minimizer iterations': String(report.acceptedIterations),
+    'intrinsic stretch': number(report.intrinsicEnergy),
+    'discrete cosine fold': number(report.bendingEnergy),
+    'contact barrier': number(report.contactEnergy),
+    'total': number(report.totalPotential),
+    'possible pairs': String(report.possiblePairs),
+    'broadphase retained': String(report.retainedPairs),
+    'exactly active barriers': String(report.activeBarriers),
+    'hierarchy bound tests': report.hierarchyBoundTests === null
+      ? 'n/a — exhaustive'
+      : String(report.hierarchyBoundTests),
+    'fold hinges': String(report.hingeCount),
+    'stretch elements': String(report.elementCount),
+    'min fold height': number(report.minimumConormalHeight, 4),
+    'W range': `${number(report.wRange[0], 2)} … ${number(report.wRange[1], 2)}`
+  });
+}
+
 /**
  * Builds the inspector.
  *
@@ -74,33 +131,47 @@ export function createSheetPanel(): SheetPanel {
   const element = document.createElement('div');
   element.className = 'panel';
 
+  /**
+   * Rows keyed by the label {@link stepScopedValues} uses.
+   *
+   * The update path writes whatever that function returns, so there is no
+   * second list to fall out of step with it.
+   */
+  const stepRows = new Map<string, Row>();
+  const stepRow = (label: string): Row => {
+    const row = makeRow(element, label);
+    stepRows.set(label, row);
+    return row;
+  };
+
   element.appendChild(section('step'));
   const search = makeRow(element, 'candidate search');
-  const status = makeRow(element, 'status');
-  const condition = makeRow(element, 'diagnosis');
+  stepRow('status');
+  stepRow('diagnosis');
   const applied = makeRow(element, 'applied steps');
-  const iterations = makeRow(element, 'minimizer iterations');
+  const simulated = makeRow(element, 'simulated time');
+  stepRow('minimizer iterations');
 
   element.appendChild(section('potential energy'));
-  const intrinsic = makeRow(element, 'intrinsic stretch');
-  const bending = makeRow(element, 'discrete cosine fold');
-  const contact = makeRow(element, 'contact barrier');
-  const total = makeRow(element, 'total');
+  stepRow('intrinsic stretch');
+  stepRow('discrete cosine fold');
+  stepRow('contact barrier');
+  stepRow('total');
 
   element.appendChild(section('contact populations'));
-  const possible = makeRow(element, 'possible pairs');
-  const retained = makeRow(element, 'broadphase retained');
-  const active = makeRow(element, 'exactly active barriers');
-  const boundTests = makeRow(element, 'hierarchy bound tests');
+  stepRow('possible pairs');
+  stepRow('broadphase retained');
+  stepRow('exactly active barriers');
+  stepRow('hierarchy bound tests');
 
   element.appendChild(section('sheet'));
   const pinned = makeRow(element, 'pinned vertices');
   const obstacleCells = makeRow(element, 'obstacle cells');
   const filters = makeRow(element, 'paired step filters');
-  const hinges = makeRow(element, 'fold hinges');
-  const elements = makeRow(element, 'stretch elements');
-  const conormal = makeRow(element, 'min fold height');
-  const wRange = makeRow(element, 'W range');
+  stepRow('fold hinges');
+  stepRow('stretch elements');
+  stepRow('min fold height');
+  stepRow('W range');
 
   element.appendChild(section('selection'));
   const cell = makeRow(element, 'source triangle');
@@ -114,6 +185,18 @@ export function createSheetPanel(): SheetPanel {
   sentence.className = 'panel-sentence';
   sentence.textContent = 'Click either view to select a source triangle.';
   element.appendChild(sentence);
+
+  /**
+   * Shown only while the last step was a typed refusal.
+   *
+   * The solver refusing is a result, not a crash, and the page stops rather
+   * than re-solving an unchanged state every frame. Saying so is the difference
+   * between a reader seeing a deliberate halt and a reader seeing a freeze.
+   */
+  const refusal = document.createElement('p');
+  refusal.className = 'panel-refusal';
+  refusal.hidden = true;
+  element.appendChild(refusal);
 
   const legend = document.createElement('p');
   legend.className = 'panel-legend';
@@ -136,31 +219,28 @@ export function createSheetPanel(): SheetPanel {
     update(report, selection, appliedSteps, searchMode) {
       search.value.textContent = searchMode;
       applied.value.textContent = String(appliedSteps);
-      if (report === null) {
-        status.value.textContent = '—';
-        condition.value.textContent = '—';
-        iterations.value.textContent = '—';
+      // Stated rather than left for a reader to infer from a step count: the
+      // scene advances 1/240 s per applied step, so wall time and scene time
+      // are not the same quantity and the page should not imply they are.
+      simulated.value.textContent =
+        `${(appliedSteps * DELTA_TIME).toFixed(3)} s @ 1/240 s`;
+      // One assignment path for both cases, so a reset cannot leave a value
+      // from the previous scene behind.
+      for (const [label, text] of Object.entries(stepScopedValues(report))) {
+        const row = stepRows.get(label);
+        if (row !== undefined) row.value.textContent = text;
+      }
+      if (report === null || report.status === 'applied') {
+        refusal.hidden = true;
+        refusal.textContent = '';
       } else {
-        status.value.textContent = report.refusalReason === null
-          ? report.status
-          : `${report.status} · ${report.refusalReason}`;
-        condition.value.textContent = report.condition;
-        iterations.value.textContent = String(report.acceptedIterations);
-        intrinsic.value.textContent = number(report.intrinsicEnergy);
-        bending.value.textContent = number(report.bendingEnergy);
-        contact.value.textContent = number(report.contactEnergy);
-        total.value.textContent = number(report.totalPotential);
-        possible.value.textContent = String(report.possiblePairs);
-        retained.value.textContent = String(report.retainedPairs);
-        active.value.textContent = String(report.activeBarriers);
-        boundTests.value.textContent = report.hierarchyBoundTests === null
-          ? 'n/a — exhaustive'
-          : String(report.hierarchyBoundTests);
-        hinges.value.textContent = String(report.hingeCount);
-        elements.value.textContent = String(report.elementCount);
-        conormal.value.textContent = number(report.minimumConormalHeight, 4);
-        wRange.value.textContent =
-          `${number(report.wRange[0], 2)} … ${number(report.wRange[1], 2)}`;
+        refusal.hidden = false;
+        refusal.textContent =
+          `The solver refused this step (${report.condition}` +
+          `${report.refusalReason === null ? '' : ` \u00b7 ${report.refusalReason}`}` +
+          '). The sheet is unchanged, so re-solving it would refuse the same ' +
+          'way \u2014 playback stopped itself instead of spinning. Step to retry ' +
+          'once, or Reset to restart the scene.';
       }
 
       if (selection === null) {

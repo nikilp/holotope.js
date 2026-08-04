@@ -141,6 +141,17 @@
         font-size: 11px;
         line-height: 1.55;
       }
+      /* A refusal is a result the page halts on, so it reads as deliberate
+         rather than as a freeze. Distinct from the amber selection note. */
+      .panel-refusal {
+        margin: 12px 0 0;
+        padding: 9px 10px;
+        border-left: 2px solid #ff8a6a;
+        background: rgba(255, 138, 106, .09);
+        color: #ffe2d8;
+        font-size: 11.5px;
+        line-height: 1.55;
+      }
 
       @media (max-width: 1180px) {
         main { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) auto; }

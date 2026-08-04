@@ -352,6 +352,22 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
   };
 }
 
+/**
+ * Whether a report is a typed refusal rather than an applied step.
+ *
+ * A refusal leaves the state exactly as it was, so the next step re-solves the
+ * same configuration and refuses again for the same reason. Re-attempting it is
+ * therefore not retrying — nothing has changed for a retry to act on — and it
+ * is not cheap either: a refused `iteration-limit` step costs several times an
+ * applied one, because it exhausts the iteration budget before giving up.
+ *
+ * The page pauses on this rather than spinning. Exported as a predicate so the
+ * rule is testable without a browser.
+ */
+export function isRefusedReport(report: SheetStepReport): boolean {
+  return report.status !== 'applied';
+}
+
 /** Ordered contact-candidate identities, for comparing two search settings. */
 export function candidateIdentities(scene: SheetScene): readonly string[] {
   const prefix = `${scene.options.id}-contact/`;
