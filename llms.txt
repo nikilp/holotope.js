@@ -186,6 +186,10 @@ windows.
   `RigidBodyObject4Binding`.
 - Rigid collision/query: `HyperplaneColliderN`, `Hyperbox4`, support shapes,
   GJK, EPA, linear casts, narrowphase dispatch, named contact pipelines.
+  `gjkDistance` reports `separated` only with a support-gap certificate and
+  terminates under equal or nearly tied support directions; `iteration-limit`
+  is an explicit refusal (a stable distance estimate is not a certificate),
+  with `duplicate-support` naming a proved fixpoint refused early.
 - Rigid constraints: point, distance, direction, orientation, planar rotation,
   motors, and bounded blocks.
 - RN point/XPBD: `XpbdConstraintSolverN`, `XpbdParticleN`, `XpbdWorldN`,

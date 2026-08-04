@@ -91,6 +91,7 @@ there is improved here.
 | [`evaluateSimplexStVenantKirchhoffHessianVectorN`](/api/physics/functions/evaluateSimplexStVenantKirchhoffHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexStVenantKirchhoffHessianVectorN) |
 | [`evaluateXpbdIncrementalPotentialAnalyticHessianVectorN`](/api/physics/functions/evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) |
 | [`findIncidentCellsN`](/api/core/geometry/functions/findIncidentCellsN) | [open](https://nikilp.github.io/holotope.js/playground.html#findIncidentCellsN) |
+| [`gjkDistance`](/api/physics/functions/gjkDistance) | [open](https://nikilp.github.io/holotope.js/playground.html#gjkDistance) |
 | [`massPropertiesFromCellComplex4`](/api/physics/functions/massPropertiesFromCellComplex4) | [open](https://nikilp.github.io/holotope.js/playground.html#massPropertiesFromCellComplex4) |
 | [`solveXpbdIncrementalPotentialNewtonDirectionN`](/api/physics/functions/solveXpbdIncrementalPotentialNewtonDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#solveXpbdIncrementalPotentialNewtonDirectionN) |
 | [`stepXpbdIncrementalPotentialWorldN`](/api/physics/functions/stepXpbdIncrementalPotentialWorldN) | [open](https://nikilp.github.io/holotope.js/playground.html#stepXpbdIncrementalPotentialWorldN) |

@@ -72,8 +72,24 @@ const next = gjkDistance(a, b, { warmStart: query.warmStart });
 `n + 1` support points in $\mathbb{R}^n$. In addition to the boolean and distance it
 returns closest points on both shapes, a separating normal, stable source
 feature IDs, convex weights, a conditioning estimate, and an explicit
-termination reason. An iteration-budget result is reported as indeterminate
-rather than silently treated as separated.
+termination reason.
+
+The result taxonomy separates a stable numerical *estimate* from a certified
+*result*. `separated` is only ever reported with a support-gap certificate —
+the projection optimality condition checked against the shape itself — and
+`intersecting` with an origin-enclosure proof. A query that obtains neither
+refuses explicitly: `iteration-limit` means the proof was not reached within
+the compute budget, and its `distance` is the best current estimate, not a
+claim. A distance that has merely stopped changing between iterations is never
+converted into a separation.
+
+Equal and nearly tied support directions — a probe on the symmetry axis of a
+box, a lattice point over a regular face — terminate with the certificate:
+when the support map repeats itself, the accumulated support set is
+reprojected with certificate-aware selection, which decides configurations
+whose per-iteration distance improvement is below Float64 comparison noise. A
+proved fixpoint refuses immediately as `duplicate-support` rather than
+spending the remaining budget re-entering the same state.
 
 Vertex hulls can resolve those stable feature IDs at a new pose, so a result's
 `warmStart` contains the terminating feature pairs and axis needed by the next

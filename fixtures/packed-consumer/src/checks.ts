@@ -29,6 +29,7 @@ import {
   representationHitFromSlicedComplex
 } from '@holotope/three';
 import {
+  ConvexHullSupportShapeN,
   PhysicsWorld4,
   RigidBody4,
   XpbdParticleN,
@@ -64,7 +65,9 @@ import {
   type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN,
   type XpbdParticleSourceSimplexBarrierFamilyEvaluationN,
   type XpbdParticleSourceSimplexBarrierFamilyStepFilterEvaluationN,
-  massPropertiesFromCellComplex4
+  gjkDistance,
+  massPropertiesFromCellComplex4,
+  type GjkResult
 } from '@holotope/physics';
 import {
   compileExperimentDocumentV0,
@@ -99,6 +102,46 @@ function facetNames(complex: CellComplex): string {
     names.push(`${facet.axis}:${facet.sign > 0 ? '+' : '-'}`);
   }
   return names.join(' ');
+}
+
+/**
+ * 0. Certified convex distance through the packed artifact.
+ *
+ * The pinned near-tie family: a flat box probed from a point whose two middle
+ * coordinates differ by a quarter-million-th. Before the certified-termination
+ * repair this configuration cycled to the iteration limit with the distance
+ * already numerically right; the packed artifact must decide it with the
+ * support-gap certificate, at the analytic distance, under the default budget.
+ */
+export function certifiedConvexQuery(): void {
+  const corners: number[] = [];
+  for (let corner = 0; corner < 8; corner += 1) {
+    corners.push(
+      (corner >> 0) & 1 ? 1 : 0,
+      (corner >> 1) & 1 ? 1 : 0,
+      (corner >> 2) & 1 ? 1 : 0,
+      0
+    );
+  }
+  const hull = new ConvexHullSupportShapeN(4, Float64Array.from(corners));
+  const base = 0.618483421044642045;
+  const probe = new ConvexHullSupportShapeN(4, Float64Array.from([
+    0.468806433725538929, base, base + 2.5e-7, 1.52075262807995881
+  ]));
+  const result: GjkResult = gjkDistance(probe, hull);
+  assert(result.status === 'separated', `near-tie query did not decide: ${result.status}`);
+  assert(
+    Math.abs(result.distance - 1.52075262807995881) < 1e-11,
+    `near-tie distance off: ${result.distance}`
+  );
+  assert(
+    result.termination.supportGap <= result.termination.threshold,
+    'separation reported without a support-gap certificate'
+  );
+  // An insufficient budget is an explicit refusal, never a fabricated answer.
+  const refused = gjkDistance(probe, hull, { maxIterations: 2 });
+  assert(refused.status === 'iteration-limit', 'forced budget did not refuse');
+  assert(refused.intersects === null, 'a refusal claimed an intersection answer');
 }
 
 /**

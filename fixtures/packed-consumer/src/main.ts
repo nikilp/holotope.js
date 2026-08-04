@@ -5,6 +5,7 @@
  * verifier reads a process status rather than parsing prose.
  */
 import {
+  certifiedConvexQuery,
   experimentProbe,
   geometryComposition,
   hyperrectangleComposition,
@@ -13,6 +14,7 @@ import {
 } from './checks.js';
 
 const checks: readonly [name: string, run: () => void | Promise<void>][] = [
+  ['certifiedConvexQuery', certifiedConvexQuery],
   ['geometryComposition', geometryComposition],
   ['representationClaims', representationClaims],
   ['experimentProbe', experimentProbe],

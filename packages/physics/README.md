@@ -585,6 +585,15 @@ a segment before the body reaches it. CCD therefore consumes a frozen physical
 trajectory even when an event step is subdivided; animation is never resampled
 inside the collision loop. The adapter has no renderer or mixer dependency.
 
+`gjkDistance` separates a stable numerical estimate from a certified result:
+`separated` is reported only with a support-gap certificate and `intersecting`
+only with an origin-enclosure proof, while `iteration-limit` is an explicit
+refusal whose accompanying distance is an estimate, never a claim. Equal and
+nearly tied support directions terminate — a repeated support point triggers a
+certificate-aware reprojection of the complete sampled support set — and a
+proved fixpoint refuses immediately as `duplicate-support` rather than burning
+the remaining budget on an identical cycle.
+
 `NarrowphaseDispatcherN` is the common query boundary. Its `best` mode selects
 the strongest honest capability for the configured pair and margins; explicit
 requests never silently fall back. Stable ordered pair IDs provide coherent GJK
