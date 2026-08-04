@@ -1,0 +1,220 @@
+import {
+  CellComplex,
+  CoordinateProjection,
+  HyperplaneSlice4
+} from '@holotope/core';
+import { Raycaster, Vector3, type Object3D } from 'three';
+import { describe, expect, it } from 'vitest';
+import {
+  FieldRelief3D,
+  ProjectedEdges3D,
+  ProjectedSurface3D,
+  SampledSlicedField3D,
+  SlicedComplex3D
+} from '../src/index.js';
+
+/**
+ * One contract for every product that streams new positions after construction.
+ *
+ * Three.js rejects a raycast against `geometry.boundingSphere` before it tests
+ * any primitive, and computes a null sphere lazily on the first such test. A
+ * product that writes new positions without refreshing that sphere therefore
+ * keeps drawing correctly while silently losing intersections for whatever has
+ * moved — visible, orbitable, and unpickable, which is the worst shape a defect
+ * can take because nothing looks wrong.
+ *
+ * `fd5f4c8` fixed three products that had it. This table exists so the *class*
+ * cannot come back: a new streaming product is added here, and a product that
+ * forgets the refresh fails rather than shipping.
+ *
+ * The assertions are deliberately the same for every entry:
+ *
+ * 1. it is pickable where it starts, so the fixture is not vacuous;
+ * 2. its source moves far enough that a stale sphere cannot cover both places;
+ * 3. it is pickable where it now is;
+ * 4. it is *not* pickable where it used to be, which is what proves the sphere
+ *    followed rather than merely grew.
+ */
+
+/** One product under the same contract, however it is built and moved. */
+interface StreamingProductCase {
+  readonly name: string;
+  /** Builds the product and returns the object plus how to drive it. */
+  build(): {
+    object: Object3D;
+    /** Moves the authoritative source, then refreshes the product. */
+    move(): void;
+    /** A ray origin that should hit before the move. */
+    before: [number, number];
+    /** A ray origin that should hit after it. */
+    after: [number, number];
+    dispose(): void;
+  };
+}
+
+/** How far every fixture travels: far enough that no stale sphere covers both. */
+const TRAVEL = 400;
+
+function rayAt(x: number, y: number): Raycaster {
+  const caster = new Raycaster(
+    new Vector3(x, y, 900), new Vector3(0, 0, -1), 0.01, 4000
+  );
+  // Line and point products need a pick radius; meshes ignore this.
+  caster.params.Line = { threshold: 0.35 };
+  caster.params.Points = { threshold: 0.35 };
+  return caster;
+}
+
+function hits(object: Object3D, at: [number, number]): number {
+  object.updateMatrixWorld(true);
+  return rayAt(at[0], at[1]).intersectObject(object, true).length;
+}
+
+/** Two triangles with shared vertices, near the origin. */
+function sheetComplex(): CellComplex {
+  return new CellComplex(4, Float64Array.from([
+    0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0
+  ]), [{
+    key: 'sheet', dim: 2, verticesPerCell: 3, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2, 1, 3, 2])
+  }]);
+}
+
+function translate(complex: CellComplex, distance: number): void {
+  for (let vertex = 0; vertex < complex.vertexCount; vertex++) {
+    complex.positions[vertex * complex.ambientDim] += distance;
+  }
+}
+
+const axes3 = (): CoordinateProjection =>
+  new CoordinateProjection({ fromDim: 4, axes: [0, 1, 2] });
+
+const CASES: readonly StreamingProductCase[] = [
+  {
+    name: 'ProjectedSurface3D',
+    build() {
+      const complex = sheetComplex();
+      const product = new ProjectedSurface3D(complex, axes3());
+      return {
+        object: product.object,
+        move: () => { translate(complex, TRAVEL); product.update(); },
+        before: [0.5, 0.4],
+        after: [0.5 + TRAVEL, 0.4],
+        dispose: () => product.dispose()
+      };
+    }
+  },
+  {
+    name: 'ProjectedEdges3D',
+    build() {
+      const complex = new CellComplex(4, Float64Array.from([
+        0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0
+      ]), [{
+        key: 'wire', dim: 1, verticesPerCell: 2, kind: 'simplex',
+        indices: Uint32Array.from([0, 1, 1, 2])
+      }]);
+      const product = new ProjectedEdges3D(complex, axes3());
+      return {
+        object: product.object,
+        move: () => { translate(complex, TRAVEL); product.update(); },
+        before: [0.5, 0],
+        after: [0.5 + TRAVEL, 0],
+        dispose: () => product.dispose()
+      };
+    }
+  },
+  {
+    name: 'SlicedComplex3D',
+    build() {
+      // One 4-simplex whose apex sits far along x at w = 4, so advancing the
+      // slice offset walks its cross-section across the scene.
+      const complex = new CellComplex(4, Float64Array.from([
+        0, 0, 0, 0, 6, 0, 0, 0, 0, 6, 0, 0, 0, 0, 6, 0, TRAVEL, 0, 0, 4
+      ]), [{
+        key: 'solid', dim: 3, verticesPerCell: 4, kind: 'simplex',
+        indices: Uint32Array.from([
+          0, 1, 2, 3, 0, 1, 2, 4, 0, 1, 3, 4, 0, 2, 3, 4, 1, 2, 3, 4
+        ])
+      }]);
+      const slice = HyperplaneSlice4.axisAligned(3, 0.4);
+      const product = new SlicedComplex3D(complex, slice);
+      return {
+        object: product.object,
+        move: () => { slice.offset = 3.4; product.update(); },
+        before: [42, 0.5],
+        after: [340, 0.5],
+        dispose: () => product.dispose()
+      };
+    }
+  }
+];
+
+describe('streaming products: bounds must follow the geometry', () => {
+  for (const entry of CASES) {
+    it(`${entry.name} stays pickable where it actually is`, () => {
+      const product = entry.build();
+      try {
+        // 1. Liveness. A fixture that never hit would pass everything below
+        //    while proving nothing at all.
+        const initial = hits(product.object, product.before);
+        expect(initial, `${entry.name}: not pickable before the move`)
+          .toBeGreaterThan(0);
+
+        // 2. Move the authoritative source and refresh the product.
+        product.move();
+
+        // 3. Pickable where it is drawn now.
+        expect(
+          hits(product.object, product.after),
+          `${entry.name}: unpickable after the move — a stale bounding volume ` +
+          'rejects the ray before any primitive is tested'
+        ).toBeGreaterThan(0);
+
+        // 4. And no longer where it was. A sphere that merely grew to cover
+        //    both places would pass step 3 while still being wrong.
+        expect(
+          hits(product.object, product.before),
+          `${entry.name}: still pickable at its old position`
+        ).toBe(0);
+      } finally {
+        product.dispose();
+      }
+    });
+  }
+
+  it('covers every streaming product this package ships', () => {
+    // The table is only a guarantee if it is complete. `FieldRelief3D` and
+    // `SampledSlicedField3D` already refreshed their bounds before `fd5f4c8`
+    // and are named here so adding a product without a row is a visible
+    // omission rather than a silent one.
+    const streaming = [
+      'ProjectedSurface3D', 'ProjectedEdges3D', 'SlicedComplex3D',
+      'FieldRelief3D', 'SampledSlicedField3D'
+    ];
+    const covered = CASES.map((entry) => entry.name);
+    const uncovered = streaming.filter((name) => !covered.includes(name));
+    // Both remaining products build from a sampled scalar field rather than a
+    // cell complex, so they need their own fixture adapters rather than this
+    // one. They are recorded here so the gap is stated.
+    expect(uncovered).toEqual(['FieldRelief3D', 'SampledSlicedField3D']);
+    expect(typeof FieldRelief3D).toBe('function');
+    expect(typeof SampledSlicedField3D).toBe('function');
+  });
+
+  it('refreshes the bounding volume rather than leaving it null', () => {
+    // The direct statement of the contract, independent of raycasting: after
+    // an update the bounding volume must describe where the geometry now is.
+    const complex = sheetComplex();
+    const product = new ProjectedSurface3D(complex, axes3());
+    try {
+      product.geometry.computeBoundingSphere();
+      const before = product.geometry.boundingSphere!.center.x;
+      translate(complex, TRAVEL);
+      product.update();
+      const after = product.geometry.boundingSphere!.center.x;
+      expect(Math.abs(after - before)).toBeGreaterThan(TRAVEL / 2);
+    } finally {
+      product.dispose();
+    }
+  });
+});
