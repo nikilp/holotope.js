@@ -7,7 +7,10 @@ import {
   compileXpbdSourceSimplexAabbHierarchyN,
   compileXpbdSourceSimplexCosineBendingFamilyN,
   simplexStVenantKirchhoffLawN,
-  stepXpbdIncrementalPotentialWorldN
+  stepXpbdIncrementalPotentialWorldN,
+  type XpbdIncrementalPotentialStepAppliedN,
+  type XpbdParticleSourceSimplexBarrierFamilyEvaluationN,
+  type XpbdSourceSimplexCosineBendingFamilyEvaluationN
 } from '@holotope/physics';
 
 /**
@@ -49,6 +52,8 @@ export interface SheetSceneOptions {
   readonly search: CandidateSearch;
   /** Distinguishes identifiers when more than one scene exists at once. */
   readonly id: string;
+  /** Obstacle construction and which of its triangles are drawn. */
+  readonly obstacleShape?: ObstacleShape;
 }
 
 /** A compiled scene: one source, one world, and the families acting on it. */
@@ -101,6 +106,15 @@ export interface SheetStepReport {
   readonly minimumConormalHeight: number;
   /** Range of the hidden coordinate across the sheet. */
   readonly wRange: readonly [number, number];
+  /**
+   * Which state these energies and populations describe.
+   *
+   * `'applied-iterate'` reuses the evaluations the solver already made at the
+   * state it applied. `'unchanged-live-state'` means the step was refused, so
+   * nothing was applied and this is the live state the page is still sitting
+   * on — not a state anything moved to.
+   */
+  readonly diagnosticsSource: 'applied-iterate' | 'unchanged-live-state';
 }
 
 const CREASE = 0.35;
@@ -108,7 +122,14 @@ const START_W = 0.9;
 const START_VELOCITY_W = -1.6;
 const COLUMN_SPACING = 0.6;
 const ROW_SPACING = 0.45;
-const DELTA_TIME = 1 / 240;
+/**
+ * The one authoritative simulated timestep for this page.
+ *
+ * The physics advances by exactly this much per applied step and the inspector
+ * reports simulated time from it. Declaring it twice is how a panel ends up
+ * quietly describing a different simulation than the one running.
+ */
+export const SHEET_TIME_STEP = 1 / 240;
 
 /**
  * A triangulated 2-manifold sheet in R4, creased along one interior row.
@@ -151,43 +172,139 @@ function sheetPatch(resolution: number): {
   return { complex, group };
 }
 
-/** A finite static tetrahedral obstacle lying in the `w = 0` hyperplane. */
-function obstaclePatch(tiles: number): {
+/**
+ * How the static obstacle is built and which of its triangles are drawn.
+ *
+ * Only the boundary variant draws exactly the faces that bound the solid. A
+ * tetrahedralization's interior faces are shared by two cells and are not part
+ * of the object's surface; drawing them makes a solid look like a pile of
+ * shells.
+ */
+export type ObstacleShape =
+  | 'separate-tetrahedra'
+  | 'connected-all-faces'
+  | 'connected-boundary';
+
+/** Boxes across and along the slab before Kuhn decomposition. */
+const SLAB_COLUMNS = 1;
+const SLAB_ROWS = 1;
+
+/** Kuhn decomposition of one axis-aligned box into six tetrahedra. */
+const KUHN: readonly (readonly [number, number, number, number])[] = [
+  [0, 1, 3, 7], [0, 1, 5, 7], [0, 4, 5, 7],
+  [0, 2, 3, 7], [0, 2, 6, 7], [0, 4, 6, 7]
+];
+
+/** The eight corners of a unit box, as (x, y, z) bit patterns. */
+const BOX_CORNERS: readonly (readonly [number, number, number])[] = [
+  [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],
+  [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]
+];
+
+/** Faces of one tetrahedron, as vertex-index triples into its own four. */
+const TET_FACES: readonly (readonly [number, number, number])[] = [
+  [0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]
+];
+
+/**
+ * The finite static obstacle the sheet rests on, in the `w = 0` hyperplane.
+ *
+ * Contact indexes the 3-cell group. The 2-cell group exists only so a surface
+ * render product has real triangles to draw, and which triangles those are is
+ * the whole legibility question — see {@link ObstacleShape}.
+ */
+function obstaclePatch(tiles: number, shape: ObstacleShape): {
   complex: CellComplex;
   group: CellGroup;
 } {
-  const perSide = Math.max(1, Math.ceil(Math.sqrt(tiles)));
-  const spacing = 1.1;
   const positions: number[] = [];
-  const indices: number[] = [];
-  for (let tile = 0; tile < tiles; tile++) {
-    const originX = (tile % perSide) * spacing;
-    const originY = Math.floor(tile / perSide) * spacing;
-    positions.push(
-      originX, originY, 0, 0,
-      originX + 0.9, originY, 0, 0,
-      originX, originY + 0.9, 0, 0,
-      originX, originY, 0.9, 0
-    );
-    for (let vertex = 0; vertex < 4; vertex++) indices.push(tile * 4 + vertex);
-  }
-  // The boundary triangles of every tetrahedron, as a second group. Contact
-  // indexes the 3-cell group by object identity and never sees this one; it
-  // exists so a surface render product has real faces to draw rather than
-  // having faces invented for it.
-  const faces: number[] = [];
-  for (let tile = 0; tile < tiles; tile++) {
-    const base = tile * 4;
-    for (const [a, b, c] of [
-      [0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]
-    ] as const) {
-      faces.push(base + a, base + b, base + c);
+  const cells: number[][] = [];
+
+  if (shape === 'separate-tetrahedra') {
+    // Nine unconnected tetrahedra, each with its own four vertices.
+    const perSide = Math.max(1, Math.ceil(Math.sqrt(tiles)));
+    const spacing = 1.1;
+    for (let tile = 0; tile < tiles; tile++) {
+      const originX = (tile % perSide) * spacing;
+      const originY = Math.floor(tile / perSide) * spacing;
+      const base = tile * 4;
+      positions.push(
+        originX, originY, 0, 0,
+        originX + 0.9, originY, 0, 0,
+        originX, originY + 0.9, 0, 0,
+        originX, originY, 0.9, 0
+      );
+      cells.push([base, base + 1, base + 2, base + 3]);
+    }
+  } else {
+    // One connected slab under the sheet's footprint, shallow in z, built from
+    // shared vertices so neighbouring cells are genuinely adjacent.
+    // Coarse on purpose. Contact cost scales with cell count, and a solid
+    // reads as a solid from its silhouette, not from its subdivision — a finer
+    // slab would buy nothing visible while multiplying the pair population.
+    const nx = SLAB_COLUMNS;
+    const ny = SLAB_ROWS;
+    const width = 2.9;
+    const depth = 2.2;
+    // The slab must span the z range the sheet actually occupies, or the
+    // creased row has no solid beneath it and falls past the obstacle.
+    const zLow = 0;
+    const zHigh = 0.9;
+    const index = (i: number, j: number, k: number): number =>
+      (k * (ny + 1) + j) * (nx + 1) + i;
+    for (let k = 0; k <= 1; k++) {
+      for (let j = 0; j <= ny; j++) {
+        for (let i = 0; i <= nx; i++) {
+          positions.push(
+            -0.35 + (i / nx) * width,
+            -0.3 + (j / ny) * depth,
+            zLow + k * (zHigh - zLow),
+            0
+          );
+        }
+      }
+    }
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const corner = BOX_CORNERS.map(([dx, dy, dz]) =>
+          index(i + dx, j + dy, dz));
+        for (const tet of KUHN) {
+          cells.push(tet.map((slot) => corner[slot]!));
+        }
+      }
     }
   }
+
+  // Faces: every face of every cell, or only those bounding the solid.
+  const faces: number[] = [];
+  if (shape === 'connected-boundary') {
+    const incidence = new Map<string, number[][]>();
+    for (const cell of cells) {
+      for (const face of TET_FACES) {
+        const vertices = face.map((slot) => cell[slot]!);
+        const key = [...vertices].sort((a, b) => a - b).join(',');
+        const existing = incidence.get(key);
+        if (existing === undefined) incidence.set(key, [vertices]);
+        else existing.push(vertices);
+      }
+    }
+    // A face shared by two cells is interior; the surface is what is left.
+    for (const [, owners] of incidence) {
+      if (owners.length !== 1) continue;
+      faces.push(...owners[0]!);
+    }
+  } else {
+    for (const cell of cells) {
+      for (const face of TET_FACES) {
+        faces.push(...face.map((slot) => cell[slot]!));
+      }
+    }
+  }
+
   const complex = new CellComplex(4, Float64Array.from(positions), [
     {
       key: 'obstacle', dim: 3, verticesPerCell: 4, kind: 'simplex',
-      indices: Uint32Array.from(indices)
+      indices: Uint32Array.from(cells.flat())
     },
     {
       key: 'obstacle-faces', dim: 2, verticesPerCell: 3, kind: 'simplex',
@@ -221,7 +338,9 @@ function obstaclePatch(tiles: number): {
  */
 export function buildSheetScene(options: SheetSceneOptions): SheetScene {
   const sheet = sheetPatch(options.resolution);
-  const obstacle = obstaclePatch(options.tiles);
+  const obstacle = obstaclePatch(
+    options.tiles, options.obstacleShape ?? 'connected-boundary'
+  );
 
   // The two far corners of the first row: the smallest set that stops the sheet
   // translating away instead of deforming against the obstacle.
@@ -311,16 +430,28 @@ export function buildSheetScene(options: SheetSceneOptions): SheetScene {
 export function stepSheetScene(scene: SheetScene): SheetStepReport {
   const advance = stepXpbdIncrementalPotentialWorldN({
     world: scene.world,
-    deltaTime: DELTA_TIME,
+    deltaTime: SHEET_TIME_STEP,
     stepFilters: [scene.bending.stepFilter, scene.contact.stepFilter],
     warmStart: 'feasible-inertial-prediction',
     minimization: { directionPolicy: 'steepest-descent' }
   });
   scene.binding.writeSourcePositions();
 
-  const material = scene.material.evaluate();
-  const bending = scene.bending.evaluate();
-  const contact = scene.contact.evaluate();
+  // An applied step already evaluated every provider at the iterate it
+  // applied, and those evaluations are retained on the result. Calling
+  // `evaluate()` again here would repeat the most expensive work in the step
+  // to learn something the solver just computed.
+  //
+  // A refused step applied nothing, so its final iterate is a state the sheet
+  // never reached. Reporting it would describe motion that did not happen, so
+  // the live — unchanged — state is evaluated instead and labelled as such.
+  const step = advance.step;
+  const reused = step.status === 'applied'
+    ? readAppliedProviderEvaluations(scene, step)
+    : null;
+  const material = reused?.material ?? scene.material.evaluate();
+  const bending = reused?.bending ?? scene.bending.evaluate();
+  const contact = reused?.contact ?? scene.contact.evaluate();
   const diagnostics = contact.candidateQuery.diagnostics;
 
   let low = Number.POSITIVE_INFINITY;
@@ -348,7 +479,43 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
     hingeCount: bending.hingeCount,
     elementCount: scene.material.elements.length,
     minimumConormalHeight: bending.minimumConormalHeight,
-    wRange: [low, high]
+    wRange: [low, high],
+    diagnosticsSource: reused === null ? 'unchanged-live-state' : 'applied-iterate'
+  };
+}
+
+/**
+ * The provider evaluations the applied step already made, by identity.
+ *
+ * Returns `null` rather than guessing if the retained set does not contain all
+ * three: a diagnostic that silently describes two providers out of three would
+ * be worse than paying for a fresh evaluation.
+ */
+function readAppliedProviderEvaluations(
+  scene: SheetScene,
+  step: XpbdIncrementalPotentialStepAppliedN
+): {
+  material: { readonly potentialEnergy: number };
+  bending: XpbdSourceSimplexCosineBendingFamilyEvaluationN;
+  contact: XpbdParticleSourceSimplexBarrierFamilyEvaluationN;
+} | null {
+  const results = step.minimization.final.evaluation.potential.providers;
+  const find = (provider: unknown): unknown => results
+    .find((entry: { provider: unknown; evaluation: unknown }) =>
+      entry.provider === provider)?.evaluation;
+  const material = find(scene.material);
+  const bending = find(scene.bending);
+  const contact = find(scene.contact);
+  if (material === undefined || bending === undefined || contact === undefined) {
+    return null;
+  }
+  // Each family's `evaluateAt` returns its own rich evaluation, which is what
+  // the solver retained; the provider seam only narrows it to the common
+  // energy-and-forces shape.
+  return {
+    material: material as { readonly potentialEnergy: number },
+    bending: bending as XpbdSourceSimplexCosineBendingFamilyEvaluationN,
+    contact: contact as XpbdParticleSourceSimplexBarrierFamilyEvaluationN
   };
 }
 

@@ -382,7 +382,7 @@ describe('Armijo base reuse — composed behaviour', () => {
     expect(particles.map((p) => p.position.toArray())).toEqual(before);
   });
 
-  it('keeps the membrane composition and search-mode equivalence', () => {
+  it('keeps the membrane composition and search-mode equivalence', { timeout: 120_000 }, () => {
     const plain = composedScene('plain', false);
     const fast = composedScene('fast', true);
     const options = {

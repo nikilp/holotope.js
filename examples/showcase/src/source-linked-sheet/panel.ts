@@ -1,4 +1,4 @@
-import type { SheetStepReport } from './scene.js';
+import { SHEET_TIME_STEP, type SheetStepReport } from './scene.js';
 import type { SheetSelection } from './selection.js';
 
 /**
@@ -66,7 +66,7 @@ const number = (value: number, digits = 3): string =>
   Number.isFinite(value) ? value.toFixed(digits) : '—';
 
 /** The scene's fixed physics interval, so simulated time is stated, not implied. */
-const DELTA_TIME = 1 / 240;
+
 
 /** Inspector labels whose value belongs to one particular step. */
 export const STEP_SCOPED_LABELS = [
@@ -223,7 +223,7 @@ export function createSheetPanel(): SheetPanel {
       // scene advances 1/240 s per applied step, so wall time and scene time
       // are not the same quantity and the page should not imply they are.
       simulated.value.textContent =
-        `${(appliedSteps * DELTA_TIME).toFixed(3)} s @ 1/240 s`;
+        `${(appliedSteps * SHEET_TIME_STEP).toFixed(3)} s`;
       // One assignment path for both cases, so a reset cannot leave a value
       // from the previous scene behind.
       for (const [label, text] of Object.entries(stepScopedValues(report))) {
@@ -240,7 +240,14 @@ export function createSheetPanel(): SheetPanel {
           `${report.refusalReason === null ? '' : ` \u00b7 ${report.refusalReason}`}` +
           '). The sheet is unchanged, so re-solving it would refuse the same ' +
           'way \u2014 playback stopped itself instead of spinning. Step to retry ' +
-          'once, or Reset to restart the scene.';
+          'once, or Reset to restart the scene.' +
+          (report.diagnosticsSource === 'unchanged-live-state'
+            // Say which state the numbers above describe. A refused step
+            // applied nothing, so they are the state still on screen rather
+            // than an iterate the sheet moved to.
+            ? ' The energies and populations above describe that unchanged ' +
+              'state, not a step that was taken.'
+            : '');
       }
 
       if (selection === null) {

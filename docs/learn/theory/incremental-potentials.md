@@ -202,6 +202,12 @@ The search returns `not-descent` without trials when
 `dot(gradient, direction) >= 0`. Otherwise it records every accepted,
 insufficient-decrease, or domain-refused trial.
 
+Called directly, it evaluates the base state itself, which is one full pass
+over every registered provider. The minimizer below does not pay that: its
+current iterate is already an evaluation of those coordinates, so it reuses it.
+On a contact-dense problem, where a provider pass dominates the step, that is
+one fewer pass per accepted iteration.
+
 Only `XpbdPotentialDomainErrorN` is recoverable during backtracking.
 `SimplexConstitutiveDomainErrorN` specializes that common type, as do
 open-distance barriers. Collapse, inversion, non-positive measure, or crossing

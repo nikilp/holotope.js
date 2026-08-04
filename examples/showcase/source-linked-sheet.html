@@ -178,7 +178,8 @@
       <h1>Source-linked R4 sheet</h1>
       <p>
         One four-dimensional triangular sheet is the model. It stretches, folds, and rests
-        on a separate finite obstacle, and everything below is a <em>view</em> of it — the
+        on a separate finite obstacle — a connected block of tetrahedra, drawn as the
+        triangles that actually bound it — and everything below is a <em>view</em> of it — the
         two canvases are two lossy maps of the same R4 state, not two simulations. Selecting
         in either canvas names the source triangle that produced the pixel, and says plainly
         whether that pixel determines a point in R4 at all.
@@ -201,8 +202,10 @@
         <button id="control-reset-views" type="button">Reset views</button>
         <button id="control-search" type="button" aria-pressed="false">Search: exhaustive</button>
         <span class="control-note">
-          The search switch changes broadphase work only — same ordered candidates, same
-          trajectory. It restarts the scene so both settings start from the same state.
+          The search switch picks an equivalent way to organise the broadphase — same
+          ordered candidates, same trajectory, same result. It is not an accelerator: on
+          this compact obstacle the tree tests every bound anyway. It restarts the scene
+          so both settings start from the same state.
         </span>
       </div>
     </header>

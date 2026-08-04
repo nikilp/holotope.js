@@ -481,7 +481,6 @@
   "physics:XpbdIncrementalPotentialStallReasonN",
   "physics:XpbdIncrementalPotentialStalledN",
   "physics:XpbdIncrementalPotentialStepApplicationRefusedN",
-  "physics:XpbdIncrementalPotentialStepAppliedN",
   "physics:XpbdIncrementalPotentialStepFilterIndeterminateN",
   "physics:XpbdIncrementalPotentialStepFilterLimitedN",
   "physics:XpbdIncrementalPotentialStepFilterSafeN",

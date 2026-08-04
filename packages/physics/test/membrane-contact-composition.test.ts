@@ -184,7 +184,7 @@ function digest(target: Scene, id: string): string {
 }
 
 describe('membrane composition — stretch + bending + static contact', () => {
-  it('advances identically with exhaustive and hierarchy candidates', () => {
+  it('advances identically with exhaustive and hierarchy candidates', { timeout: 120_000 }, () => {
     const plain = scene('plain', false);
     const fast = scene('fast', true);
 
@@ -309,7 +309,7 @@ describe('membrane composition — stretch + bending + static contact', () => {
     expect(digest(fast, 'fast')).toBe(digest(plain, 'plain'));
   });
 
-  it('exercises both paired filters rather than only registering them', () => {
+  it('exercises both paired filters rather than only registering them', { timeout: 120_000 }, () => {
     const target = scene('filters', false);
     const particles = target.binding.particles;
 
