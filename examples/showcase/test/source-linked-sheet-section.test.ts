@@ -16,7 +16,7 @@ import { classifyContactForce } from '../src/source-linked-sheet/contact-overlay
  */
 
 const OPTIONS = {
-  resolution: 5, tiles: 9, search: 'exhaustive' as const, id: 'section'
+  resolution: 5, id: 'section'
 };
 
 describe('source-linked sheet — Z section', () => {
@@ -95,34 +95,41 @@ describe('source-linked sheet — contact roles', () => {
       .toBe(Infinity);
   });
 
-  it('reports the sideways push the real scene produces', { timeout: 120_000 }, () => {
+  it('reports the normal push the corrected scene produces', { timeout: 120_000 }, () => {
+    // This test's predecessor pinned the summed-cell defect: a material
+    // lateral push on the very first step of an undeformed sheet. P53c
+    // replaced the composition with one closest-point query per vertex, and
+    // that history is preserved as a dated Kitchen measurement
+    // (p53c-part-a-before-after) rather than here. What the overlay now
+    // witnesses is the corrected contract.
     const scene = buildSheetScene(OPTIONS);
     const first = stepSheetScene(scene);
     // One force per bound vertex, in source order.
     expect(first.contactForces.length).toBe(scene.sheet.vertexCount);
 
-    // Liveness: the barrier is doing something on the very first step.
-    const active = first.contactForces
-      .filter((force) => classifyContactForce(force).role !== 'free');
-    expect(active.length).toBeGreaterThan(0);
+    // Reset is a fall, not a preload: the sheet starts outside the activation
+    // band, so the first step has no active barrier at all.
+    expect(first.activeBarriers).toBe(0);
+    expect(
+      first.contactForces.every(
+        (force) => classifyContactForce(force).role === 'free'
+      )
+    ).toBe(true);
 
-    // The finding this overlay exists to show: on an undeformed sheet lying
-    // square over the obstacle, a real share of the barrier force is lateral.
-    // A support would give none.
-    const peak = Math.max(
-      ...first.contactForces.map((f) => {
-        const { lateralFraction } = classifyContactForce(f);
-        return Number.isFinite(lateralFraction) ? lateralFraction : 0;
-      })
-    );
-    expect(peak).toBeGreaterThan(0.05);
-
-    for (let step = 0; step < 60; step++) stepSheetScene(scene);
-    const later = stepSheetScene(scene);
-    const pushed = later.contactForces
-      .filter((force) => classifyContactForce(force).role === 'pushed-aside');
-    // By the time the sheet is settling, most of what contact is doing to it
-    // is not holding it up.
-    expect(pushed.length).toBeGreaterThan(0);
+    // Once the fall crosses the band, contact activates — and an interior
+    // closest feature pushes exactly along the support normal, which is what
+    // the 'held' colour now certifies rather than approximates.
+    let report = first;
+    for (let step = 0; step < 90 && report.activeBarriers === 0; step++) {
+      report = stepSheetScene(scene);
+    }
+    expect(report.activeBarriers).toBeGreaterThan(0);
+    expect(report.interiorBarriers).toBeGreaterThan(0);
+    expect(report.peakInteriorLateralShare).toBeLessThanOrEqual(1e-12);
+    for (const witness of report.contactWitnesses) {
+      if (!witness.interiorFeature) continue;
+      const force = report.contactForces[witness.sourceVertexIndex]!;
+      expect(classifyContactForce(force).role).toBe('held');
+    }
   });
 });

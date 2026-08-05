@@ -4,7 +4,6 @@ import {
   buildSheetScene,
   isRefusedReport,
   stepSheetScene,
-  type CandidateSearch,
   type SheetScene,
   type SheetStepReport
 } from './scene.js';
@@ -30,7 +29,6 @@ import { createSheetViews, type SheetView, type SheetViews } from './view.js';
  * so the trade is visible before it is made.
  */
 const RESOLUTIONS = [5, 8, 12, 16] as const;
-const TILES = 9;
 
 /** Recorded steps advanced per rendered frame, cycled by the speed control. */
 const REPLAY_SPEEDS = [1, 2, 4, 8] as const;
@@ -39,7 +37,6 @@ interface PageState {
   scene: SheetScene;
   views: SheetViews;
   replay: SheetReplay;
-  search: CandidateSearch;
   resolution: number;
   running: boolean;
   applied: number;
@@ -77,8 +74,8 @@ if (host.perspective === null || host.coordinate === null
 const panel = createSheetPanel();
 host.panel.appendChild(panel.element);
 
-function build(search: CandidateSearch, resolution: number): PageState {
-  const scene = buildSheetScene({ resolution, tiles: TILES, search, id: 'sheet' });
+function build(resolution: number): PageState {
+  const scene = buildSheetScene({ resolution, id: 'sheet' });
   const views = createSheetViews(
     {
       perspective: host.perspective!,
@@ -98,7 +95,7 @@ function build(search: CandidateSearch, resolution: number): PageState {
     stepFilterIds: [scene.bending.stepFilter.id, scene.contact.stepFilter.id]
   });
   return {
-    scene, views, search, resolution,
+    scene, views, resolution,
     replay: createSheetReplay(scene.sheet),
     running: false, applied: 0, report: null, selection: null,
     reviewing: null, reviewReport: null,
@@ -106,13 +103,13 @@ function build(search: CandidateSearch, resolution: number): PageState {
   };
 }
 
-let state = build('exhaustive', RESOLUTIONS[0]);
+let state = build(RESOLUTIONS[0]);
 
 function redraw(): void {
   const reviewing = state.reviewing;
   panel.update(
     reviewing === null ? state.report : state.reviewReport,
-    state.selection, state.applied, state.search,
+    state.selection, state.applied,
     reviewing === null ? null : {
       frame: reviewing,
       recorded: state.replay.length,
@@ -191,14 +188,11 @@ function togglePlay(): void {
   syncControls();
 }
 
-function reset(
-  search: CandidateSearch = state.search,
-  resolution: number = state.resolution
-): void {
+function reset(resolution: number = state.resolution): void {
   const wasRunning = state.running;
   const wasShowingContact = state.views.contactVisible;
   state.views.dispose();
-  state = build(search, resolution);
+  state = build(resolution);
   state.running = wasRunning;
   state.views.contactVisible = wasShowingContact;
   state.views.resize();
@@ -232,7 +226,6 @@ function control(id: string): HTMLElement {
 }
 
 const runButton = control('control-run');
-const searchButton = control('control-search');
 const resolutionButton = control('control-resolution');
 const replaySlider = control('control-replay') as HTMLInputElement;
 const replayLabel = control('control-replay-label');
@@ -246,12 +239,6 @@ const sliceLabel = control('control-slice-label');
 function syncControls(): void {
   runButton.textContent = state.running ? 'Pause' : 'Run';
   runButton.setAttribute('aria-pressed', String(state.running));
-  searchButton.textContent = state.search === 'exhaustive'
-    ? 'Search: exhaustive'
-    : 'Search: static hierarchy';
-  searchButton.setAttribute(
-    'aria-pressed', String(state.search === 'static-hierarchy')
-  );
   const cells = (state.resolution - 1) * (state.resolution - 1) * 2;
   resolutionButton.textContent =
     `${state.resolution}×${state.resolution} · ${cells} tri`;
@@ -333,7 +320,7 @@ resolutionButton.addEventListener('click', () => {
     % RESOLUTIONS.length
   ]!;
   state.running = false;
-  reset(state.search, next);
+  reset(next);
   syncControls();
 });
 
@@ -366,14 +353,6 @@ sliceSlider.addEventListener('input', () => {
 
 control('control-reset-views').addEventListener('click', () => {
   state.views.resetCameras();
-});
-
-searchButton.addEventListener('click', () => {
-  // Changing broadphase organization restarts the deterministic scene so the
-  // two settings can be compared from the same start. It changes which bounds
-  // are asked, never the ordered candidates or the trajectory.
-  reset(state.search === 'exhaustive' ? 'static-hierarchy' : 'exhaustive');
-  syncControls();
 });
 
 for (const key of ['perspective', 'coordinate'] as const) {

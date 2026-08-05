@@ -49,7 +49,7 @@ export interface SheetPanel {
   readonly element: HTMLElement;
   /** Rewrites every value in place. */
   update(report: SheetStepReport | null, selection: SheetSelection | null,
-    appliedSteps: number, search: string,
+    appliedSteps: number,
     replay?: SheetReplayPosition | null): void;
   /** Scene facts that do not change between steps. */
   describeScene(facts: SheetPanelFacts): void;
@@ -90,8 +90,9 @@ const number = (value: number, digits = 3): string =>
 export const STEP_SCOPED_LABELS = [
   'status', 'diagnosis', 'minimizer iterations',
   'intrinsic stretch', 'discrete cosine fold', 'contact barrier', 'total',
-  'possible pairs', 'broadphase retained', 'exactly active barriers',
-  'hierarchy bound tests',
+  'hull source vertices', 'set queries', 'gjk iterations',
+  'exactly active barriers', 'interior / edge features',
+  'peak interior lateral',
   'fold hinges', 'stretch elements', 'min fold height', 'W range',
   'held by contact', 'pushed aside', 'no active barrier', 'peak lateral share'
 ] as const;
@@ -147,12 +148,21 @@ export function stepScopedValues(
     'discrete cosine fold': number(report.bendingEnergy),
     'contact barrier': number(report.contactEnergy),
     'total': number(report.totalPotential),
-    'possible pairs': String(report.possiblePairs),
-    'broadphase retained': String(report.retainedPairs),
+    // One certified closest-point query per sheet vertex, never one per cell:
+    // the set-query count equals the vertex count by construction, and the
+    // panel states it so a reader can check the claim rather than trust it.
+    'hull source vertices': String(report.hullVertexCount),
+    'set queries': String(report.setQueries),
+    'gjk iterations': String(report.queryIterations),
     'exactly active barriers': String(report.activeBarriers),
-    'hierarchy bound tests': report.hierarchyBoundTests === null
-      ? 'n/a — exhaustive'
-      : String(report.hierarchyBoundTests),
+    // Interior closest features must push along the support normal; a closest
+    // point on the support's boundary legitimately carries a lateral
+    // component, so the two are counted apart rather than blended.
+    'interior / edge features':
+      `${report.interiorBarriers} / ${report.edgeBarriers}`,
+    'peak interior lateral': report.interiorBarriers === 0
+      ? 'n/a'
+      : report.peakInteriorLateralShare.toExponential(1),
     'fold hinges': String(report.hingeCount),
     'stretch elements': String(report.elementCount),
     'min fold height': number(report.minimumConormalHeight, 4),
@@ -167,6 +177,55 @@ export function stepScopedValues(
       ? contact.peakLateralFraction.toFixed(2)
       : '∞'
   });
+}
+
+/**
+ * The complete refusal note for one refused report.
+ *
+ * Pure and exported so both refusal flavours are testable without a DOM: a
+ * pre-trial filter refusal names the exact term whose domain gate closed (for
+ * the fold term, a degenerated triangle), while a minimizer iteration-limit is
+ * reported as a compute-budget refusal with every domain gate still open.
+ */
+export function refusalNoteText(report: SheetStepReport): string {
+  const evidence = report.refusalEvidence;
+  let cause = '';
+  if (evidence !== null && evidence.blockingFilterId !== null) {
+    const what = evidence.blockingFilterId.includes('bend')
+      ? 'a sheet triangle has degenerated past the fold term\u2019s authored ' +
+        'measure floor, so its fold angle is no longer defined'
+      : 'the contact term\u2019s admissible domain refused the segment';
+    cause =
+      ` The blocking term is \u201c${evidence.blockingFilterId}\u201d` +
+      `${evidence.filterReason === null ? '' : ` (${evidence.filterReason})`}` +
+      (evidence.blockingIndex === null
+        ? ''
+        : `, cell ${evidence.blockingIndex}`) +
+      `: ${what}. ` +
+      (evidence.trialsEvaluated === 0
+        ? 'No line-search trial ran \u2014 the refusal is a domain gate at the ' +
+          'current state, not a failed search.'
+        : `${evidence.trialsEvaluated} line-search trial(s) ran before the ` +
+          'refusal.');
+  } else if (evidence !== null &&
+    evidence.minimizationStatus === 'iteration-limit') {
+    cause =
+      ' The minimizer exhausted its iteration budget without meeting its ' +
+      'gradient tolerance \u2014 a compute-budget refusal, with no domain gate ' +
+      'closed and every contact distance still legal.';
+  }
+  return (
+    `The solver refused this step (${report.condition}` +
+    `${report.refusalReason === null ? '' : ` \u00b7 ${report.refusalReason}`}` +
+    ').' + cause +
+    ' The sheet is unchanged, so re-solving it would refuse the same way ' +
+    '\u2014 playback stopped itself instead of spinning. Step to retry once, ' +
+    'or Reset to restart the scene.' +
+    (report.diagnosticsSource === 'unchanged-live-state'
+      ? ' The energies and populations above describe that unchanged state, ' +
+        'not a step that was taken.'
+      : '')
+  );
 }
 
 /**
@@ -192,7 +251,6 @@ export function createSheetPanel(): SheetPanel {
   };
 
   element.appendChild(section('step'));
-  const search = makeRow(element, 'candidate search');
   stepRow('status');
   stepRow('diagnosis');
   const applied = makeRow(element, 'applied steps');
@@ -206,11 +264,13 @@ export function createSheetPanel(): SheetPanel {
   stepRow('contact barrier');
   stepRow('total');
 
-  element.appendChild(section('contact populations'));
-  stepRow('possible pairs');
-  stepRow('broadphase retained');
+  element.appendChild(section('contact queries'));
+  stepRow('hull source vertices');
+  stepRow('set queries');
+  stepRow('gjk iterations');
   stepRow('exactly active barriers');
-  stepRow('hierarchy bound tests');
+  stepRow('interior / edge features');
+  stepRow('peak interior lateral');
 
   element.appendChild(section('sheet'));
   const pinned = makeRow(element, 'pinned vertices');
@@ -268,8 +328,7 @@ export function createSheetPanel(): SheetPanel {
       filters.value.textContent = String(facts.stepFilterIds.length);
       filters.value.title = facts.stepFilterIds.join('  •  ');
     },
-    update(report, selection, appliedSteps, searchMode, replay = null) {
-      search.value.textContent = searchMode;
+    update(report, selection, appliedSteps, replay = null) {
       applied.value.textContent = String(appliedSteps);
       // Stated rather than left for a reader to infer from a step count: the
       // scene advances 1/240 s per applied step, so wall time and scene time
@@ -298,19 +357,7 @@ export function createSheetPanel(): SheetPanel {
         refusal.textContent = '';
       } else {
         refusal.hidden = false;
-        refusal.textContent =
-          `The solver refused this step (${report.condition}` +
-          `${report.refusalReason === null ? '' : ` \u00b7 ${report.refusalReason}`}` +
-          '). The sheet is unchanged, so re-solving it would refuse the same ' +
-          'way \u2014 playback stopped itself instead of spinning. Step to retry ' +
-          'once, or Reset to restart the scene.' +
-          (report.diagnosticsSource === 'unchanged-live-state'
-            // Say which state the numbers above describe. A refused step
-            // applied nothing, so they are the state still on screen rather
-            // than an iterate the sheet moved to.
-            ? ' The energies and populations above describe that unchanged ' +
-              'state, not a step that was taken.'
-            : '');
+        refusal.textContent = refusalNoteText(report);
       }
 
       if (selection === null) {

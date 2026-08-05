@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSheetScene,
-  candidateIdentities,
   isRefusedReport,
   sourceDigest,
   stepSheetScene,
-  type CandidateSearch,
   type SheetScene
 } from '../src/source-linked-sheet/scene.js';
 import { cellVertices, readSheetSelection } from '../src/source-linked-sheet/selection.js';
 import {
   STEP_SCOPED_LABELS,
+  refusalNoteText,
   stepScopedValues
 } from '../src/source-linked-sheet/panel.js';
 
@@ -24,11 +23,10 @@ import {
  */
 
 const RESOLUTION = 5;
-const TILES = 9;
 const STEPS = 40;
 
-function scene(search: CandidateSearch, id: string): SheetScene {
-  return buildSheetScene({ resolution: RESOLUTION, tiles: TILES, search, id });
+function scene(id: string): SheetScene {
+  return buildSheetScene({ resolution: RESOLUTION, id });
 }
 
 function run(target: SheetScene, steps: number): ReturnType<typeof stepSheetScene> {
@@ -39,7 +37,7 @@ function run(target: SheetScene, steps: number): ReturnType<typeof stepSheetScen
 
 describe('source-linked sheet — scene', () => {
   it('has the intended topology and fixed-vertex policy', () => {
-    const target = scene('exhaustive', 'topology');
+    const target = scene('topology');
     expect(target.binding.particles.length).toBe(RESOLUTION * RESOLUTION);
     expect(target.fixedVertices).toEqual([0, RESOLUTION - 1]);
     const fixed = target.binding.vertices
@@ -63,9 +61,7 @@ describe('source-linked sheet — scene', () => {
     const extent = (resolution: number): {
       span: [number, number]; corner: number; vertices: number;
     } => {
-      const target = buildSheetScene({
-        resolution, tiles: TILES, search: 'exhaustive', id: `refine-${resolution}`
-      });
+      const target = buildSheetScene({ resolution, id: `refine-${resolution}` });
       let maxX = -Infinity;
       let maxY = -Infinity;
       for (let vertex = 0; vertex < target.sheet.vertexCount; vertex++) {
@@ -93,7 +89,7 @@ describe('source-linked sheet — scene', () => {
   });
 
   it('starts folded, loads under deformation, and reaches the obstacle', { timeout: 60_000 }, () => {
-    const target = scene('exhaustive', 'liveness');
+    const target = scene('liveness');
 
     // At the authored rest state, before anything is advanced: stretch is
     // relaxed because the sheet's rest shape *is* its initial shape. An
@@ -110,11 +106,24 @@ describe('source-linked sheet — scene', () => {
     const before = target.binding.particles.map((p) => p.position.data[3] ?? 0);
     const last = run(target, STEPS - 1);
 
-    // Now stretch is materially loaded, and contact is doing work.
+    // Now stretch is materially loaded, and contact is doing work: one
+    // certified set query per sheet vertex, some of them inside the band.
     expect(last.intrinsicEnergy).toBeGreaterThan(1e-6);
-    expect(last.retainedPairs).toBeGreaterThan(0);
+    expect(last.setQueries).toBe(RESOLUTION * RESOLUTION);
+    expect(last.hullVertexCount).toBe(8);
     expect(last.activeBarriers).toBeGreaterThan(0);
     expect(last.contactEnergy).toBeGreaterThan(0);
+    // Every active barrier carries a source-retained witness, and interior
+    // closest features push along the support normal.
+    expect(last.contactWitnesses.length).toBe(last.activeBarriers);
+    expect(last.interiorBarriers + last.edgeBarriers).toBe(last.activeBarriers);
+    if (last.interiorBarriers > 0) {
+      expect(last.peakInteriorLateralShare).toBeLessThanOrEqual(1e-12);
+    }
+    for (const witness of last.contactWitnesses) {
+      expect(witness.sourceVertices.length).toBeGreaterThan(0);
+      expect(witness.distance).toBeGreaterThan(0.04);
+    }
     expect(last.status).toBe('applied');
     expect(last.condition).toBe('progressed');
 
@@ -134,7 +143,7 @@ describe('source-linked sheet — scene', () => {
   });
 
   it('applies a step after contact has activated', { timeout: 60_000 }, () => {
-    const target = scene('exhaustive', 'after-contact');
+    const target = scene('after-contact');
     let activated = 0;
     let appliedAfterContact = 0;
     for (let step = 0; step < STEPS; step++) {
@@ -149,45 +158,40 @@ describe('source-linked sheet — scene', () => {
   });
 
   it('replays deterministically from a fresh build', { timeout: 120_000 }, () => {
-    const a = scene('exhaustive', 'replay');
-    const b = scene('exhaustive', 'replay');
+    const a = scene('replay');
+    const b = scene('replay');
     run(a, STEPS);
     run(b, STEPS);
     expect(sourceDigest(b)).toBe(sourceDigest(a));
   });
 
-  it('reaches the same state under both candidate searches', { timeout: 180_000 }, () => {
-    const plain = scene('exhaustive', 'search');
-    const fast = scene('static-hierarchy', 'search');
-
+  it('answers contact from one set, not from the decomposition', { timeout: 60_000 }, () => {
+    // The predecessor page compared two broadphase organisations of a per-cell
+    // sum. The corrected model has no per-cell anything to organise: the six
+    // Kuhn tetrahedra only select the slab's eight corner vertices, and the
+    // family answers one certified closest-point query per sheet vertex. The
+    // witness worth pinning is that query count and the witness identities —
+    // every named source vertex is one of the hull's authoritative corners.
+    const target = scene('one-set');
     let sawActive = false;
     for (let step = 0; step < STEPS; step++) {
-      const a = stepSheetScene(plain);
-      const b = stepSheetScene(fast);
-      expect(b.status, `step ${step}`).toBe(a.status);
-      expect(b.condition, `step ${step}`).toBe(a.condition);
-      expect(b.activeBarriers, `step ${step}`).toBe(a.activeBarriers);
-      expect(b.retainedPairs, `step ${step}`).toBe(a.retainedPairs);
-      if (step % 8 === 0 || step === STEPS - 1) {
-        expect(candidateIdentities(fast), `step ${step}`)
-          .toEqual(candidateIdentities(plain));
+      const report = stepSheetScene(target);
+      expect(report.setQueries, `step ${step}`).toBe(RESOLUTION * RESOLUTION);
+      if (report.activeBarriers > 0) {
+        sawActive = true;
+        for (const witness of report.contactWitnesses) {
+          for (const vertex of witness.sourceVertices) {
+            expect(target.contact.hullSourceVertices).toContain(vertex);
+          }
+        }
       }
-      if (a.activeBarriers > 0) sawActive = true;
     }
-    // The comparison is only worth anything once contact is live.
     expect(sawActive).toBe(true);
-    expect(candidateIdentities(plain).length).toBeGreaterThan(0);
-    expect(sourceDigest(fast)).toBe(sourceDigest(plain));
-
-    // And the hierarchy really was doing tree work, not silently falling back.
-    const accelerated = stepSheetScene(fast);
-    expect(accelerated.hierarchyBoundTests).not.toBe(null);
-    expect(stepSheetScene(plain).hierarchyBoundTests).toBe(null);
   });
 });
 
 describe('source-linked sheet — selection', () => {
-  const group = scene('exhaustive', 'selection').sheetGroup;
+  const group = scene('selection').sheetGroup;
 
   it('recovers the source vertices of a cell for cross-view highlighting', () => {
     const vertices = cellVertices(group, 0);
@@ -233,19 +237,24 @@ describe('source-linked sheet — selection', () => {
     expect(selection.sentence).toMatch(/determines one R4 point/);
   });
 
-  it('keeps candidate, barrier, and source identities distinct', { timeout: 60_000 }, () => {
-    const target = scene('exhaustive', 'identities');
-    run(target, 8);
-    const candidates = candidateIdentities(target);
-    expect(candidates.length).toBeGreaterThan(0);
-    // A contact candidate names a sheet vertex and an obstacle cell; a source
-    // selection names a sheet triangle. They must not be the same vocabulary.
-    expect(candidates[0]).toMatch(/source-vertex/);
-    expect(candidates[0]).toMatch(/obstacle-cell/);
+  it('keeps barrier and source identities distinct', { timeout: 60_000 }, () => {
+    const target = scene('identities');
+    let report = stepSheetScene(target);
+    // Contact activates once the fall crosses the 0.6 band, ~40 steps in.
+    for (let step = 1; step < 90 && report.activeBarriers === 0; step++) {
+      report = stepSheetScene(target);
+    }
+    expect(report.activeBarriers).toBeGreaterThan(0);
+    // An active barrier names a dynamic sheet vertex; its witness names static
+    // obstacle vertices; a source selection names a sheet triangle. Three
+    // vocabularies, none interchangeable.
+    const witness = report.contactWitnesses[0]!;
+    expect(witness.sourceVertexIndex).toBeGreaterThanOrEqual(0);
+    expect(witness.sourceVertices.length).toBeGreaterThan(0);
     expect(cellVertices(target.sheetGroup, 0).length).toBe(3);
   });
   it('classifies an applied step and a typed refusal apart', { timeout: 60_000 }, () => {
-    const target = scene('exhaustive', 'refusal-predicate');
+    const target = scene('refusal-predicate');
     const applied = stepSheetScene(target);
     // Liveness: the fixture must actually apply, or the negative case below is
     // comparing against nothing.
@@ -262,7 +271,7 @@ describe('source-linked sheet — selection', () => {
   it('advances the source on an applied step, which is why a refusal is idempotent', () => {
     // The pause rule rests on two facts. This one is cheap: an applied step
     // moves the source, so the next step solves a different configuration.
-    const target = scene('exhaustive', 'refusal-rationale');
+    const target = scene('refusal-rationale');
     const before = sourceDigest(target);
     const report = stepSheetScene(target);
     expect(report.status).toBe('applied');
@@ -288,7 +297,7 @@ describe('source-linked sheet — selection', () => {
   });
 
   it('populates exactly the same labels it clears', { timeout: 60_000 }, () => {
-    const target = scene('static-hierarchy', 'panel-labels');
+    const target = scene('panel-labels');
     run(target, 6);
     const report = stepSheetScene(target);
     const populated = stepScopedValues(report);
@@ -304,5 +313,60 @@ describe('source-linked sheet — selection', () => {
     expect(dashes).toEqual([]);
     // And the hierarchy row must reflect this run's mode, not a remembered one.
     expect(populated['hierarchy bound tests']).not.toBe('n/a — exhaustive');
+  });
+});
+
+describe('source-linked sheet — the refusal note names its evidence', () => {
+  const base = {
+    status: 'refused',
+    condition: 'line-search-refused',
+    refusalReason: 'not-converged',
+    acceptedIterations: 0,
+    intrinsicEnergy: 1, bendingEnergy: 1, contactEnergy: 0, totalPotential: 2,
+    hullVertexCount: 8, setQueries: 25, queryIterations: 100,
+    activeBarriers: 0, interiorBarriers: 0, edgeBarriers: 0,
+    peakInteriorLateralShare: 0,
+    hingeCount: 40, elementCount: 32, minimumConormalHeight: 0.009,
+    wRange: [0.1, 0.9] as const,
+    contactForces: [], contactWitnesses: [],
+    diagnosticsSource: 'unchanged-live-state' as const
+  };
+
+  it('quotes a closed domain gate: term, reason, cell, and zero trials', () => {
+    // The fold term's gate, exactly as the old scene's terminal produced it
+    // and as the A1 historical fixture still reproduces it.
+    const note = refusalNoteText({
+      ...base,
+      refusalEvidence: {
+        minimizationStatus: 'line-search-refused',
+        blockingFilterId: 'sheet-bend/bending-measure-filter',
+        filterReason: 'initial-measure-violation',
+        blockingIndex: 17,
+        trialsEvaluated: 0
+      }
+    });
+    expect(note).toContain('sheet-bend/bending-measure-filter');
+    expect(note).toContain('initial-measure-violation');
+    expect(note).toContain('cell 17');
+    expect(note).toContain('degenerated past the fold term');
+    expect(note).toContain('No line-search trial ran');
+    expect(note).toContain('unchanged state');
+  });
+
+  it('reports a compute-budget refusal as one, with no gate blamed', () => {
+    const note = refusalNoteText({
+      ...base,
+      condition: 'iteration-limit',
+      refusalEvidence: {
+        minimizationStatus: 'iteration-limit',
+        blockingFilterId: null,
+        filterReason: null,
+        blockingIndex: null,
+        trialsEvaluated: 0
+      }
+    });
+    expect(note).toContain('exhausted its iteration budget');
+    expect(note).toContain('no domain gate closed');
+    expect(note).not.toContain('blocking term');
   });
 });

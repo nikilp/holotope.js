@@ -3,24 +3,33 @@ import {
   XpbdWorldN,
   compileSimplexConstitutiveFamilyN,
   compileXpbdParticleBindingN,
-  compileXpbdParticleSourceSimplexBarrierFamilyN,
-  compileXpbdSourceSimplexAabbHierarchyN,
+  compileXpbdParticleSourceConvexHullBarrierFamilyN,
   compileXpbdSourceSimplexCosineBendingFamilyN,
   simplexStVenantKirchhoffLawN,
   stepXpbdIncrementalPotentialWorldN,
   type XpbdIncrementalPotentialStepAppliedN,
-  type XpbdParticleSourceSimplexBarrierFamilyEvaluationN,
+  type XpbdIncrementalPotentialStepRefusedN,
+  type XpbdParticleSourceConvexHullBarrierFamilyEvaluationN,
   type XpbdSourceSimplexCosineBendingFamilyEvaluationN
 } from '@holotope/physics';
 
 /**
- * One R4 triangular sheet, its finite static obstacle, and the mechanics that
- * evolve them.
+ * One R4 triangular sheet, its finite static convex support, and the mechanics
+ * that evolve them.
  *
  * This module owns the physics and the source geometry, and nothing else. It
  * imports no renderer, so the same construction the page draws is the one a
  * headless test advances — a page cannot drift from the system it claims to be
  * showing if there is only one of them.
+ *
+ * Contact is **one closest-point query against one static convex hull** per
+ * sheet vertex: the support is the convex hull of the slab's eight authored
+ * corner vertices, so a vertex over the flat interior is pushed exactly along
+ * the support normal, regardless of how the slab happens to be cut into cells
+ * for rendering. The predecessor of this page summed one barrier per
+ * decomposition tetrahedron, which manufactured a decomposition-dependent
+ * lateral force; that model is preserved as a dated measurement in Kitchen,
+ * not as a mode here.
  *
  * The sheet carries two independent stiffnesses. Intrinsic stretch resists
  * deforming each triangle and is supplied by a shipped RN constitutive family.
@@ -35,25 +44,12 @@ import {
  * belongs to this mesh rather than to a material.
  */
 
-/** How the contact search is organized. It never changes the physical answer. */
-export type CandidateSearch = 'exhaustive' | 'static-hierarchy';
-
 /** Construction parameters for one sheet scene. */
 export interface SheetSceneOptions {
   /** Vertices per side of the triangulated sheet. */
   readonly resolution: number;
-  /** Static obstacle tetrahedra, laid out on a square lattice. */
-  readonly tiles: number;
-  /**
-   * Broadphase organization. `'static-hierarchy'` compiles an AABB tree over
-   * the unmoving obstacle; both settings retain the same ordered candidates and
-   * produce the same trajectory.
-   */
-  readonly search: CandidateSearch;
   /** Distinguishes identifiers when more than one scene exists at once. */
   readonly id: string;
-  /** Obstacle construction and which of its triangles are drawn. */
-  readonly obstacleShape?: ObstacleShape;
 }
 
 /** A compiled scene: one source, one world, and the families acting on it. */
@@ -63,16 +59,69 @@ export interface SheetScene {
   readonly binding: ReturnType<typeof compileXpbdParticleBindingN>;
   readonly material: ReturnType<typeof compileSimplexConstitutiveFamilyN>;
   readonly bending: ReturnType<typeof compileXpbdSourceSimplexCosineBendingFamilyN>;
-  readonly contact: ReturnType<typeof compileXpbdParticleSourceSimplexBarrierFamilyN>;
-  /** The authoritative R4 sheet. Both views are derived from this. */
+  readonly contact: ReturnType<typeof compileXpbdParticleSourceConvexHullBarrierFamilyN>;
+  /** The authoritative R4 sheet. Every view is derived from this. */
   readonly sheet: CellComplex;
   readonly sheetGroup: CellGroup;
-  /** The separate static R4 obstacle. */
+  /** The separate static R4 support. */
   readonly obstacle: CellComplex;
-  /** The obstacle's 3-cell group, which contact indexes. */
+  /** The 3-cell group whose vertices span the contact hull. */
   readonly obstacleGroup: CellGroup;
   /** Source vertices held fixed, so the sheet deforms instead of translating. */
   readonly fixedVertices: readonly number[];
+}
+
+/**
+ * One active barrier's evidence, curated for display.
+ *
+ * Everything here was produced by the accepted step's own contact evaluation —
+ * nothing is re-solved to show it. `interiorFeature` classifies the closest
+ * point against the slab's flat interior: an interior closest feature must be
+ * pushed exactly along the support normal, while a closest point on the slab's
+ * boundary legitimately carries a lateral component and is reported as its own
+ * class rather than hidden inside a global count.
+ */
+export interface SheetContactWitness {
+  /** Dynamic sheet vertex this barrier acts on. */
+  readonly sourceVertexIndex: number;
+  /** Unsigned distance to the hull. */
+  readonly distance: number;
+  /** Authoritative obstacle vertices supporting the closest feature. */
+  readonly sourceVertices: readonly number[];
+  /** Closest point on the hull, packed `[x, y, z, w]`. */
+  readonly closestPoint: readonly number[];
+  /** Unit vector from the hull toward the sheet vertex. */
+  readonly separationNormal: readonly number[];
+  /** The query's support-gap certificate residual. */
+  readonly supportGap: number;
+  /** Whether the closest feature lies in the support's flat interior. */
+  readonly interiorFeature: boolean;
+  /** Lateral share of the barrier force at this vertex, in `[0, 1]`. */
+  readonly lateralShare: number;
+}
+
+/**
+ * The typed evidence behind a refused step, read from the solver's structured
+ * results rather than parsed from any message.
+ *
+ * A pre-trial refusal names the exact step filter that declined to certify the
+ * search segment and its typed reason — for example a bending hinge whose
+ * triangle has degenerated past the authored measure floor. `trialsEvaluated`
+ * is `0` in that case: the refusal happened before any Armijo trial ran, which
+ * is the difference between "the solver failed to converge" and "the state is
+ * outside a term's admissible domain".
+ */
+export interface SheetRefusalEvidence {
+  /** Minimization outcome, e.g. `line-search-refused`. */
+  readonly minimizationStatus: string;
+  /** Authored id of the filter that blocked, or `null` when none did. */
+  readonly blockingFilterId: string | null;
+  /** The blocking filter's typed reason, or `null`. */
+  readonly filterReason: string | null;
+  /** Blocking source cell or vertex ordinal, or `null`. */
+  readonly blockingIndex: number | null;
+  /** Armijo trials evaluated before the refusal. */
+  readonly trialsEvaluated: number;
 }
 
 /** What one advance reveals, curated for display. */
@@ -83,23 +132,31 @@ export interface SheetStepReport {
   readonly condition: string;
   /** Refusal reason, or `null` when the step applied. */
   readonly refusalReason: string | null;
+  /** Structured refusal evidence, or `null` when the step applied. */
+  readonly refusalEvidence: SheetRefusalEvidence | null;
   /** Accepted minimizer iterations for this step. */
   readonly acceptedIterations: number;
   /** Energy resisting deformation within triangles. */
   readonly intrinsicEnergy: number;
   /** Energy resisting the fold between adjacent triangles. */
   readonly bendingEnergy: number;
-  /** Energy of the exactly active contact barriers. */
+  /** Energy of the active contact barriers. */
   readonly contactEnergy: number;
   readonly totalPotential: number;
-  /** Every sheet-vertex/obstacle-cell pair that exists. */
-  readonly possiblePairs: number;
-  /** Pairs the broadphase kept for exact evaluation. Not contacts. */
-  readonly retainedPairs: number;
-  /** Pairs whose exact distance is inside the activation distance. */
+  /** Authored obstacle vertices spanning the contact hull. */
+  readonly hullVertexCount: number;
+  /** Closest-point set queries this evaluation performed: one per vertex. */
+  readonly setQueries: number;
+  /** Distance-query iterations, summed over the set queries. */
+  readonly queryIterations: number;
+  /** Sheet vertices whose exact distance is inside the activation band. */
   readonly activeBarriers: number;
-  /** Individual obstacle bounds the tree tested, or `null` when exhaustive. */
-  readonly hierarchyBoundTests: number | null;
+  /** Active barriers whose closest feature is in the flat interior. */
+  readonly interiorBarriers: number;
+  /** Active barriers whose closest feature lies on the support boundary. */
+  readonly edgeBarriers: number;
+  /** Largest lateral force share over interior-feature barriers. */
+  readonly peakInteriorLateralShare: number;
   readonly hingeCount: number;
   readonly elementCount: number;
   /** Smallest fold height seen; small means an ill-conditioned hinge. */
@@ -110,11 +167,13 @@ export interface SheetStepReport {
    * Accumulated barrier force per bound source vertex, in source order.
    *
    * The contact model constrains vertices, not the surface between them, and
-   * these are the only forces it produces. Their *direction* is the diagnostic
-   * worth reading: a support pushes along the surface normal, while a sum of
-   * per-cell barriers generally does not.
+   * these are the only forces it produces. With one-set contact an interior
+   * vertex's force points along the support normal; the overlay draws these
+   * directly, so what it shows is a correctness witness rather than a mood.
    */
   readonly contactForces: readonly SheetContactForce[];
+  /** Per-active-barrier witnesses, in source order. */
+  readonly contactWitnesses: readonly SheetContactWitness[];
   /**
    * Which state these energies and populations describe.
    *
@@ -153,6 +212,39 @@ const SHEET_DEPTH = 1.8;
  * quietly describing a different simulation than the one running.
  */
 export const SHEET_TIME_STEP = 1 / 240;
+
+/**
+ * The support slab's authored extents, shared by physics and classification.
+ *
+ * Every lateral face sits at least one activation band beyond the sheet's
+ * authored extent (sheet x in [0, 2.4], y in [0, 1.8], z in [0, 0.35]). The
+ * previous slab's z face was flush with the sheet's flat rows, so any -z
+ * excursion from bending dynamics met an edge whose separation normal deflects
+ * further outward; the margins move that first edge encounter from step ~73 to
+ * step ~545 of the measured run. They are a measured delay, not a fix: the
+ * support is frictionless and the sheet carries no dissipation, so material
+ * eventually drapes past the finite boundary — which the page reports rather
+ * than hides.
+ */
+const SLAB_LOW = [-0.5, -0.5, -0.6] as const;
+const SLAB_HIGH = [2.9, 2.3, 0.9] as const;
+
+/**
+ * Contact parameters, with the activation range justified rather than large.
+ *
+ * The sheet starts at `W = 0.9` above the support, so `activationDistance =
+ * 0.6` means the scene begins with *zero* active barriers and contact turns on
+ * during the approach — the reset state is a fall, not a preload. The band is
+ * two orders wider than one step's travel at the authored velocity, so the
+ * paired filter certifies approach segments with room to spare. The old value
+ * (1.2) was wider than the slab's own 0.9 thickness and pre-activated every
+ * pair at reset, which made the first frame's contact population meaningless.
+ */
+const CONTACT = {
+  minimumDistance: 0.04,
+  activationDistance: 0.6,
+  stiffness: 3
+} as const;
 
 /**
  * A triangulated 2-manifold sheet in R4, creased along one interior row.
@@ -198,33 +290,10 @@ function sheetPatch(resolution: number): {
   return { complex, group };
 }
 
-/**
- * How the static obstacle is built and which of its triangles are drawn.
- *
- * Only the boundary variant draws exactly the faces that bound the solid. A
- * tetrahedralization's interior faces are shared by two cells and are not part
- * of the object's surface; drawing them makes a solid look like a pile of
- * shells.
- */
-export type ObstacleShape =
-  | 'separate-tetrahedra'
-  | 'connected-all-faces'
-  | 'connected-boundary';
-
-/** Boxes across and along the slab before Kuhn decomposition. */
-const SLAB_COLUMNS = 1;
-const SLAB_ROWS = 1;
-
 /** Kuhn decomposition of one axis-aligned box into six tetrahedra. */
 const KUHN: readonly (readonly [number, number, number, number])[] = [
   [0, 1, 3, 7], [0, 1, 5, 7], [0, 4, 5, 7],
   [0, 2, 3, 7], [0, 2, 6, 7], [0, 4, 6, 7]
-];
-
-/** The eight corners of a unit box, as (x, y, z) bit patterns. */
-const BOX_CORNERS: readonly (readonly [number, number, number])[] = [
-  [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],
-  [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]
 ];
 
 /** Faces of one tetrahedron, as vertex-index triples into its own four. */
@@ -233,98 +302,47 @@ const TET_FACES: readonly (readonly [number, number, number])[] = [
 ];
 
 /**
- * The finite static obstacle the sheet rests on, in the `w = 0` hyperplane.
+ * The finite static support the sheet settles against, in the `w = 0`
+ * hyperplane.
  *
- * Contact indexes the 3-cell group. The 2-cell group exists only so a surface
- * render product has real triangles to draw, and which triangles those are is
- * the whole legibility question — see {@link ObstacleShape}.
+ * The eight corner vertices are the authoritative source of the contact hull:
+ * the 3-cell group's tetrahedra **select** those vertices, and the compiled
+ * family represents their convex hull — one set, one closest point. The Kuhn
+ * cells and the boundary-face 2-group exist for rendering and provenance; how
+ * the box is cut into cells has no influence on the contact answer, and that
+ * decomposition-independence is one of the page's teachable claims.
  */
-function obstaclePatch(tiles: number, shape: ObstacleShape): {
+function obstaclePatch(): {
   complex: CellComplex;
   group: CellGroup;
 } {
   const positions: number[] = [];
-  const cells: number[][] = [];
+  for (let corner = 0; corner < 8; corner++) {
+    positions.push(
+      (corner >> 0) & 1 ? SLAB_HIGH[0] : SLAB_LOW[0],
+      (corner >> 1) & 1 ? SLAB_HIGH[1] : SLAB_LOW[1],
+      (corner >> 2) & 1 ? SLAB_HIGH[2] : SLAB_LOW[2],
+      0
+    );
+  }
+  const cells = KUHN.map((tet) => [...tet]);
 
-  if (shape === 'separate-tetrahedra') {
-    // Nine unconnected tetrahedra, each with its own four vertices.
-    const perSide = Math.max(1, Math.ceil(Math.sqrt(tiles)));
-    const spacing = 1.1;
-    for (let tile = 0; tile < tiles; tile++) {
-      const originX = (tile % perSide) * spacing;
-      const originY = Math.floor(tile / perSide) * spacing;
-      const base = tile * 4;
-      positions.push(
-        originX, originY, 0, 0,
-        originX + 0.9, originY, 0, 0,
-        originX, originY + 0.9, 0, 0,
-        originX, originY, 0.9, 0
-      );
-      cells.push([base, base + 1, base + 2, base + 3]);
-    }
-  } else {
-    // One connected slab under the sheet's footprint, shallow in z, built from
-    // shared vertices so neighbouring cells are genuinely adjacent.
-    // Coarse on purpose. Contact cost scales with cell count, and a solid
-    // reads as a solid from its silhouette, not from its subdivision — a finer
-    // slab would buy nothing visible while multiplying the pair population.
-    const nx = SLAB_COLUMNS;
-    const ny = SLAB_ROWS;
-    const width = 2.9;
-    const depth = 2.2;
-    // The slab must span the z range the sheet actually occupies, or the
-    // creased row has no solid beneath it and falls past the obstacle.
-    const zLow = 0;
-    const zHigh = 0.9;
-    const index = (i: number, j: number, k: number): number =>
-      (k * (ny + 1) + j) * (nx + 1) + i;
-    for (let k = 0; k <= 1; k++) {
-      for (let j = 0; j <= ny; j++) {
-        for (let i = 0; i <= nx; i++) {
-          positions.push(
-            -0.35 + (i / nx) * width,
-            -0.3 + (j / ny) * depth,
-            zLow + k * (zHigh - zLow),
-            0
-          );
-        }
-      }
-    }
-    for (let j = 0; j < ny; j++) {
-      for (let i = 0; i < nx; i++) {
-        const corner = BOX_CORNERS.map(([dx, dy, dz]) =>
-          index(i + dx, j + dy, dz));
-        for (const tet of KUHN) {
-          cells.push(tet.map((slot) => corner[slot]!));
-        }
-      }
+  // Faces: only those bounding the solid. An interior face is shared by two
+  // tetrahedra and is not part of the object's surface.
+  const faces: number[] = [];
+  const incidence = new Map<string, number[][]>();
+  for (const cell of cells) {
+    for (const face of TET_FACES) {
+      const vertices = face.map((slot) => cell[slot]!);
+      const key = [...vertices].sort((a, b) => a - b).join(',');
+      const existing = incidence.get(key);
+      if (existing === undefined) incidence.set(key, [vertices]);
+      else existing.push(vertices);
     }
   }
-
-  // Faces: every face of every cell, or only those bounding the solid.
-  const faces: number[] = [];
-  if (shape === 'connected-boundary') {
-    const incidence = new Map<string, number[][]>();
-    for (const cell of cells) {
-      for (const face of TET_FACES) {
-        const vertices = face.map((slot) => cell[slot]!);
-        const key = [...vertices].sort((a, b) => a - b).join(',');
-        const existing = incidence.get(key);
-        if (existing === undefined) incidence.set(key, [vertices]);
-        else existing.push(vertices);
-      }
-    }
-    // A face shared by two cells is interior; the surface is what is left.
-    for (const [, owners] of incidence) {
-      if (owners.length !== 1) continue;
-      faces.push(...owners[0]!);
-    }
-  } else {
-    for (const cell of cells) {
-      for (const face of TET_FACES) {
-        faces.push(...face.map((slot) => cell[slot]!));
-      }
-    }
+  for (const [, owners] of incidence) {
+    if (owners.length !== 1) continue;
+    faces.push(...owners[0]!);
   }
 
   const complex = new CellComplex(4, Float64Array.from(positions), [
@@ -349,27 +367,22 @@ function obstaclePatch(tiles: number, shape: ObstacleShape): {
  * imposed, so each family's rest shape is the authored geometry rather than
  * whatever the first step happened to produce.
  *
- * @param options - Sheet resolution, obstacle size, broadphase organization,
- * and an identifier prefix.
+ * @param options - Sheet resolution and an identifier prefix.
  * @returns The world, its families, and the source complexes the views read.
  *
  * @example
  * ```ts
- * const scene = buildSheetScene({
- *   resolution: 5, tiles: 9, search: 'exhaustive', id: 'sheet'
- * });
+ * const scene = buildSheetScene({ resolution: 5, id: 'sheet' });
  * const report = stepSheetScene(scene);
  * log(report.status, report.activeBarriers);
  * ```
  */
 export function buildSheetScene(options: SheetSceneOptions): SheetScene {
   const sheet = sheetPatch(options.resolution);
-  const obstacle = obstaclePatch(
-    options.tiles, options.obstacleShape ?? 'connected-boundary'
-  );
+  const obstacle = obstaclePatch();
 
   // The two far corners of the first row: the smallest set that stops the sheet
-  // translating away instead of deforming against the obstacle.
+  // translating away instead of deforming against the support.
   const fixedVertices = [0, options.resolution - 1];
   const binding = compileXpbdParticleBindingN({
     id: `${options.id}-points`,
@@ -396,21 +409,12 @@ export function buildSheetScene(options: SheetSceneOptions): SheetScene {
     minimumMeasureRatio: 0.05
   });
 
-  const contact = compileXpbdParticleSourceSimplexBarrierFamilyN({
+  const contact = compileXpbdParticleSourceConvexHullBarrierFamilyN({
     id: `${options.id}-contact`,
     binding,
     obstacle: obstacle.complex,
-    simplexGroup: obstacle.group,
-    minimumDistance: 0.04,
-    activationDistance: 1.2,
-    stiffness: 3,
-    ...(options.search === 'static-hierarchy'
-      ? {
-        candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({
-          obstacle: obstacle.complex, simplexGroup: obstacle.group, leafSize: 2
-        })
-      }
-      : {})
+    sourceGroup: obstacle.group,
+    ...CONTACT
   });
 
   // Only now, after every rest state has been captured.
@@ -439,6 +443,14 @@ export function buildSheetScene(options: SheetSceneOptions): SheetScene {
   };
 }
 
+/** Whether an xyz point lies strictly inside the slab's flat interior. */
+function interiorOfSupport(x: number, y: number, z: number): boolean {
+  const epsilon = 1e-9;
+  return x > SLAB_LOW[0] + epsilon && x < SLAB_HIGH[0] - epsilon &&
+    y > SLAB_LOW[1] + epsilon && y < SLAB_HIGH[1] - epsilon &&
+    z > SLAB_LOW[2] + epsilon && z < SLAB_HIGH[2] - epsilon;
+}
+
 /**
  * Advances one scene by a single fixed step and reads what it reveals.
  *
@@ -448,7 +460,7 @@ export function buildSheetScene(options: SheetSceneOptions): SheetScene {
  * filter would leave the segment uncertified.
  *
  * After an applied step the particle positions are written back to the sheet
- * source, so both views redraw from the same authoritative R4 state.
+ * source, so every view redraws from the same authoritative R4 state.
  *
  * @param scene - The scene to advance.
  * @returns The curated report for this step.
@@ -478,7 +490,6 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
   const material = reused?.material ?? scene.material.evaluate();
   const bending = reused?.bending ?? scene.bending.evaluate();
   const contact = reused?.contact ?? scene.contact.evaluate();
-  const diagnostics = contact.candidateQuery.diagnostics;
 
   let low = Number.POSITIVE_INFINITY;
   let high = Number.NEGATIVE_INFINITY;
@@ -488,26 +499,105 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
     high = Math.max(high, w);
   }
 
+  // Witness curation: classification and lateral share are computed from the
+  // step's own evaluation, never from a second solve.
+  const witnesses: SheetContactWitness[] = [];
+  let interiorBarriers = 0;
+  let edgeBarriers = 0;
+  let peakInteriorLateralShare = 0;
+  for (const record of contact.activeBarriers) {
+    const closest = record.witness.closestPoint.data;
+    const interiorFeature = interiorOfSupport(closest[0]!, closest[1]!, closest[2]!);
+    const force = contact.forces[record.sourceVertexIndex]!.data;
+    const lateral = Math.hypot(force[0]!, force[1]!, force[2]!);
+    const magnitude = Math.hypot(lateral, force[3]!);
+    const lateralShare = magnitude > 0 ? lateral / magnitude : 0;
+    if (interiorFeature) {
+      interiorBarriers++;
+      peakInteriorLateralShare = Math.max(peakInteriorLateralShare, lateralShare);
+    } else {
+      edgeBarriers++;
+    }
+    witnesses.push({
+      sourceVertexIndex: record.sourceVertexIndex,
+      distance: record.distance,
+      sourceVertices: record.witness.sourceVertices,
+      closestPoint: Array.from(closest),
+      separationNormal: Array.from(record.witness.separationNormal.data),
+      supportGap: record.witness.query.termination.supportGap,
+      interiorFeature,
+      lateralShare
+    });
+  }
+
   return {
     status: advance.step.status,
     condition: advance.diagnosis.condition,
     refusalReason: advance.step.status === 'refused' ? advance.step.reason : null,
+    refusalEvidence: advance.step.status === 'refused'
+      ? readRefusalEvidence(advance.step)
+      : null,
     acceptedIterations: advance.step.progress.acceptedIterations,
     intrinsicEnergy: material.potentialEnergy,
     bendingEnergy: bending.potentialEnergy,
     contactEnergy: contact.potentialEnergy,
     totalPotential: material.potentialEnergy + bending.potentialEnergy +
       contact.potentialEnergy,
-    possiblePairs: diagnostics.possiblePairs,
-    retainedPairs: diagnostics.candidatePairs,
-    activeBarriers: contact.activeCandidates.length,
-    hierarchyBoundTests: diagnostics.hierarchy?.testedSimplexBounds ?? null,
+    hullVertexCount: contact.diagnostics.hullVertexCount,
+    setQueries: contact.diagnostics.setQueries,
+    queryIterations: contact.diagnostics.queryIterations,
+    activeBarriers: contact.diagnostics.activeParticles,
+    interiorBarriers,
+    edgeBarriers,
+    peakInteriorLateralShare,
     hingeCount: bending.hingeCount,
     elementCount: scene.material.elements.length,
     minimumConormalHeight: bending.minimumConormalHeight,
     wRange: [low, high],
     contactForces: contact.forces,
+    contactWitnesses: Object.freeze(witnesses),
     diagnosticsSource: reused === null ? 'unchanged-live-state' : 'applied-iterate'
+  };
+}
+
+/**
+ * The structured evidence behind a refused step.
+ *
+ * Read from the solver's typed results — never parsed out of an error message.
+ * A pre-trial filter refusal carries the blocking filter's own evaluation, so
+ * the page can say *which* term declined and *why* instead of reducing every
+ * stop to "not converged".
+ */
+function readRefusalEvidence(
+  step: XpbdIncrementalPotentialStepRefusedN
+): SheetRefusalEvidence {
+  const refused = step as unknown as {
+    minimization?: {
+      status?: string;
+      search?: {
+        status?: string;
+        trials?: readonly unknown[];
+        blockingFilter?: {
+          filterId?: string;
+          evaluation?: {
+            reason?: string;
+            blockingCellIndex?: number | null;
+            blockingSourceVertexIndex?: number | null;
+          };
+        };
+      };
+    };
+  };
+  const minimization = refused.minimization;
+  const search = minimization?.search;
+  const blocking = search?.blockingFilter;
+  return {
+    minimizationStatus: minimization?.status ?? 'unknown',
+    blockingFilterId: blocking?.filterId ?? null,
+    filterReason: blocking?.evaluation?.reason ?? null,
+    blockingIndex: blocking?.evaluation?.blockingCellIndex ??
+      blocking?.evaluation?.blockingSourceVertexIndex ?? null,
+    trialsEvaluated: search?.trials?.length ?? 0
   };
 }
 
@@ -524,7 +614,7 @@ function readAppliedProviderEvaluations(
 ): {
   material: { readonly potentialEnergy: number };
   bending: XpbdSourceSimplexCosineBendingFamilyEvaluationN;
-  contact: XpbdParticleSourceSimplexBarrierFamilyEvaluationN;
+  contact: XpbdParticleSourceConvexHullBarrierFamilyEvaluationN;
 } | null {
   const results = step.minimization.final.evaluation.potential.providers;
   const find = (provider: unknown): unknown => results
@@ -542,7 +632,7 @@ function readAppliedProviderEvaluations(
   return {
     material: material as { readonly potentialEnergy: number },
     bending: bending as XpbdSourceSimplexCosineBendingFamilyEvaluationN,
-    contact: contact as XpbdParticleSourceSimplexBarrierFamilyEvaluationN
+    contact: contact as XpbdParticleSourceConvexHullBarrierFamilyEvaluationN
   };
 }
 
@@ -551,23 +641,12 @@ function readAppliedProviderEvaluations(
  *
  * A refusal leaves the state exactly as it was, so the next step re-solves the
  * same configuration and refuses again for the same reason. Re-attempting it is
- * therefore not retrying — nothing has changed for a retry to act on — and it
- * is not cheap either: a refused `iteration-limit` step costs several times an
- * applied one, because it exhausts the iteration budget before giving up.
- *
- * The page pauses on this rather than spinning. Exported as a predicate so the
- * rule is testable without a browser.
+ * therefore not retrying — nothing has changed for a retry to act on. The page
+ * pauses on this rather than spinning. Exported as a predicate so the rule is
+ * testable without a browser.
  */
 export function isRefusedReport(report: SheetStepReport): boolean {
   return report.status !== 'applied';
-}
-
-/** Ordered contact-candidate identities, for comparing two search settings. */
-export function candidateIdentities(scene: SheetScene): readonly string[] {
-  const prefix = `${scene.options.id}-contact/`;
-  return scene.contact
-    .evaluate()
-    .candidateQuery.candidates.map((candidate) => candidate.id.slice(prefix.length));
 }
 
 /** The sheet's source coordinates, for comparing two runs exactly. */

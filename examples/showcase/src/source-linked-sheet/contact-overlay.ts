@@ -12,18 +12,20 @@ import type { SheetContactForce } from './scene.js';
  * contact term at all.
  *
  * Nothing in a shaded surface says that. This overlay puts a dot on each thing
- * the barrier can actually push, and colours it by what the barrier is doing to
- * it — which is how a reader can see that the obstacle is not a floor.
+ * the barrier can actually push, and colours it by what the barrier is doing
+ * to it.
  *
  * The classification is read from the accumulated per-vertex barrier force, so
  * it follows the real physics rather than any assumption about the obstacle's
  * shape:
  *
- * - **held** — the force is essentially along the gravity axis. The vertex is
- *   being supported the way a floor would support it;
- * - **pushed aside** — a large share of the force is lateral. The obstacle is a
- *   sum of per-cell barriers, and away from the middle of a cell that sum does
- *   not point along the surface normal;
+ * - **held** — the force is essentially along the gravity axis. With one-set
+ *   convex-hull contact, every vertex whose closest feature lies in the
+ *   support's flat interior is held *exactly*: the colour is a correctness
+ *   witness, not an approximation;
+ * - **pushed aside** — a material share of the force is lateral. Legitimate
+ *   when the closest feature is the support's boundary, whose separation
+ *   normal genuinely points partly sideways;
  * - **free** — no active barrier. Nothing is holding this vertex at all.
  */
 

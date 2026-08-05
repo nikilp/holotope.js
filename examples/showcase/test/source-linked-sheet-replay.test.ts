@@ -15,7 +15,7 @@ import { createSheetReplay } from '../src/source-linked-sheet/replay.js';
  */
 
 const OPTIONS = {
-  resolution: 5, tiles: 9, search: 'exhaustive' as const, id: 'replay'
+  resolution: 5, id: 'replay'
 };
 
 /** Advances `steps` applied steps, recording each. */

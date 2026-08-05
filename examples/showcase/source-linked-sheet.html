@@ -253,27 +253,37 @@
       </div>
 
       <details class="notes">
-        <summary>What this page is claiming, and what it is not — including why the sheet slides off</summary>
+        <summary>What this page is claiming, and what it is not — including how its run ends</summary>
         <div class="notes-body">
           <p class="boundary plain">
-            One four-dimensional triangular sheet is the model. It stretches, folds, and settles
-            against a separate finite obstacle — a connected block of tetrahedra, drawn as the
-            triangles that actually bound it — and everything below is a <em>view</em> of it. Selecting
-            in either canvas names the source triangle that produced the pixel, and says plainly
-            whether that pixel determines a point in R4 at all.
+            One four-dimensional triangular sheet is the model. It falls onto a separate static
+            support and everything below is a <em>view</em> of it. Selecting in either projected
+            canvas names the source triangle that produced the pixel, and says plainly whether
+            that pixel determines a point in R4 at all.
+          </p>
+          <p class="boundary plain">
+            <strong>Contact is one certified query against one convex set.</strong> The support
+            is the convex hull of eight authored corner vertices; the tetrahedra that cut it up
+            exist for rendering and provenance, not for contact. Each sheet vertex asks one
+            certified closest-point question per evaluation — the inspector's
+            <em>set queries</em> row equals the vertex count, always — and is pushed along the
+            answer's separation normal, with a witness naming the exact source vertices behind
+            the closest feature. Over the support's flat interior that push is exactly normal:
+            the <em>peak interior lateral</em> row is this page's own correctness witness, at
+            Float64 roundoff whenever an interior feature is active. A closest point on the
+            support's <em>boundary</em> legitimately pushes partly sideways, so interior and
+            edge features are counted apart rather than blended.
           </p>
           <p class="boundary">
-            <strong>The sheet slides off the obstacle, and this page does not hide it.</strong>
-            Gravity points along W; the obstacle is a finite block only about 0.9 deep in Z. The
-            sheet is pinned at two corners and spreads sideways as it settles, so within the first
-            few dozen steps its lowest vertices are already outside the block's footprint in Z.
-            Nothing supports them there, and by roughly step 150 the sheet has dropped below the
-            obstacle's plane and is swinging on its pins. It goes past the <em>edge</em> of the
-            support, not through its face — the barrier is doing what a finite contact source can
-            do, and the obstacle is simply far smaller than the excursion. Play the replay to
-            watch it. <em>The right-hand view cannot show this at all</em>, because leaving the
-            footprint happens in Z and that view drops Z — which is this page's own point,
-            arriving uninvited.
+            <strong>How the run ends, stated in advance.</strong> The support is frictionless
+            and the sheet carries no dissipation beyond what implicit integration provides, so
+            after settling it keeps sliding slowly on the surface it rests on. The support's
+            faces sit well beyond the sheet's authored extent, which keeps the settled phase
+            long — but a finite frictionless table is a thing a sliding sheet eventually leaves,
+            draping past an edge, and later a fold degenerates and the run stops itself with a
+            typed refusal naming the exact term whose domain closed. The pause note quotes that
+            evidence. Missing friction is the measured, recorded bottleneck — not something this
+            page hides with damping, invisible supports, or extra pins.
           </p>
           <p class="boundary">
             <strong>Discrete cosine-fold bending — not a shell model.</strong>
@@ -285,10 +295,7 @@
           </p>
           <p class="boundary plain">
             <strong>Simulate</strong> advances the solver, and every step costs a full pass over
-            each provider — that is why a finer sheet is a different scene and restarts. The
-            search switch picks an equivalent way to organise the broadphase: same ordered
-            candidates, same trajectory, same result. It is not an accelerator — on this compact
-            obstacle the tree tests every bound anyway.
+            each provider — that is why a finer sheet is a different scene and restarts.
             <strong>Replay</strong> costs nothing: applied steps are recorded as they are solved,
             and playing them back re-shows the configuration the solver produced together with
             the numbers it produced alongside it. Nothing is re-solved, and the inspector's
@@ -315,7 +322,6 @@
         </div>
         <div class="control-group">
           <span class="group-label">Scene</span>
-          <button id="control-search" type="button" aria-pressed="false">Search: exhaustive</button>
           <button id="control-resolution" type="button">5&times;5 &middot; 32 tri</button>
           <button id="control-contact" type="button" aria-pressed="false">Contact points</button>
           <button id="control-reset-views" type="button">Reset views</button>
