@@ -369,4 +369,19 @@ describe('source-linked sheet — the refusal note names its evidence', () => {
     expect(note).toContain('no domain gate closed');
     expect(note).not.toContain('blocking term');
   });
+
+  it('distinguishes an uncertifiable segment from a degenerate start', () => {
+    const note = refusalNoteText({
+      ...base,
+      refusalEvidence: {
+        minimizationStatus: 'line-search-refused',
+        blockingFilterId: 'sheet-bend/bending-measure-filter',
+        filterReason: 'no-certifiable-prefix',
+        blockingIndex: 9,
+        trialsEvaluated: 0
+      }
+    });
+    expect(note).toContain('could not certify any admissible prefix');
+    expect(note).not.toContain('degenerated past the fold term');
+  });
 });

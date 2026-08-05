@@ -22,13 +22,18 @@ import { createSheetViews, type SheetView, type SheetViews } from './view.js';
  */
 
 /**
- * Sheet resolutions offered, coarsest first.
+ * Sheet resolutions offered, coarsest first — a measured list, not a menu.
  *
  * Every step costs a full pass over each provider, so a finer sheet is a real
- * decision rather than a display setting — the control names the element count
- * so the trade is visible before it is made.
+ * decision rather than a display setting; the control names the element count
+ * so the trade is visible before it is made. 12x12 and 16x16 are deliberately
+ * not offered: with 140+ simultaneously active stiff barriers at impact, the
+ * steepest-descent minimizer exhausts its iteration budget around step 72,
+ * so those scenes stop before they have shown anything. That measured
+ * limitation is recorded in Kitchen as the second-order-minimizer bottleneck
+ * rather than papered over with a bigger budget here.
  */
-const RESOLUTIONS = [5, 8, 12, 16] as const;
+const RESOLUTIONS = [5, 8] as const;
 
 /** Recorded steps advanced per rendered frame, cycled by the speed control. */
 const REPLAY_SPEEDS = [1, 2, 4, 8] as const;

@@ -178,7 +178,9 @@ export type XpbdParticleSourceConvexHullBarrierFamilyStepFilterEvaluationN = {
 
 /** Provider/filter pair accepted by an incremental-potential problem. */
 export interface XpbdParticleSourceConvexHullBarrierFamilyTermsN {
+  /** Existing providers followed by this convex-hull family provider. */
   readonly providers: readonly XpbdConservativeForceProviderN[];
+  /** Existing filters followed by this family's paired segment certificate. */
   readonly stepFilters: readonly XpbdIncrementalPotentialStepFilterN[];
 }
 
@@ -724,24 +726,29 @@ implements XpbdIncrementalPotentialStepFilterN {
  * const binding = compileXpbdParticleBindingN({
  *   source: body, id: 'probe', mass: 1
  * });
+ * const [supportGroup] = obstacle.groups;
+ * if (supportGroup === undefined) throw new Error('no support group');
  * const family = compileXpbdParticleSourceConvexHullBarrierFamilyN({
  *   id: 'hull-contact',
  *   binding,
  *   obstacle,
- *   sourceGroup: obstacle.groups[0],
+ *   sourceGroup: supportGroup,
  *   minimumDistance: 0.05,
  *   activationDistance: 0.8,
  *   stiffness: 2
  * });
  *
  * const evaluation = family.evaluate();
- * evaluation.diagnostics.setQueries;              // 1 — one query per particle
- * evaluation.activeBarriers.length;               // 1
- * const record = evaluation.activeBarriers[0];
- * record.distance;                                // 0.5 — the probe's height
- * record.witness.sourceVertices;                  // vertices behind the answer
- * evaluation.forces[0].data[2] > 0;               // true — pushed along +z
- * Math.abs(evaluation.forces[0].data[0]) < 1e-12; // true — no lateral push
+ * evaluation.diagnostics.setQueries;    // 1 — one query per particle
+ * evaluation.activeBarriers.length;     // 1
+ * for (const record of evaluation.activeBarriers) {
+ *   record.distance;                    // 0.5 — the probe's height
+ *   record.witness.sourceVertices;      // vertices behind the answer
+ * }
+ * for (const force of evaluation.forces) {
+ *   (force.data[2] ?? 0) > 0;                    // true — pushed along +z
+ *   Math.abs(force.data[0] ?? 0) < 1e-12;        // true — no lateral push
+ * }
  * ```
  */
 export function compileXpbdParticleSourceConvexHullBarrierFamilyN(

@@ -1,5 +1,6 @@
 import { CellComplex, type CellGroup } from '@holotope/core';
 import {
+  XpbdPotentialDomainErrorN,
   XpbdWorldN,
   compileSimplexConstitutiveFamilyN,
   compileXpbdParticleBindingN,
@@ -7,9 +8,18 @@ import {
   compileXpbdSourceSimplexCosineBendingFamilyN,
   simplexStVenantKirchhoffLawN,
   stepXpbdIncrementalPotentialWorldN,
+  type CompileXpbdParticleSourceConvexHullBarrierFamilyNOptions,
   type XpbdIncrementalPotentialStepAppliedN,
   type XpbdIncrementalPotentialStepRefusedN,
+  type XpbdParticleSourceConvexHullActiveBarrierN,
+  type XpbdParticleSourceConvexHullBarrierDomainReasonN,
   type XpbdParticleSourceConvexHullBarrierFamilyEvaluationN,
+  type XpbdParticleSourceConvexHullBarrierFamilyStepFilterEvaluationN,
+  type XpbdParticleSourceConvexHullBarrierFamilyStepFilterRefusalReasonN,
+  type XpbdParticleSourceConvexHullBarrierFamilyTermsN,
+  type XpbdParticleSourceConvexHullQueryDiagnosticsN,
+  type XpbdParticleSourceConvexHullSegmentCertificationN,
+  type XpbdSourceConvexHullWitnessN,
   type XpbdSourceSimplexCosineBendingFamilyEvaluationN
 } from '@holotope/physics';
 
@@ -409,13 +419,14 @@ export function buildSheetScene(options: SheetSceneOptions): SheetScene {
     minimumMeasureRatio: 0.05
   });
 
-  const contact = compileXpbdParticleSourceConvexHullBarrierFamilyN({
+  const contactOptions: CompileXpbdParticleSourceConvexHullBarrierFamilyNOptions = {
     id: `${options.id}-contact`,
     binding,
     obstacle: obstacle.complex,
     sourceGroup: obstacle.group,
     ...CONTACT
-  });
+  };
+  const contact = compileXpbdParticleSourceConvexHullBarrierFamilyN(contactOptions);
 
   // Only now, after every rest state has been captured.
   for (const particle of binding.particles) {
@@ -466,10 +477,18 @@ function interiorOfSupport(x: number, y: number, z: number): boolean {
  * @returns The curated report for this step.
  */
 export function stepSheetScene(scene: SheetScene): SheetStepReport {
+  // The contact provider and its paired filter travel together: appending the
+  // family's terms to the bending filter is the composition its compiler
+  // promises, so passing one without the other is unrepresentable here.
+  const terms: XpbdParticleSourceConvexHullBarrierFamilyTermsN =
+    scene.contact.incrementalPotentialTerms({
+      providers: [],
+      stepFilters: [scene.bending.stepFilter]
+    });
   const advance = stepXpbdIncrementalPotentialWorldN({
     world: scene.world,
     deltaTime: SHEET_TIME_STEP,
-    stepFilters: [scene.bending.stepFilter, scene.contact.stepFilter],
+    stepFilters: terms.stepFilters,
     warmStart: 'feasible-inertial-prediction',
     minimization: { directionPolicy: 'steepest-descent' }
   });
@@ -489,7 +508,23 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
     : null;
   const material = reused?.material ?? scene.material.evaluate();
   const bending = reused?.bending ?? scene.bending.evaluate();
-  const contact = reused?.contact ?? scene.contact.evaluate();
+  let contact: XpbdParticleSourceConvexHullBarrierFamilyEvaluationN;
+  try {
+    contact = reused?.contact ?? scene.contact.evaluate();
+  } catch (error) {
+    // A refused step leaves the live state untouched, and that state was
+    // evaluable when it was reached — so this branch is unreachable for the
+    // solver's own refusals. It exists because the provider's domain
+    // vocabulary says evaluation *can* refuse, and a page that assumed
+    // otherwise would crash instead of reporting if that contract ever fired.
+    if (error instanceof XpbdPotentialDomainErrorN) {
+      const reason = error.reason as XpbdParticleSourceConvexHullBarrierDomainReasonN;
+      throw new Error(
+        `source-linked sheet: the live state itself refused contact evaluation (${reason})`
+      );
+    }
+    throw error;
+  }
 
   let low = Number.POSITIVE_INFINITY;
   let high = Number.NEGATIVE_INFINITY;
@@ -502,11 +537,15 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
   // Witness curation: classification and lateral share are computed from the
   // step's own evaluation, never from a second solve.
   const witnesses: SheetContactWitness[] = [];
+  const diagnostics: XpbdParticleSourceConvexHullQueryDiagnosticsN =
+    contact.diagnostics;
   let interiorBarriers = 0;
   let edgeBarriers = 0;
   let peakInteriorLateralShare = 0;
-  for (const record of contact.activeBarriers) {
-    const closest = record.witness.closestPoint.data;
+  for (const record of contact.activeBarriers as
+    readonly XpbdParticleSourceConvexHullActiveBarrierN[]) {
+    const witness: XpbdSourceConvexHullWitnessN = record.witness;
+    const closest = witness.closestPoint.data;
     const interiorFeature = interiorOfSupport(closest[0]!, closest[1]!, closest[2]!);
     const force = contact.forces[record.sourceVertexIndex]!.data;
     const lateral = Math.hypot(force[0]!, force[1]!, force[2]!);
@@ -521,10 +560,10 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
     witnesses.push({
       sourceVertexIndex: record.sourceVertexIndex,
       distance: record.distance,
-      sourceVertices: record.witness.sourceVertices,
+      sourceVertices: witness.sourceVertices,
       closestPoint: Array.from(closest),
-      separationNormal: Array.from(record.witness.separationNormal.data),
-      supportGap: record.witness.query.termination.supportGap,
+      separationNormal: Array.from(witness.separationNormal.data),
+      supportGap: witness.query.termination.supportGap,
       interiorFeature,
       lateralShare
     });
@@ -535,7 +574,7 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
     condition: advance.diagnosis.condition,
     refusalReason: advance.step.status === 'refused' ? advance.step.reason : null,
     refusalEvidence: advance.step.status === 'refused'
-      ? readRefusalEvidence(advance.step)
+      ? readRefusalEvidence(advance.step, scene.contact.stepFilter.id)
       : null,
     acceptedIterations: advance.step.progress.acceptedIterations,
     intrinsicEnergy: material.potentialEnergy,
@@ -543,10 +582,10 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
     contactEnergy: contact.potentialEnergy,
     totalPotential: material.potentialEnergy + bending.potentialEnergy +
       contact.potentialEnergy,
-    hullVertexCount: contact.diagnostics.hullVertexCount,
-    setQueries: contact.diagnostics.setQueries,
-    queryIterations: contact.diagnostics.queryIterations,
-    activeBarriers: contact.diagnostics.activeParticles,
+    hullVertexCount: diagnostics.hullVertexCount,
+    setQueries: diagnostics.setQueries,
+    queryIterations: diagnostics.queryIterations,
+    activeBarriers: diagnostics.activeParticles,
     interiorBarriers,
     edgeBarriers,
     peakInteriorLateralShare,
@@ -569,7 +608,8 @@ export function stepSheetScene(scene: SheetScene): SheetStepReport {
  * stop to "not converged".
  */
 function readRefusalEvidence(
-  step: XpbdIncrementalPotentialStepRefusedN
+  step: XpbdIncrementalPotentialStepRefusedN,
+  contactFilterId: string
 ): SheetRefusalEvidence {
   const refused = step as unknown as {
     minimization?: {
@@ -591,10 +631,31 @@ function readRefusalEvidence(
   const minimization = refused.minimization;
   const search = minimization?.search;
   const blocking = search?.blockingFilter;
+
+  // When the contact filter is the one that blocked, its evaluation is the
+  // family's own typed union, and the blocking vertex's certification says
+  // exactly which proof failed — worth naming over a generic reason string.
+  let filterReason = blocking?.evaluation?.reason ?? null;
+  if (blocking?.filterId === contactFilterId && blocking.evaluation !== undefined) {
+    const evaluation = blocking.evaluation as
+      XpbdParticleSourceConvexHullBarrierFamilyStepFilterEvaluationN;
+    if (evaluation.status === 'indeterminate') {
+      const reason: XpbdParticleSourceConvexHullBarrierFamilyStepFilterRefusalReasonN =
+        evaluation.reason;
+      const certification: XpbdParticleSourceConvexHullSegmentCertificationN | undefined =
+        evaluation.certifications.find(
+          (entry) => entry.sourceVertexIndex === evaluation.blockingSourceVertexIndex
+        );
+      filterReason = certification === undefined
+        ? reason
+        : `${reason} (${certification.certification})`;
+    }
+  }
+
   return {
     minimizationStatus: minimization?.status ?? 'unknown',
     blockingFilterId: blocking?.filterId ?? null,
-    filterReason: blocking?.evaluation?.reason ?? null,
+    filterReason,
     blockingIndex: blocking?.evaluation?.blockingCellIndex ??
       blocking?.evaluation?.blockingSourceVertexIndex ?? null,
     trialsEvaluated: search?.trials?.length ?? 0

@@ -191,10 +191,14 @@ export function refusalNoteText(report: SheetStepReport): string {
   const evidence = report.refusalEvidence;
   let cause = '';
   if (evidence !== null && evidence.blockingFilterId !== null) {
-    const what = evidence.blockingFilterId.includes('bend')
-      ? 'a sheet triangle has degenerated past the fold term\u2019s authored ' +
-        'measure floor, so its fold angle is no longer defined'
-      : 'the contact term\u2019s admissible domain refused the segment';
+    const what = !evidence.blockingFilterId.includes('bend')
+      ? 'the contact term\u2019s admissible domain refused the segment'
+      : evidence.filterReason === 'no-certifiable-prefix'
+        ? 'the fold term could not certify any admissible prefix of the ' +
+          'proposed search segment \u2014 a triangle would pass through a ' +
+          'degenerate shape somewhere along it'
+        : 'a sheet triangle has degenerated past the fold term\u2019s authored ' +
+          'measure floor, so its fold angle is no longer defined';
     cause =
       ` The blocking term is \u201c${evidence.blockingFilterId}\u201d` +
       `${evidence.filterReason === null ? '' : ` (${evidence.filterReason})`}` +
@@ -293,6 +297,18 @@ export function createSheetPanel(): SheetPanel {
   const ambiguity = makeRow(element, 'ambiguity');
   const lineage = makeRow(element, 'lineage');
 
+  // The selected triangle's contact witness, when one of its vertices is
+  // inside the activation band: everything the accepted step's own query
+  // produced, never a second solve.
+  element.appendChild(section('contact witness'));
+  const witnessVertex = makeRow(element, 'sheet vertex');
+  const witnessDistance = makeRow(element, 'hull distance');
+  const witnessSources = makeRow(element, 'feature vertices');
+  const witnessClosest = makeRow(element, 'closest point');
+  const witnessNormal = makeRow(element, 'separation normal');
+  const witnessClass = makeRow(element, 'feature class');
+  const witnessGap = makeRow(element, 'support gap');
+
   const sentence = document.createElement('p');
   sentence.className = 'panel-sentence';
   sentence.textContent = 'Click either view to select a source triangle.';
@@ -352,6 +368,33 @@ export function createSheetPanel(): SheetPanel {
         const row = stepRows.get(label);
         if (row !== undefined) row.value.textContent = text;
       }
+      // Witness rows follow the selection: the first selected vertex whose
+      // barrier is active. One assignment path covers cleared and populated
+      // states so a reset cannot leave witness rows from a previous scene.
+      const witness = report === null || selection === null
+        ? undefined
+        : report.contactWitnesses.find((candidate) =>
+          selection.sourceVertices.includes(candidate.sourceVertexIndex));
+      const vector = (values: readonly number[]): string =>
+        values.map((value) => value.toFixed(2)).join(', ');
+      witnessVertex.value.textContent =
+        witness === undefined ? '—' : String(witness.sourceVertexIndex);
+      witnessDistance.value.textContent =
+        witness === undefined ? '—' : number(witness.distance, 4);
+      witnessSources.value.textContent =
+        witness === undefined ? '—' : witness.sourceVertices.join(', ');
+      witnessClosest.value.textContent =
+        witness === undefined ? '—' : vector(witness.closestPoint);
+      witnessNormal.value.textContent =
+        witness === undefined ? '—' : vector(witness.separationNormal);
+      witnessClass.value.textContent = witness === undefined
+        ? '—'
+        : witness.interiorFeature
+          ? `interior · lateral ${witness.lateralShare.toExponential(1)}`
+          : `boundary · lateral ${witness.lateralShare.toFixed(2)}`;
+      witnessGap.value.textContent =
+        witness === undefined ? '—' : witness.supportGap.toExponential(1);
+
       if (report === null || report.status === 'applied') {
         refusal.hidden = true;
         refusal.textContent = '';

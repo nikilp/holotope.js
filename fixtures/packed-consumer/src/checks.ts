@@ -68,8 +68,16 @@ import {
   compileXpbdParticleSourceConvexHullBarrierFamilyN,
   gjkDistance,
   massPropertiesFromCellComplex4,
+  type CompileXpbdParticleSourceConvexHullBarrierFamilyNOptions,
   type GjkResult,
-  type XpbdParticleSourceConvexHullBarrierFamilyStepFilterEvaluationN
+  type XpbdParticleSourceConvexHullActiveBarrierN,
+  type XpbdParticleSourceConvexHullBarrierDomainReasonN,
+  type XpbdParticleSourceConvexHullBarrierFamilyStepFilterEvaluationN,
+  type XpbdParticleSourceConvexHullBarrierFamilyStepFilterRefusalReasonN,
+  type XpbdParticleSourceConvexHullBarrierFamilyTermsN,
+  type XpbdParticleSourceConvexHullQueryDiagnosticsN,
+  type XpbdParticleSourceConvexHullSegmentCertificationN,
+  type XpbdSourceConvexHullWitnessN
 } from '@holotope/physics';
 import {
   compileExperimentDocumentV0,
@@ -168,7 +176,7 @@ export function convexHullContact(): void {
   const binding = compileXpbdParticleBindingN({
     source: body, id: 'packed-hull-probe', mass: 1
   });
-  const family = compileXpbdParticleSourceConvexHullBarrierFamilyN({
+  const compileOptions: CompileXpbdParticleSourceConvexHullBarrierFamilyNOptions = {
     id: 'packed-hull',
     binding,
     obstacle,
@@ -176,16 +184,28 @@ export function convexHullContact(): void {
     minimumDistance: 0.05,
     activationDistance: 0.8,
     stiffness: 2
-  });
+  };
+  const family = compileXpbdParticleSourceConvexHullBarrierFamilyN(compileOptions);
+
+  // The provider/filter pair travels together into a solve.
+  const terms: XpbdParticleSourceConvexHullBarrierFamilyTermsN =
+    family.incrementalPotentialTerms();
+  assert(terms.providers.length === 1 && terms.stepFilters.length === 1,
+    'terms must carry the provider with its paired filter');
 
   // A decided query with a source-retained witness.
   const evaluation = family.evaluate();
-  assert(evaluation.diagnostics.setQueries === 1, 'expected one set query per particle');
+  const diagnostics: XpbdParticleSourceConvexHullQueryDiagnosticsN =
+    evaluation.diagnostics;
+  assert(diagnostics.setQueries === 1, 'expected one set query per particle');
+  assert(diagnostics.hullVertexCount === 4, 'expected four hull vertices');
   assert(evaluation.activeBarriers.length === 1, 'expected one active barrier');
-  const record = evaluation.activeBarriers[0]!;
+  const record: XpbdParticleSourceConvexHullActiveBarrierN =
+    evaluation.activeBarriers[0]!;
   assert(Math.abs(record.distance - 0.5) < 1e-11, `hull distance off: ${record.distance}`);
-  assert(record.witness.sourceVertices.length > 0, 'witness names no source vertices');
-  assert(record.witness.query.status === 'separated', 'query did not decide');
+  const witness: XpbdSourceConvexHullWitnessN = record.witness;
+  assert(witness.sourceVertices.length > 0, 'witness names no source vertices');
+  assert(witness.query.status === 'separated', 'query did not decide');
   const force = evaluation.forces[0]!;
   assert(force.data[2]! > 0, 'barrier does not push along the support normal');
   assert(
@@ -207,6 +227,17 @@ export function convexHullContact(): void {
     filter.maximumStepLength < 1,
     'certified prefix must be a strict positive fraction'
   );
+  const certification: XpbdParticleSourceConvexHullSegmentCertificationN | undefined =
+    filter.certifications[0];
+  assert(certification !== undefined &&
+    certification.certification === 'global-lipschitz',
+    'the crossing segment must be certified by the Lipschitz proof');
+
+  // The filter's own refusal vocabulary is a closed union, composed here so
+  // the packed types keep their meaning outside the workspace.
+  const initialRefusal: XpbdParticleSourceConvexHullBarrierFamilyStepFilterRefusalReasonN =
+    'initial-domain-violation';
+  assert(initialRefusal !== ('' as never), 'refusal vocabulary present');
 
   // A starved query budget is a typed refusal that mutates nothing.
   const starved = compileXpbdParticleSourceConvexHullBarrierFamilyN({
@@ -224,8 +255,10 @@ export function convexHullContact(): void {
   try {
     starved.evaluate();
   } catch (error) {
+    const reason: XpbdParticleSourceConvexHullBarrierDomainReasonN =
+      'closest-point-indeterminate';
     refused = error instanceof XpbdPotentialDomainErrorN &&
-      error.reason === 'closest-point-indeterminate';
+      error.reason === reason;
   }
   assert(refused, 'a starved query budget must refuse as closest-point-indeterminate');
   assert(

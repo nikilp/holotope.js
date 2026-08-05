@@ -72,6 +72,7 @@ there is improved here.
 | [`XpbdParticleHyperplaneBarrierFamilyN`](/api/physics/classes/XpbdParticleHyperplaneBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#XpbdParticleHyperplaneBarrierFamilyN) |
 | [`XpbdParticleHyperplaneBarrierStepFilterN`](/api/physics/classes/XpbdParticleHyperplaneBarrierStepFilterN) | [open](https://nikilp.github.io/holotope.js/playground.html#XpbdParticleHyperplaneBarrierStepFilterN) |
 | [`compileXpbdIncrementalPotentialAnalyticHessianOperatorN`](/api/physics/functions/compileXpbdIncrementalPotentialAnalyticHessianOperatorN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdIncrementalPotentialAnalyticHessianOperatorN) |
+| [`compileXpbdParticleSourceConvexHullBarrierFamilyN`](/api/physics/functions/compileXpbdParticleSourceConvexHullBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdParticleSourceConvexHullBarrierFamilyN) |
 | [`compileXpbdSourceSimplexAabbHierarchyN`](/api/physics/functions/compileXpbdSourceSimplexAabbHierarchyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexAabbHierarchyN) |
 | [`compileXpbdSourceSimplexCosineBendingFamilyN`](/api/physics/functions/compileXpbdSourceSimplexCosineBendingFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexCosineBendingFamilyN) |
 | [`create24Cell`](/api/core/polytope/functions/create24Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create24Cell) |
