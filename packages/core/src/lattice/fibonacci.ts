@@ -60,15 +60,40 @@ export function fibonacciSubstitutionPrefix(length: number): FibonacciTile[] {
  * A symbol-exact finite patch of the canonical Fibonacci model set.
  *
  * @example
- * The tile word is recovered from the geometry rather than rewritten into
- * it: each tile classifies an exact vertex gap, and the word those gaps
- * spell is a prefix of the substitution fixed point, with tile counts that
- * are consecutive Fibonacci numbers (here 8 `L` and 5 `S`):
+ * The tile word is recovered from the geometry rather than rewritten into it.
+ * Consecutive vertices, ordered along the one-dimensional physical axis
+ * (`parallel[0]`), are separated by exactly two gap lengths whose ratio is
+ * the golden ratio; classifying each gap as the longer or shorter one spells a
+ * word, and that word is both `tiles` and a prefix of the substitution fixed
+ * point — with tile counts that are consecutive Fibonacci numbers:
  * ```ts
  * const patch = fibonacciPatch(13);
- * const word = patch.tiles.join('');
  *
- * word === fibonacciSubstitutionPrefix(13).join(''); // true — 'LSLLSLSLLSLLS'
+ * // Two gap lengths and nothing else, in ratio phi.
+ * const gaps = [];
+ * let previous = 0;
+ * let first = true;
+ * for (const point of patch.points) {
+ *   const along = Number(point.parallel[0]);
+ *   if (!first) gaps.push(along - previous);
+ *   previous = along;
+ *   first = false;
+ * }
+ * const long = Math.max(...gaps);
+ * const short = Math.min(...gaps);
+ * log(gaps.length, (long / short).toFixed(12));       // 13 '1.618033988750'
+ *
+ * // Classify each gap against the midpoint, and the geometry spells the word.
+ * const middle = (long + short) / 2;
+ * const recovered = gaps
+ *   .map((gap) => (gap > middle ? 'L' : 'S'))
+ *   .join('');
+ * log(recovered);                                     // 'LSLLSLSLLSLLS'
+ * log(recovered === patch.tiles.join(''));            // true
+ * log(recovered === fibonacciSubstitutionPrefix(13).join(''));  // true
+ *
+ * const longs = recovered.split('L').length - 1;
+ * log(longs, recovered.length - longs);               // 8 5
  * ```
  */
 export function fibonacciPatch(tileCount: number): FibonacciPatch {
