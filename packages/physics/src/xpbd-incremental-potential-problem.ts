@@ -539,9 +539,14 @@ function resolveArmijoOptionsN(
  *
  * The minimizer holds the evaluation of its current iterate — that is what
  * `current` *is* — so letting the search re-derive it costs one full pass over
- * every registered provider per accepted iteration, for a value already in
- * hand. On a contact-dense scene that is the largest single duplication in the
- * step.
+ * every registered provider **per line search**, for a value already in hand.
+ * On a contact-dense scene that is the largest single duplication in the step.
+ *
+ * Per line search is the exact invariant, and it equals one per accepted
+ * iteration except when a search is the one that terminates the step: a run
+ * whose first search is refused outright saves an evaluation while accepting no
+ * iteration at all. What holds on every path is that a step costs
+ * `1 + trials` provider evaluations rather than `1 + searches + trials`.
  *
  * This is deliberately not a public option. A caller who supplies a base that
  * is not the evaluation of `options.coordinates` gets a silently wrong search,

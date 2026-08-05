@@ -224,9 +224,15 @@ export interface XpbdParticleSourceConvexHullBarrierFamilyTermsN {
  * particles is disjoint from the hull. A triangle can cross a convex set while
  * all three of its vertices remain legally outside it, so a mesh whose vertices
  * are all constrained here can still have interior geometry intersecting the
- * support — and the discrepancy grows with the spacing between vertices relative
- * to the obstacle, which means it appears first at the resolutions a caller is
- * most likely to trust.
+ * support.
+ *
+ * **Refinement does not remove this.** It is tempting to read the gap as a
+ * spacing artefact that a finer mesh closes, and measurement does not support
+ * that: over one authored scene driven to its terminal at two resolutions, the
+ * finer mesh breached earlier in its own run than the coarser one, each
+ * following that scene's own departure from the support rather than its vertex
+ * spacing. Spacing bounds how far *inside* the set the surface can reach; it
+ * does not decide whether the surface reaches inside at all.
  *
  * Constraining the surface itself needs edge- and face-level candidates. This
  * family does not provide them and does not claim to.

@@ -271,9 +271,11 @@ certificate is *per-vertex*: every constrained particle stays outside the
 minimum-distance shell. That is not a claim about the surface between them. A
 triangle can cross a convex set with all three vertices legally outside it, so a
 mesh whose vertices are all constrained here can still have interior geometry
-inside the support, and the discrepancy grows as vertex spacing grows relative to
-the obstacle. Constraining the surface needs edge- and face-level candidates,
-which this family does not provide. A distance query that cannot certify
+inside the support. Refinement does not remove that: measured over one authored
+scene at two resolutions, the finer mesh breached earlier in its own run than the
+coarser one, each following that scene's own departure from the support rather
+than its vertex spacing. Constraining the surface needs edge- and face-level
+candidates, which this family does not provide. A distance query that cannot certify
 its answer surfaces as a typed `closest-point-indeterminate` refusal rather
 than a guess, and the paired filter certifies conservative prefixes with the
 same convexity/Lipschitz argument as the point–simplex filter.
