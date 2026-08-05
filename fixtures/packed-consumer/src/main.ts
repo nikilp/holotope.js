@@ -6,6 +6,7 @@
  */
 import {
   certifiedConvexQuery,
+  convexHullContact,
   experimentProbe,
   geometryComposition,
   hyperrectangleComposition,
@@ -15,6 +16,7 @@ import {
 
 const checks: readonly [name: string, run: () => void | Promise<void>][] = [
   ['certifiedConvexQuery', certifiedConvexQuery],
+  ['convexHullContact', convexHullContact],
   ['geometryComposition', geometryComposition],
   ['representationClaims', representationClaims],
   ['experimentProbe', experimentProbe],

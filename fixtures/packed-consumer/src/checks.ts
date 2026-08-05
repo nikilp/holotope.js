@@ -65,9 +65,11 @@ import {
   type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN,
   type XpbdParticleSourceSimplexBarrierFamilyEvaluationN,
   type XpbdParticleSourceSimplexBarrierFamilyStepFilterEvaluationN,
+  compileXpbdParticleSourceConvexHullBarrierFamilyN,
   gjkDistance,
   massPropertiesFromCellComplex4,
-  type GjkResult
+  type GjkResult,
+  type XpbdParticleSourceConvexHullBarrierFamilyStepFilterEvaluationN
 } from '@holotope/physics';
 import {
   compileExperimentDocumentV0,
@@ -142,6 +144,95 @@ export function certifiedConvexQuery(): void {
   const refused = gjkDistance(probe, hull, { maxIterations: 2 });
   assert(refused.status === 'iteration-limit', 'forced budget did not refuse');
   assert(refused.intersects === null, 'a refusal claimed an intersection answer');
+}
+
+/**
+ * 0b. Source-retained convex-hull contact through the packed artifact.
+ *
+ * One dynamic probe against the convex hull of a flat two-cell support:
+ * construction from packed types, a decided closest-point query with its
+ * source witness, a forced indeterminate refusal under a starved query
+ * budget, the paired filter's certified prefix, and rollback on refusal.
+ */
+export function convexHullContact(): void {
+  const obstacle = new CellComplex(3, Float64Array.from([
+    0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0
+  ]), [{
+    key: 'support', dim: 2, verticesPerCell: 3, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2, 1, 3, 2])
+  }]);
+  const body = new CellComplex(3, Float64Array.from([0.4, 0.6, 0.5]), [{
+    key: 'probe', dim: 0, verticesPerCell: 1, kind: 'simplex',
+    indices: Uint32Array.from([0])
+  }]);
+  const binding = compileXpbdParticleBindingN({
+    source: body, id: 'packed-hull-probe', mass: 1
+  });
+  const family = compileXpbdParticleSourceConvexHullBarrierFamilyN({
+    id: 'packed-hull',
+    binding,
+    obstacle,
+    sourceGroup: requireGroup(obstacle.groups[0], 'hull source group'),
+    minimumDistance: 0.05,
+    activationDistance: 0.8,
+    stiffness: 2
+  });
+
+  // A decided query with a source-retained witness.
+  const evaluation = family.evaluate();
+  assert(evaluation.diagnostics.setQueries === 1, 'expected one set query per particle');
+  assert(evaluation.activeBarriers.length === 1, 'expected one active barrier');
+  const record = evaluation.activeBarriers[0]!;
+  assert(Math.abs(record.distance - 0.5) < 1e-11, `hull distance off: ${record.distance}`);
+  assert(record.witness.sourceVertices.length > 0, 'witness names no source vertices');
+  assert(record.witness.query.status === 'separated', 'query did not decide');
+  const force = evaluation.forces[0]!;
+  assert(force.data[2]! > 0, 'barrier does not push along the support normal');
+  assert(
+    Math.hypot(force.data[0]!, force.data[1]!) <= 1e-12 * Math.abs(force.data[2]!),
+    'a flat-interior push acquired a lateral component'
+  );
+
+  // The paired filter certifies a strict prefix of a crossing segment.
+  const filter: XpbdParticleSourceConvexHullBarrierFamilyStepFilterEvaluationN =
+    family.stepFilter.evaluate({
+      dimension: 3,
+      requestedStepLength: 1,
+      positionBefore: () => new VecN(Float64Array.from([0.4, 0.6, 0.5])),
+      positionAfter: () => new VecN(Float64Array.from([0.4, 0.6, -0.5]))
+    });
+  assert(filter.status === 'limited', `expected a limited prefix, got ${filter.status}`);
+  assert(
+    filter.status === 'limited' && filter.maximumStepLength > 0 &&
+    filter.maximumStepLength < 1,
+    'certified prefix must be a strict positive fraction'
+  );
+
+  // A starved query budget is a typed refusal that mutates nothing.
+  const starved = compileXpbdParticleSourceConvexHullBarrierFamilyN({
+    id: 'packed-hull-starved',
+    binding,
+    obstacle,
+    sourceGroup: requireGroup(obstacle.groups[0], 'hull source group'),
+    minimumDistance: 0.05,
+    activationDistance: 0.8,
+    stiffness: 2,
+    maximumQueryIterations: 1
+  });
+  const before = Array.from(binding.particles[0]!.position.data);
+  let refused = false;
+  try {
+    starved.evaluate();
+  } catch (error) {
+    refused = error instanceof XpbdPotentialDomainErrorN &&
+      error.reason === 'closest-point-indeterminate';
+  }
+  assert(refused, 'a starved query budget must refuse as closest-point-indeterminate');
+  assert(
+    JSON.stringify(Array.from(binding.particles[0]!.position.data)) ===
+      JSON.stringify(before),
+    'a refusal mutated particle state'
+  );
 }
 
 /**

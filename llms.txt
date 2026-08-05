@@ -265,6 +265,24 @@ windows.
   `...family.incrementalPotentialTerms()` into a problem or step. Candidate
   sets are valid only for the queried point/segment; this is an exhaustive CPU
   reference, not self-contact, moving--moving contact, or a spatial tree.
+- Static convex-hull contact:
+  `compileXpbdParticleSourceConvexHullBarrierFamilyN` represents the **convex
+  hull of the obstacle vertices selected by `sourceGroup`** — the cells select
+  vertices; they are *not* summed contact cells, and any concavity between the
+  selected vertices is filled. One certified closest-point query per bound
+  particle, one barrier force along the separation normal, and a
+  source-retained witness naming the authoritative obstacle vertices behind
+  the closest feature. Choose it over the per-simplex family when the cells
+  merely decompose one solid: summing per-cell barriers there manufactures a
+  decomposition-dependent tangential force, while one set query pushes along
+  the support normal. The hull is static for the family's lifetime (moved
+  coordinates are refused, never followed), proximity to a lower-dimensional
+  hull is unsigned and two-sided, an undecided query is a typed
+  `closest-point-indeterminate` refusal, and the paired filter's
+  `maximumStepLength` is a certified prefix, not an impact time. Minimal
+  recipe: compile with `binding`, `obstacle`, `sourceGroup`,
+  `minimumDistance`, `activationDistance`, `stiffness`; spread
+  `...family.incrementalPotentialTerms()` into a problem or step.
 - Source-indexed contact barriers:
   `compileXpbdParticleHyperplaneBarrierFamilyN` reuses an
   `XpbdParticleHyperplaneFamilyN` source/particle/plane mapping and compiles

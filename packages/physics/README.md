@@ -80,6 +80,25 @@ and blocking-pair evidence separate while presenting one stable provider and
 one paired filter to the solver. It is not inside/outside classification, moving-simplex contact, or a claim of
 mesh self-collision.
 
+When the obstacle's cells are only a decomposition of one solid rather than
+independently meaningful features, the per-cell sum is the wrong composition:
+each cell's barrier pushes away from itself, so a point over a flat support
+accumulates a decomposition-dependent tangential force.
+`XpbdParticleSourceConvexHullBarrierFamilyN` is the set-shaped alternative —
+the **convex hull of the obstacle vertices its source group selects**, one
+certified closest-point query per bound particle, one force along the
+separation normal, and a witness retaining which authoritative source vertices
+support the closest feature. The cells select vertices; they are not summed,
+and concavities between the selected vertices are filled, so a non-convex
+obstacle needs explicitly managed convex pieces. The hull is static for the
+family's lifetime — coordinates are snapshotted at compilation and a moved
+source is refused, never followed — and proximity to a lower-dimensional hull
+is unsigned and two-sided, because such a set has no ambient inside. A distance
+query that cannot certify separation or intersection within its bounded budget
+surfaces as a typed `closest-point-indeterminate` refusal rather than an
+answer, and the paired filter certifies conservative prefixes with the same
+convexity/Lipschitz proof as the point–simplex specialization.
+
 That candidate scan stays the default and the oracle. `XpbdSourceSimplexAabbHierarchyN`
 is an opt-in immutable AABB tree over the same static obstacle, selected by
 passing it as `candidateHierarchy` — never by mesh size or a mode string, and

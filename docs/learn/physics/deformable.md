@@ -248,6 +248,27 @@ hierarchy, and it deliberately refuses to present a same-source mesh as
 self-contact because obstacle reaction and moving simplex geometry are not yet
 part of the contract.
 
+`compileXpbdParticleSourceConvexHullBarrierFamilyN()` answers a different
+question: what if the obstacle's cells are not independently meaningful
+features but merely a decomposition of one solid? Summing one barrier per cell
+is exactly right for the former and exactly wrong for the latter — each cell
+pushes away from *itself*, so over a flat support the sum acquires a
+decomposition-dependent tangential component. The convex-hull family instead
+represents **one static convex set**: the convex hull of the obstacle vertices
+its `sourceGroup` selects, queried by one certified closest-point computation
+per bound particle. The force is the barrier's negative gradient along the
+separation normal; the witness retains which authoritative source vertices
+support the closest feature; and the diagnostics count set queries — exactly
+one per particle, never one per cell. Three boundaries are part of the
+contract rather than caveats: the represented set is the *hull*, so
+concavities between selected vertices are filled; the hull is *static*, its
+coordinates snapshotted at compile time and refused if moved; and proximity to
+a lower-dimensional hull (a flat slab in R4, say) is *unsigned and two-sided*,
+because such a set has no ambient inside. A distance query that cannot certify
+its answer surfaces as a typed `closest-point-indeterminate` refusal rather
+than a guess, and the paired filter certifies conservative prefixes with the
+same convexity/Lipschitz argument as the point–simplex filter.
+
 `compileXpbdParticleHyperplaneBarrierFamilyN()` expands the same pair over the
 source-vertex mapping retained by `XpbdParticleHyperplaneFamilyN`. Per-vertex
 activation distance, stiffness, and conservative scale may be uniform or

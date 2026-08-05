@@ -243,6 +243,21 @@ export {
   type XpbdParticleSourceSimplexSegmentCandidateN
 } from './xpbd-source-simplex-barrier-family.js';
 export {
+  XpbdParticleSourceConvexHullBarrierFamilyN,
+  XpbdParticleSourceConvexHullBarrierFamilyStepFilterN,
+  compileXpbdParticleSourceConvexHullBarrierFamilyN,
+  type CompileXpbdParticleSourceConvexHullBarrierFamilyNOptions,
+  type XpbdParticleSourceConvexHullActiveBarrierN,
+  type XpbdParticleSourceConvexHullBarrierDomainReasonN,
+  type XpbdParticleSourceConvexHullBarrierFamilyEvaluationN,
+  type XpbdParticleSourceConvexHullBarrierFamilyStepFilterEvaluationN,
+  type XpbdParticleSourceConvexHullBarrierFamilyStepFilterRefusalReasonN,
+  type XpbdParticleSourceConvexHullBarrierFamilyTermsN,
+  type XpbdParticleSourceConvexHullQueryDiagnosticsN,
+  type XpbdParticleSourceConvexHullSegmentCertificationN,
+  type XpbdSourceConvexHullWitnessN
+} from './xpbd-source-convex-hull-barrier-family.js';
+export {
   XpbdParticleHyperplaneBarrierFamilyN,
   compileXpbdParticleHyperplaneBarrierFamilyN,
   type CompileXpbdParticleHyperplaneBarrierFamilyNOptions,

@@ -664,6 +664,85 @@ declare const barrier: XpbdConservativeForceProviderN;
 const candidatePositions = binding.particles.map((p) => p.position);
 ```
 
+## Rest dynamic points against one static convex support
+
+When an obstacle's cells merely decompose one solid, do not sum per-cell
+barriers — each cell pushes away from itself, so the sum acquires a
+decomposition-dependent tangential force. Compile the convex-hull family
+instead: its `sourceGroup` cells **select vertices**, and the represented set
+is their convex hull, answered by one certified closest-point query per bound
+particle.
+
+```ts
+import { CellComplex } from '@holotope/core';
+import {
+  XpbdPotentialDomainErrorN,
+  compileXpbdParticleBindingN,
+  compileXpbdParticleSourceConvexHullBarrierFamilyN
+} from '@holotope/physics';
+
+// A flat rectangular support in R3, cut into two triangles. The cut is
+// irrelevant to contact: only the four corner vertices define the hull.
+const support = new CellComplex(3, Float64Array.from([
+  0, 0, 0, 2, 0, 0, 0, 2, 0, 2, 2, 0
+]), [{
+  key: 'support', dim: 2, verticesPerCell: 3, kind: 'simplex',
+  indices: Uint32Array.from([0, 1, 2, 1, 3, 2])
+}]);
+
+const probes = new CellComplex(3, Float64Array.from([
+  0.5, 0.5, 0.4, 1.5, 1.2, 0.7
+]), [{
+  key: 'probes', dim: 0, verticesPerCell: 1, kind: 'simplex',
+  indices: Uint32Array.from([0, 1])
+}]);
+const binding = compileXpbdParticleBindingN({
+  id: 'probes', source: probes, mass: 1
+});
+
+const contact = compileXpbdParticleSourceConvexHullBarrierFamilyN({
+  id: 'support-contact',
+  binding,
+  obstacle: support,
+  sourceGroup: support.groups[0]!,
+  minimumDistance: 0.05,
+  activationDistance: 0.8,
+  stiffness: 2
+});
+
+// One certified query per particle; the witness names the source vertices
+// behind each closest point, and interior pushes are exactly normal.
+const evaluation = contact.evaluate();
+for (const record of evaluation.activeBarriers) {
+  record.distance;                   // unsigned distance to the hull
+  record.witness.sourceVertices;     // authoritative support vertices
+  record.witness.separationNormal;   // unit direction the barrier pushes
+}
+
+// An undecided query is a typed refusal, not an answer. Starving the query
+// budget forces one, and nothing is mutated on the way out.
+try {
+  compileXpbdParticleSourceConvexHullBarrierFamilyN({
+    id: 'starved', binding, obstacle: support,
+    sourceGroup: support.groups[0]!,
+    minimumDistance: 0.05, activationDistance: 0.8, stiffness: 2,
+    maximumQueryIterations: 1
+  }).evaluate();
+} catch (error) {
+  if (error instanceof XpbdPotentialDomainErrorN) {
+    error.reason; // 'closest-point-indeterminate'
+  }
+}
+
+// The paired filter travels with the provider into any solve:
+// ...contact.incrementalPotentialTerms() spreads both.
+```
+
+The set is the **hull**: concavities between the selected vertices are filled,
+so a non-convex obstacle needs explicitly managed convex pieces. The hull is
+**static** — moved source coordinates are refused, never silently followed —
+and proximity to a lower-dimensional hull is unsigned and two-sided.
+
 ## Choose and assemble a simplex material law
 
 Use StVK as the polynomial small-strain reference. Use compressible
