@@ -25,6 +25,18 @@ export default defineConfig({
     target: 'esnext',
     rollupOptions: {
       // Multi-page app: the gallery landing page plus one page per example.
+      //
+      // `source-linked-sheet.html` is deliberately absent, and its omission is
+      // not an oversight to be repaired by adding it back. The page's contact
+      // model constrains sheet *vertices* against the support, which is what
+      // the barrier family provides; a certified triangle-to-hull audit of its
+      // complete run shows the sheet *surface* passing through the support
+      // once the sheet drapes past that support's finite edge, with every
+      // vertex still legally outside it. Publishing a demonstration that shows
+      // material crossing its own support is a correctness-of-communication
+      // failure whatever the vertices do, so the page stays out of the built
+      // site until surface contact — edge- and face-level candidates — exists
+      // to constrain it. It is still served by `vite dev` for that work.
       input: {
         index: local('./index.html'),
         polytopeBrowser: local('./polytope-browser.html'),
@@ -34,7 +46,6 @@ export default defineConfig({
         ndContact: local('./nd-contact.html'),
         playground: local('./playground.html'),
         dimensionBridge: local('./dimension-bridge.html'),
-        sourceLinkedSheet: local('./source-linked-sheet.html'),
         mechanicsWorkbench: local('./mechanics-workbench.html'),
         tesseract: local('./tesseract.html'),
         polychora: local('./polychora.html'),

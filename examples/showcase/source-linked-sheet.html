@@ -286,6 +286,21 @@
             page hides with damping, invisible supports, or extra pins.
           </p>
           <p class="boundary">
+            <strong>What the contact certificate covers, and what it does not.</strong> Contact
+            here is <em>vertex</em>-to-set: every sheet vertex is held strictly outside the
+            support's minimum-distance shell, and the contact rows are that certificate. It is
+            not a certificate about the triangles stretched between those vertices — a triangle
+            can cross a convex set with all three corners legally outside it — and this scene
+            does exactly that once it drapes past the support's edge. Audited triangle by
+            triangle against the support at every applied step of the complete run, the surface
+            is certified disjoint until step 575, and from there it crosses: the first crossing
+            triangle has corners 0.25, 0.44 and 0.24 from the support, all far outside the 0.04
+            shell the barrier keeps them out of. Constraining the surface itself needs edge- and
+            face-level contact candidates, which this page does not have and does not claim.
+            That measured gap — not the finite ending, which is honest — is why this
+            demonstration is not published in the gallery.
+          </p>
+          <p class="boundary">
             <strong>Discrete cosine-fold bending — not a shell model.</strong>
             The fold stiffness here is an unsigned, mesh-dependent discrete term whose energy is
             quartic in the fold angle. It does not converge to a continuum bending energy under

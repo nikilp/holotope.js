@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import config from '../vite.config';
 import {
   buildSheetScene,
   isRefusedReport,
@@ -190,6 +192,51 @@ describe('source-linked sheet — scene', () => {
   });
 });
 
+describe('source-linked sheet — withheld from the built gallery', () => {
+  /**
+   * The scene is a working consumer of the library and its contract is pinned
+   * above; what it is not is a publishable demonstration.
+   *
+   * Its contact model constrains vertices, and a certified triangle-to-hull
+   * audit of the complete run shows the *surface* crossing the support after
+   * the sheet drapes past that support's finite edge — with every vertex still
+   * legally outside. A gallery page that shows material passing through its own
+   * support while saying its ending is honest teaches the wrong thing, so the
+   * page has no build entry and no card.
+   *
+   * This is asserted rather than left to intention because the omission is one
+   * line in a list of twenty-seven, and a well-meaning reader would restore it.
+   */
+  it('has no build entry and no gallery card', async () => {
+    const input = config.build?.rollupOptions?.input;
+    const entries = Object.values(
+      (typeof input === 'object' && input !== null ? input : {}) as Record<string, string>
+    );
+    // Liveness: the gallery does build pages, so "absent" means something.
+    expect(entries.length).toBeGreaterThan(20);
+    expect(entries.some((entry) => entry.endsWith('mechanics-workbench.html'))).toBe(true);
+    expect(entries.some((entry) => entry.endsWith('source-linked-sheet.html'))).toBe(false);
+
+    const gallery = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+    expect(gallery).toContain('mechanics-workbench.html');
+    expect(gallery).not.toContain('source-linked-sheet.html');
+  });
+
+  it('states the vertex-versus-surface boundary on the page itself', async () => {
+    // The page remains in the repository and is served by `vite dev`, so its
+    // own prose has to carry the finding rather than relying on a note
+    // elsewhere: a reader driving it should be told what the certificate covers
+    // before they watch the surface cross the support.
+    // Collapsed, because the claim is the sentence rather than its wrapping.
+    const page = (await readFile(
+      new URL('../source-linked-sheet.html', import.meta.url), 'utf8'
+    )).replace(/\s+/g, ' ');
+    expect(page).toContain('<em>vertex</em>-to-set');
+    expect(page).toContain('edge- and face-level contact candidates');
+    expect(page).toContain('certified disjoint until step 575');
+  });
+});
+
 describe('source-linked sheet — selection', () => {
   const group = scene('selection').sheetGroup;
 
@@ -311,8 +358,9 @@ describe('source-linked sheet — selection', () => {
     // assertion above would pass on an all-dashes result.
     const dashes = STEP_SCOPED_LABELS.filter((l) => populated[l] === '—');
     expect(dashes).toEqual([]);
-    // And the hierarchy row must reflect this run's mode, not a remembered one.
-    expect(populated['hierarchy bound tests']).not.toBe('n/a — exhaustive');
+    // The label set is closed, so a row retired with the search-mode control
+    // cannot linger here as an assertion that reads `undefined` and passes.
+    expect(Object.keys(populated)).not.toContain('hierarchy bound tests');
   });
 });
 
