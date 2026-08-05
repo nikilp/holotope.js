@@ -1,6 +1,6 @@
 {
   "name": "@holotope/experiment-physics",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Physics model capability for Holotope experiment documents: compiles physics.model.rigid4 descriptors into live R4 rigid bodies.",
   "license": "MIT",
   "repository": {
