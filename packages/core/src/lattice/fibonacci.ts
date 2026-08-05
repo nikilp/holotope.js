@@ -38,7 +38,9 @@ export type FibonacciTile = 'L' | 'S';
 export interface FibonacciPatch {
   /** `tileCount + 1` vertices, beginning at physical coordinate zero. */
   readonly points: readonly ModelPoint[];
+  /** One symbol per exact vertex gap: `'L'` for phi^2, `'S'` for phi. */
   readonly tiles: readonly FibonacciTile[];
+  /** Points of the underlying sample that landed on the window boundary. */
   readonly boundaryCount: number;
 }
 
@@ -54,7 +56,21 @@ export function fibonacciSubstitutionPrefix(length: number): FibonacciTile[] {
   return word.slice(0, length);
 }
 
-/** A symbol-exact finite patch of the canonical Fibonacci model set. */
+/**
+ * A symbol-exact finite patch of the canonical Fibonacci model set.
+ *
+ * @example
+ * The tile word is recovered from the geometry rather than rewritten into
+ * it: each tile classifies an exact vertex gap, and the word those gaps
+ * spell is a prefix of the substitution fixed point, with tile counts that
+ * are consecutive Fibonacci numbers (here 8 `L` and 5 `S`):
+ * ```ts
+ * const patch = fibonacciPatch(13);
+ * const word = patch.tiles.join('');
+ *
+ * word === fibonacciSubstitutionPrefix(13).join(''); // true — 'LSLLSLSLLSLLS'
+ * ```
+ */
 export function fibonacciPatch(tileCount: number): FibonacciPatch {
   if (!Number.isInteger(tileCount) || tileCount < 1) {
     throw new Error(`fibonacciPatch: invalid tileCount ${tileCount}`);
