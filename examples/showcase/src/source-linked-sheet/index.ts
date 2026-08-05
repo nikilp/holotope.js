@@ -32,6 +32,15 @@ import { createSheetViews, type SheetView, type SheetViews } from './view.js';
  * so those scenes stop before they have shown anything. That measured
  * limitation is recorded in Kitchen as the second-order-minimizer bottleneck
  * rather than papered over with a bigger budget here.
+ *
+ * **Neither survivor is a vetted scene, and this page is not built.** Both
+ * cross the support's surface once the sheet drapes past its finite edge — 8x8
+ * at applied step 230 of 242, 5x5 at 575 of 1,045 — with every vertex still
+ * legally outside the barrier's shell the whole way. That is why the route is
+ * absent from the build inputs and the gallery: the list below is preserved
+ * evidence of a measured failure, not a shortlist waiting to be published.
+ * Restoring the route needs edge- and face-level contact candidates, not a
+ * different entry here.
  */
 const RESOLUTIONS = [5, 8] as const;
 

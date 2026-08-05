@@ -6,12 +6,11 @@ import {
 import { Raycaster, Vector3, type Object3D } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
-  FieldRelief3D,
   ProjectedEdges3D,
   ProjectedSurface3D,
-  SampledSlicedField3D,
   SlicedComplex3D
 } from '../src/index.js';
+import * as products from '../src/index.js';
 
 /**
  * One contract for every product that streams new positions after construction.
@@ -32,8 +31,16 @@ import {
  * 1. it is pickable where it starts, so the fixture is not vacuous;
  * 2. its source moves far enough that a stale sphere cannot cover both places;
  * 3. it is pickable where it now is;
- * 4. it is *not* pickable where it used to be, which is what proves the sphere
- *    followed rather than merely grew.
+ * 4. it is *not* pickable where it used to be.
+ *
+ * Assertion 4 proves the drawn primitives left the old position — not that the
+ * bounding volume followed them. Three.js tests the sphere and then the
+ * primitives, so an over-large sphere still reports zero hits where nothing is
+ * drawn. That distinction matters for one row: `SlicedComplex3D` deliberately
+ * bounds its whole position buffer including slots past the current draw range
+ * (frustum culling is off for it), so its sphere grows rather than follows and
+ * could not satisfy a "followed" test. The direct volume statement is the last
+ * case in this file, and it is asserted on a product whose sphere does follow.
  */
 
 /** One product under the same contract, however it is built and moved. */
@@ -170,8 +177,9 @@ describe('streaming products: bounds must follow the geometry', () => {
           'rejects the ray before any primitive is tested'
         ).toBeGreaterThan(0);
 
-        // 4. And no longer where it was. A sphere that merely grew to cover
-        //    both places would pass step 3 while still being wrong.
+        // 4. And no longer where it was: the primitives moved, rather than the
+        //    product drawing in both places. See the header on what this does
+        //    and does not prove about the volume itself.
         expect(
           hits(product.object, product.before),
           `${entry.name}: still pickable at its old position`
@@ -182,23 +190,43 @@ describe('streaming products: bounds must follow the geometry', () => {
     });
   }
 
-  it('covers every streaming product this package ships', () => {
-    // The table is only a guarantee if it is complete. `FieldRelief3D` and
-    // `SampledSlicedField3D` already refreshed their bounds before `fd5f4c8`
-    // and are named here so adding a product without a row is a visible
-    // omission rather than a silent one.
-    const streaming = [
-      'ProjectedSurface3D', 'ProjectedEdges3D', 'SlicedComplex3D',
-      'FieldRelief3D', 'SampledSlicedField3D'
-    ];
+  it('covers every streaming product this entry point ships', () => {
+    // Derived from the module, not restated by hand. A hand-written list makes
+    // the completeness claim depend on the memory of whoever adds the next
+    // product: an independent review added a deliberately unbounded streaming
+    // product to this package and the previous literal-based version of this
+    // test passed it, so the guarantee it advertised did not exist.
+    //
+    // The population is "exported class that re-streams positions after
+    // construction", which on this entry point is exactly the classes carrying
+    // an `update` method.
+    const streaming = Object.entries(products)
+      .filter(([, value]) =>
+        typeof value === 'function' &&
+        typeof (value as { prototype?: { update?: unknown } }).prototype
+          ?.update === 'function')
+      .map(([name]) => name)
+      .sort();
+    // Liveness: a predicate that matched nothing would make the comparison
+    // below vacuous.
+    expect(streaming.length).toBeGreaterThan(4);
+
     const covered = CASES.map((entry) => entry.name);
-    const uncovered = streaming.filter((name) => !covered.includes(name));
-    // Both remaining products build from a sampled scalar field rather than a
-    // cell complex, so they need their own fixture adapters rather than this
-    // one. They are recorded here so the gap is stated.
-    expect(uncovered).toEqual(['FieldRelief3D', 'SampledSlicedField3D']);
-    expect(typeof FieldRelief3D).toBe('function');
-    expect(typeof SampledSlicedField3D).toBe('function');
+    // `FieldRelief3D` and `SampledSlicedField3D` both refreshed their bounds
+    // before `fd5f4c8` and are the two entries this table drives indirectly:
+    // they build from a sampled scalar field rather than a cell complex, so
+    // they need a differently *shaped* fixture — not a harder one — and the
+    // exclusion is a fixture-shape decision rather than a feasibility claim.
+    const knownElsewhere = ['FieldRelief3D', 'SampledSlicedField3D'];
+    expect([...covered, ...knownElsewhere].sort()).toEqual(streaming);
+    for (const name of knownElsewhere) {
+      expect(typeof products[name as keyof typeof products]).toBe('function');
+    }
+    // Scope, stated rather than implied: this is the main entry point's CPU
+    // products. `@holotope/three/webgpu` streams positions too, through storage
+    // buffers driven by `positionNode`, where neither a CPU bounding sphere nor
+    // CPU raycast picking is the mechanism — those products are outside this
+    // table for that reason, not by omission.
   });
 
   it('refreshes the bounding volume rather than leaving it null', () => {

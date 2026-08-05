@@ -206,20 +206,40 @@ describe('source-linked sheet — withheld from the built gallery', () => {
    *
    * This is asserted rather than left to intention because the omission is one
    * line in a list of twenty-seven, and a well-meaning reader would restore it.
+   *
+   * Both sets are pinned whole rather than probed for one absent name. An
+   * independent review deleted an *unrelated* route and an unrelated card and a
+   * name-probing version of this test passed both times: it proved this page
+   * was absent, but not that nothing else had gone missing with it, which is
+   * a weaker guarantee than a page withdrawal wants.
    */
   it('has no build entry and no gallery card', async () => {
     const input = config.build?.rollupOptions?.input;
-    const entries = Object.values(
+    const built = Object.values(
       (typeof input === 'object' && input !== null ? input : {}) as Record<string, string>
-    );
-    // Liveness: the gallery does build pages, so "absent" means something.
-    expect(entries.length).toBeGreaterThan(20);
-    expect(entries.some((entry) => entry.endsWith('mechanics-workbench.html'))).toBe(true);
-    expect(entries.some((entry) => entry.endsWith('source-linked-sheet.html'))).toBe(false);
+    ).map((entry) => entry.slice(entry.lastIndexOf('/') + 1)).sort();
 
+    expect(built).toEqual([
+      'akn.html', 'ammann-beenker.html', 'bicomplex-julia.html', 'compute.html',
+      'dimension-bridge.html', 'duoprisms.html', 'e8.html', 'elser-sloane.html',
+      'gpu.html', 'hopf.html', 'index.html', 'knots.html',
+      'mechanics-workbench.html', 'nd-contact.html', 'penrose.html',
+      'physics-browser.html', 'platonic-brots.html', 'playground.html',
+      'polychora.html', 'polytope-browser.html', 'product-browser.html',
+      'provenance-browser.html', 'quaternion-julia.html', 'rigid-body4.html',
+      'scene.html', 'tesseract.html', 'wythoff.html'
+    ]);
+    expect(built).not.toContain('source-linked-sheet.html');
+
+    // Every page the gallery links must be a page the build emits, and the
+    // withdrawn one must be linked from nowhere.
     const gallery = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-    expect(gallery).toContain('mechanics-workbench.html');
-    expect(gallery).not.toContain('source-linked-sheet.html');
+    const linked = [...new Set(
+      [...gallery.matchAll(/href="\.\/([a-z0-9-]+\.html)"/g)].map((match) => match[1]!)
+    )].sort();
+    expect(linked.length).toBe(20);
+    expect(linked.filter((page) => !built.includes(page))).toEqual([]);
+    expect(linked).not.toContain('source-linked-sheet.html');
   });
 
   it('states the vertex-versus-surface boundary on the page itself', async () => {
