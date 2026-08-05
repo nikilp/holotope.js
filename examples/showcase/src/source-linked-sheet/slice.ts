@@ -1,4 +1,14 @@
-import type { CellComplex, CellGroup } from '@holotope/core';
+import {
+  HyperplaneSliceN,
+  sectionSimplexGroupN,
+  type CellComplex,
+  type CellGroup,
+  type HyperplaneSliceNOptions,
+  type SectionSimplexGroupNDiagnosticsN,
+  type SectionSimplexGroupNOptions,
+  type SectionSimplexGroupNResultN,
+  type SourceAffineLineageN
+} from '@holotope/core';
 
 /**
  * A genuine cross-section of the sheet, as opposed to a picture of it.
@@ -27,10 +37,41 @@ export interface SheetSection {
   readonly segments: Float32Array;
   /** How many segments were produced. */
   readonly count: number;
+  /**
+   * Why the section is the size it is.
+   *
+   * A section that draws nothing is ambiguous on its own: the hyperplane may
+   * have missed the surface, or it may have grazed cells the contract suppresses
+   * rather than emit as degenerate segments. These are the library's own
+   * populations, passed through rather than recounted.
+   */
+  readonly diagnostics: SectionSimplexGroupNDiagnosticsN;
+  /**
+   * How many distinct source triangles the cut passes through.
+   *
+   * The segment count alone does not say this: one triangle contributes exactly
+   * one segment, so the two agree only when no triangle is cut twice, and a
+   * reader watching the curve wants to know how much of the sheet it crosses
+   * rather than how many primitives were emitted.
+   */
+  readonly sourceCellCount: number;
+  /**
+   * Which source vertices each emitted endpoint is an affine combination of.
+   *
+   * Kept because a section endpoint's ancestry is the thing a projection cannot
+   * give: a pixel names a triangle at best, while this names the exact blend of
+   * source vertices the point *is*.
+   */
+  readonly lineage: SourceAffineLineageN;
 }
 
 /** Axis held fixed by the section, and the three that are shown. */
 export const SLICE_AXIS = 2;
+/**
+ * The chart of `x[SLICE_AXIS] = offset` is the remaining axes in ascending
+ * order, which is exactly X, Y, W — the section shows what the coordinate view
+ * shows, plus the coordinate that view drops.
+ */
 const SHOWN_AXES = [0, 1, 3] as const;
 
 /**
@@ -59,40 +100,58 @@ export function sliceSurface(
   offset: number,
   into?: Float32Array
 ): SheetSection {
-  const perCell = group.verticesPerCell;
-  const cells = group.indices.length / perCell;
+  const cells = group.indices.length / group.verticesPerCell;
   const capacity = cells * 6;
   const segments = into !== undefined && into.length >= capacity
     ? into
     : new Float32Array(capacity);
-  const dim = complex.ambientDim;
-  const at = (vertex: number, axis: number): number =>
-    complex.positions[vertex * dim + axis]!;
 
+  // The library's own dimension-generic section, rather than a hand-written
+  // marching pass for this one case. Its chart for `x[SLICE_AXIS] = offset` is
+  // the remaining axes in ascending order, which is the X/Y/W triple this page
+  // wants, so no reordering is needed here.
+  const chart: HyperplaneSliceNOptions = {
+    normal: axisNormal(complex.ambientDim, SLICE_AXIS),
+    offset
+  };
+  const request: SectionSimplexGroupNOptions = {
+    complex, group, slice: new HyperplaneSliceN(chart)
+  };
+  const section: SectionSimplexGroupNResultN = sectionSimplexGroupN(request);
+
+  // Each cut triangle contributes exactly one segment, and its two endpoints
+  // are already the shown coordinates.
   let written = 0;
-  const crossing: number[] = [];
-  for (let cell = 0; cell < cells; cell++) {
-    crossing.length = 0;
-    for (let corner = 0; corner < perCell; corner++) {
-      const a = group.indices[cell * perCell + corner]!;
-      const b = group.indices[cell * perCell + (corner + 1) % perCell]!;
-      const da = at(a, SLICE_AXIS) - offset;
-      const db = at(b, SLICE_AXIS) - offset;
-      // Strictly opposite sides only: an edge lying in the plane would
-      // otherwise be found twice, once from each of its two triangles.
-      if ((da < 0) === (db < 0)) continue;
-      const t = da / (da - db);
-      for (const axis of SHOWN_AXES) {
-        crossing.push(at(a, axis) + t * (at(b, axis) - at(a, axis)));
+  for (let cell = 0; cell < section.cellCount; cell++) {
+    if (section.verticesPerCell !== 2) break;
+    for (let endpoint = 0; endpoint < 2; endpoint++) {
+      const vertex = section.cells[cell * 2 + endpoint]!;
+      for (let axis = 0; axis < SHOWN_AXES.length; axis++) {
+        segments[written * 6 + endpoint * 3 + axis] =
+          section.chartPositions[vertex * section.chartDim + axis]!;
       }
     }
-    // A triangle crosses a hyperplane in exactly two edges when it crosses at
-    // all. Anything else is a degeneracy this section does not draw.
-    if (crossing.length !== 6) continue;
-    segments.set(crossing, written * 6);
     written++;
   }
-  return { segments, count: written };
+  // The parent source cell of every emitted segment, which is what makes this a
+  // source-linked section rather than an anonymous curve.
+  const sourceCells = new Set<number>();
+  for (let cell = 0; cell < written; cell++) sourceCells.add(section.parentCells[cell]!);
+
+  return {
+    segments,
+    count: written,
+    sourceCellCount: sourceCells.size,
+    diagnostics: section.diagnostics,
+    lineage: section.lineage
+  };
+}
+
+/** The unit normal of an axis-aligned hyperplane, as a packed array. */
+function axisNormal(ambientDim: number, axis: number): Float64Array {
+  const normal = new Float64Array(ambientDim);
+  normal[axis] = 1;
+  return normal;
 }
 
 /**

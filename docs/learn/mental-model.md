@@ -175,6 +175,15 @@ wrapper drops `sourceCellIndices`, which is what
   `[01, 02, 03, 12, 13, 23]`, equivalently `[xy, xz, xw, yz, yw, zw]`.
 - `HyperplaneSlice4.axisAligned(3, offset)` means the `w = offset` slice.
   Axis indices are `0=x`, `1=y`, `2=z`, `3=w`.
+- `HyperplaneSliceN.axisAligned(ambientDim, hiddenAxis, offset)` is the same
+  idea in any dimension, and takes `ambientDim` first because there is no
+  normal to infer it from. Its `signedDistance` takes one array, where the R4
+  class takes four scalars — a different signature on a different class, not a
+  change to the old one.
+- A **section** is an intersection and a **projection** is a many-to-one map.
+  Both lose information, but not the same information: a projection loses
+  distinctness, so a pixel may not name a source point; a section loses
+  dimension, and every point it keeps names exactly one source point.
 - `CoordinateProjection({ fromDim: 4, axes: [0, 1, 3] })` is an exact XYW
   coordinate view; it is not a perspective camera.
 - `createHypercube`'s `size` is the **edge length**, and the body is centred on

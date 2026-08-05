@@ -33,11 +33,20 @@ export {
 } from './coordinate.js';
 export {
   HyperplaneSlice4,
+  HyperplaneSliceN,
   sliceTetrahedra,
   sliceTetrahedraAmbient,
   type HyperplaneSlice4Options,
   type HyperplaneSlice4SetNormalOptions,
+  type HyperplaneSliceNOptions,
   type SliceFrameUpdatePolicy,
   type SliceVertexProvenanceBuffers
 } from './slice.js';
+export {
+  sectionSimplexGroupN,
+  type SectionSimplexGroupNDiagnosticsN,
+  type SectionSimplexGroupNOptions,
+  type SectionSimplexGroupNResultN,
+  type SourceAffineLineageN
+} from './section.js';
 export { CameraN } from './camera.js';

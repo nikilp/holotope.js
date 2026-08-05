@@ -59,4 +59,14 @@ const slice = HyperplaneSlice4.axisAligned(3, 0); // the w = 0 hyperplane
 // ...march its tetrahedra into an exact 3D cross-section
 ```
 
+Sections are also dimension-generic. `HyperplaneSliceN` is the affine chart in
+any RN — its ambient dimension is inferred from its normal — and
+`sectionSimplexGroupN` cuts a group of simplicial k-cells with it into
+`(k-1)`-simplices. A section is an *intersection*, not a projection: it is
+injective on what it keeps and loses dimension rather than distinctness, which
+is why a section point can name its source and a projected pixel often cannot.
+Every output vertex carries a sparse affine combination of **original** source
+vertices, so cutting an already-sectioned complex still names the geometry a
+reader started from rather than the intermediate one.
+
 MIT © Nikolay Petrov

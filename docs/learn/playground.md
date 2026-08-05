@@ -63,6 +63,7 @@ there is improved here.
 | --- | --- |
 | [`CameraN`](/api/core/projection/classes/CameraN) | [open](https://nikilp.github.io/holotope.js/playground.html#CameraN) |
 | [`CellComplex`](/api/core/geometry/classes/CellComplex) | [open](https://nikilp.github.io/holotope.js/playground.html#CellComplex) |
+| [`HyperplaneSliceN`](/api/core/projection/classes/HyperplaneSliceN) | [open](https://nikilp.github.io/holotope.js/playground.html#HyperplaneSliceN) |
 | [`ModelSetWindowPrunedSampleOptions`](/api/core/lattice/interfaces/ModelSetWindowPrunedSampleOptions) | [open](https://nikilp.github.io/holotope.js/playground.html#ModelSetWindowPrunedSampleOptions) |
 | [`ProjectedEdges3D`](/api/three/index/classes/ProjectedEdges3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedEdges3D) |
 | [`ProjectedSurface3D`](/api/three/index/classes/ProjectedSurface3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedSurface3D) |
@@ -95,6 +96,7 @@ there is improved here.
 | [`findIncidentCellsN`](/api/core/geometry/functions/findIncidentCellsN) | [open](https://nikilp.github.io/holotope.js/playground.html#findIncidentCellsN) |
 | [`gjkDistance`](/api/physics/functions/gjkDistance) | [open](https://nikilp.github.io/holotope.js/playground.html#gjkDistance) |
 | [`massPropertiesFromCellComplex4`](/api/physics/functions/massPropertiesFromCellComplex4) | [open](https://nikilp.github.io/holotope.js/playground.html#massPropertiesFromCellComplex4) |
+| [`sectionSimplexGroupN`](/api/core/projection/functions/sectionSimplexGroupN) | [open](https://nikilp.github.io/holotope.js/playground.html#sectionSimplexGroupN) |
 | [`solveXpbdIncrementalPotentialNewtonDirectionN`](/api/physics/functions/solveXpbdIncrementalPotentialNewtonDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#solveXpbdIncrementalPotentialNewtonDirectionN) |
 | [`stepXpbdIncrementalPotentialWorldN`](/api/physics/functions/stepXpbdIncrementalPotentialWorldN) | [open](https://nikilp.github.io/holotope.js/playground.html#stepXpbdIncrementalPotentialWorldN) |
 | [`tetrahedralizeCuboidCells`](/api/core/geometry/functions/tetrahedralizeCuboidCells) | [open](https://nikilp.github.io/holotope.js/playground.html#tetrahedralizeCuboidCells) |

@@ -159,11 +159,27 @@ objects.
   `sliceTetrahedraAmbient` (4) take
   `(positions, indices, slice, out)` and return the vertex count written; size
   `out` for six vertices per tetrahedron.
+- Dimension-generic sections: `HyperplaneSliceN` is the affine chart in any RN
+  (`ambientDim` inferred from its normal, `chartDim = ambientDim - 1`,
+  `axisAligned(ambientDim, hiddenAxis, offset)`, `signedDistance(point)` taking
+  one array rather than R4's four scalars), and `sectionSimplexGroupN` cuts a
+  group of simplicial k-cells with it into `(k-1)`-simplices.
+  **A section is an intersection, not a projection.** A projection is
+  many-to-one, so an image point does not name a source point; a section is
+  injective on what it keeps and loses dimension instead. Non-simplicial input
+  is a typed refusal telling you to simplexize — no topology is guessed. Cells
+  with no vertex strictly below the plane are suppressed rather than emitted,
+  and `diagnostics` distinguishes suppressed from empty. Every output vertex
+  carries `lineage`, a CSR sparse affine combination of **original** source
+  vertices, which is what a single source edge plus a parameter cannot do: pass
+  a previous section's `lineage` back in and an R5 → R4 → R3 chain still names
+  R5 vertices rather than the intermediate complex's.
 - Reading a pick: `describeRepresentationHitN` returns one claim
   (`unique`, `on-selected-primitive`, `approximate`, `unavailable`) instead of
   leaving `ambientPointStatus` and `ambiguity` to be combined by hand.
 - Observation: `PerspectiveProjection`, `CoordinateProjection`,
-  `OrthographicProjection`, `HyperplaneSlice4`, inverse fibres and map lineage.
+  `OrthographicProjection`, `HyperplaneSlice4`, `HyperplaneSliceN`, inverse
+  fibres and map lineage.
 - Fields: quaternion and bicomplex Julia evaluators, generic samples and
   isosurface records.
 - Scientific structures: regular polychora, Coxeter/Wythoff construction,

@@ -269,9 +269,12 @@ function syncSliceControl(): void {
   sliceSlider.max = high.toFixed(3);
   sliceSlider.step = ((high - low) / 200 || 0.001).toFixed(5);
   sliceSlider.value = state.views.slice.offset.toFixed(3);
+  // Segments and source triangles are different facts: the cut's size, and how
+  // much of the sheet it crosses.
   sliceLabel.textContent =
     `Z = ${state.views.slice.offset.toFixed(2)} · ` +
-    `${state.views.slice.segmentCount} segments`;
+    `${state.views.slice.segmentCount} segments · ` +
+    `${state.views.slice.sourceCellCount} source triangles`;
 }
 
 /**

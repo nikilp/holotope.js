@@ -510,6 +510,53 @@ highlighting, `section.facesOfSourceTet(tetIndex)` gives the current rendered
 faces of one known source tetrahedron; it returns an empty array when that cell
 does not intersect the present cut.
 
+## Section a simplicial complex with an arbitrary RN hyperplane
+
+Marching tetrahedra is the R4 specialization. For any ambient dimension, build
+the chart with `HyperplaneSliceN` and cut a simplicial group with
+`sectionSimplexGroupN`. Two things the result carries are worth reading before
+you use it: `diagnostics`, which distinguishes "the plane missed this complex"
+from "cells were suppressed because they lie in it", and `lineage`, which names
+the **original** source vertices each output vertex is an affine combination of.
+
+```ts
+import { CellComplex, HyperplaneSliceN, sectionSimplexGroupN } from '@holotope/core';
+
+// One tetrahedron in R5, straddling the x4 = 0 hyperplane.
+const positions = Float64Array.from([
+  0, 0, 0, 0, -1,
+  2, 0, 0, 0, 1,
+  0, 2, 0, 0, 1,
+  0, 0, 2, 0, 1
+]);
+const complex = new CellComplex(5, positions, [
+  { dim: 3, verticesPerCell: 4, kind: 'simplex', indices: Uint32Array.from([0, 1, 2, 3]) }
+]);
+const group = complex.groups[0];
+if (group === undefined) throw new Error('expected one simplicial group');
+
+const slice = HyperplaneSliceN.axisAligned(5, 4, 0);
+const section = sectionSimplexGroupN({ complex, group, slice });
+
+section.cellDim; // 2 — a 3-simplex cut by a hyperplane is a surface
+section.chartDim; // 4 — the chart of a hyperplane in R5
+section.diagnostics.sectionedCells; // 1, so the result is not empty by accident
+section.diagnostics.suppressedOnPlaneCells; // 0 — nothing was silently dropped
+
+// Ancestry: vertex 0 is a blend of original source vertices.
+const from = section.lineage.offsets[0] ?? 0;
+const to = section.lineage.offsets[1] ?? 0;
+Array.from(section.lineage.sourceVertices.subarray(from, to)); // e.g. [0, 1]
+```
+
+Non-simplicial groups are refused rather than triangulated implicitly — run
+`simplexizeCuboidGroupN` first, which returns the source-cell mapping you need
+to keep provenance. Chart coordinates depend on the slice's frame policy, so
+compare ambient positions, not chart coordinates, when checking two sections
+against each other. To chain, pass the previous result's `lineage` into the next
+call: `sectionSimplexGroupN({ ..., lineage: section.lineage })` keeps the second
+cut's ancestry expressed in the first complex's original vertices.
+
 ## Pick headlessly, with no renderer
 
 Picking needs geometry and a ray, not a canvas. A render product builds its

@@ -36,7 +36,8 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ field                inspectable R4 Julia fields; exact tricomplex Mandelbrot parameter slices
   ├─ coupling             provenance-driven parameters and exact equivariance certificates
   ├─ spectral             symmetric eigensystems and CellComplex graph-Laplacian modes
-  ├─ projection           CameraN, homogeneous N→3 maps, inverse fibres, simplex lifts, slicing
+  ├─ projection           CameraN, homogeneous N→3 maps, inverse fibres, simplex lifts, slicing;
+  │                       RN affine charts and simplicial sections with composable source weights
   ├─ representation       map lineage, source references, and renderer-independent hit results
   └─ coxeter              exact Coxeter groups, Wythoff construction of the uniform polychora
 

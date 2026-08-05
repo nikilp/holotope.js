@@ -258,6 +258,8 @@ export interface SheetSliceView {
   readonly range: readonly [number, number];
   /** Segments the sheet contributed to the current section. */
   readonly segmentCount: number;
+  /** Distinct source triangles the current cut passes through. */
+  readonly sourceCellCount: number;
   setOffset(offset: number): void;
   refresh(): void;
   render(): void;
@@ -329,6 +331,7 @@ function createSliceView(
   scene.add(curve);
 
   let segmentCount = 0;
+  let sourceCellCount = 0;
 
   const refresh = (): void => {
     // The sheet travels a long way along Z, so the reachable range is a fact
@@ -340,6 +343,7 @@ function createSliceView(
       sheetComplex, sheetGroup, offset, curvePositions.array as Float32Array
     );
     segmentCount = cut.count;
+    sourceCellCount = cut.sourceCellCount;
     curveGeometry.setDrawRange(0, cut.count * 2);
     curvePositions.needsUpdate = true;
     curveGeometry.computeBoundingSphere();
@@ -359,6 +363,7 @@ function createSliceView(
     get offset() { return offset; },
     get range() { return range; },
     get segmentCount() { return segmentCount; },
+    get sourceCellCount() { return sourceCellCount; },
     setOffset(next) { offset = next; refresh(); },
     refresh,
     render: () => { controls.update(); renderer.render(scene, camera); },

@@ -177,6 +177,29 @@ whether an arbitrary ambient point actually belongs to the section.
 `sliceTetrahedraAmbient()` exposes the actual R4 intersection vertices when a
 downstream product needs them before projection.
 
+### Ancestry that survives a second section
+
+One source edge plus an interpolation parameter is complete provenance for a
+single cut and provably incomplete for two: an edge of an already-sectioned
+complex is generally not an edge of the original source, so a second cut
+described that way names a vertex the reader never supplied.
+
+`sectionSimplexGroupN` therefore retains, for every output vertex, a sparse
+affine combination of **original** source vertices — indices and weights
+summing to one. Affine combinations compose, because the interpolation of two
+combinations is again a combination of the same ancestors, so passing a
+previous section's `lineage` back in keeps an `R5 → R4 → R3` chain expressed in
+R5 vertices rather than in the intermediate complex's numbering. That is a
+qualification of ancestry, not an inverse: it says which source vertices a
+section point is a combination of, which is exactly what a projected pixel's
+fibre cannot say.
+
+Vertices weld by original-source identity — a source vertex where the plane
+passes through one, an unordered source edge where it crosses one — so adjacent
+cells sharing a cut feature share an output vertex instead of cracking. Chart
+coordinates depend on the frame policy the slice was built with; the ambient
+positions do not.
+
 `SlicedComplex3D.sourceCellChart()` also carries numerical defaults appropriate
 to its stored representation. A Three.js product uses Float32 chart positions,
 so its source-coordinate tolerance is looser than the headless Float64 chart's.

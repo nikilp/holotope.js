@@ -40,7 +40,7 @@ and descriptors never masquerade as lineage.
 | `RaymarchedQuaternionJulia3D`, `RaymarchedBicomplexJulia3D` | convenience specializations which pair a field node and record-driven style with `RaymarchedField3D` |
 | planned: `ThickSliceVolume3D` | |
 
-Projections themselves (`PerspectiveProjection`, `OrthographicProjection`, `HyperplaneSlice4`) are first-class objects, not hidden defaults. Orthographic
+Projections themselves (`PerspectiveProjection`, `OrthographicProjection`, `HyperplaneSlice4`, and the dimension-generic `HyperplaneSliceN`) are first-class objects, not hidden defaults. A section is not one of them in the strict sense: `HyperplaneSliceN` with `sectionSimplexGroupN` computes an *intersection* of a simplicial complex with a hyperplane, which is injective on what it keeps and loses dimension, where a projection is many-to-one and loses distinctness. Orthographic
 and perspective projections expose Float64 homogeneous matrices, packed
 homogeneous evaluation, and exact affine inverse fibres. Perspective fibres
 carry every stage's open validity half-space: final homogeneous depth alone

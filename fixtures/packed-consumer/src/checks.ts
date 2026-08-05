@@ -9,6 +9,7 @@ import { LineBasicMaterial, PerspectiveCamera, Raycaster, Vector2, type Intersec
 import {
   BivectorN,
   CellComplex,
+  HyperplaneSliceN,
   PerspectiveProjection,
   Rotor4,
   TransformN,
@@ -21,7 +22,11 @@ import {
   cuboidCellFacetN,
   describeRepresentationHitN,
   rotorIdentityResidual,
-  tetrahedralizeCuboidCells
+  sectionSimplexGroupN,
+  tetrahedralizeCuboidCells,
+  type CellGroup,
+  type SectionSimplexGroupNResultN,
+  type SourceAffineLineageN
 } from '@holotope/core';
 import {
   ProjectedEdges3D,
@@ -275,6 +280,95 @@ export function convexHullContact(): void {
  * `cuboidCellFacetN` landed after v0.0.8, so resolving an older published
  * package fails here rather than passing quietly.
  */
+/**
+ * The dimension-generic affine chart and simplicial section, chained.
+ *
+ * An outside caller's first question about a section is whether it can trust the
+ * ancestry after cutting twice, so this drives the R5 → R4 → R3 chain rather
+ * than one cut: every final vertex must still name original R5 vertices, and
+ * those weights must rebuild the emitted point.
+ */
+export function dimensionGenericSection(): void {
+  // A 4-simplex in R5 straddling both hyperplanes.
+  const positions = Float64Array.from([
+    0, 0, 0, -1, -1,
+    4, 0, 0, 1, 1,
+    0, 4, 0, 1, -1,
+    0, 0, 4, -1, 1,
+    1, 1, 1, 1, 1
+  ]);
+  const group: CellGroup = {
+    dim: 4, verticesPerCell: 5, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2, 3, 4])
+  };
+  const complex = new CellComplex(5, positions, [group]);
+
+  const outer = HyperplaneSliceN.axisAligned(5, 4, 0);
+  assert(outer.ambientDim === 5 && outer.chartDim === 4, 'chart dimensions');
+  const first: SectionSimplexGroupNResultN = sectionSimplexGroupN({
+    complex, group, slice: outer
+  });
+  assert(first.cellCount > 0, 'the first section emitted no cell');
+  assert(first.cellDim === 3, 'a 4-simplex cut by a hyperplane is a 3-cell');
+  assert(first.diagnostics.sectionedCells === 1, 'the source cell was not sectioned');
+
+  const intermediateGroup: CellGroup = {
+    dim: first.cellDim, verticesPerCell: first.verticesPerCell,
+    kind: 'simplex', indices: first.cells
+  };
+  const inner = HyperplaneSliceN.axisAligned(5, 3, 0);
+  const lineage: SourceAffineLineageN = first.lineage;
+  const second = sectionSimplexGroupN({
+    complex: new CellComplex(5, first.ambientPositions, [intermediateGroup]),
+    group: intermediateGroup,
+    slice: inner,
+    lineage
+  });
+  assert(second.cellCount > 0, 'the chained section emitted no cell');
+  assert(second.cellDim === 2, 'the chained section should be a surface');
+
+  for (let vertex = 0; vertex < second.vertexCount; vertex++) {
+    const from = second.lineage.offsets[vertex] ?? 0;
+    const to = second.lineage.offsets[vertex + 1] ?? 0;
+    assert(to > from, 'a section vertex with no ancestry');
+    let sum = 0;
+    const rebuilt = [0, 0, 0, 0, 0];
+    for (let at = from; at < to; at++) {
+      const ancestor = second.lineage.sourceVertices[at] ?? 0;
+      const weight = second.lineage.weights[at] ?? 0;
+      // Original R5 vertices, never the intermediate complex's.
+      assert(ancestor < 5, 'ancestry escaped to the intermediate complex');
+      sum += weight;
+      for (let c = 0; c < 5; c++) {
+        rebuilt[c] = (rebuilt[c] ?? 0) + weight * (positions[ancestor * 5 + c] ?? 0);
+      }
+    }
+    assert(Math.abs(sum - 1) < 1e-11, `weights sum to ${sum}`);
+    for (let c = 0; c < 5; c++) {
+      const emitted = second.ambientPositions[vertex * 5 + c] ?? 0;
+      assert(Math.abs((rebuilt[c] ?? 0) - emitted) < 1e-11, 'weights do not rebuild the point');
+    }
+    // Both hyperplanes hold, which is what makes this codimension two.
+    const point: number[] = [];
+    for (let c = 0; c < 5; c++) point.push(second.ambientPositions[vertex * 5 + c] ?? 0);
+    assert(Math.abs(outer.signedDistance(point)) < 1e-11, 'off the outer hyperplane');
+    assert(Math.abs(inner.signedDistance(point)) < 1e-11, 'off the inner hyperplane');
+  }
+
+  // Non-simplicial input is refused, with the remedy named.
+  let refused = '';
+  try {
+    sectionSimplexGroupN({
+      complex,
+      group: { dim: 4, verticesPerCell: 5, kind: 'cuboid', indices: group.indices },
+      slice: outer
+    });
+  } catch (error) {
+    refused = error instanceof Error ? error.message : String(error);
+  }
+  assert(refused.includes('Simplexize'), 'a cuboid group was not refused');
+}
+
 export function geometryComposition(): void {
   const complex = createHypercube({ dim: 4, size: 3, maxCellDimension: 3 });
   assert(facetNames(complex) === EXPECTED_FACETS, `size-3 facets were ${facetNames(complex)}`);
