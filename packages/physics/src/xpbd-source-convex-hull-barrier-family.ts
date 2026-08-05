@@ -213,6 +213,23 @@ export interface XpbdParticleSourceConvexHullBarrierFamilyTermsN {
  * the motivating case. Proximity is unsigned and two-sided: this is a distance
  * barrier, not an inside/outside test, and a lower-dimensional set has no
  * inside to be on.
+ *
+ * ## What the barrier constrains, and what it does not
+ *
+ * One barrier per bound *particle*, so the domain certificate it maintains is
+ * per-vertex: every constrained particle stays strictly outside the hull's
+ * `minimumDistance` shell.
+ *
+ * That is **not** a certificate that a surface interpolated between those
+ * particles is disjoint from the hull. A triangle can cross a convex set while
+ * all three of its vertices remain legally outside it, so a mesh whose vertices
+ * are all constrained here can still have interior geometry intersecting the
+ * support — and the discrepancy grows with the spacing between vertices relative
+ * to the obstacle, which means it appears first at the resolutions a caller is
+ * most likely to trust.
+ *
+ * Constraining the surface itself needs edge- and face-level candidates. This
+ * family does not provide them and does not claim to.
  */
 export class XpbdParticleSourceConvexHullBarrierFamilyN
 implements XpbdConservativeForceProviderN {

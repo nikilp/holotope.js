@@ -264,7 +264,16 @@ contract rather than caveats: the represented set is the *hull*, so
 concavities between selected vertices are filled; the hull is *static*, its
 coordinates snapshotted at compile time and refused if moved; and proximity to
 a lower-dimensional hull (a flat slab in R4, say) is *unsigned and two-sided*,
-because such a set has no ambient inside. A distance query that cannot certify
+because such a set has no ambient inside.
+
+A fourth boundary is easy to read past. One barrier per bound particle means the
+certificate is *per-vertex*: every constrained particle stays outside the
+minimum-distance shell. That is not a claim about the surface between them. A
+triangle can cross a convex set with all three vertices legally outside it, so a
+mesh whose vertices are all constrained here can still have interior geometry
+inside the support, and the discrepancy grows as vertex spacing grows relative to
+the obstacle. Constraining the surface needs edge- and face-level candidates,
+which this family does not provide. A distance query that cannot certify
 its answer surfaces as a typed `closest-point-indeterminate` refusal rather
 than a guess, and the paired filter certifies conservative prefixes with the
 same convexity/Lipschitz argument as the point–simplex filter.
