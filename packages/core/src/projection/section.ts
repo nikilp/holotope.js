@@ -47,9 +47,22 @@ export interface SectionSimplexGroupNDiagnosticsN {
    * Cells suppressed because no vertex was strictly below the hyperplane.
    *
    * This is the population that distinguishes "the plane misses this complex"
-   * from "the plane grazes or contains part of it": a wholly on-plane cell and a
-   * cell tangent at one vertex both land here rather than being emitted as a
-   * dimensionally false result.
+   * from "the plane grazes or contains it": a wholly on-plane cell lands here,
+   * and so does a cell tangent at one vertex whose remaining vertices are all
+   * on or above the plane.
+   *
+   * The reverse tangency does **not**. When the on-plane vertex is the cell's
+   * only non-below vertex, the cell has a strictly-below vertex and so is
+   * neither suppressed here nor counted in {@link cellsBelow}; every crossing
+   * welds onto that one vertex, the staircase path repeats it, and the
+   * degenerate cell is dropped rather than emitted. The same holds whenever an
+   * on-plane sub-face collapses the section below full dimension. Such a cell is
+   * counted in none of these three populations, and its welded vertices remain
+   * in `ambientPositions`, `chartPositions` and `lineage` while belonging to no
+   * emitted cell — so `weldedVertices` can exceed the vertices any cell names.
+   * `cellCount === 0` with all three populations zero and `sourceCells`
+   * non-zero is exactly that case, and is the one thing these counts do not name
+   * directly.
    */
   readonly suppressedOnPlaneCells: number;
   /** Cells with no vertex on or above the hyperplane. */

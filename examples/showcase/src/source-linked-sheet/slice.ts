@@ -49,10 +49,14 @@ export interface SheetSection {
   /**
    * How many distinct source triangles the cut passes through.
    *
-   * The segment count alone does not say this: one triangle contributes exactly
-   * one segment, so the two agree only when no triangle is cut twice, and a
-   * reader watching the curve wants to know how much of the sheet it crosses
-   * rather than how many primitives were emitted.
+   * For a 2-cell group this is **identically** the segment count, and not by
+   * coincidence: a triangle splits 1–2 or 2–1, so its crossing grid is 1×2 or
+   * 2×1 and admits exactly one staircase path — one segment per cut triangle,
+   * never two. The number is kept because it is what reads `parentCells`, which
+   * is the field that makes this a source-linked section rather than an
+   * anonymous curve, and because it stops agreeing the moment this page cuts
+   * cells of dimension three or more, where one cell can contribute several.
+   * It is a label on the sheet, not an independent measurement of it.
    */
   readonly sourceCellCount: number;
   /**
