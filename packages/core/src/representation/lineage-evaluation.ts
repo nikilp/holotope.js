@@ -184,6 +184,28 @@ export function evaluateRepresentationLineagePointN(
         steps.push(exactStep(stepIndex, recipe, point));
         break;
       }
+      case 'plane-embedding': {
+        // Chain validation covers lineages built by createRepresentationLineageN;
+        // a record that arrived from storage has only its own word. Guard the
+        // declared dimensions before touching coordinates, or a malformed step
+        // would silently truncate a higher-dimensional point to its first two
+        // entries.
+        if (recipe.fromDim !== 2 || recipe.toDim !== 3 || point.dim !== 2) {
+          return unavailable(
+            point,
+            steps,
+            recipe,
+            stepIndex,
+            'recipe-insufficient',
+            { declaredFromDim: recipe.fromDim, declaredToDim: recipe.toDim, pointDim: point.dim }
+          );
+        }
+        // Injective and exact: the image is [x, y, 0], no divide, no domain.
+        point = new VecN([point.data[0]!, point.data[1]!, 0]);
+        requireFinitePoint(point.data, `evaluateRepresentationLineagePointN: step ${stepIndex}`);
+        steps.push(exactStep(stepIndex, recipe, point));
+        break;
+      }
       case 'coordinate-subspace-projection': {
         point = new VecN([
           point.data[recipe.retainedAxes[0]]!,

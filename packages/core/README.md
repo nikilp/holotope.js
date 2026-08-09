@@ -6,8 +6,12 @@ products in any dimension, plane rotations and the so(n) exponential map, a pair
 complexes, polytope builders (n-cube, simplex, orthoplex, all six regular
 polychora, duoprisms), perspective/orthographic/coordinate-subspace N→3 projection with Float64
 homogeneous evaluation, explicit inverse fibres, and perspective-correct
-segment/triangle lifting, and exact hyperplane slicing via marching
-tetrahedra with source-edge interpolation provenance. A renderer-independent
+segment/triangle lifting, an injective R2→R3 plane embedding
+(`PlaneEmbedding3D`: `[x, y] → [x, y, 0]` exactly, a unique typed inverse on
+its image, no fibre — render products consume the common `DisplayMap3D`
+contract, of which `Projection` is the lossy specialization), and exact
+hyperplane slicing via marching tetrahedra with source-edge interpolation
+provenance. A renderer-independent
 representation layer adds dimension-checked map lineage, capability-sensitive
 hit results, auditable in-memory source-cell references, and explicit
 dimension-independent cell-incidence queries and source-edge coordinates plus multi-view source-parameter
@@ -65,6 +69,8 @@ any RN — its ambient dimension is inferred from its normal — and
 `(k-1)`-simplices. A section is an *intersection*, not a projection: it is
 injective on what it keeps and loses dimension rather than distinctness, which
 is why a section point can name its source and a projected pixel often cannot.
+(An *embedding* is the third kind of display map and loses nothing at all —
+see `PlaneEmbedding3D` for R2 content.)
 Every output vertex carries a sparse affine combination of **original** source
 vertices, so cutting an already-sectioned complex still names the geometry a
 reader started from rather than the intermediate one.

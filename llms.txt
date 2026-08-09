@@ -73,7 +73,8 @@ import {
   CellComplex, createHypercube, createHyperrectangle,
   cellComplexBoundsAlongAxisN, cellComplexBoundsAlongDirectionN,
   tetrahedralizeCuboidCells,
-  PerspectiveProjection, CoordinateProjection, HyperplaneSlice4
+  PerspectiveProjection, CoordinateProjection, HyperplaneSlice4,
+  PlaneEmbedding3D
 } from '@holotope/core';
 
 // @holotope/physics
@@ -193,7 +194,12 @@ objects.
   leaving `ambientPointStatus` and `ambiguity` to be combined by hand.
 - Observation: `PerspectiveProjection`, `CoordinateProjection`,
   `OrthographicProjection`, `HyperplaneSlice4`, `HyperplaneSliceN`, inverse
-  fibres and map lineage.
+  fibres and map lineage. R2 content displays through `PlaneEmbedding3D` —
+  an injective `DisplayMap3D`, not a `Projection`: `[x, y] → [x, y, 0]`
+  exactly, `invertPoint` returning the unique preimage on the image or a
+  typed `off-image` status, no fibre. Render products accept any
+  `DisplayMap3D`; hits through an embedding report `ambiguity: 'none'` and a
+  renderer-derived inverse stays `'approximate'`.
 - Fields: quaternion and bicomplex Julia evaluators, generic samples and
   isosurface records.
 - Scientific structures: regular polychora, Coxeter/Wythoff construction,
@@ -561,6 +567,12 @@ if (hit.ambientPointStatus === 'exact') {
 ```
 
 ## Avoid these invented APIs or assumptions
+
+- Do not call `PlaneEmbedding3D` a projection, and do not ask it for a fibre
+  or a homogeneous matrix — it is injective, implements neither, and its
+  lineage step is `plane-embedding`, never a projection kind. Do not upgrade
+  a Float32 pick on an embedded image to `'exact'`; injectivity uniquifies
+  the inverse of the exact image, not the observation.
 
 - Do not expect a `PhysicsWorld4.addBody()` call alone to create collisions.
 - Do not expect projected picks to always yield a unique R4 point.

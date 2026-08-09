@@ -604,6 +604,59 @@ drawing it would be a projection, not a section. Chain instead — re-express th
 first section in its own chart, carry `lineage`, and cut again; a picked
 primitive still names original source vertices.
 
+## Display R2 content, and invert a pick exactly once
+
+R2 content needs no projection — nothing has to be hidden. `PlaneEmbedding3D`
+is the injective display map for that case: `[x, y] → [x, y, 0]` exactly, with
+a unique inverse on its image and a typed `off-image` status elsewhere. Render
+products accept it wherever they accept a projection, because both implement
+`DisplayMap3D`; the hit adapter reports `ambiguity: 'none'` (an injective map
+cannot overlap) and qualifies the recovered point `'approximate'`, because a
+pick is a Float32 observation of the image, not the image itself.
+
+```ts
+import { CellComplex, PlaneEmbedding3D } from '@holotope/core';
+import { ProjectedEdges3D, representationHitFromProjectedEdge } from '@holotope/three';
+import { Raycaster, Vector3 } from 'three';
+
+const square = new CellComplex(2, Float64Array.from([
+  0, 0,
+  2, 0,
+  2, 2,
+  0, 2
+]), [{
+  dim: 1, verticesPerCell: 2, kind: 'simplex',
+  indices: Uint32Array.from([0, 1, 1, 2, 2, 3, 3, 0])
+}]);
+
+const embedding = new PlaneEmbedding3D();
+const edges = new ProjectedEdges3D(square, embedding);
+edges.object.updateMatrixWorld(true);
+
+// The mathematical inverse: exact on the image, typed refusal off it.
+const image = embedding.projectPoint([1.5, 0.25]); // [1.5, 0.25, 0]
+const back = embedding.invertPoint(image);
+if (back.status === 'on-image') {
+  console.log(back.point); // [1.5, 0.25] — bitwise the source point
+}
+const off = embedding.invertPoint([1.5, 0.25, 0.5]);
+if (off.status === 'off-image') {
+  console.log(off.distanceFromImage); // 0.5 — no nearest point is fabricated
+}
+
+// A picked point is an observation; its inverse stays 'approximate'.
+const caster = new Raycaster(new Vector3(1, 0, 5), new Vector3(0, 0, -1), 0.01, 100);
+caster.params.Line.threshold = 0.05;
+const hit = caster.intersectObject(edges.object, true)[0];
+if (hit !== undefined) {
+  const evidence = representationHitFromProjectedEdge(edges, hit);
+  console.log(evidence.ambientPointStatus); // 'approximate', never 'exact'
+  console.log(evidence.ambiguity); // 'none' — injective maps cannot overlap
+  console.log(evidence.lineage.steps[0]?.kind); // 'plane-embedding'
+}
+edges.dispose();
+```
+
 ## Pick headlessly, with no renderer
 
 Picking needs geometry and a ray, not a canvas. A render product builds its

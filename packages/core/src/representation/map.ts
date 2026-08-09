@@ -3,7 +3,8 @@ import type { HyperplaneSlice4, HyperplaneSliceN } from '../projection/slice.js'
 import { CoordinateProjection } from '../projection/coordinate.js';
 import { OrthographicProjection } from '../projection/orthographic.js';
 import { PerspectiveProjection } from '../projection/perspective.js';
-import type { Projection } from '../projection/types.js';
+import type { DisplayMap3D, Projection } from '../projection/types.js';
+import { PlaneEmbedding3D } from '../projection/embedding.js';
 
 export type { Point3 };
 
@@ -137,6 +138,19 @@ export interface CustomProjectionMapRecipeN extends RepresentationMapRecipeBase 
   readonly label: string;
 }
 
+/**
+ * The injective coordinate-plane embedding `[x, y] -> [x, y, 0]`.
+ *
+ * Deliberately not any projection kind: the map collapses nothing, so a
+ * lineage carrying this step keeps a unique preimage for every image point
+ * and has no fibre to disclose.
+ */
+export interface PlaneEmbeddingMapRecipe3 extends RepresentationMapRecipeBase {
+  readonly kind: 'plane-embedding';
+  readonly fromDim: 2;
+  readonly toDim: 3;
+}
+
 /** Exact restriction of an R4 field evaluator to an affine R3 chart. */
 /**
  * Restricting a scalar field to a hyperplane and charting it there. The field
@@ -220,6 +234,7 @@ export type RepresentationMapRecipeN =
   | CoordinateProjectionMapRecipeN
   | PerspectiveProjectionMapRecipeN
   | CustomProjectionMapRecipeN
+  | PlaneEmbeddingMapRecipe3
   | FieldRestrictionMapRecipe4
   | SampledIsosurfaceMapRecipe3
   | RayRealizationMapRecipe3;
@@ -301,6 +316,27 @@ export function projectionMapRecipeN(projection: Projection):
     toDim: 3,
     label: projection.constructor.name || 'Projection'
   };
+}
+
+/** The recipe of the one shipped embedding; a zero-parameter map needs none. */
+export function planeEmbeddingMapRecipe3(): PlaneEmbeddingMapRecipe3 {
+  return { kind: 'plane-embedding', fromDim: 2, toDim: 3 };
+}
+
+/**
+ * Total recipe factory over every display map a render product accepts.
+ *
+ * Records what the map *is*: the embedding gets its own kind rather than
+ * being misfiled as a `'custom-projection'`, and lossy maps delegate to
+ * {@link projectionMapRecipeN}, whose public signature this deliberately
+ * leaves untouched — widening that function's return union would break
+ * exhaustive switches over it.
+ */
+export function displayMapRecipe3(map: DisplayMap3D):
+  | PlaneEmbeddingMapRecipe3
+  | ReturnType<typeof projectionMapRecipeN> {
+  if (map instanceof PlaneEmbedding3D) return planeEmbeddingMapRecipe3();
+  return projectionMapRecipeN(map);
 }
 
 export function affineSectionMapRecipe4(

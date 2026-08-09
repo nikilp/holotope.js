@@ -72,6 +72,10 @@ steps are discriminated recipes for operations that exist in the library:
 - affine section and affine slice chart;
 - orthographic, coordinate-subspace, iterated-perspective, or explicitly
   custom projection;
+- the injective plane embedding (`plane-embedding`), recorded as what it is —
+  never misfiled as a projection kind, with `ambiguity: 'none'` because an
+  injective map cannot overlap, and its recovered points qualified
+  `'approximate'` when they invert a renderer-derived observation;
 - exact field restriction to an affine chart;
 - approximate sampled-isosurface realization;
 - first-hit ray realization.

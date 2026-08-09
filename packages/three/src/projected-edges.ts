@@ -15,7 +15,7 @@ import {
   type HomogeneousProjection,
   type HomogeneousSimplexLiftN,
   type HomogeneousSimplexVertexN,
-  type Projection,
+  type DisplayMap3D,
   type SourceCellReferenceN,
   type TransformN
 } from '@holotope/core';
@@ -40,7 +40,13 @@ export interface ProjectedEdges3DOptions {
  */
 export class ProjectedEdges3D {
   readonly complex: CellComplex;
-  readonly projection: Projection;
+  /**
+   * The display map applied on every update. Historically named `projection`
+   * (renaming a shipped field is an API break); it accepts any
+   * `DisplayMap3D`, lossy or injective — an embedded R2 complex draws through
+   * exactly the same path as a projected R4 one.
+   */
+  readonly projection: DisplayMap3D;
   readonly geometry: BufferGeometry;
   readonly object: LineSegments;
 
@@ -81,7 +87,7 @@ export class ProjectedEdges3D {
    * product.update(new TransformN(4, rotationFromPlanes(4, [{ i: 0, j: 3, angle }])));
    * ```
    */
-  constructor(complex: CellComplex, projection: Projection, options: ProjectedEdges3DOptions = {}) {
+  constructor(complex: CellComplex, projection: DisplayMap3D, options: ProjectedEdges3DOptions = {}) {
     const unknownOptions = Object.keys(options).filter(
       (key) => key !== 'color' && key !== 'material'
     );

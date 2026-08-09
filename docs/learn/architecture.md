@@ -41,7 +41,7 @@ and descriptors never masquerade as lineage.
 | `SectionChart3D` | any RN simplicial section drawn in the hyperplane's own chart; parent-cell identity and original-source affine ancestry through `representationHitFromSectionChart` |
 | planned: `ThickSliceVolume3D` | |
 
-Projections themselves (`PerspectiveProjection`, `OrthographicProjection`, `HyperplaneSlice4`, and the dimension-generic `HyperplaneSliceN`) are first-class objects, not hidden defaults. A section is not one of them in the strict sense: `HyperplaneSliceN` with `sectionSimplexGroupN` computes an *intersection* of a simplicial complex with a hyperplane, which is injective on what it keeps and loses dimension, where a projection is many-to-one and loses distinctness. Orthographic
+Display maps (`PerspectiveProjection`, `OrthographicProjection`, `HyperplaneSlice4`, the dimension-generic `HyperplaneSliceN`, and the injective `PlaneEmbedding3D`) are first-class objects, not hidden defaults. The render products consume the common contract `DisplayMap3D`; `Projection` is its genuinely lossy specialization, and the embedding is the injective one — `[x, y] → [x, y, 0]`, with a unique typed inverse on its image and no fibre, because nothing is collapsed. A section is not one of them in the strict sense either: `HyperplaneSliceN` with `sectionSimplexGroupN` computes an *intersection* of a simplicial complex with a hyperplane, which is injective on what it keeps and loses dimension, where a projection is many-to-one and loses distinctness. Orthographic
 and perspective projections expose Float64 homogeneous matrices, packed
 homogeneous evaluation, and exact affine inverse fibres. Perspective fibres
 carry every stage's open validity half-space: final homogeneous depth alone

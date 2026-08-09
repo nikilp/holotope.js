@@ -11,6 +11,8 @@ import {
   CellComplex,
   HyperplaneSliceN,
   PerspectiveProjection,
+  PlaneEmbedding3D,
+  planeEmbeddingMapRecipe3,
   Rotor4,
   TransformN,
   VecN,
@@ -25,7 +27,10 @@ import {
   sectionSimplexGroupN,
   tetrahedralizeCuboidCells,
   type CellGroup,
+  type DisplayMap3D,
+  type DisplayMapInverse3D,
   type HyperplaneSliceNOptions,
+  type PlaneEmbeddingMapRecipe3,
   type SectionSimplexGroupNDiagnosticsN,
   type SectionSimplexGroupNOptions,
   type SectionSimplexGroupNResultN,
@@ -34,6 +39,7 @@ import {
 import {
   ProjectedEdges3D,
   SectionChart3D,
+  representationHitFromProjectedEdge,
   representationHitFromProjectedSurface,
   representationHitFromSectionChart,
   representationHitFromSlicedComplex,
@@ -394,6 +400,60 @@ export function dimensionGenericSection(): void {
  * group, render, move the source, and resolve a pick back to the parent cell
  * with the ambient point qualified as approximate rather than upgraded.
  */
+
+/**
+ * The R2 -> R3 embedding through a render product, from the packed tarballs:
+ * an injective display map drawn on the same path as a lossy projection, with
+ * the taxonomy's evidence claims intact outside every workspace.
+ */
+export function planeEmbeddingComposition(): void {
+  const square = new CellComplex(2, Float64Array.from([
+    0, 0,
+    2, 0,
+    2, 2,
+    0, 2
+  ]), [{
+    key: 'wire', dim: 1, verticesPerCell: 2, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 1, 2, 2, 3, 3, 0])
+  }]);
+  // Broad annotation on purpose: the packed d.ts must accept the embedding
+  // wherever a display map is accepted, without a cast.
+  const embedding: DisplayMap3D = new PlaneEmbedding3D();
+  const edges = new ProjectedEdges3D(square, embedding);
+  edges.object.updateMatrixWorld(true);
+
+  const forward = new PlaneEmbedding3D().projectPoint([1.5, 0.25]);
+  assert(forward[0] === 1.5 && forward[1] === 0.25 && forward[2] === 0,
+    'the embedding must map [x, y] to [x, y, 0] exactly');
+  const inverse: DisplayMapInverse3D = new PlaneEmbedding3D().invertPoint(forward);
+  assert(inverse.status === 'on-image', 'the exact image must invert');
+  assert(inverse.status === 'on-image' && inverse.point[0] === 1.5 && inverse.point[1] === 0.25,
+    'the inverse on the image must be exact');
+  const off = new PlaneEmbedding3D().invertPoint([1.5, 0.25, 0.5]);
+  assert(off.status === 'off-image' && off.distanceFromImage === 0.5,
+    'an off-image point must refuse by type with its distance');
+
+  const caster = new Raycaster(new Vector3(1, 0, 5), new Vector3(0, 0, -1), 0.01, 100);
+  caster.params.Line.threshold = 0.05;
+  const hits = caster.intersectObject(edges.object, true);
+  assert(hits.length > 0, 'the embedded square was not pickable');
+  const hit = representationHitFromProjectedEdge(edges, hits[0]!);
+  assert(hit.ambientDim === 2, 'the hit must live in R2');
+  assert(hit.ambientPointStatus === 'approximate',
+    'a renderer-derived inverse must stay approximate, never exact');
+  assert(hit.ambiguity === 'none', 'an injective map cannot overlap');
+  // The recorded step is bitwise the factory's recipe: an outside caller can
+  // rebuild and compare provenance rather than trusting a string.
+  const recipe: PlaneEmbeddingMapRecipe3 = planeEmbeddingMapRecipe3();
+  assert(recipe.fromDim === 2 && recipe.toDim === 3,
+    'the embedding recipe must go from R2 to display R3');
+  const step = hit.lineage.steps[0];
+  assert(step !== undefined && step.kind === recipe.kind
+    && step.fromDim === recipe.fromDim && step.toDim === recipe.toDim,
+    'the recorded lineage step must equal the published recipe');
+  edges.dispose();
+}
+
 export function sectionChartRender(): void {
   const positions = Float64Array.from([
     0, 0, 0, -1,

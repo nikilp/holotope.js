@@ -184,6 +184,15 @@ wrapper drops `sourceCellIndices`, which is what
   Both lose information, but not the same information: a projection loses
   distinctness, so a pixel may not name a source point; a section loses
   dimension, and every point it keeps names exactly one source point.
+- An **embedding** loses nothing. `PlaneEmbedding3D` places R2 content into
+  display R3 as `[x, y] → [x, y, 0]`, injectively: every image point has
+  exactly one preimage, recovered by `invertPoint` or refused by typed
+  off-image status for `z ≠ 0`. It is not a projection and has no fibre —
+  there is nothing collapsed to disclose. What render products consume is the
+  common supertype `DisplayMap3D`; only genuinely lossy maps are
+  `Projection`s. A Float32 pick on an embedded image still inverts to an
+  *approximate* point: injectivity makes the inverse of the exact image
+  unique, not the observation exact.
 - `CoordinateProjection({ fromDim: 4, axes: [0, 1, 3] })` is an exact XYW
   coordinate view; it is not a perspective camera.
 - `createHypercube`'s `size` is the **edge length**, and the body is centred on
@@ -206,7 +215,8 @@ Decide these four things explicitly:
 
 1. What is authoritative: a `CellComplex`, a field, a rigid body pose, or an
    RN particle world?
-2. Is the desired view a projection, a coordinate view, or an exact slice?
+2. Is the desired view a projection, a coordinate view, an exact slice, or —
+   for content already at display dimension or below — an embedding?
 3. Does the interaction need a source cell, an exact ambient point, or a
    deliberately chosen inverse/least-squares policy?
 4. Is the result visual manipulation, physical motion, or source editing?

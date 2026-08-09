@@ -47,6 +47,11 @@ export function representationMapCapabilitiesN(
       return capabilities('exact', 'unavailable', 'exact', 'unavailable', 'preserved');
     case 'iterated-perspective-projection':
       return capabilities('conditional', 'conditional', 'exact', 'unavailable', 'preserved');
+    case 'plane-embedding':
+      // Injective: forward and inverse are both exact, and there is no fibre
+      // to disclose - 'unavailable' here is the absence of a lossy question,
+      // not a missing feature.
+      return capabilities('exact', 'exact', 'unavailable', 'unavailable', 'preserved');
     case 'custom-projection':
       return capabilities('unavailable', 'unavailable', 'unavailable', 'unavailable', 'preserved');
     case 'field-restriction':
@@ -114,6 +119,9 @@ const PERSPECTIVE_LIFT: RepresentationCapabilityVerbN = {
 const FIBRE: RepresentationCapabilityVerbN = {
   symbol: 'evaluateProjectionFibre', module: CORE
 };
+const EMBEDDING_INVERSE: RepresentationCapabilityVerbN = {
+  symbol: 'PlaneEmbedding3D.invertPoint', module: CORE
+};
 const SOURCE_REFERENCE: RepresentationCapabilityVerbN = {
   symbol: 'createSourceCellReferenceN', module: CORE
 };
@@ -133,6 +141,8 @@ export function representationMapCapabilityVerbsN(
       return verbs(FORWARD, undefined, FIBRE, undefined, SOURCE_REFERENCE);
     case 'iterated-perspective-projection':
       return verbs(FORWARD, PERSPECTIVE_LIFT, FIBRE, undefined, SOURCE_REFERENCE);
+    case 'plane-embedding':
+      return verbs(FORWARD, EMBEDDING_INVERSE, undefined, undefined, SOURCE_REFERENCE);
     case 'custom-projection':
       return verbs(undefined, undefined, undefined, undefined, SOURCE_REFERENCE);
     case 'field-restriction':

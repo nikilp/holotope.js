@@ -7,10 +7,13 @@ import {
   createRepresentationLineageN,
   createSourceCellIdN,
   createSourceCellReferenceN,
+  displayMapRecipe3,
   fieldRestrictionMapRecipe4,
+  isInvertibleDisplayMap3D,
   projectionMapRecipeN,
   resolveRepresentationChartPointToSourceCellN
 } from '@holotope/core';
+import type { DisplayMap3D, DisplayMapInverse3D, RepresentationAmbiguity } from '@holotope/core';
 import type {
   AffineSectionMapRecipeN,
   AffineSliceChartMapRecipeN,
@@ -41,6 +44,44 @@ export interface RepresentationIntersection3D {
   readonly index?: number | undefined;
 }
 
+
+/**
+ * Observed display points are Float32 and, on a posed object, carry a
+ * world-to-local round trip; exact `z === 0` membership would refuse almost
+ * every honest pick. The band is explicit here because the recovered point is
+ * *qualified approximate* in the hit — acceptance within the band and the
+ * qualification are the same statement.
+ */
+const OBSERVED_POINT_INVERSE_TOLERANCE = 1e-5;
+
+/** Details of an embedding-inverse recovery, in place of a lift record. */
+function displayMapInverseDetails(
+  inverse: DisplayMapInverse3D
+): Readonly<Record<string, RepresentationDetailValue>> {
+  return inverse.status === 'on-image'
+    ? { liftMethod: 'display-map-inverse', inverseStatus: 'on-image' }
+    : {
+        liftMethod: 'display-map-inverse',
+        inverseStatus: 'off-image',
+        distanceFromImage: inverse.distanceFromImage
+      };
+}
+
+/** Inverse of a picked local point through an injective display map, if any. */
+function invertObservedPoint(
+  map: DisplayMap3D,
+  pointLocal: ArrayLike<number>
+): { inverse: DisplayMapInverse3D; ambiguity: RepresentationAmbiguity } | null {
+  if (!isInvertibleDisplayMap3D(map)) return null;
+  return {
+    inverse: map.invertPoint(pointLocal, {
+      tolerance: OBSERVED_POINT_INVERSE_TOLERANCE
+    }),
+    // Injectivity is exactly the absence of projection overlap.
+    ambiguity: 'none'
+  };
+}
+
 /** Map a picked projected line segment to its exact source edge vertices. */
 export function representationHitFromProjectedEdge(
   product: ProjectedEdges3D,
@@ -55,17 +96,26 @@ export function representationHitFromProjectedEdge(
   const segmentIndex = Math.floor(index / 2);
   const pointLocal = representationPointLocal(product.object, intersection.point);
   const lift = product.liftSegmentPoint(segmentIndex, pointLocal.toArray());
-  const ambientPoint = lift.kind === 'exact' ? lift.point : undefined;
+  const inverted = invertObservedPoint(product.projection, pointLocal.toArray());
+  const ambientPoint = lift.kind === 'exact'
+    ? lift.point
+    : inverted?.inverse.status === 'on-image'
+      ? new VecN(inverted.inverse.point)
+      : undefined;
   const sourceReference = product.sourceReferenceOfSegment(segmentIndex);
   return {
     representation: 'projected-edge',
     point3: vector3Tuple(intersection.point),
     ambientDim: product.complex.ambientDim,
-    ambientPointStatus: ambientPoint ? 'exact' : 'unavailable',
+    // An inverse of an observed Float32 point is approximate by provenance;
+    // only the homogeneous lift may say 'exact'.
+    ambientPointStatus: lift.kind === 'exact'
+      ? 'exact'
+      : ambientPoint ? 'approximate' : 'unavailable',
     ...(ambientPoint ? { ambientPoint } : {}),
-    ambiguity: 'projection-overlap',
+    ambiguity: inverted?.ambiguity ?? 'projection-overlap',
     lineage: createRepresentationLineageN(product.complex.ambientDim, [
-      projectionMapRecipeN(product.projection)
+      displayMapRecipe3(product.projection)
     ]),
     source: {
       kind: 'cell',
@@ -76,7 +126,7 @@ export function representationHitFromProjectedEdge(
       reference: sourceReference,
       id: createSourceCellIdN(sourceReference)
     },
-    details: liftDetails(lift)
+    details: inverted ? displayMapInverseDetails(inverted.inverse) : liftDetails(lift)
   };
 }
 
@@ -91,17 +141,24 @@ export function representationHitFromProjectedSurface(
   );
   const pointLocal = representationPointLocal(product.object, intersection.point);
   const lift = product.liftTrianglePoint(faceIndex, pointLocal.toArray());
-  const ambientPoint = lift.kind === 'exact' ? lift.point : undefined;
+  const inverted = invertObservedPoint(product.projection, pointLocal.toArray());
+  const ambientPoint = lift.kind === 'exact'
+    ? lift.point
+    : inverted?.inverse.status === 'on-image'
+      ? new VecN(inverted.inverse.point)
+      : undefined;
   const sourceReference = product.sourceReferenceOfTriangle(faceIndex);
   return {
     representation: 'projected-surface',
     point3: vector3Tuple(intersection.point),
     ambientDim: product.complex.ambientDim,
-    ambientPointStatus: ambientPoint ? 'exact' : 'unavailable',
+    ambientPointStatus: lift.kind === 'exact'
+      ? 'exact'
+      : ambientPoint ? 'approximate' : 'unavailable',
     ...(ambientPoint ? { ambientPoint } : {}),
-    ambiguity: 'projection-overlap',
+    ambiguity: inverted?.ambiguity ?? 'projection-overlap',
     lineage: createRepresentationLineageN(product.complex.ambientDim, [
-      projectionMapRecipeN(product.projection)
+      displayMapRecipe3(product.projection)
     ]),
     source: {
       kind: 'cell',
@@ -112,7 +169,7 @@ export function representationHitFromProjectedSurface(
       reference: sourceReference,
       id: createSourceCellIdN(sourceReference)
     },
-    details: liftDetails(lift)
+    details: inverted ? displayMapInverseDetails(inverted.inverse) : liftDetails(lift)
   };
 }
 

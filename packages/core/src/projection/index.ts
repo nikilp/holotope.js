@@ -1,14 +1,19 @@
 export type {
+  DisplayMap3D,
+  DisplayMapInverse3D,
+  DisplayMapInvertOptions,
   FibreProjection,
   HomogeneousProjection,
   HomogeneousProjectionPointN,
   HomogeneousProjectionValidity,
+  InvertibleDisplayMap3D,
   PerspectiveProjectionStage,
   Projection,
   ProjectionDomainHalfSpaceN,
   ProjectionFibreDomainN,
   ProjectionFibreN
 } from './types.js';
+export { PlaneEmbedding3D, isInvertibleDisplayMap3D } from './embedding.js';
 export {
   evaluateProjectionFibre,
   isHomogeneousProjection,

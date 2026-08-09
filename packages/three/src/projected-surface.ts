@@ -16,7 +16,7 @@ import {
   type HomogeneousProjection,
   type HomogeneousSimplexLiftN,
   type HomogeneousSimplexVertexN,
-  type Projection,
+  type DisplayMap3D,
   type SourceCellReferenceN,
   type TransformN
 } from '@holotope/core';
@@ -54,7 +54,13 @@ export interface ProjectedSurface3DOptions {
  */
 export class ProjectedSurface3D {
   readonly complex: CellComplex;
-  readonly projection: Projection;
+  /**
+   * The display map applied on every update. Historically named `projection`
+   * (renaming a shipped field is an API break); it accepts any
+   * `DisplayMap3D`, lossy or injective — an embedded R2 complex draws through
+   * exactly the same path as a projected R4 one.
+   */
+  readonly projection: DisplayMap3D;
   readonly geometry: BufferGeometry;
   readonly object: Mesh;
 
@@ -92,7 +98,7 @@ export class ProjectedSurface3D {
    */
   constructor(
     complex: CellComplex,
-    projection: Projection,
+    projection: DisplayMap3D,
     options: ProjectedSurface3DOptions = {}
   ) {
     if (complex.ambientDim !== projection.fromDim) {
