@@ -1,4 +1,4 @@
-import { Raycaster, Vector3, MeshStandardMaterial } from 'three';
+import { Box3, Raycaster, Vector3, MeshStandardMaterial } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   CellComplex,
@@ -316,6 +316,197 @@ describe('SectionChart3D: streaming, ownership, and determinism', () => {
     expect(Array.from(product.section.lineage.weights)).toEqual(firstWeights);
     expect(Array.from(product.geometry.getAttribute('position').array as Float32Array))
       .toEqual(firstBuffer);
+    product.dispose();
+  });
+});
+
+describe('SectionChart3D: bounding volumes cover exactly the live draw range', () => {
+  // Independent oracle: three.js's own two algorithms — component-wise min/max
+  // box, then box-centre + largest vertex distance sphere — applied to the live
+  // slots of the immutable section result, never to the product's buffer.
+  const oracle = (product: SectionChart3D): { box: Box3; center: Vector3; radius: number } => {
+    const section = product.section;
+    const box = new Box3();
+    const corners: Vector3[] = [];
+    for (const vertex of section.cells) {
+      const corner = new Vector3(
+        Math.fround(section.chartPositions[vertex * section.chartDim]!),
+        section.chartDim > 1 ? Math.fround(section.chartPositions[vertex * section.chartDim + 1]!) : 0,
+        section.chartDim > 2 ? Math.fround(section.chartPositions[vertex * section.chartDim + 2]!) : 0
+      );
+      corners.push(corner);
+      box.expandByPoint(corner);
+    }
+    const center = new Vector3();
+    box.getCenter(center);
+    let radiusSq = 0;
+    for (const corner of corners) {
+      radiusSq = Math.max(radiusSq, center.distanceToSquared(corner));
+    }
+    return { box, center, radius: Math.sqrt(radiusSq) };
+  };
+
+  const agree = (product: SectionChart3D): void => {
+    const expected = oracle(product);
+    const box = product.geometry.boundingBox;
+    const sphere = product.geometry.boundingSphere;
+    expect(box).not.toBeNull();
+    expect(sphere).not.toBeNull();
+    expect(box!.min.toArray()).toEqual(expected.box.min.toArray());
+    expect(box!.max.toArray()).toEqual(expected.box.max.toArray());
+    expect(sphere!.center.toArray()).toEqual(expected.center.toArray());
+    expect(sphere!.radius).toBe(expected.radius);
+  };
+
+  it('reports the reviewed 40…41 fixture at its true size, not 25× over', () => {
+    const { complex, group } = tetraComplex();
+    for (let vertex = 0; vertex < complex.vertexCount; vertex++) {
+      complex.positions[vertex * 4] += 40;
+    }
+    const product = new SectionChart3D(
+      complex, group, HyperplaneSliceN.axisAligned(4, 3, 0)
+    );
+    expect(product.cellCount).toBe(1); // liveness: 3 slots in a 64-slot buffer
+    // The reviewed defect: the 61 padding zeroes pulled the box to the origin
+    // (min [0,0,0], max [41,1,1]) and inflated the sphere to radius 20.51
+    // against a live extent of x 40…41.
+    const box = product.geometry.boundingBox!;
+    const sphere = product.geometry.boundingSphere!;
+    expect(box.min.x).toBeCloseTo(40, 10);
+    expect(box.max.x).toBeCloseTo(41, 10);
+    expect(sphere.center.x).toBeCloseTo(40.5, 10);
+    expect(sphere.radius).toBeLessThan(0.9);
+    agree(product);
+    product.dispose();
+  });
+
+  it('agrees with the live-range oracle for points, segments, and meshes', () => {
+    const cases = [
+      { ...edgeComplexR2(), hidden: 1 },
+      { ...triangleComplexR3(), hidden: 2 },
+      { ...tetraComplex(), hidden: 3 }
+    ];
+    for (const { complex, group, hidden } of cases) {
+      // Shifted off the chart origin so a padded volume cannot pass by luck.
+      for (let vertex = 0; vertex < complex.vertexCount; vertex++) {
+        complex.positions[vertex * complex.ambientDim] += 10;
+      }
+      const product = new SectionChart3D(
+        complex, group, HyperplaneSliceN.axisAligned(complex.ambientDim, hidden, 0)
+      );
+      expect(product.cellCount).toBeGreaterThan(0);
+      expect(product.geometry.boundingBox!.min.x).toBeGreaterThanOrEqual(10);
+      agree(product);
+      product.dispose();
+    }
+  });
+
+  it('cannot retain stale bounds through a shrink or an empty section', () => {
+    // Three staggered tetrahedra: the third stops at w = 0.3, so offset 0 cuts
+    // all three, offset 0.6 cuts two, offset 5 cuts none.
+    const tet = (x0: number, apexW: number): number[] => [
+      x0, 0, 0, -1,
+      x0 + 2, 0, 0, apexW,
+      x0, 2, 0, apexW,
+      x0, 0, 2, apexW
+    ];
+    const complex = new CellComplex(4, Float64Array.from([
+      ...tet(0, 1), ...tet(10, 1), ...tet(20, 0.3)
+    ]), [{
+      key: 'solid', dim: 3, verticesPerCell: 4, kind: 'simplex',
+      indices: Uint32Array.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+    }]);
+    const slice = HyperplaneSliceN.axisAligned(4, 3, 0);
+    const product = new SectionChart3D(complex, complex.groups[0]!, slice);
+    expect(product.cellCount).toBe(3);
+    expect(product.geometry.boundingBox!.max.x).toBeGreaterThan(20);
+    agree(product);
+
+    slice.offset = 0.6;
+    product.update();
+    expect(product.cellCount).toBe(2);
+    // The retired tetrahedron's corners at x 20…22 must leave the volume.
+    expect(product.geometry.boundingBox!.max.x).toBeLessThan(13);
+    agree(product);
+
+    slice.offset = 5;
+    product.update();
+    expect(product.cellCount).toBe(0);
+    expect(product.geometry.drawRange.count).toBe(0);
+    expect(product.geometry.boundingBox!.isEmpty()).toBe(true);
+    expect(product.geometry.boundingSphere!.isEmpty()).toBe(true);
+    product.dispose();
+  });
+
+  it('carries its bounds with moved geometry, pickable only at the new place', () => {
+    const { complex, group } = tetraComplex();
+    const product = new SectionChart3D(
+      complex, group, HyperplaneSliceN.axisAligned(4, 3, 0)
+    );
+    const cast = (x: number, y: number): number => {
+      product.object.updateMatrixWorld(true);
+      const caster = new Raycaster(new Vector3(x, y, 10), new Vector3(0, 0, -1), 0.01, 100);
+      return caster.intersectObject(product.object, true).length;
+    };
+    expect(cast(0.4, 0.4)).toBeGreaterThan(0);
+    for (let vertex = 0; vertex < complex.vertexCount; vertex++) {
+      complex.positions[vertex * 4] += 50;
+    }
+    product.update();
+    expect(product.geometry.boundingBox!.min.x).toBeCloseTo(50, 10);
+    expect(product.geometry.boundingSphere!.center.x).toBeCloseTo(50.5, 10);
+    agree(product);
+    expect(cast(50.4, 0.4)).toBeGreaterThan(0);
+    expect(cast(0.4, 0.4)).toBe(0);
+    product.dispose();
+  });
+
+  it('reports the same live volume before and after capacity growth', () => {
+    // Twenty-four tetrahedra cut at once need 72 slots, past the initial 64,
+    // so the attribute doubles; tetrahedron 0 alone reaches to w = 5, so a
+    // second offset isolates the same one-triangle section on both sides of
+    // the growth.
+    const tet = (x0: number, apexW: number): number[] => [
+      x0, 0, 0, -1,
+      x0 + 2, 0, 0, apexW,
+      x0, 2, 0, apexW,
+      x0, 0, 2, apexW
+    ];
+    const positions: number[] = [];
+    const indices: number[] = [];
+    for (let body = 0; body < 24; body++) {
+      positions.push(...tet(3 * body, body === 0 ? 5 : 1));
+      indices.push(4 * body, 4 * body + 1, 4 * body + 2, 4 * body + 3);
+    }
+    const complex = new CellComplex(4, Float64Array.from(positions), [{
+      key: 'solid', dim: 3, verticesPerCell: 4, kind: 'simplex',
+      indices: Uint32Array.from(indices)
+    }]);
+    const slice = HyperplaneSliceN.axisAligned(4, 3, 3);
+    const product = new SectionChart3D(complex, complex.groups[0]!, slice);
+    expect(product.cellCount).toBe(1);
+    const before = {
+      min: product.geometry.boundingBox!.min.toArray(),
+      max: product.geometry.boundingBox!.max.toArray(),
+      center: product.geometry.boundingSphere!.center.toArray(),
+      radius: product.geometry.boundingSphere!.radius
+    };
+    agree(product);
+
+    slice.offset = 0;
+    product.update();
+    expect(product.cellCount).toBe(24);
+    expect(product.geometry.getAttribute('position').array.length).toBeGreaterThanOrEqual(72 * 3);
+    agree(product);
+
+    slice.offset = 3;
+    product.update();
+    expect(product.cellCount).toBe(1);
+    expect(product.geometry.boundingBox!.min.toArray()).toEqual(before.min);
+    expect(product.geometry.boundingBox!.max.toArray()).toEqual(before.max);
+    expect(product.geometry.boundingSphere!.center.toArray()).toEqual(before.center);
+    expect(product.geometry.boundingSphere!.radius).toBe(before.radius);
+    agree(product);
     product.dispose();
   });
 });

@@ -1,4 +1,5 @@
 import {
+  Box3,
   BufferAttribute,
   BufferGeometry,
   DoubleSide,
@@ -9,6 +10,7 @@ import {
   MeshStandardMaterial,
   Points,
   PointsMaterial,
+  Sphere,
   type Material,
   type Object3D
 } from 'three';
@@ -121,14 +123,16 @@ export class SectionChart3D {
    *
    * Only `[0, drawRange.count)` is live. The attribute is grown by doubling and
    * never shrunk, so slots past the draw range hold zeroes or a previous
-   * frame's values; they are neither drawn nor picked, because rendering and
-   * raycasting both honour the draw range. `boundingBox` and `boundingSphere`
-   * do **not** — three.js computes them over the whole attribute — so both are
-   * recomputed each update but report a volume inflated by the unused capacity,
-   * always containing the chart origin. That over-accepts rays (a bounding
-   * sphere is only a fast reject, so picks stay correct) and `frustumCulled` is
-   * false, so culling is unaffected; but do not read these two volumes to frame
-   * a camera or size a helper. Measure the live slots instead.
+   * frame's values; they are neither drawn, picked, nor measured. `boundingBox`
+   * and `boundingSphere` are maintained by the product over exactly the live
+   * range at every update — three.js's own conventions (component min/max box;
+   * box-centre sphere with the largest live-vertex distance) applied to the
+   * live slots only, so both are safe to read for framing a camera or sizing a
+   * helper. An empty section reports explicitly empty volumes (`isEmpty()` on
+   * both), never a stale or origin-inflated one. Calling three.js's
+   * `computeBoundingBox`/`computeBoundingSphere` yourself would overwrite them
+   * with capacity-wide values — don't; the next `update` restores the live
+   * contract.
    */
   readonly geometry: BufferGeometry;
   /** `Points`, `LineSegments`, or `Mesh`, fixed at construction. */
@@ -347,10 +351,54 @@ export class SectionChart3D {
     }
     this.geometry.setDrawRange(0, vertexSlots);
     this.positionAttribute.needsUpdate = true;
-    // A stale bounding volume silently rejects rays where the section now is,
-    // and keeps accepting them where it used to be.
-    this.geometry.computeBoundingSphere();
-    this.geometry.computeBoundingBox();
+    this.writeBounds(target, vertexSlots);
     if (this.cellDim >= 2 && vertexSlots > 0) this.geometry.computeVertexNormals();
+  }
+
+  /**
+   * three.js's `computeBoundingBox`/`computeBoundingSphere` stop at the
+   * attribute's end, not the draw range, so on this padded buffer they would
+   * report the unused capacity — a section at x 40…41 in a fresh 64-slot
+   * buffer came back as a box containing the origin and a sphere 25× its true
+   * radius. Same two conventions, live slots only: component-wise min/max box,
+   * then the box centre with the largest live-vertex distance. An empty
+   * section gets explicitly empty volumes, not the previous frame's.
+   */
+  private writeBounds(target: Float32Array, vertexSlots: number): void {
+    const box = (this.geometry.boundingBox ??= new Box3());
+    const sphere = (this.geometry.boundingSphere ??= new Sphere());
+    if (vertexSlots === 0) {
+      box.makeEmpty();
+      sphere.makeEmpty();
+      return;
+    }
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+    for (let slot = 0; slot < vertexSlots; slot++) {
+      const x = target[slot * 3]!;
+      const y = target[slot * 3 + 1]!;
+      const z = target[slot * 3 + 2]!;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+    box.min.set(minX, minY, minZ);
+    box.max.set(maxX, maxY, maxZ);
+    const centerX = (minX + maxX) * 0.5;
+    const centerY = (minY + maxY) * 0.5;
+    const centerZ = (minZ + maxZ) * 0.5;
+    let radiusSq = 0;
+    for (let slot = 0; slot < vertexSlots; slot++) {
+      const dx = target[slot * 3]! - centerX;
+      const dy = target[slot * 3 + 1]! - centerY;
+      const dz = target[slot * 3 + 2]! - centerZ;
+      const distanceSq = dx * dx + dy * dy + dz * dz;
+      if (distanceSq > radiusSq) radiusSq = distanceSq;
+    }
+    sphere.center.set(centerX, centerY, centerZ);
+    sphere.radius = Math.sqrt(radiusSq);
   }
 }
