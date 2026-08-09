@@ -224,6 +224,107 @@ describe('sectionSimplexGroupN: analytic sections across R2..R7', () => {
     });
     expect(onPlane.cellCount).toBe(0);
     expect(onPlane.diagnostics.suppressedOnPlaneCells).toBe(1);
+    expect(onPlane.diagnostics.collapsedSectionCells).toBe(0);
+  });
+
+  it('counts collapsed straddling cells, completing the partition', () => {
+    // The two cases the P54 review measured as counted nowhere. Both straddle
+    // the plane, so neither is suppressed nor below; both weld every crossing
+    // onto too few vertices for a cell to survive.
+    const partition = (section: SectionSimplexGroupNResultN): number =>
+      section.diagnostics.sectionedCells +
+      section.diagnostics.suppressedOnPlaneCells +
+      section.diagnostics.cellsBelow +
+      section.diagnostics.collapsedSectionCells;
+
+    // Tangency whose on-plane vertex is the only non-below vertex.
+    const tangent = simplexComplex(3, [
+      [0, 0, -1], [1, 0, -1], [0, 1, -1], [0.2, 0.2, 0]
+    ]);
+    const tangentSection = sectionSimplexGroupN({
+      complex: tangent.complex, group: tangent.group,
+      slice: HyperplaneSliceN.axisAligned(3, 2, 0)
+    });
+    expect(tangentSection.cellCount).toBe(0);
+    expect(tangentSection.diagnostics.collapsedSectionCells).toBe(1);
+    expect(tangentSection.diagnostics.suppressedOnPlaneCells).toBe(0);
+    expect(tangentSection.diagnostics.cellsBelow).toBe(0);
+    // The welded vertex survives in the output while belonging to no cell.
+    expect(tangentSection.vertexCount).toBe(1);
+    expect(partition(tangentSection)).toBe(tangentSection.diagnostics.sourceCells);
+
+    // An on-plane sub-face: two vertices in the plane, two below, so the
+    // full-dimensional section collapses to that edge.
+    const subFace = simplexComplex(3, [
+      [0, 0, -1], [1, 0, -1], [0, 1, 0], [1, 1, 0]
+    ]);
+    const subFaceSection = sectionSimplexGroupN({
+      complex: subFace.complex, group: subFace.group,
+      slice: HyperplaneSliceN.axisAligned(3, 2, 0)
+    });
+    expect(subFaceSection.cellCount).toBe(0);
+    expect(subFaceSection.diagnostics.collapsedSectionCells).toBe(1);
+    expect(subFaceSection.vertexCount).toBe(2);
+    expect(partition(subFaceSection)).toBe(subFaceSection.diagnostics.sourceCells);
+
+    // And a live section reports zero collapsed, so the counter is not noise.
+    const live = simplexComplex(3, [[0, 0, -1], [2, 0, 1], [0, 2, 1], [1, 1, -0.5]]);
+    const liveSection = sectionSimplexGroupN({
+      complex: live.complex, group: live.group,
+      slice: HyperplaneSliceN.axisAligned(3, 2, 0)
+    });
+    expect(liveSection.cellCount).toBeGreaterThan(0);
+    expect(liveSection.diagnostics.collapsedSectionCells).toBe(0);
+    expect(partition(liveSection)).toBe(liveSection.diagnostics.sourceCells);
+  });
+
+  it('orients each parent as the boundary of its below region', () => {
+    // Coherence: on a 2-2 split the shared diagonal must cancel in the
+    // algebraic boundary of the two emitted triangles — the defect P54's review
+    // measured as 0/64 before the shuffle parity was applied.
+    const { complex, group } = simplexComplex(4, [
+      [0.3, -0.2, 0.1, -1], [1.7, 0.4, -0.3, -0.6], [0.1, 1.5, 0.4, 0.8], [-0.5, 0.6, 1.2, 1.1]
+    ]);
+    const forward = sectionSimplexGroupN({
+      complex, group, slice: new HyperplaneSliceN({ normal: VecN.basis(4, 3) })
+    });
+    expect(forward.cellCount).toBe(2);
+    const directedEdges = (section: SectionSimplexGroupNResultN): Map<string, number> => {
+      const net = new Map<string, number>();
+      const label = (vertex: number): string =>
+        Array.from(section.ambientPositions.subarray(vertex * 4, vertex * 4 + 4))
+          .map((value) => (Math.abs(value) < 5e-10 ? 0 : value).toFixed(9)).join(',');
+      for (let cell = 0; cell < section.cellCount; cell++) {
+        const corners = [0, 1, 2].map((at) => section.cells[cell * 3 + at]!);
+        const edges: readonly [number, number][] = [
+          [corners[1]!, corners[2]!], [corners[2]!, corners[0]!], [corners[0]!, corners[1]!]
+        ];
+        for (const [tail, head] of edges) {
+          const tailLabel = label(tail);
+          const headLabel = label(head);
+          const ordered = tailLabel < headLabel;
+          const key = ordered ? `${tailLabel}>${headLabel}` : `${headLabel}>${tailLabel}`;
+          net.set(key, (net.get(key) ?? 0) + (ordered ? 1 : -1));
+        }
+      }
+      return net;
+    };
+    const net = directedEdges(forward);
+    // Exactly one internal edge (the diagonal) cancels; four boundary edges remain.
+    const surviving = [...net.values()].filter((sum) => sum !== 0);
+    expect(net.size).toBe(5);
+    expect(surviving.length).toBe(4);
+
+    // The class is geometric: reversing the normal reverses every boundary edge.
+    const backward = sectionSimplexGroupN({
+      complex, group,
+      slice: new HyperplaneSliceN({ normal: VecN.basis(4, 3).multiplyScalar(-1) })
+    });
+    const reversedNet = directedEdges(backward);
+    for (const [key, sum] of net) {
+      if (sum === 0) continue;
+      expect(reversedNet.get(key), key).toBe(-sum);
+    }
   });
 
   it('is invariant under source-vertex and cell permutation', () => {
@@ -336,11 +437,14 @@ describe('sectionSimplexGroupN: the R4 tetrahedral differential', () => {
     expect(compared).toBe(fixtures.length);
   });
 
-  it('agrees cell-by-cell as vertex sets, including the 2-2 quad split', () => {
-    // The 2-2 case is the one where the two paths differ inside a cell: both
-    // emit the same two triangles, and the second one's last two vertices are
-    // transposed. Neither contract promises globally consistent orientation, so
-    // the comparison is by vertex set per cell.
+  it('agrees on the 2-2 quad split as ordered triangles, up to one class', () => {
+    // Both paths triangulate the same quad along the same diagonal. The generic
+    // staircase is coherently oriented as the boundary of the below region; the
+    // legacy fan is coherently wound in its own historical class. So the ordered
+    // comparison is exact up to ONE choice per parent: each generic triangle is
+    // the legacy triangle's cyclic class or its reversal, and the same choice
+    // holds for both triangles. A vertex-set comparison would accept broken
+    // winding; this does not.
     const { complex, group } = simplexComplex(4, [
       [0, 0, 0, -1], [2, 0, 0, -1], [0, 2, 0, 1], [0, 0, 2, 1]
     ]);
@@ -355,9 +459,19 @@ describe('sectionSimplexGroupN: the R4 tetrahedral differential', () => {
     expect(count).toBe(6);
     expect(section.cellCount).toBe(2);
 
-    const cellKey = (points: readonly string[]): string => [...points].sort().join(' | ');
-    const shippedCells: string[] = [];
-    for (let triangle = 0; triangle < count / 3; triangle++) {
+    const cyclic = (corners: readonly string[]): string => {
+      let best = '';
+      for (let start = 0; start < corners.length; start++) {
+        const rotated = corners.map((_ignored, index) =>
+          corners[(start + index) % corners.length]!);
+        const key = rotated.join(' | ');
+        if (best === '' || key < best) best = key;
+      }
+      return best;
+    };
+    const legacyClasses: string[] = [];
+    const legacyReversed: string[] = [];
+    for (let triangle = 0; triangle < 2; triangle++) {
       const corners: string[] = [];
       for (let corner = 0; corner < 3; corner++) {
         const at = (triangle * 3 + corner) * 4;
@@ -365,21 +479,30 @@ describe('sectionSimplexGroupN: the R4 tetrahedral differential', () => {
           Array.from(out.subarray(at, at + 4)).map((value) => value.toFixed(9)).join(',')
         );
       }
-      shippedCells.push(cellKey(corners));
+      legacyClasses.push(cyclic(corners));
+      legacyReversed.push(cyclic([...corners].reverse()));
     }
-    const genericCells: string[] = [];
-    for (let cell = 0; cell < section.cellCount; cell++) {
+    const genericClasses: string[] = [];
+    for (let cell = 0; cell < 2; cell++) {
       const corners: string[] = [];
-      for (let corner = 0; corner < section.verticesPerCell; corner++) {
-        const vertex = section.cells[cell * section.verticesPerCell + corner]!;
+      for (let corner = 0; corner < 3; corner++) {
+        const vertex = section.cells[cell * 3 + corner]!;
         corners.push(
           Array.from(section.ambientPositions.subarray(vertex * 4, vertex * 4 + 4))
             .map((value) => value.toFixed(9)).join(',')
         );
       }
-      genericCells.push(cellKey(corners));
+      genericClasses.push(cyclic(corners));
     }
-    expect(new Set(genericCells)).toEqual(new Set(shippedCells));
+    const matchesDirect =
+      new Set(genericClasses).size === 2 &&
+      genericClasses.every((entry) => legacyClasses.includes(entry));
+    const matchesReversed =
+      new Set(genericClasses).size === 2 &&
+      genericClasses.every((entry) => legacyReversed.includes(entry));
+    // Exactly one of the two, never a mixture: mixed classes are the broken
+    // winding the P54 review measured as 0/64.
+    expect(matchesDirect !== matchesReversed).toBe(true);
   });
 });
 

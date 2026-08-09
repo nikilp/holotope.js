@@ -49,24 +49,29 @@ export interface SectionSimplexGroupNDiagnosticsN {
    * This is the population that distinguishes "the plane misses this complex"
    * from "the plane grazes or contains it": a wholly on-plane cell lands here,
    * and so does a cell tangent at one vertex whose remaining vertices are all
-   * on or above the plane.
-   *
-   * The reverse tangency does **not**. When the on-plane vertex is the cell's
-   * only non-below vertex, the cell has a strictly-below vertex and so is
-   * neither suppressed here nor counted in {@link cellsBelow}; every crossing
-   * welds onto that one vertex, the staircase path repeats it, and the
-   * degenerate cell is dropped rather than emitted. The same holds whenever an
-   * on-plane sub-face collapses the section below full dimension. Such a cell is
-   * counted in none of these three populations, and its welded vertices remain
-   * in `ambientPositions`, `chartPositions` and `lineage` while belonging to no
-   * emitted cell — so `weldedVertices` can exceed the vertices any cell names.
-   * `cellCount === 0` with all three populations zero and `sourceCells`
-   * non-zero is exactly that case, and is the one thing these counts do not name
-   * directly.
+   * on or above the plane. The reverse tangency — an on-plane vertex whose
+   * companions are all strictly below — straddles the plane and is counted in
+   * {@link collapsedSectionCells} instead.
    */
   readonly suppressedOnPlaneCells: number;
   /** Cells with no vertex on or above the hyperplane. */
   readonly cellsBelow: number;
+  /**
+   * Cells that straddle the hyperplane but whose every section cell collapsed.
+   *
+   * A tangency whose on-plane vertex is its only non-below vertex, or an
+   * on-plane sub-face that drops the section below full dimension, welds every
+   * crossing onto too few distinct vertices for any staircase cell to survive.
+   * Nothing dimensionally false is emitted, but the welded vertices remain in
+   * `ambientPositions`, `chartPositions` and `lineage` while belonging to no
+   * cell — which is why `weldedVertices` can exceed the vertices any cell
+   * names, and why a renderer must draw cells, never bare vertices.
+   *
+   * The four populations partition the input:
+   * `sourceCells === sectionedCells + suppressedOnPlaneCells + cellsBelow +
+   * collapsedSectionCells`.
+   */
+  readonly collapsedSectionCells: number;
   /** Distinct output vertices after welding. */
   readonly weldedVertices: number;
   /** Output vertices before welding, so the saving is visible. */
@@ -114,7 +119,19 @@ export interface SectionSimplexGroupNResultN {
   readonly ambientPositions: Float64Array;
   /** Packed chart coordinates, `chartDim` per vertex. */
   readonly chartPositions: Float64Array;
-  /** Flat vertex indices, `verticesPerCell` per cell. */
+  /**
+   * Flat vertex indices, `verticesPerCell` per cell.
+   *
+   * Within one parent the emitted simplices are coherently oriented — as the
+   * boundary of the parent's below-plane region under the parent's own
+   * vertex-order orientation — so reversing the hyperplane normal reverses
+   * them, an odd relabelling of a parent reverses that parent's cells, and
+   * consistently oriented adjacent parents induce opposite orientations on a
+   * shared section face. Global coherence across an inconsistently oriented
+   * input complex is not promised, and a degenerate parent's class is
+   * deterministic but unspecified. Points (`verticesPerCell === 1`) carry no
+   * orientation.
+   */
   readonly cells: Uint32Array;
   /** Source cell index each output cell was cut from. */
   readonly parentCells: Uint32Array;
@@ -166,6 +183,20 @@ function blendRows(
   return { vertices, weights: vertices.map((vertex) => merged.get(vertex)!) };
 }
 
+/** One staircase simplex: the grid points it visits, and its shuffle parity. */
+interface StaircasePath {
+  readonly steps: readonly (readonly [number, number])[];
+  /**
+   * Inversions of the path's move word: pairs where a `j` move precedes an
+   * `i` move. The ordered simplex a path visits differs from the product
+   * orientation of `Δ^(a-1) × Δ^(b-1)` by `(-1)^inversions` — the sign of the
+   * Eilenberg–Zilber shuffle (Eilenberg & Mac Lane 1953, §5; Mac Lane,
+   * *Homology*, ch. VIII), which is what makes the signed staircase a coherent
+   * triangulation rather than a set of mirror traversals.
+   */
+  readonly inversions: number;
+}
+
 /**
  * Monotone lattice paths from `(0, 0)` to `(a - 1, b - 1)`, each visiting
  * `a + b - 1` points — the deterministic staircase triangulation of
@@ -173,26 +204,68 @@ function blendRows(
  * hyperplane under its negative/non-negative vertex split.
  *
  * Enumerated with the `j` move before the `i` move, so the order is a function
- * of the split alone. For a tetrahedron this reproduces the existing R4
- * marching-tetrahedra cells: a 1–3 or 3–1 split yields the single triangle in
- * crossing order, and a 2–2 split yields the same two triangles the R4 quad fan
- * emits (the second triangle's last two vertices are transposed, which is an
- * orientation choice inside one cell — neither path promises globally
- * consistent orientation).
+ * of the split alone. Each path carries the parity that orients it: for
+ * `a = b = 2` the two paths are mirror traversals of the same diagonal
+ * (`ji` with one inversion, `ij` with none), which is exactly why unsigned
+ * emission produced a locally incoherent pair — measured as 0/64 coherent
+ * against the R4 quad fan's 64/64 before the parity was applied.
  */
-function staircasePaths(a: number, b: number): number[][][] {
-  const paths: number[][][] = [];
-  const walk = (i: number, j: number, visited: number[][]): void => {
+function staircasePaths(a: number, b: number): StaircasePath[] {
+  const paths: StaircasePath[] = [];
+  const walk = (
+    i: number,
+    j: number,
+    visited: (readonly [number, number])[],
+    jMoves: number,
+    inversions: number
+  ): void => {
     if (i === a - 1 && j === b - 1) {
-      paths.push(visited);
+      paths.push({ steps: visited, inversions });
       return;
     }
-    if (j < b - 1) walk(i, j + 1, [...visited, [i, j + 1]]);
-    if (i < a - 1) walk(i + 1, j, [...visited, [i + 1, j]]);
+    if (j < b - 1) walk(i, j + 1, [...visited, [i, j + 1]], jMoves + 1, inversions);
+    // An `i` move after `jMoves` earlier `j` moves crosses each of them once.
+    if (i < a - 1) walk(i + 1, j, [...visited, [i + 1, j]], jMoves, inversions + jMoves);
   };
-  walk(0, 0, [[0, 0]]);
+  walk(0, 0, [[0, 0]], 0, 0);
   return paths;
 }
+
+/** Determinant by Gaussian elimination with partial pivoting; exact for its use. */
+function signedDeterminant(matrix: number[][]): number {
+  const size = matrix.length;
+  let det = 1;
+  for (let column = 0; column < size; column++) {
+    let pivot = column;
+    for (let row = column + 1; row < size; row++) {
+      if (Math.abs(matrix[row]![column]!) > Math.abs(matrix[pivot]![column]!)) pivot = row;
+    }
+    if (matrix[pivot]![column] === 0) return 0;
+    if (pivot !== column) {
+      const swap = matrix[pivot]!;
+      matrix[pivot] = matrix[column]!;
+      matrix[column] = swap;
+      det = -det;
+    }
+    det *= matrix[column]![column]!;
+    for (let row = column + 1; row < size; row++) {
+      const factor = matrix[row]![column]! / matrix[column]![column]!;
+      for (let entry = column; entry < size; entry++) {
+        matrix[row]![entry]! -= factor * matrix[column]![entry]!;
+      }
+    }
+  }
+  return det;
+}
+
+/**
+ * Below this magnitude a parent-relative orientation determinant is numerical
+ * noise rather than a certificate, so the emitted order is left as the parity
+ * construction produced it and the orientation class is unspecified. The
+ * entries are barycentric weights of order one, and the Part B oracle measures
+ * healthy sections three orders above 1e-9.
+ */
+const ORIENTATION_FLOOR = 1e-12;
 
 /**
  * Sections one simplicial cell group with a hyperplane, in any ambient
@@ -208,8 +281,15 @@ function staircasePaths(a: number, b: number): number[][][] {
  * Non-simplicial input is refused rather than guessed: simplexize it first (see
  * `simplexizeCuboidGroupN`). Cells with no vertex strictly below the hyperplane
  * are suppressed rather than emitted, which is how a wholly on-plane cell avoids
- * being returned twice; the diagnostics count them so "empty" and "suppressed"
- * stay distinguishable.
+ * being returned twice; straddling cells whose every section cell collapses are
+ * counted apart from both, so the four diagnostic populations partition the
+ * input and "empty" is never ambiguous.
+ *
+ * Emitted cells are oriented: each parent's section is the coherently wound
+ * boundary of its below-plane region (staircase shuffle parity for coherence,
+ * one barycentric determinant per parent for the class), so oriented area and
+ * flux integrals over a section accumulate instead of cancelling. See the
+ * `cells` field for exactly what is and is not promised.
  *
  * @param options - The complex and one of its simplicial groups, the hyperplane,
  *   the classification tolerance, and the ancestry to compose through.
@@ -296,12 +376,19 @@ export function sectionSimplexGroupN(
   const chart: number[] = [];
   const rowVertices: number[][] = [];
   const rowWeights: number[][] = [];
+  // The complex-vertex edge each welded vertex interpolates, kept so a parent
+  // can express its own emitted vertices in its own barycentric coordinates
+  // when fixing the orientation class. Private working state, not output.
+  const edgeFrom: number[] = [];
+  const edgeTo: number[] = [];
+  const edgeParameter: number[] = [];
   const cells: number[] = [];
   const parents: number[] = [];
   let crossingsFound = 0;
   let sectionedCells = 0;
   let suppressedOnPlaneCells = 0;
   let cellsBelow = 0;
+  let collapsedSectionCells = 0;
 
   const distances = new Float64Array(perCell);
   const point = new Float64Array(ambientDim);
@@ -330,6 +417,9 @@ export function sectionSimplexGroupN(
     const blended = blendRows(lineage, from, to, 1 - t, t);
     rowVertices.push(blended.vertices);
     rowWeights.push(blended.weights);
+    edgeFrom.push(from);
+    edgeTo.push(to);
+    edgeParameter.push(t);
     vertexKeys.set(key, index);
     return index;
   };
@@ -386,17 +476,93 @@ export function sectionSimplexGroupN(
       grid.push(row);
     }
 
+    const emittedStart = cells.length;
     let emitted = 0;
     for (const path of staircasePaths(a, b)) {
-      const corners = path.map(([i, j]) => grid[i!]![j!]!);
+      const corners = path.steps.map(([i, j]) => grid[i]![j]!);
       // A degenerate path (a repeated welded vertex) would be a dimensionally
       // false cell; drop it rather than emit one.
       if (new Set(corners).size !== corners.length) continue;
+      // Shuffle parity: an odd path is emitted with its last two vertices
+      // transposed, so all of one parent's cells triangulate the product
+      // coherently instead of as mirror traversals.
+      if (path.inversions % 2 === 1 && corners.length >= 2) {
+        const last = corners.length - 1;
+        const swap = corners[last]!;
+        corners[last] = corners[last - 1]!;
+        corners[last - 1] = swap;
+      }
       for (const corner of corners) cells.push(corner);
       parents.push(cell);
       emitted++;
     }
-    if (emitted > 0) sectionedCells++;
+    if (emitted === 0) {
+      // The cell straddles the plane, yet every candidate cell collapsed after
+      // welding — the tangencies and on-plane sub-faces that used to be counted
+      // nowhere. Its welded vertices remain in the output belonging to no cell.
+      collapsedSectionCells++;
+      continue;
+    }
+    sectionedCells++;
+
+    // The absolute orientation class, per Part A of the P55 decision record:
+    // appending the parent's first strictly-below vertex to an emitted cell
+    // must close a NEGATIVELY oriented tuple relative to the parent's own
+    // vertex order — the section oriented as the boundary of the below-plane
+    // region. The parity above fixed coherence; this one determinant per
+    // parent fixes which of the two coherent classes, and every promised
+    // behaviour (normal reversal reverses, an odd relabelling reverses,
+    // consistent neighbours cancel) is a consequence of the geometry rather
+    // than a case table. Points carry no orientation, so k = 1 is exempt.
+    const cellVertices = group.dim;
+    if (cellVertices >= 2) {
+      const localOf = (vertex: number): number => {
+        for (let v = 0; v < perCell; v++) {
+          if (group.indices[cell * perCell + v] === vertex) return v;
+        }
+        return -1;
+      };
+      const belowLocal = localOf(negative[0]!);
+      const matrix: number[][] = [];
+      let expressible = belowLocal >= 0;
+      for (let corner = 0; corner < cellVertices && expressible; corner++) {
+        const vertex = cells[emittedStart + corner]!;
+        const row = new Array<number>(perCell).fill(0);
+        const t = edgeParameter[vertex]!;
+        if (t === 1) {
+          // An on-plane vertex is a parent vertex itself; the edge that first
+          // interned it may belong to another parent.
+          const local = localOf(edgeTo[vertex]!);
+          if (local < 0) expressible = false;
+          else row[local] = 1;
+        } else {
+          const localFrom = localOf(edgeFrom[vertex]!);
+          const localTo = localOf(edgeTo[vertex]!);
+          if (localFrom < 0 || localTo < 0) expressible = false;
+          else {
+            row[localFrom] = 1 - t;
+            row[localTo] = t;
+          }
+        }
+        matrix.push(row);
+      }
+      if (expressible) {
+        const unit = new Array<number>(perCell).fill(0);
+        unit[belowLocal] = 1;
+        matrix.push(unit);
+        const reference = signedDeterminant(matrix);
+        if (reference > ORIENTATION_FLOOR) {
+          // Wrong class: flip every cell of this parent by one transposition.
+          for (let flipped = emittedStart; flipped < cells.length; flipped += cellVertices) {
+            const last = flipped + cellVertices - 1;
+            const swap = cells[last]!;
+            cells[last] = cells[last - 1]!;
+            cells[last - 1] = swap;
+          }
+        }
+        // At or below the floor the class is unspecified but deterministic.
+      }
+    }
   }
 
   const vertexCount = ambient.length / ambientDim;
@@ -436,6 +602,7 @@ export function sectionSimplexGroupN(
       sectionedCells,
       suppressedOnPlaneCells,
       cellsBelow,
+      collapsedSectionCells,
       weldedVertices: vertexCount,
       crossingsFound
     }
