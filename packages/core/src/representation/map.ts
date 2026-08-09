@@ -1,5 +1,5 @@
 import type { Point3 } from '../field/sample.js';
-import type { HyperplaneSlice4 } from '../projection/slice.js';
+import type { HyperplaneSlice4, HyperplaneSliceN } from '../projection/slice.js';
 import { CoordinateProjection } from '../projection/coordinate.js';
 import { OrthographicProjection } from '../projection/orthographic.js';
 import { PerspectiveProjection } from '../projection/perspective.js';
@@ -69,6 +69,37 @@ export interface AffineSliceChartMapRecipe4 extends RepresentationMapRecipeBase 
   /** The orthonormal frame spanning it; the chart's axes, and what makes the
    * lift back to R⁴ well defined. */
   readonly basis: readonly [Point4, Point4, Point4];
+}
+
+/**
+ * Intersection with an affine hyperplane in any ambient dimension, staying in
+ * ambient coordinates — the dimension-generic form of
+ * {@link AffineSectionMapRecipe4}, produced by sections of `HyperplaneSliceN`.
+ */
+export interface AffineSectionMapRecipeN extends RepresentationMapRecipeBase {
+  /** Names this reduction. */
+  readonly kind: 'affine-section-n';
+  /** Unit normal of the cutting hyperplane; its length is the dimension. */
+  readonly normal: readonly number[];
+  /** Its offset along that normal. */
+  readonly offset: number;
+}
+
+/**
+ * Reading an affine hyperplane's points in its own orthonormal chart — the
+ * dimension-generic form of {@link AffineSliceChartMapRecipe4}. A change of
+ * chart rather than a loss, which is why a picked section point lifts back to
+ * ambient coordinates through the same basis.
+ */
+export interface AffineSliceChartMapRecipeN extends RepresentationMapRecipeBase {
+  /** Names this reduction. */
+  readonly kind: 'affine-slice-chart-n';
+  /** Unit normal of the hyperplane being charted. */
+  readonly normal: readonly number[];
+  /** Its offset along that normal. */
+  readonly offset: number;
+  /** The orthonormal frame spanning it: `toDim` rows of `fromDim` entries. */
+  readonly basis: readonly (readonly number[])[];
 }
 
 export interface OrthographicProjectionMapRecipeN extends RepresentationMapRecipeBase {
@@ -181,6 +212,8 @@ export interface RayRealizationMapRecipe3 extends RepresentationMapRecipeBase {
  * made" is answered.
  */
 export type RepresentationMapRecipeN =
+  | AffineSectionMapRecipeN
+  | AffineSliceChartMapRecipeN
   | AffineSectionMapRecipe4
   | AffineSliceChartMapRecipe4
   | OrthographicProjectionMapRecipeN
@@ -279,6 +312,31 @@ export function affineSectionMapRecipe4(
     toDim: 4,
     normal: point4(slice.normal.data),
     offset: slice.offset
+  };
+}
+
+/** The dimension-generic section step of a `HyperplaneSliceN` cut. */
+export function affineSectionMapRecipeN(slice: HyperplaneSliceN): AffineSectionMapRecipeN {
+  return {
+    kind: 'affine-section-n',
+    fromDim: slice.ambientDim,
+    toDim: slice.ambientDim,
+    normal: Array.from(slice.normal.data),
+    offset: slice.offset
+  };
+}
+
+/** The dimension-generic chart step reading a section in its own axes. */
+export function affineSliceChartMapRecipeN(
+  slice: HyperplaneSliceN
+): AffineSliceChartMapRecipeN {
+  return {
+    kind: 'affine-slice-chart-n',
+    fromDim: slice.ambientDim,
+    toDim: slice.chartDim,
+    normal: Array.from(slice.normal.data),
+    offset: slice.offset,
+    basis: slice.basis.map((row) => Array.from(row))
   };
 }
 

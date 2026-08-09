@@ -5,7 +5,7 @@
  * throws on the first violated claim. The verifier runs this file with `node`
  * after a strict typecheck; a thrown error is the failure signal.
  */
-import { LineBasicMaterial, PerspectiveCamera, Raycaster, Vector2, type Intersection } from 'three';
+import { LineBasicMaterial, PerspectiveCamera, Raycaster, Vector2, Vector3, type Intersection } from 'three';
 import {
   BivectorN,
   CellComplex,
@@ -30,8 +30,11 @@ import {
 } from '@holotope/core';
 import {
   ProjectedEdges3D,
+  SectionChart3D,
   representationHitFromProjectedSurface,
-  representationHitFromSlicedComplex
+  representationHitFromSectionChart,
+  representationHitFromSlicedComplex,
+  type SectionChart3DOptions
 } from '@holotope/three';
 import {
   ConvexHullSupportShapeN,
@@ -367,6 +370,75 @@ export function dimensionGenericSection(): void {
     refused = error instanceof Error ? error.message : String(error);
   }
   assert(refused.includes('Simplexize'), 'a cuboid group was not refused');
+}
+
+/**
+ * The RN section render adapter, from the same tarballs its section came from.
+ *
+ * Drives the seam an outside caller needs first: construct over a simplicial
+ * group, render, move the source, and resolve a pick back to the parent cell
+ * with the ambient point qualified as approximate rather than upgraded.
+ */
+export function sectionChartRender(): void {
+  const positions = Float64Array.from([
+    0, 0, 0, -1,
+    2, 0, 0, 1,
+    0, 2, 0, 1,
+    0, 0, 2, 1
+  ]);
+  const complex = new CellComplex(4, positions, [
+    { dim: 3, verticesPerCell: 4, kind: 'simplex', indices: Uint32Array.from([0, 1, 2, 3]) }
+  ]);
+  const group = complex.groups[0];
+  assert(group !== undefined, 'expected the tetrahedron group');
+
+  const options: SectionChart3DOptions = {
+    material: new LineBasicMaterial()
+  };
+  // A caller-owned material on a triangle section would be wrong for shading,
+  // but ownership is the thing under test: the product must not dispose it.
+  const chart = new SectionChart3D(
+    complex, group, HyperplaneSliceN.axisAligned(4, 3, 0), options
+  );
+  assert(chart.cellCount === 1, `expected one section triangle, got ${chart.cellCount}`);
+  assert(chart.section.diagnostics.sectionedCells === 1, 'the cell did not section');
+  assert(chart.section.diagnostics.collapsedSectionCells === 0, 'nothing should collapse');
+
+  // Streaming: move the authoritative source, update, and the drawn buffer
+  // follows while the caller complex is only read.
+  for (let vertex = 0; vertex < complex.vertexCount; vertex++) {
+    const at = vertex * 4;
+    complex.positions[at] = (complex.positions[at] ?? 0) + 3;
+  }
+  chart.update();
+  const attribute = chart.geometry.getAttribute('position');
+  assert(attribute.getX(0) >= 2, 'the drawn section did not follow the source');
+
+  const hit = representationHitFromSectionChart(chart, {
+    point: new Vector3(3.5, 0.5, 0),
+    faceIndex: 0
+  });
+  assert(hit.representation === 'section-chart', 'wrong representation kind');
+  assert(hit.source.kind === 'cell' && hit.source.cellIndex === 0, 'wrong parent cell');
+  assert(hit.ambientPointStatus === 'approximate', 'a Float32 pick is approximate');
+  assert(hit.ambiguity === 'none', 'a section pick is not ambiguous');
+
+  let refused = '';
+  try {
+    void new SectionChart3D(
+      complex, group, HyperplaneSliceN.axisAligned(4, 3, 0),
+      { magic: 1 } as never
+    );
+  } catch (error) {
+    refused = error instanceof Error ? error.message : String(error);
+  }
+  assert(refused.includes('unknown option'), 'unknown options must refuse by name');
+
+  chart.dispose();
+  const material = options.material;
+  assert(material !== undefined, 'the option was provided');
+  // Disposing after the product proves the product left it alive.
+  material.dispose();
 }
 
 export function geometryComposition(): void {

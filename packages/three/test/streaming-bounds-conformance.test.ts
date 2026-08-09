@@ -1,13 +1,15 @@
 import {
   CellComplex,
   CoordinateProjection,
-  HyperplaneSlice4
+  HyperplaneSlice4,
+  HyperplaneSliceN
 } from '@holotope/core';
 import { Raycaster, Vector3, type Object3D } from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   ProjectedEdges3D,
   ProjectedSurface3D,
+  SectionChart3D,
   SlicedComplex3D
 } from '../src/index.js';
 import * as products from '../src/index.js';
@@ -150,6 +152,34 @@ const CASES: readonly StreamingProductCase[] = [
         move: () => { slice.offset = 3.4; product.update(); },
         before: [42, 0.5],
         after: [340, 0.5],
+        dispose: () => product.dispose()
+      };
+    }
+  },
+  {
+    name: 'SectionChart3D',
+    build() {
+      // A tetrahedron group in R4 cut at w = 0: the section triangle sits near
+      // the origin of the chart, and translating the authoritative source
+      // along x carries it across the scene.
+      const complex = new CellComplex(4, Float64Array.from([
+        0, 0, 0, -2,
+        6, 0, 0, 2,
+        0, 6, 0, 2,
+        0, 0, 6, 2
+      ]), [{
+        key: 'solid', dim: 3, verticesPerCell: 4, kind: 'simplex',
+        indices: Uint32Array.from([0, 1, 2, 3])
+      }]);
+      const group = complex.groups[0]!;
+      const product = new SectionChart3D(
+        complex, group, HyperplaneSliceN.axisAligned(4, 3, 0)
+      );
+      return {
+        object: product.object,
+        move: () => { translate(complex, TRAVEL); product.update(); },
+        before: [1.5, 1.5],
+        after: [TRAVEL + 1.5, 1.5],
         dispose: () => product.dispose()
       };
     }

@@ -1,14 +1,19 @@
 import {
   VecN,
   affineSectionMapRecipe4,
+  affineSectionMapRecipeN,
   affineSliceChartMapRecipe4,
+  affineSliceChartMapRecipeN,
   createRepresentationLineageN,
   createSourceCellIdN,
+  createSourceCellReferenceN,
   fieldRestrictionMapRecipe4,
   projectionMapRecipeN,
   resolveRepresentationChartPointToSourceCellN
 } from '@holotope/core';
 import type {
+  AffineSectionMapRecipeN,
+  AffineSliceChartMapRecipeN,
   FieldEvaluation4,
   RepresentationDetailValue,
   RepresentationChartSourceCellResolutionN,
@@ -19,6 +24,7 @@ import type { Object3D, Vector3 } from 'three';
 import type { ProjectedEdges3D } from './projected-edges.js';
 import type { ProjectedSurface3D } from './projected-surface.js';
 import type { SampledSlicedField3D } from './sampled-sliced-field.js';
+import type { SectionChart3D } from './section-chart.js';
 import type { SlicedComplex3D } from './sliced-complex.js';
 
 /**
@@ -172,6 +178,109 @@ export function representationHitFromSlicedComplex(
       sliceConstruction: 'edge-interpolation',
       crossingEdgeVertices: crossings.flatMap((crossing) => crossing.edgeVertices),
       crossingParameters: crossings.map((crossing) => crossing.parameter)
+    }
+  };
+}
+
+/**
+ * Map a picked RN section primitive to its parent source cell and ancestry.
+ *
+ * The chart is injective — a section names its source, so `ambiguity` is
+ * `'none'` — but the picked point travelled through Float32 display buffers
+ * and barycentric interpolation, so its embedded ambient point is reported as
+ * `'approximate'`, never upgraded to `'exact'`. Source **identity** is exact:
+ * the parent cell index comes from the section's own `parentCells`, and each
+ * corner's original-source affine ancestry rides along in the details, which
+ * is what survives a chained section.
+ *
+ * Points and segments report through `intersection.index`; triangles through
+ * `intersection.faceIndex` — the same convention as the other adapters.
+ */
+export function representationHitFromSectionChart(
+  product: SectionChart3D,
+  intersection: RepresentationIntersection3D
+): RepresentationHitN {
+  const section = product.section;
+  const slotsPerPrimitive = section.verticesPerCell;
+  let primitive: number;
+  if (product.cellDim >= 2) {
+    primitive = requireFaceIndex(intersection, 'representationHitFromSectionChart');
+  } else {
+    const index = intersection.index;
+    if (index === undefined || !Number.isSafeInteger(index) || index < 0) {
+      throw new Error(
+        'representationHitFromSectionChart: intersection.index is required for ' +
+        'point and segment sections'
+      );
+    }
+    primitive = Math.floor(index / slotsPerPrimitive);
+  }
+  if (primitive >= section.cellCount) {
+    throw new Error(
+      `representationHitFromSectionChart: primitive ${primitive} is outside ` +
+      `0…${section.cellCount - 1}`
+    );
+  }
+
+  const parentCell = product.sourceCellOfPrimitive(primitive);
+  const vertices = product.primitiveVertices(primitive);
+  const ancestrySources: number[] = [];
+  const ancestryWeights: number[] = [];
+  const ancestryOffsets: number[] = [0];
+  for (const vertex of vertices) {
+    const row = product.vertexAncestry(vertex);
+    ancestrySources.push(...row.sourceVertices);
+    ancestryWeights.push(...row.weights);
+    ancestryOffsets.push(ancestrySources.length);
+  }
+
+  // The two lineage steps a section pick travelled: the intersection with the
+  // hyperplane (dimension unchanged), then the reading in its own chart.
+  const sectionStep: AffineSectionMapRecipeN = affineSectionMapRecipeN(product.slice);
+  const chartStep: AffineSliceChartMapRecipeN = affineSliceChartMapRecipeN(product.slice);
+
+  // The picked display point IS a chart point (the chart's axes are the
+  // display axes), so embedding it through the slice gives the ambient point —
+  // approximate, because the display coordinates are Float32.
+  const chart: number[] = [];
+  const pointTuple = vector3Tuple(intersection.point);
+  for (let axis = 0; axis < product.slice.chartDim; axis++) {
+    chart.push(pointTuple[axis] ?? 0);
+  }
+  const ambientPoint = new VecN(product.slice.embedPoint(chart));
+
+  return {
+    representation: 'section-chart',
+    point3: pointTuple,
+    ambientDim: section.ambientDim,
+    ambientPointStatus: 'approximate',
+    ambientPoint,
+    ambiguity: 'none',
+    lineage: createRepresentationLineageN(section.ambientDim, [sectionStep, chartStep]),
+    source: {
+      kind: 'cell',
+      complex: product.complex,
+      intrinsicDim: product.group.dim,
+      cellIndex: parentCell,
+      vertexIndices: (() => {
+        const per = product.group.verticesPerCell;
+        const out: number[] = [];
+        for (let corner = 0; corner < per; corner++) {
+          out.push(product.group.indices[parentCell * per + corner]!);
+        }
+        return out;
+      })(),
+      reference: createSourceCellReferenceN(product.complex, product.group, parentCell),
+      id: createSourceCellIdN(
+        createSourceCellReferenceN(product.complex, product.group, parentCell)
+      )
+    },
+    details: {
+      sectionPrimitive: primitive,
+      sectionVertices: vertices,
+      ancestryOffsets,
+      ancestrySourceVertices: ancestrySources,
+      ancestryWeights
     }
   };
 }

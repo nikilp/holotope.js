@@ -9,10 +9,12 @@ export {
   SampledSlicedField3D,
   type SampledSlicedField3DOptions
 } from './sampled-sliced-field.js';
+export { SectionChart3D, type SectionChart3DOptions } from './section-chart.js';
 export {
   representationHitFromProjectedEdge,
   representationHitFromProjectedSurface,
   representationHitFromSampledSlicedField,
+  representationHitFromSectionChart,
   representationHitFromSlicedComplex,
   type RepresentationIntersection3D
 } from './representation-hit.js';

@@ -95,11 +95,15 @@ export {
 } from './source-simplex-coordinate.js';
 export {
   affineSectionMapRecipe4,
+  affineSectionMapRecipeN,
+  affineSliceChartMapRecipeN,
   affineSliceChartMapRecipe4,
   createRepresentationLineageN,
   fieldRestrictionMapRecipe4,
   projectionMapRecipeN,
   type AffineSectionMapRecipe4,
+  type AffineSectionMapRecipeN,
+  type AffineSliceChartMapRecipeN,
   type AffineSliceChartMapRecipe4,
   type CustomProjectionMapRecipeN,
   type CoordinateProjectionMapRecipeN,

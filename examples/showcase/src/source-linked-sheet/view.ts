@@ -22,15 +22,21 @@ import {
   CellComplex,
   CoordinateProjection,
   HyperplaneSlice4,
+  HyperplaneSliceN,
   PerspectiveProjection,
   type CellGroup,
   type Projection
 } from '@holotope/core';
-import { ProjectedSurface3D, SlicedComplex3D } from '@holotope/three';
+import {
+  ProjectedSurface3D,
+  SectionChart3D,
+  SlicedComplex3D,
+  type SectionChart3DOptions
+} from '@holotope/three';
 import {
   createContactOverlay, type ContactOverlay
 } from './contact-overlay.js';
-import { SLICE_AXIS, sliceRange, sliceSurface } from './slice.js';
+import { SLICE_AXIS, sliceRange } from './slice.js';
 import type { SheetContactForce } from './scene.js';
 
 /**
@@ -320,15 +326,21 @@ function createSliceView(
   });
   scene.add(section.object);
 
-  const curveGeometry = new BufferGeometry();
-  const capacity = (sheetGroup.indices.length / sheetGroup.verticesPerCell) * 6;
-  const curvePositions = new BufferAttribute(new Float32Array(capacity), 3);
-  curveGeometry.setAttribute('position', curvePositions);
-  const curve = new LineSegments(
-    curveGeometry, new LineBasicMaterial({ color: 0x7ce7ff })
+  // The sheet's own cut, drawn by the packaged RN section product rather than
+  // a hand-marched buffer: the canonical chart of the Z axis is X, Y, W in
+  // ascending order, which is exactly this pane's three coordinates. The
+  // material stays caller-owned — the product's ownership boundary — because
+  // this view created it and disposes it.
+  const curveOptions: SectionChart3DOptions = {
+    material: new LineBasicMaterial({ color: 0x7ce7ff })
+  };
+  const sheetSection = new SectionChart3D(
+    sheetComplex,
+    sheetGroup,
+    HyperplaneSliceN.axisAligned(4, SLICE_AXIS, offset),
+    curveOptions
   );
-  curve.frustumCulled = false;
-  scene.add(curve);
+  scene.add(sheetSection.object);
 
   let segmentCount = 0;
   let sourceCellCount = 0;
@@ -339,14 +351,12 @@ function createSliceView(
     range = sliceRange([sheetComplex, obstacleComplex]);
     slice.offset = offset;
     section.update();
-    const cut = sliceSurface(
-      sheetComplex, sheetGroup, offset, curvePositions.array as Float32Array
-    );
-    segmentCount = cut.count;
-    sourceCellCount = cut.sourceCellCount;
-    curveGeometry.setDrawRange(0, cut.count * 2);
-    curvePositions.needsUpdate = true;
-    curveGeometry.computeBoundingSphere();
+    sheetSection.slice.offset = offset;
+    sheetSection.update();
+    segmentCount = sheetSection.cellCount;
+    // Segments and source triangles are different facts, and the product's
+    // parent mapping is the authority on the second.
+    sourceCellCount = new Set(sheetSection.section.parentCells).size;
   };
   refresh();
 
@@ -376,8 +386,9 @@ function createSliceView(
     dispose: () => {
       controls.dispose();
       section.dispose();
-      curveGeometry.dispose();
-      curve.material.dispose();
+      sheetSection.dispose();
+      // Caller-owned: the product never disposes a material it was given.
+      curveOptions.material?.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     }

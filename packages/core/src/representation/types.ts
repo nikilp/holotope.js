@@ -8,6 +8,7 @@ export type RepresentationKind3D =
   | 'projected-edge'
   | 'projected-surface'
   | 'sliced-complex'
+  | 'section-chart'
   | 'sampled-sliced-field'
   | 'raymarched-field';
 

@@ -81,6 +81,56 @@ export function evaluateRepresentationLineagePointN(
   for (let stepIndex = 0; stepIndex < lineage.steps.length; stepIndex++) {
     const recipe = lineage.steps[stepIndex]!;
     switch (recipe.kind) {
+      case 'affine-section-n': {
+        const residual = affinePlaneResidualN(point, recipe.normal, recipe.offset);
+        const threshold = affineThreshold(point, recipe.offset, tolerance);
+        if (Math.abs(residual) > threshold) {
+          return unavailable(
+            point,
+            steps,
+            recipe,
+            stepIndex,
+            'outside-domain',
+            { planeResidual: residual, tolerance: threshold }
+          );
+        }
+        steps.push(exactStep(stepIndex, recipe, point, {
+          planeResidual: residual,
+          tolerance: threshold
+        }));
+        break;
+      }
+      case 'affine-slice-chart-n': {
+        const residual = affinePlaneResidualN(point, recipe.normal, recipe.offset);
+        const threshold = affineThreshold(point, recipe.offset, tolerance);
+        if (Math.abs(residual) > threshold) {
+          return unavailable(
+            point,
+            steps,
+            recipe,
+            stepIndex,
+            'outside-domain',
+            { planeResidual: residual, tolerance: threshold }
+          );
+        }
+        const chartDim = recipe.basis.length;
+        const ambientDim = recipe.normal.length;
+        const chart = new Float64Array(chartDim);
+        for (let axis = 0; axis < chartDim; axis++) {
+          const basisAxis = recipe.basis[axis]!;
+          for (let component = 0; component < ambientDim; component++) {
+            chart[axis]! += basisAxis[component]! * (
+              point.data[component]! - recipe.normal[component]! * recipe.offset
+            );
+          }
+        }
+        point = new VecN(chart);
+        steps.push(exactStep(stepIndex, recipe, point, {
+          planeResidual: residual,
+          tolerance: threshold
+        }));
+        break;
+      }
       case 'affine-section': {
         const residual = affinePlaneResidual(point, recipe.normal, recipe.offset);
         const threshold = affineThreshold(point, recipe.offset, tolerance);
@@ -223,6 +273,29 @@ function affinePlaneResidual(
   }
   let residual = -offset;
   for (let component = 0; component < 4; component++) {
+    residual += normal[component]! * point.data[component]!;
+  }
+  return residual;
+}
+
+/** The R4 residual's dimension-generic form, refusing a mismatched point. */
+function affinePlaneResidualN(
+  point: VecN,
+  normal: readonly number[],
+  offset: number
+): number {
+  if (point.dim !== normal.length) {
+    throw new Error(
+      `evaluateRepresentationLineagePointN: affine recipe expects R${normal.length}, ` +
+      `received R${point.dim}`
+    );
+  }
+  requireFinitePoint(normal, 'evaluateRepresentationLineagePointN: affine normal');
+  if (!Number.isFinite(offset)) {
+    throw new Error('evaluateRepresentationLineagePointN: affine offset must be finite');
+  }
+  let residual = -offset;
+  for (let component = 0; component < normal.length; component++) {
     residual += normal[component]! * point.data[component]!;
   }
   return residual;

@@ -39,6 +39,8 @@ export function representationMapCapabilitiesN(
   switch (recipe.kind) {
     case 'affine-section':
     case 'affine-slice-chart':
+    case 'affine-section-n':
+    case 'affine-slice-chart-n':
       return capabilities('conditional', 'exact', 'unavailable', 'unavailable', 'preserved');
     case 'orthographic-projection':
     case 'coordinate-subspace-projection':
@@ -123,6 +125,8 @@ export function representationMapCapabilityVerbsN(
   switch (recipe.kind) {
     case 'affine-section':
     case 'affine-slice-chart':
+    case 'affine-section-n':
+    case 'affine-slice-chart-n':
       return verbs(FORWARD, SLICE_LIFT, undefined, undefined, SOURCE_REFERENCE);
     case 'orthographic-projection':
     case 'coordinate-subspace-projection':
