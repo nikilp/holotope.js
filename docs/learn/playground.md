@@ -65,6 +65,7 @@ there is improved here.
 | [`CellComplex`](/api/core/geometry/classes/CellComplex) | [open](https://nikilp.github.io/holotope.js/playground.html#CellComplex) |
 | [`HyperplaneSliceN`](/api/core/projection/classes/HyperplaneSliceN) | [open](https://nikilp.github.io/holotope.js/playground.html#HyperplaneSliceN) |
 | [`ModelSetWindowPrunedSampleOptions`](/api/core/lattice/interfaces/ModelSetWindowPrunedSampleOptions) | [open](https://nikilp.github.io/holotope.js/playground.html#ModelSetWindowPrunedSampleOptions) |
+| [`PlaneEmbedding3D`](/api/core/projection/classes/PlaneEmbedding3D) | [open](https://nikilp.github.io/holotope.js/playground.html#PlaneEmbedding3D) |
 | [`ProjectedEdges3D`](/api/three/index/classes/ProjectedEdges3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedEdges3D) |
 | [`ProjectedSurface3D`](/api/three/index/classes/ProjectedSurface3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedSurface3D) |
 | [`Rotor4Track`](/api/core/animation/classes/Rotor4Track) | [open](https://nikilp.github.io/holotope.js/playground.html#Rotor4Track) |
