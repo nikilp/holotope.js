@@ -25,6 +25,9 @@ import {
   sectionSimplexGroupN,
   tetrahedralizeCuboidCells,
   type CellGroup,
+  type HyperplaneSliceNOptions,
+  type SectionSimplexGroupNDiagnosticsN,
+  type SectionSimplexGroupNOptions,
   type SectionSimplexGroupNResultN,
   type SourceAffineLineageN
 } from '@holotope/core';
@@ -313,20 +316,32 @@ export function dimensionGenericSection(): void {
   });
   assert(first.cellCount > 0, 'the first section emitted no cell');
   assert(first.cellDim === 3, 'a 4-simplex cut by a hyperplane is a 3-cell');
-  assert(first.diagnostics.sectionedCells === 1, 'the source cell was not sectioned');
+  const firstDiagnostics: SectionSimplexGroupNDiagnosticsN = first.diagnostics;
+  assert(firstDiagnostics.sectionedCells === 1, 'the source cell was not sectioned');
+  assert(
+    firstDiagnostics.sourceCells ===
+      firstDiagnostics.sectionedCells + firstDiagnostics.suppressedOnPlaneCells +
+      firstDiagnostics.cellsBelow + firstDiagnostics.collapsedSectionCells,
+    'the diagnostic partition identity failed through the packed surface'
+  );
 
   const intermediateGroup: CellGroup = {
     dim: first.cellDim, verticesPerCell: first.verticesPerCell,
     kind: 'simplex', indices: first.cells
   };
-  const inner = HyperplaneSliceN.axisAligned(5, 3, 0);
+  // The options bag spelled out: `axisAligned(5, 3, 0)` delegates to exactly
+  // this constructor call, so the slice is identical - what this exercises is
+  // the published option types, as an outside caller annotates them.
+  const innerOptions: HyperplaneSliceNOptions = { normal: [0, 0, 0, 1, 0], offset: 0 };
+  const inner = new HyperplaneSliceN(innerOptions);
   const lineage: SourceAffineLineageN = first.lineage;
-  const second = sectionSimplexGroupN({
+  const secondOptions: SectionSimplexGroupNOptions = {
     complex: new CellComplex(5, first.ambientPositions, [intermediateGroup]),
     group: intermediateGroup,
     slice: inner,
     lineage
-  });
+  };
+  const second = sectionSimplexGroupN(secondOptions);
   assert(second.cellCount > 0, 'the chained section emitted no cell');
   assert(second.cellDim === 2, 'the chained section should be a surface');
 

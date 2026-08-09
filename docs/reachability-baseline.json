@@ -485,7 +485,6 @@
   "physics:XpbdIncrementalPotentialStepFilterLimitedN",
   "physics:XpbdIncrementalPotentialStepFilterSafeN",
   "physics:XpbdIncrementalPotentialStepMinimizationRefusedN",
-  "physics:XpbdIncrementalPotentialStepRefusedN",
   "physics:XpbdNewtonDirectionFallbackN",
   "physics:XpbdNewtonDirectionFallbackTriggerN",
   "physics:XpbdNewtonDirectionOutcomeN",

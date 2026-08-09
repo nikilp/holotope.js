@@ -32,7 +32,11 @@
  *
  * A reference from any non-test, non-barrel source file other than the one that
  * declares the symbol — including `examples/`, because the showcase is a real
- * caller and the most honest one available.
+ * caller and the most honest one available, and the `src` directory of each
+ * fixture under `fixtures/`, because the packed consumer compiles and runs
+ * against the built tarballs outside every workspace: the strongest reader
+ * this repository has. Fixtures confer reachability but never declare — their
+ * exports are not library API.
  *
  * Tests deliberately do **not** count. A symbol exercised only by tests written
  * by its own author is the exact population both exercises drew their findings
@@ -105,6 +109,17 @@ if (fs.existsSync(examplesDir)) {
     if (!fs.statSync(path.join(examplesDir, example)).isDirectory()) continue;
     walk(path.join(examplesDir, example, 'src'), 'example', example);
     walk(path.join(examplesDir, example, 'test'), 'test', example);
+  }
+}
+// The packed consumer: a reader, never a declarer — `kind` other than 'source'
+// means its own exports are not collected as library API. Its `test` dirs, if
+// any ever exist, stay excluded exactly like package tests.
+const fixturesDir = path.join(REPO, 'fixtures');
+if (fs.existsSync(fixturesDir)) {
+  for (const fixture of fs.readdirSync(fixturesDir)) {
+    if (!fs.statSync(path.join(fixturesDir, fixture)).isDirectory()) continue;
+    walk(path.join(fixturesDir, fixture, 'src'), 'fixture', fixture);
+    walk(path.join(fixturesDir, fixture, 'test'), 'test', fixture);
   }
 }
 
