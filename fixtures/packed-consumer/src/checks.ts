@@ -20,6 +20,7 @@ import {
   createSourceCellReferenceN,
   createSourceSimplexReferenceN,
   createHypercube,
+  createSimplex,
   createHyperrectangle,
   cuboidCellFacetN,
   describeRepresentationHitN,
@@ -452,6 +453,88 @@ export function planeEmbeddingComposition(): void {
     && step.fromDim === recipe.fromDim && step.toDim === recipe.toDim,
     'the recorded lineage step must equal the published recipe');
   edges.dispose();
+}
+
+
+/**
+ * The complete authored R5 bridge from the packed tarballs: Part B's 4-facet
+ * group, two exact cuts, a rendered chart, a real pick, and original R5
+ * ancestry - reproduced outside every workspace.
+ */
+export function authoredDimensionBridge(): void {
+  const body = createSimplex({ dim: 5, maxCellDimension: 4 });
+  const facets = body.groups.find((group) => group.dim === 4);
+  assert(facets !== undefined && facets.indices.length / 5 === 6,
+    'the R5 simplex must author six simplicial 4-facets');
+
+  const outer = HyperplaneSliceN.axisAligned(5, 4, 0.02);
+  const first = sectionSimplexGroupN({ complex: body, group: facets!, slice: outer });
+  assert(first.cellCount > 0 && first.cellDim === 3 && first.chartDim === 4,
+    'the first cut must produce live 3-cells in an R4 chart');
+
+  const intermediateGroup: CellGroup = {
+    dim: first.cellDim, verticesPerCell: first.verticesPerCell,
+    kind: 'simplex', indices: first.cells
+  };
+  const intermediate = new CellComplex(4, first.chartPositions, [intermediateGroup]);
+  let low = Number.POSITIVE_INFINITY;
+  let high = Number.NEGATIVE_INFINITY;
+  for (let vertex = 0; vertex < first.vertexCount; vertex++) {
+    const w = first.chartPositions[vertex * 4 + 3]!;
+    if (w < low) low = w;
+    if (w > high) high = w;
+  }
+  const inner = HyperplaneSliceN.axisAligned(4, 3, low + (high - low) * 0.5);
+  const chart = new SectionChart3D(intermediate, intermediateGroup, inner, {
+    lineage: first.lineage
+  });
+  assert(chart.cellCount > 0, 'the second cut must render live triangles');
+
+  // A real pick at the first drawn triangle's centroid.
+  const positions = chart.geometry.getAttribute('position');
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  for (let corner = 0; corner < 3; corner++) {
+    cx += positions.getX(corner) / 3;
+    cy += positions.getY(corner) / 3;
+    cz += positions.getZ(corner) / 3;
+  }
+  chart.object.updateMatrixWorld(true);
+  const caster = new Raycaster(new Vector3(cx, cy, cz + 10), new Vector3(0, 0, -1), 0.01, 100);
+  const hits = caster.intersectObject(chart.object, true);
+  assert(hits.length > 0, 'the rendered bridge was not pickable');
+  const hit = representationHitFromSectionChart(chart, {
+    point: hits[0]!.point, faceIndex: hits[0]!.faceIndex ?? 0
+  });
+  assert(hit.ambientPointStatus === 'approximate',
+    'a renderer-derived point must stay approximate through the chain');
+
+  // Every corner of the picked primitive names ORIGINAL R5 vertices with
+  // affine weights summing to one, and both plane equations hold at the
+  // reconstructed R5 point.
+  const primitive = Math.floor(hits[0]!.faceIndex ?? 0);
+  for (const corner of chart.primitiveVertices(primitive)) {
+    const ancestry = chart.vertexAncestry(corner);
+    assert(ancestry.sourceVertices.length > 0, 'a corner lost its ancestry');
+    const reconstructed = [0, 0, 0, 0, 0];
+    let weightSum = 0;
+    for (let at = 0; at < ancestry.sourceVertices.length; at++) {
+      const source = ancestry.sourceVertices[at]!;
+      assert(source < body.vertexCount,
+        'ancestry leaked an intermediate-complex vertex into the final report');
+      weightSum += ancestry.weights[at]!;
+      for (let axis = 0; axis < 5; axis++) {
+        reconstructed[axis]! += ancestry.weights[at]! * body.positions[source * 5 + axis]!;
+      }
+    }
+    assert(Math.abs(weightSum - 1) < 1e-9, 'affine weights must sum to one');
+    const onOuter = outer.projectPointToChart(reconstructed);
+    assert(Math.abs(onOuter.signedDistance) < 1e-9, 'the outer plane equation failed');
+    const onInner = inner.projectPointToChart(onOuter.coordinates);
+    assert(Math.abs(onInner.signedDistance) < 1e-9, 'the inner plane equation failed');
+  }
+  chart.dispose();
 }
 
 export function sectionChartRender(): void {

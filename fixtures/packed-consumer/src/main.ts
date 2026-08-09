@@ -5,6 +5,7 @@
  * verifier reads a process status rather than parsing prose.
  */
 import {
+  authoredDimensionBridge,
   certifiedConvexQuery,
   convexHullContact,
   dimensionGenericSection,
@@ -24,6 +25,7 @@ const checks: readonly [name: string, run: () => void | Promise<void>][] = [
   ['dimensionGenericSection', dimensionGenericSection],
   ['sectionChartRender', sectionChartRender],
   ['planeEmbeddingComposition', planeEmbeddingComposition],
+  ['authoredDimensionBridge', authoredDimensionBridge],
   ['representationClaims', representationClaims],
   ['experimentProbe', experimentProbe],
   ['physicsComposition', physicsComposition],
