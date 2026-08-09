@@ -657,6 +657,57 @@ if (hit !== undefined) {
 edges.dispose();
 ```
 
+## Author a complete R5 body and section it twice down to R3
+
+`createSimplex` and `createCrossPolytope` stop at 3-cells by default (the
+historical output, byte-frozen). `maxCellDimension` authors the higher face
+families: the R5 simplex's six simplicial 4-facets, or the R5 cross-polytope's
+thirty-two — its whole boundary. A 4-facet group is exactly what the RN
+section path consumes, so R5 content reaches the screen through two exact
+cuts: R5 → R4 in the first hyperplane's chart, rebased, then R4 → R3 into a
+`SectionChart3D` — with every drawn corner still an affine combination of
+**original R5 vertices**, because chained sections compose lineage instead of
+resetting it.
+
+```ts
+import {
+  CellComplex, HyperplaneSliceN, createCrossPolytope, sectionSimplexGroupN
+} from '@holotope/core';
+import type { CellGroup } from '@holotope/core';
+import { SectionChart3D } from '@holotope/three';
+
+const body = createCrossPolytope({ dim: 5, maxCellDimension: 4 });
+const facets = body.groups.find((group) => group.dim === 4);
+if (facets === undefined) throw new Error('expected the 4-facet group');
+
+// First exact cut: R5 cells to R4 cells, expressed in the hyperplane's chart.
+const outer = HyperplaneSliceN.axisAligned(5, 4, 0.125);
+const first = sectionSimplexGroupN({ complex: body, group: facets, slice: outer });
+console.log(first.cellCount); // live 3-cells in the R4 chart
+
+// Rebase the intermediate section into its own chart, lineage riding along.
+const intermediateGroup: CellGroup = {
+  dim: first.cellDim, verticesPerCell: first.verticesPerCell,
+  kind: 'simplex', indices: first.cells
+};
+const intermediate = new CellComplex(4, first.chartPositions, [intermediateGroup]);
+
+// Second exact cut, rendered: R4 cells to triangles in display R3.
+const inner = HyperplaneSliceN.axisAligned(4, 3, 0);
+const chart = new SectionChart3D(intermediate, intermediateGroup, inner, {
+  lineage: first.lineage
+});
+console.log(chart.cellCount, chart.section.lineage.offsets.length - 1);
+// Every pick through representationHitFromSectionChart names original R5
+// vertices with affine weights — the intermediate complex never leaks.
+chart.dispose();
+```
+
+Authored groups are combinatorial and unoriented (shared faces double rather
+than cancel under ascending-index order), so render authored facets
+double-sided; the *section* is the oriented object — P55's contract makes its
+cells the coherent boundary of the below-plane region.
+
 ## Pick headlessly, with no renderer
 
 Picking needs geometry and a ray, not a canvas. A render product builds its

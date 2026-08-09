@@ -568,6 +568,12 @@ if (hit.ambientPointStatus === 'exact') {
 
 ## Avoid these invented APIs or assumptions
 
+- `createSimplex`/`createCrossPolytope` stop at 3-cells BY DEFAULT; pass
+  `maxCellDimension` for higher face families (simplex: through `dim`, the
+  top cell; cross-polytope: through `dim - 1`, and a requested top cell
+  refuses — it is not a simplex). Authored index order is combinatorial, NOT
+  boundary-coherent: shared faces double, so render double-sided; oriented
+  boundaries come from `sectionSimplexGroupN`, not from authored order.
 - Do not call `PlaneEmbedding3D` a projection, and do not ask it for a fibre
   or a homogeneous matrix — it is injective, implements neither, and its
   lineage step is `plane-embedding`, never a projection kind. Do not upgrade

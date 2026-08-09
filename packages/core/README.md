@@ -4,7 +4,10 @@ Zero-dependency N-dimensional geometry kernel: vectors, matrices, and exterior
 products in any dimension, plane rotations and the so(n) exponential map, a paired-quaternion
 `Rotor4` fast path with slerp, N-D rigid transforms and cameras, cell
 complexes, polytope builders (n-cube, simplex, orthoplex, all six regular
-polychora, duoprisms), perspective/orthographic/coordinate-subspace N→3 projection with Float64
+polychora, duoprisms — the simplex and orthoplex author any requested face
+family via `maxCellDimension`, through the top simplex or the orthoplex's
+whole simplicial boundary; authored groups are combinatorial and unoriented,
+so render double-sided and derive oriented boundaries from the section path), perspective/orthographic/coordinate-subspace N→3 projection with Float64
 homogeneous evaluation, explicit inverse fibres, and perspective-correct
 segment/triangle lifting, an injective R2→R3 plane embedding
 (`PlaneEmbedding3D`: `[x, y] → [x, y, 0]` exactly, a unique typed inverse on

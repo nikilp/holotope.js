@@ -1,10 +1,30 @@
 import { CellComplex } from '../geometry/cell-complex.js';
+import {
+  assertBuilderInputs,
+  assertGroupWithinBudget,
+  assertMaxCellDimension,
+  binomial,
+  lexicographicSubsets
+} from './simplicial-authoring.js';
 
 export interface SimplexOptions {
   /** Intrinsic (and ambient) dimension; 4 gives the 5-cell. */
   dim: number;
   /** Edge length. Default 1. */
   edgeLength?: number;
+  /**
+   * Highest cell dimension to author, `1…dim` inclusive — `dim` is the top
+   * simplex itself, one cell naming every vertex, which is what the RN
+   * section path consumes. Default `min(dim, 3)`, reproducing the historical
+   * output byte-for-byte; each `k` in range emits one group of all
+   * `C(dim+1, k+1)` ascending-index `(k+1)`-subsets, lexicographic.
+   *
+   * Authored groups are combinatorial and **unoriented**: ascending-index
+   * order is not boundary-coherent (shared faces double rather than cancel),
+   * so render double-sided, and derive oriented boundaries from
+   * `sectionSimplexGroupN`, which computes them from geometry.
+   */
+  maxCellDimension?: number;
 }
 
 /**
@@ -26,6 +46,17 @@ export interface SimplexOptions {
  * ```
  *
  * @example
+ * Dimension-complete authoring: the R5 simplex with every face family up to
+ * its six simplicial 4-facets and the top cell itself — which is exactly what
+ * a chained RN section consumes:
+ * ```ts
+ * const body = createSimplex({ dim: 5, maxCellDimension: 5 });
+ * log('tets', body.cellCount(3)); // 15 — C(6, 4)
+ * log('4-facets', body.cellCount(4)); // 6 — C(6, 5), new above the default
+ * log('top cell', body.cellCount(5)); // 1 — the simplex itself
+ * ```
+ *
+ * @example
  * Every simplex is its own tetrahedralization, so this projects and
  * slices without any preparation:
  * ```ts
@@ -44,8 +75,19 @@ export interface SimplexOptions {
  */
 export function createSimplex(options: SimplexOptions): CellComplex {
   const { dim, edgeLength = 1 } = options;
-  if (dim < 1) throw new Error(`createSimplex: unsupported dimension ${dim}`);
+  assertBuilderInputs('createSimplex', dim, 'edgeLength', edgeLength);
+  const maxCellDimension = options.maxCellDimension ?? Math.min(dim, 3);
+  assertMaxCellDimension(
+    'createSimplex', maxCellDimension, dim,
+    `the top cell of a ${dim}-simplex`
+  );
+  // Refuse every group arithmetically before allocating any of them.
   const m = dim + 1;
+  for (let cellDim = 1; cellDim <= maxCellDimension; cellDim++) {
+    assertGroupWithinBudget(
+      'createSimplex', cellDim, binomial(m, cellDim + 1), cellDim + 1
+    );
+  }
 
   // Centered vertices in R^m: q_i = e_i − (1/m, …, 1/m).
   const q: Float64Array[] = [];
@@ -82,39 +124,19 @@ export function createSimplex(options: SimplexOptions): CellComplex {
     }
   }
 
-  // Every pair of vertices is an edge, every triple a triangular face,
-  // every 4-subset a tetrahedral 3-face (for dim = 4 these are the five
-  // boundary cells of the 5-cell).
-  const edges: number[] = [];
-  const triangles: number[] = [];
-  const tets: number[] = [];
-  for (let a = 0; a < m; a++) {
-    for (let b = a + 1; b < m; b++) {
-      edges.push(a, b);
-      for (let c = b + 1; c < m; c++) {
-        triangles.push(a, b, c);
-        for (let d = c + 1; d < m; d++) tets.push(a, b, c, d);
-      }
-    }
-  }
-
+  // Every (k+1)-subset of the vertices is a k-simplex; lexicographic
+  // enumeration reproduces the historical nested pair/triple/4-subset loops
+  // byte-for-byte in the default range and extends them to any requested k,
+  // including k = dim, the top simplex itself.
   const complex = new CellComplex(dim, positions, [
-    { dim: 1, verticesPerCell: 2, kind: 'simplex', indices: Uint32Array.from(edges) }
+    { dim: 1, verticesPerCell: 2, kind: 'simplex', indices: lexicographicSubsets(m, 2) }
   ]);
-  if (dim >= 2) {
+  for (let cellDim = 2; cellDim <= maxCellDimension; cellDim++) {
     complex.addGroup({
-      dim: 2,
-      verticesPerCell: 3,
+      dim: cellDim,
+      verticesPerCell: cellDim + 1,
       kind: 'simplex',
-      indices: Uint32Array.from(triangles)
-    });
-  }
-  if (dim >= 3) {
-    complex.addGroup({
-      dim: 3,
-      verticesPerCell: 4,
-      kind: 'simplex',
-      indices: Uint32Array.from(tets)
+      indices: lexicographicSubsets(m, cellDim + 1)
     });
   }
   return complex;

@@ -1,10 +1,34 @@
 import { CellComplex } from '../geometry/cell-complex.js';
+import {
+  assertBuilderInputs,
+  assertGroupWithinBudget,
+  assertMaxCellDimension,
+  binomial,
+  lexicographicSubsets
+} from './simplicial-authoring.js';
 
 export interface CrossPolytopeOptions {
   /** Ambient (and intrinsic) dimension; 4 gives the 16-cell. */
   dim: number;
   /** Circumradius (distance from center to each vertex). Default 1. */
   radius?: number;
+  /**
+   * Highest simplicial cell dimension to author, `1…dim-1` inclusive.
+   * Requesting `dim` refuses by name: the cross-polytope's top cell is the
+   * whole body with `2^dim` facets and is not a simplex, and authoring it as
+   * one would be a lie. Default `min(dim - 1, 3)`, reproducing the historical
+   * output byte-for-byte.
+   *
+   * For `k >= 2`, each group holds `C(dim, k+1) * 2^(k+1)` cells: ascending
+   * axis subsets, lexicographic, then sign masks ascending (mask bit `j`
+   * sends chosen axis `j` to its negative vertex). One vertex per distinct
+   * axis, so no cell can contain an antipodal pair. The edge group predates
+   * this family rule and keeps its frozen vertex-pair order — same cell set,
+   * different order. Authored groups are combinatorial and **unoriented**
+   * (render double-sided; oriented boundaries come from
+   * `sectionSimplexGroupN`).
+   */
+  maxCellDimension?: number;
 }
 
 /**
@@ -25,6 +49,15 @@ export interface CrossPolytopeOptions {
  * ```
  *
  * @example
+ * Dimension-complete authoring: the R5 cross-polytope's thirty-two simplicial
+ * 4-facets — its whole boundary — while a requested top cell refuses by name,
+ * because the body itself is not a simplex:
+ * ```ts
+ * const orthoplex = createCrossPolytope({ dim: 5, maxCellDimension: 4 });
+ * log('boundary 4-facets', orthoplex.cellCount(4)); // 32 — C(5, 5) · 2⁵
+ * ```
+ *
+ * @example
  * The 3D case is the octahedron, so the same call covers both:
  * ```ts
  * const octahedron = createCrossPolytope({ dim: 3 });
@@ -33,7 +66,26 @@ export interface CrossPolytopeOptions {
  */
 export function createCrossPolytope(options: CrossPolytopeOptions): CellComplex {
   const { dim, radius = 1 } = options;
-  if (dim < 1) throw new Error(`createCrossPolytope: unsupported dimension ${dim}`);
+  assertBuilderInputs('createCrossPolytope', dim, 'radius', radius);
+  const maxCellDimension = options.maxCellDimension ?? Math.min(dim - 1, 3);
+  if (options.maxCellDimension !== undefined) {
+    assertMaxCellDimension(
+      'createCrossPolytope',
+      options.maxCellDimension,
+      dim - 1,
+      `the highest simplicial face of a ${dim}-dimensional cross-polytope — ` +
+      'its top cell is the whole body, not a simplex'
+    );
+  }
+  // Refuse every group arithmetically before allocating any of them.
+  for (let cellDim = 2; cellDim <= maxCellDimension; cellDim++) {
+    assertGroupWithinBudget(
+      'createCrossPolytope',
+      cellDim,
+      binomial(dim, cellDim + 1) * 2 ** (cellDim + 1),
+      cellDim + 1
+    );
+  }
   const vertexCount = 2 * dim;
 
   const positions = new Float64Array(vertexCount * dim);
@@ -54,56 +106,31 @@ export function createCrossPolytope(options: CrossPolytopeOptions): CellComplex 
     { dim: 1, verticesPerCell: 2, kind: 'simplex', indices: Uint32Array.from(edges) }
   ]);
 
-  // Triangular 2-faces: one per choice of 3 axes and a sign for each
-  // (for dim = 4: C(4,3)·2³ = 32 triangles).
-  if (dim >= 3) {
-    const triangles: number[] = [];
-    for (let a = 0; a < dim; a++) {
-      for (let b = a + 1; b < dim; b++) {
-        for (let c = b + 1; c < dim; c++) {
-          for (let signs = 0; signs < 8; signs++) {
-            triangles.push(
-              (signs & 1) !== 0 ? a + dim : a,
-              (signs & 2) !== 0 ? b + dim : b,
-              (signs & 4) !== 0 ? c + dim : c
-            );
-          }
+  // Simplicial k-faces for k >= 2: one cell per (k+1)-subset of axes and a
+  // sign per chosen axis — lexicographic axis subsets, ascending sign masks,
+  // which reproduces the historical triangle and tetrahedron loops
+  // byte-for-byte and extends them to any admitted k. One vertex per
+  // distinct axis: an antipodal pair cannot occur.
+  for (let cellDim = 2; cellDim <= maxCellDimension; cellDim++) {
+    const verticesPerCell = cellDim + 1;
+    const axisSubsets = lexicographicSubsets(dim, verticesPerCell);
+    const subsetCount = axisSubsets.length / verticesPerCell;
+    const signCount = 2 ** verticesPerCell;
+    const indices = new Uint32Array(subsetCount * signCount * verticesPerCell);
+    let written = 0;
+    for (let subset = 0; subset < subsetCount; subset++) {
+      for (let signs = 0; signs < signCount; signs++) {
+        for (let slot = 0; slot < verticesPerCell; slot++) {
+          const axis = axisSubsets[subset * verticesPerCell + slot]!;
+          indices[written++] = (signs & (1 << slot)) !== 0 ? axis + dim : axis;
         }
       }
     }
     complex.addGroup({
-      dim: 2,
-      verticesPerCell: 3,
+      dim: cellDim,
+      verticesPerCell,
       kind: 'simplex',
-      indices: Uint32Array.from(triangles)
-    });
-  }
-
-  // Tetrahedral 3-faces: one per choice of 4 axes and a sign for each
-  // (for dim = 4 these are the 16 boundary cells of the 16-cell).
-  if (dim >= 4) {
-    const tets: number[] = [];
-    for (let a = 0; a < dim; a++) {
-      for (let b = a + 1; b < dim; b++) {
-        for (let c = b + 1; c < dim; c++) {
-          for (let d = c + 1; d < dim; d++) {
-            for (let signs = 0; signs < 16; signs++) {
-              tets.push(
-                (signs & 1) !== 0 ? a + dim : a,
-                (signs & 2) !== 0 ? b + dim : b,
-                (signs & 4) !== 0 ? c + dim : c,
-                (signs & 8) !== 0 ? d + dim : d
-              );
-            }
-          }
-        }
-      }
-    }
-    complex.addGroup({
-      dim: 3,
-      verticesPerCell: 4,
-      kind: 'simplex',
-      indices: Uint32Array.from(tets)
+      indices
     });
   }
 
