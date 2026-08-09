@@ -557,6 +557,53 @@ against each other. To chain, pass the previous result's `lineage` into the next
 call: `sectionSimplexGroupN({ ..., lineage: section.lineage })` keeps the second
 cut's ancestry expressed in the first complex's original vertices.
 
+## Render an RN section, and resolve a pick back to its source
+
+`sectionSimplexGroupN` returns Float64 chart coordinates and `(k-1)`-simplices —
+neither triangles nor Float32. `SectionChart3D` is the adapter: one section
+evaluation per `update()`, the chart drawn as the display axes, and the whole
+immutable result kept observable so an empty frame is never a guess.
+
+```ts
+import { CellComplex, HyperplaneSliceN } from '@holotope/core';
+import { SectionChart3D, representationHitFromSectionChart } from '@holotope/three';
+import { Vector3 } from 'three';
+
+const positions = Float64Array.from([
+  0, 0, 0, -1,
+  2, 0, 0, 1,
+  0, 2, 0, 1,
+  0, 0, 2, 1
+]);
+const complex = new CellComplex(4, positions, [
+  { dim: 3, verticesPerCell: 4, kind: 'simplex', indices: Uint32Array.from([0, 1, 2, 3]) }
+]);
+const group = complex.groups[0];
+if (group === undefined) throw new Error('expected the tetrahedron group');
+
+const chart = new SectionChart3D(complex, group, HyperplaneSliceN.axisAligned(4, 3, 0));
+// scene.add(chart.object) — a Mesh here, because 2-cells are triangles.
+
+chart.section.cellCount; // 1
+chart.section.diagnostics.collapsedSectionCells; // 0 — empty would say why
+
+// Sweep the hyperplane: the source complex is only read, never mutated.
+chart.slice.offset = 0.25;
+chart.update();
+
+// A pick names the parent cell exactly; the point stays approximate.
+const hit = representationHitFromSectionChart(chart, {
+  point: new Vector3(0.5, 0.5, 0), faceIndex: 0
+});
+hit.source.kind === 'cell' && hit.source.cellIndex; // 0 — the tetrahedron
+hit.ambientPointStatus; // 'approximate' — Float32 display, qualified not upgraded
+```
+
+Charts above dimension 3 refuse by name: an R5 section's chart is R4, and
+drawing it would be a projection, not a section. Chain instead — re-express the
+first section in its own chart, carry `lineage`, and cut again; a picked
+primitive still names original source vertices.
+
 ## Pick headlessly, with no renderer
 
 Picking needs geometry and a ray, not a canvas. A render product builds its

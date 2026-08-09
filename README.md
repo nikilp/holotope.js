@@ -45,6 +45,7 @@ Higher-dimensional state stays higher-dimensional until the last responsible mom
   ├─ ProjectedEdges3D     render product: projected 1-skeleton as LineSegments
   ├─ ProjectedSurface3D   render product: projected 2-faces as a translucent Mesh
   ├─ SlicedComplex3D      render product: exact 4D cross-section, with picking provenance
+  ├─ SectionChart3D       render product: RN sections in their own chart, ancestry through picks
   ├─ SampledSlicedField3D render product: sampled implicit-field section with retained records
   └─ DragRotation4D       pointer controls for rotating through hidden planes
 

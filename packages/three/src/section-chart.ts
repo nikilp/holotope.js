@@ -116,6 +116,7 @@ export class SectionChart3D {
   readonly slice: HyperplaneSliceN;
   /** Intrinsic dimension of the drawn cells: `group.dim - 1`. */
   readonly cellDim: number;
+  /** The drawn buffers: positions in chart coordinates, draw range 0 when empty. */
   readonly geometry: BufferGeometry;
   /** `Points`, `LineSegments`, or `Mesh`, fixed at construction. */
   readonly object: Object3D;
@@ -128,6 +129,14 @@ export class SectionChart3D {
   private positionAttribute: BufferAttribute;
   private latest: SectionSimplexGroupNResultN;
 
+  /**
+   * Builds the product and performs its first section evaluation.
+   *
+   * @param complex - The authoritative complex; read live, never mutated.
+   * @param group - The simplicial group of that complex to section.
+   * @param slice - The hyperplane and chart; keep it and steer `offset`.
+   * @param options - Material ownership, chained ancestry, and tolerance.
+   */
   constructor(
     complex: CellComplex,
     group: CellGroup,

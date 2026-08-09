@@ -68,6 +68,7 @@ there is improved here.
 | [`ProjectedEdges3D`](/api/three/index/classes/ProjectedEdges3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedEdges3D) |
 | [`ProjectedSurface3D`](/api/three/index/classes/ProjectedSurface3D) | [open](https://nikilp.github.io/holotope.js/playground.html#ProjectedSurface3D) |
 | [`Rotor4Track`](/api/core/animation/classes/Rotor4Track) | [open](https://nikilp.github.io/holotope.js/playground.html#Rotor4Track) |
+| [`SectionChart3D`](/api/three/index/classes/SectionChart3D) | [open](https://nikilp.github.io/holotope.js/playground.html#SectionChart3D) |
 | [`SlicedComplex3D`](/api/three/index/classes/SlicedComplex3D) | [open](https://nikilp.github.io/holotope.js/playground.html#SlicedComplex3D) |
 | [`TransformN`](/api/core/math/classes/TransformN) | [open](https://nikilp.github.io/holotope.js/playground.html#TransformN) |
 | [`XpbdParticleHyperplaneBarrierFamilyN`](/api/physics/classes/XpbdParticleHyperplaneBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#XpbdParticleHyperplaneBarrierFamilyN) |

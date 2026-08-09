@@ -200,6 +200,16 @@ cells sharing a cut feature share an output vertex instead of cracking. Chart
 coordinates depend on the frame policy the slice was built with; the ambient
 positions do not.
 
+Rendered sections keep the same evidence. `SectionChart3D` retains its latest
+immutable result, and `representationHitFromSectionChart` resolves a picked
+primitive to its parent source cell exactly while carrying each corner's affine
+ancestry — original vertices even through a chained render. The embedded
+ambient point of a pick is reported `'approximate'`, never `'exact'`: display
+coordinates are Float32, and a section pick's strength is its *identity*, not
+its arithmetic. The lineage steps are the dimension-generic
+`affine-section-n` and `affine-slice-chart-n` map recipes, with the same
+capability classification as their R4 forms.
+
 `SlicedComplex3D.sourceCellChart()` also carries numerical defaults appropriate
 to its stored representation. A Three.js product uses Float32 chart positions,
 so its source-coordinate tolerance is looser than the headless Float64 chart's.

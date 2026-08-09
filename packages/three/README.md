@@ -17,6 +17,7 @@ with this package re-exporting the types.
 - `ProjectedEdges3D` — the projected 1-skeleton as `LineSegments`
 - `ProjectedSurface3D` — the projected 2-faces as a translucent `Mesh`
 - `SlicedComplex3D` — the exact 4D cross-section, with per-triangle picking provenance
+- `SectionChart3D` — any RN section drawn in its own chart (points, segments, or coherently wound triangles), with parent cells and original-source affine ancestry on every pick
 - `SampledSlicedField3D` — deterministic implicit-field sampling plus an inspectable approximate mesh
 - `DragRotation4D` — pointer controls for rotating through hidden planes
 - `@holotope/three/webgpu` — `ProjectedEdgesGPU` (vertex-shader 4D projection) and

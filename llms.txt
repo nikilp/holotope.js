@@ -96,9 +96,11 @@ import {
 
 // @holotope/three
 import {
-  ProjectedEdges3D, ProjectedSurface3D, SlicedComplex3D, DragRotation4D,
+  ProjectedEdges3D, ProjectedSurface3D, SlicedComplex3D, SectionChart3D,
+  DragRotation4D,
   representationHitFromProjectedEdge,
   representationHitFromProjectedSurface,
+  representationHitFromSectionChart,
   representationHitFromSlicedComplex
 } from '@holotope/three';
 
@@ -174,6 +176,18 @@ objects.
   vertices, which is what a single source edge plus a parameter cannot do: pass
   a previous section's `lineage` back in and an R5 → R4 → R3 chain still names
   R5 vertices rather than the intermediate complex's.
+- Rendering an RN section: `SectionChart3D(complex, group, slice, options?)`
+  from `@holotope/three` draws the section in its own chart — points for
+  0-cells, segments for 1-cells, coherently wound double-sided triangles for
+  2-cells — with exactly one section evaluation per `update(transform?)`, the
+  immutable result observable as `.section` (diagnostics included, so an empty
+  draw range is never a guess), and refusals by name for charts above
+  dimension 3. A caller-supplied `material` is never disposed by the product.
+  `representationHitFromSectionChart(product, intersection)` resolves a picked
+  primitive to its parent source cell exactly, carries each corner's affine
+  ancestry (original vertices even through a chained render), and reports the
+  embedded ambient point as `'approximate'` — Float32 display coordinates
+  qualify a point, they do not upgrade it.
 - Reading a pick: `describeRepresentationHitN` returns one claim
   (`unique`, `on-selected-primitive`, `approximate`, `unavailable`) instead of
   leaving `ambientPointStatus` and `ambiguity` to be combined by hand.
