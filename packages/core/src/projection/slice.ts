@@ -496,6 +496,18 @@ function computeComplementBasisN(normal: VecN): Float64Array[] {
  * entirely in the hyperplane are suppressed rather than emitted twice.
  * Triangle winding is not globally consistent — render double-sided.
  *
+ * This R4 stream is deliberately unchanged, and it is **not** the oriented
+ * path. Within one tetrahedron its quad fan happens to be coherently wound, but
+ * the class is a historical artefact of the fan order rather than a promise:
+ * nothing here says which way a section faces, and the two triangles of one
+ * quad carry no relationship to a neighbouring cell's. When a caller needs an
+ * orientation it can reason with — a section that is the oriented boundary of
+ * each parent's below-plane region, so that reversing the normal reverses the
+ * facing and oriented area or flux integrals accumulate instead of cancelling —
+ * use {@link sectionSimplexGroupN}, which states exactly what it promises on
+ * its `cells` field. That function supersedes this one for new work; this pair
+ * remains because existing R4 buffers depend on its byte layout.
+ *
  * @param worldPositions packed 4D vertex coordinates (post-transform)
  * @param tets           flat tetra vertex indices (4 per cell)
  * @param slice          the hyperplane
@@ -641,9 +653,10 @@ let ambientScratch = new Float64Array(0);
 /**
  * Marching tetrahedra with output in the slice's own 3D display frame:
  * each ambient crossing point is expressed in the hyperplane's orthonormal
- * basis, ready for direct 3D rendering. Same degeneracy policy and output
- * layout contract as `sliceTetrahedraAmbient`, but 3 floats per vertex
- * (buffer must hold `(tets.length / 4) * 18`).
+ * basis, ready for direct 3D rendering. Same degeneracy policy, winding
+ * caveat, and output layout contract as `sliceTetrahedraAmbient`, but 3 floats
+ * per vertex (buffer must hold `(tets.length / 4) * 18`). For an oriented
+ * section in any dimension, see {@link sectionSimplexGroupN}.
  */
 export function sliceTetrahedra(
   worldPositions: Float64Array,

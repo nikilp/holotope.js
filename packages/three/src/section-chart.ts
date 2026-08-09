@@ -116,7 +116,20 @@ export class SectionChart3D {
   readonly slice: HyperplaneSliceN;
   /** Intrinsic dimension of the drawn cells: `group.dim - 1`. */
   readonly cellDim: number;
-  /** The drawn buffers: positions in chart coordinates, draw range 0 when empty. */
+  /**
+   * The drawn buffers: positions in chart coordinates, draw range 0 when empty.
+   *
+   * Only `[0, drawRange.count)` is live. The attribute is grown by doubling and
+   * never shrunk, so slots past the draw range hold zeroes or a previous
+   * frame's values; they are neither drawn nor picked, because rendering and
+   * raycasting both honour the draw range. `boundingBox` and `boundingSphere`
+   * do **not** — three.js computes them over the whole attribute — so both are
+   * recomputed each update but report a volume inflated by the unused capacity,
+   * always containing the chart origin. That over-accepts rays (a bounding
+   * sphere is only a fast reject, so picks stay correct) and `frustumCulled` is
+   * false, so culling is unaffected; but do not read these two volumes to frame
+   * a camera or size a helper. Measure the live slots instead.
+   */
   readonly geometry: BufferGeometry;
   /** `Points`, `LineSegments`, or `Mesh`, fixed at construction. */
   readonly object: Object3D;
