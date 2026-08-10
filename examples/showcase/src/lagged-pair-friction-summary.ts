@@ -19,7 +19,12 @@ export function summarizeLaggedFrictionContract(
       (report.skipped.length === 0
         ? ''
         : ` (skipped ${report.skipped.map((skip) => skip.reason).join(', ')})`),
-    `at rest: ${report.restingRegime}; displaced: ${report.slidingRegime}`,
+    // Regime and activity are printed together and labelled apart, because a
+    // term reports a regime from its slip whether or not it can exert any
+    // force at all. Reading the regime alone invites the reverse conclusion.
+    `at rest: ${report.restingRegime}; displaced: ${report.slidingRegime} ` +
+      `(contact ${report.slidingContactActive ? 'active' : 'inert'}, ` +
+      `regularized below ${report.regularizationLength.toExponential(3)})`,
     `slip ${report.slidingSlip.toExponential(3)}, ` +
       `off-plane ${report.slipNormalComponent.toExponential(3)}`,
     `Coulomb bound ${report.forceLimit.toExponential(3)} from lagged normal ` +

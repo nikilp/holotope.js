@@ -48,6 +48,23 @@ export interface LaggedFrictionContractReport {
   readonly restingRegime: XpbdSourceSimplexPairFrictionRegimeN;
   /** Regime under a large tangential displacement — the saturated branch. */
   readonly slidingRegime: XpbdSourceSimplexPairFrictionRegimeN;
+  /**
+   * Whether the sliding probe's term can exert force at all.
+   *
+   * Reported beside the regime, never inferred from it. The two answer
+   * different questions — regime is about slip, activity is about the lagged
+   * normal force — and a term can read `'sliding'` while exerting exactly
+   * nothing.
+   */
+  readonly slidingContactActive: boolean;
+  /**
+   * The regularization length this lag was frozen with, in world length units.
+   *
+   * Under an authored slip length it is that length; under an authored slip
+   * velocity it is `velocity * deltaTime`, resolved once when the lag froze
+   * and constant for as long as the lag is held.
+   */
+  readonly regularizationLength: number;
   /** `mu * laggedNormalForce`: the bound the tangential force may not exceed. */
   readonly forceLimit: number;
   /** How far the saturated force sits from that bound; ~0 when sliding. */
@@ -113,6 +130,11 @@ function supportComplex(): CellComplex {
  * log('at rest', report.restingRegime);        // 'sticking'
  * log('displaced', report.slidingRegime);      // 'sliding'
  * log('slip', report.slidingSlip);
+ * // Regime is about slip; activity is about the lagged normal force. Read
+ * // both — a term can report 'sliding' while exerting exactly nothing.
+ * log('active', report.slidingContactActive);  // true
+ * // The scale that decided which branch, frozen with the lag.
+ * log('eps', report.regularizationLength);     // 1e-3, the authored length
  * // The slip never leaves the frozen tangent plane.
  * log('off-plane', report.slipNormalComponent); // ~0
  *
@@ -256,6 +278,8 @@ export function runLaggedFrictionContract(): LaggedFrictionContractReport {
     skipped: preparation.skipped,
     restingRegime: resting.regime,
     slidingRegime: sliding.regime,
+    slidingContactActive: sliding.contactActive,
+    regularizationLength: lag.regularizationLength,
     forceLimit: sliding.forceLimit,
     saturationResidual: Math.abs(sliding.tangentForce.length() - sliding.forceLimit),
     uniquenessGap: lag.uniquenessGap,

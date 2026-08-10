@@ -2,8 +2,12 @@ import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
 import type { XpbdSourceSimplexPairBarrierFamilyN } from './xpbd-source-simplex-pair-barrier-family.js';
 import {
   XpbdSourceSimplexPairFrictionN,
+  normalizeXpbdSourceSimplexPairSlipRegularizationN,
   type XpbdPreparedSourceSimplexPairFrictionN,
-  type XpbdSourceSimplexPairFrictionPrepareRefusalN
+  type XpbdSourceSimplexPairFrictionPrepareNOptions,
+  type XpbdSourceSimplexPairFrictionPrepareRefusalN,
+  type XpbdSourceSimplexPairResolvedSlipRegularizationN,
+  type XpbdSourceSimplexPairSlipRegularizationN
 } from './xpbd-source-simplex-pair-friction.js';
 
 /** Construction options for one lagged friction family over a contact family. */
@@ -14,8 +18,14 @@ export interface CompileXpbdSourceSimplexPairFrictionFamilyNOptions {
   readonly contact: XpbdSourceSimplexPairBarrierFamilyN;
   /** Isotropic Coulomb coefficient shared by every term; `0` disables them. */
   readonly frictionCoefficient: number;
-  /** Slip regularization length, in world length units. */
-  readonly slipRegularization: number;
+  /**
+   * Slip regularization scale shared by every term.
+   *
+   * A bare number is a world length, unchanged. See
+   * {@link XpbdSourceSimplexPairSlipRegularizationN} for the timestep-invariant
+   * alternative and the measured reason it exists.
+   */
+  readonly slipRegularization: XpbdSourceSimplexPairSlipRegularizationN;
 }
 
 /** One contact pair that could not produce a friction term this step. */
@@ -73,15 +83,15 @@ export class XpbdSourceSimplexPairFrictionFamilyN {
   readonly terms: readonly XpbdSourceSimplexPairFrictionN[];
   /** Shared Coulomb coefficient. */
   readonly frictionCoefficient: number;
-  /** Shared regularization length. */
-  readonly slipRegularization: number;
+  /** Shared regularization scale, normalized to its discriminated form. */
+  readonly slipRegularization: XpbdSourceSimplexPairResolvedSlipRegularizationN;
 
   private constructor(
     id: string,
     contact: XpbdSourceSimplexPairBarrierFamilyN,
     terms: readonly XpbdSourceSimplexPairFrictionN[],
     frictionCoefficient: number,
-    slipRegularization: number
+    slipRegularization: XpbdSourceSimplexPairResolvedSlipRegularizationN
   ) {
     this.id = id;
     this.contact = contact;
@@ -124,7 +134,12 @@ export class XpbdSourceSimplexPairFrictionFamilyN {
       }));
     return new XpbdSourceSimplexPairFrictionFamilyN(
       options.id, contact, Object.freeze(terms),
-      options.frictionCoefficient, options.slipRegularization
+      options.frictionCoefficient,
+      // Normalized once here so a family with no contact cells still refuses a
+      // malformed scale, rather than accepting it because no term validated it.
+      normalizeXpbdSourceSimplexPairSlipRegularizationN(
+        options.slipRegularization, caller
+      )
     );
   }
 
@@ -137,12 +152,14 @@ export class XpbdSourceSimplexPairFrictionFamilyN {
    * preparation carries both lists plus atomic consume/rollback over all of
    * them, so a partially consumed family is not representable.
    */
-  prepare(): XpbdSourceSimplexPairFrictionPreparationN {
+  prepare(
+    options?: XpbdSourceSimplexPairFrictionPrepareNOptions
+  ): XpbdSourceSimplexPairFrictionPreparationN {
     const prepared: XpbdPreparedSourceSimplexPairFrictionN[] = [];
     const skipped: XpbdSourceSimplexPairFrictionSkipN[] = [];
     this.terms.forEach((term, cellIndex) => {
       try {
-        prepared.push(term.prepare());
+        prepared.push(term.prepare(options));
       } catch (error) {
         if (error instanceof XpbdPotentialDomainErrorN) {
           skipped.push({

@@ -54,6 +54,17 @@ export interface XpbdSourceSimplexPairFrictionLagN {
   readonly baseDistance: number;
   /** Non-negative lagged normal-force magnitude, `-b'(baseDistance)`. */
   readonly laggedNormalForce: number;
+  /**
+   * The resolved regularization length this lag was frozen with, in world
+   * length units.
+   *
+   * Frozen here rather than read per evaluation because a length that moved
+   * during the solve would stop the term being a potential: the Armijo search
+   * would be minimizing a function whose own shape changed under it. Under an
+   * authored length this is that length; under an authored slip velocity it is
+   * `velocity * deltaTime`, resolved once at {@link XpbdSourceSimplexPairFrictionN.prepare}.
+   */
+  readonly regularizationLength: number;
   /** The measured P56 uniqueness margin that justified this snapshot. */
   readonly uniquenessGap: number;
   /** Single-use state; a consumed lag must be refreshed, never reused. */
@@ -69,11 +80,57 @@ export interface XpbdSourceSimplexPairFrictionNOptions {
   /** Isotropic Coulomb coefficient; `0` disables the term exactly. */
   readonly frictionCoefficient: number;
   /**
-   * Slip length below which the Coulomb law is regularized, in **world length
-   * units** — not a velocity threshold and not scaled by the timestep.
+   * The scale below which the Coulomb law is regularized.
+   *
+   * A bare number is a **world length**, exactly as it has always been: not a
+   * velocity threshold and not scaled by the timestep. That spelling is
+   * unchanged and is never reinterpreted.
+   *
+   * A fixed length does not survive timestep refinement. Per-step slip is
+   * `‖tangential velocity‖ · deltaTime`, so once the slip falls inside the
+   * regularized branch the force is `forceLimit · slip / length ∝ deltaTime`,
+   * one step's impulse is `∝ deltaTime²`, and a fixed horizon of `T/deltaTime`
+   * steps totals `∝ T · deltaTime`. Friction therefore **vanishes** as the
+   * timestep shrinks. Measured over an eight-fold refinement, the tangential
+   * impulse falls to 0.133 of its coarse value, with the last halving at a
+   * ratio of 1.98 against the 2.00 that scaling predicts.
+   *
+   * `{ kind: 'slip-velocity', velocity }` resolves the length as
+   * `velocity · deltaTime` once per {@link XpbdSourceSimplexPairFrictionN.prepare},
+   * which cancels the timestep out of `slip / length` exactly. Under the same
+   * refinement the impulse holds to 1.06 of its coarse value, last halving
+   * 0.99. Author it as the slip speed below which contact should be treated as
+   * stuck.
    */
-  readonly slipRegularization: number;
+  readonly slipRegularization: XpbdSourceSimplexPairSlipRegularizationN;
 }
+
+/**
+ * How the regularized-Coulomb scale is authored.
+ *
+ * The bare number is the legacy spelling and means a world length. The two
+ * discriminated forms are additive: the numeric form is never reinterpreted as
+ * a velocity, because the two carry different units and a scene authored
+ * against one would be silently rescaled by the other.
+ */
+export type XpbdSourceSimplexPairSlipRegularizationN =
+  | number
+  | {
+    readonly kind: 'slip-length';
+    /** World length below which the law is regularized. */
+    readonly length: number;
+  }
+  | {
+    readonly kind: 'slip-velocity';
+    /**
+     * Slip speed below which contact is treated as stuck, in length/time.
+     *
+     * Resolved to a length as `velocity * deltaTime` at `prepare`, so the
+     * regularized branch covers the same *speed* range at every timestep
+     * rather than the same distance.
+     */
+    readonly velocity: number;
+  };
 
 /** Conservative-for-one-lag friction evidence at one candidate placement. */
 export interface XpbdSourceSimplexPairFrictionEvaluationN
@@ -84,14 +141,98 @@ export interface XpbdSourceSimplexPairFrictionEvaluationN
   readonly slip: VecN;
   /** `‖slip‖`. */
   readonly slipMagnitude: number;
-  /** Which side of the regularization the slip falls on. */
+  /**
+   * Which side of the regularization the slip falls on.
+   *
+   * This is a statement about **slip only**, and says nothing about whether
+   * the term can exert any force at all. A term whose lag carries no normal
+   * force still reports a regime, because it still has a slip. Read
+   * {@link contactActive} for that, and never infer one axis from the other:
+   * in the sheet probe 144 of 192 evaluations read `'sliding'` while exerting
+   * exactly zero force.
+   */
   readonly regime: XpbdSourceSimplexPairFrictionRegimeN;
+  /**
+   * Whether the frozen lag can exert any tangential force.
+   *
+   * Exactly `forceLimit > 0`, and orthogonal to {@link regime}: activity is
+   * decided by the lagged normal force, regime by the slip. A term that is not
+   * active contributes exactly zero force and zero potential energy whatever
+   * its slip says, so a population statistic that does not separate the two is
+   * reporting mostly about terms that are not touching anything.
+   */
+  readonly contactActive: boolean;
   /** `frictionCoefficient * laggedNormalForce`; the force may not exceed it. */
   readonly forceLimit: number;
   /** The common tangential force; side A receives `-g`, side B `+g`. */
   readonly tangentForce: VecN;
   /** One force per provider particle: side A slots first, then side B's. */
   readonly forces: readonly VecN[];
+}
+
+/** The authored regularization scale after the numeric form is normalized. */
+export type XpbdSourceSimplexPairResolvedSlipRegularizationN =
+  | { readonly kind: 'slip-length'; readonly length: number }
+  | { readonly kind: 'slip-velocity'; readonly velocity: number };
+
+/** Options for {@link XpbdSourceSimplexPairFrictionN.prepare}. */
+export interface XpbdSourceSimplexPairFrictionPrepareNOptions {
+  /**
+   * The timestep this lag will be minimized against.
+   *
+   * Required when the term authors `slipRegularization` as a slip velocity,
+   * and refused otherwise: supplying it under an authored length would suggest
+   * the length responds to the timestep, which is exactly the belief this
+   * distinction exists to prevent.
+   */
+  readonly deltaTime: number;
+}
+
+/**
+ * Turns either authored spelling into the discriminated form.
+ *
+ * The numeric spelling keeps its exact value and becomes a length, so nothing
+ * an existing scene authored changes by a single bit.
+ */
+export function normalizeXpbdSourceSimplexPairSlipRegularizationN(
+  authored: XpbdSourceSimplexPairSlipRegularizationN,
+  caller: string
+): XpbdSourceSimplexPairResolvedSlipRegularizationN {
+  if (typeof authored === 'number') {
+    if (!Number.isFinite(authored) || authored <= 0) {
+      throw new Error(`${caller}: slipRegularization must be finite and positive`);
+    }
+    return { kind: 'slip-length', length: authored };
+  }
+  if (typeof authored !== 'object' || authored === null) {
+    throw new Error(
+      `${caller}: slipRegularization must be a positive number or a ` +
+      "{ kind: 'slip-length' | 'slip-velocity' } object"
+    );
+  }
+  const kind: unknown = authored.kind;
+  if (kind === 'slip-length') {
+    const length = (authored as { readonly length: number }).length;
+    if (!Number.isFinite(length) || length <= 0) {
+      throw new Error(
+        `${caller}: slipRegularization.length must be finite and positive`
+      );
+    }
+    return { kind: 'slip-length', length };
+  }
+  if (kind === 'slip-velocity') {
+    const velocity = (authored as { readonly velocity: number }).velocity;
+    if (!Number.isFinite(velocity) || velocity <= 0) {
+      throw new Error(
+        `${caller}: slipRegularization.velocity must be finite and positive`
+      );
+    }
+    return { kind: 'slip-velocity', velocity };
+  }
+  throw new Error(
+    `${caller}: slipRegularization.kind must be 'slip-length' or ` +
+    `'slip-velocity', received ${JSON.stringify(kind)}`
+  );
 }
 
 const CALLER = 'XpbdSourceSimplexPairFrictionN';
@@ -201,8 +342,14 @@ export class XpbdSourceSimplexPairFrictionN {
   readonly barrier: XpbdSourceSimplexPairBarrierN;
   /** Isotropic Coulomb coefficient. */
   readonly frictionCoefficient: number;
-  /** Regularization length, in world length units. */
-  readonly slipRegularization: number;
+  /**
+   * The authored regularization scale, normalized to its discriminated form.
+   *
+   * A numeric option is normalized to `{ kind: 'slip-length' }`; the number
+   * itself is preserved exactly, so a legacy scene resolves to the identical
+   * length it always did.
+   */
+  readonly slipRegularization: XpbdSourceSimplexPairResolvedSlipRegularizationN;
 
   /** Creates a friction term paired with one contact barrier. */
   constructor(options: XpbdSourceSimplexPairFrictionNOptions) {
@@ -227,34 +374,88 @@ export class XpbdSourceSimplexPairFrictionN {
     if (!Number.isFinite(options.frictionCoefficient) || options.frictionCoefficient < 0) {
       throw new Error(`${CALLER}: frictionCoefficient must be finite and non-negative`);
     }
-    if (!Number.isFinite(options.slipRegularization) || options.slipRegularization <= 0) {
-      throw new Error(`${CALLER}: slipRegularization must be finite and positive`);
-    }
+    this.slipRegularization = normalizeXpbdSourceSimplexPairSlipRegularizationN(
+      options.slipRegularization,
+      CALLER
+    );
     this.id = options.id;
     this.dimension = options.barrier.dimension;
     this.barrier = options.barrier;
     this.frictionCoefficient = options.frictionCoefficient;
-    this.slipRegularization = options.slipRegularization;
+  }
+
+  /**
+   * Resolves the authored scale to the length this lag will be frozen with.
+   *
+   * The timestep is required under a slip velocity and refused under a slip
+   * length. Refusing it in the second case is deliberate: accepting and
+   * ignoring it would leave an author believing their length tracked the
+   * timestep, which is the belief that makes friction silently vanish under
+   * refinement.
+   */
+  private resolveRegularizationLength(
+    options: XpbdSourceSimplexPairFrictionPrepareNOptions | undefined,
+    caller: string
+  ): number {
+    if (options !== undefined &&
+      (typeof options !== 'object' || options === null)) {
+      throw new Error(`${caller}: options must be an object`);
+    }
+    if (this.slipRegularization.kind === 'slip-length') {
+      if (options?.deltaTime !== undefined) {
+        throw new Error(
+          `${caller}: deltaTime is meaningless for an authored slip length, ` +
+          'which does not scale with the timestep; author ' +
+          "slipRegularization as { kind: 'slip-velocity', velocity } to " +
+          'resolve the length from the timestep'
+        );
+      }
+      return this.slipRegularization.length;
+    }
+    const deltaTime = options?.deltaTime;
+    if (deltaTime === undefined) {
+      throw new Error(
+        `${caller}: deltaTime is required when slipRegularization is ` +
+        "authored as { kind: 'slip-velocity' }, because the regularization " +
+        'length is velocity * deltaTime and must be frozen with the lag'
+      );
+    }
+    if (!Number.isFinite(deltaTime) || deltaTime <= 0) {
+      throw new Error(`${caller}: deltaTime must be finite and positive`);
+    }
+    return this.slipRegularization.velocity * deltaTime;
   }
 
   /**
    * Freezes one lag at the current (accepted) state and returns the immutable
    * provider that may be minimized against exactly once.
    *
+   * @param options carries the timestep this lag will be minimized against,
+   * required exactly when `slipRegularization` is authored as a slip velocity
+   * and refused when it is authored as a length.
    * @throws {XpbdPotentialDomainErrorN} when the contact cannot justify a
    * friction term: tied witnesses, certified zero distance, an uncertified
    * comparison, a sub-minimum distance, or a retired source.
    */
-  prepare(): XpbdPreparedSourceSimplexPairFrictionN {
-    return this.prepareAt((particle) => particle.position.clone());
+  prepare(
+    options?: XpbdSourceSimplexPairFrictionPrepareNOptions
+  ): XpbdPreparedSourceSimplexPairFrictionN {
+    return this.prepareAt((particle) => particle.position.clone(), options);
   }
 
   /** Freezes one lag at an explicit accepted base placement. */
-  prepareAt(positionOf: XpbdParticlePositionQueryN): XpbdPreparedSourceSimplexPairFrictionN {
+  prepareAt(
+    positionOf: XpbdParticlePositionQueryN,
+    options?: XpbdSourceSimplexPairFrictionPrepareNOptions
+  ): XpbdPreparedSourceSimplexPairFrictionN {
     const caller = `${CALLER}.prepareAt`;
     if (typeof positionOf !== 'function') {
       throw new Error(`${caller}: positionOf must be a function`);
     }
+    const regularizationLength = this.resolveRegularizationLength(
+      options,
+      caller
+    );
     for (const [label, reference] of [
       ['featureA', this.barrier.featureA], ['featureB', this.barrier.featureB]
     ] as const) {
@@ -306,6 +507,7 @@ export class XpbdSourceSimplexPairFrictionN {
       basePointB: pair.witness.pointB.clone(),
       baseDistance: pair.distance,
       laggedNormalForce,
+      regularizationLength,
       uniquenessGap: pair.uniquenessGap,
       state: 'prepared'
     });
@@ -413,7 +615,9 @@ implements XpbdConservativeForceProviderN {
       slip.data[axis] = raw.data[axis]! - along * lag.normal.data[axis]!;
     }
     const slipMagnitude = slip.length();
-    const eps = this.source.slipRegularization;
+    // Read from the LAG, not from the source: the length was resolved once at
+    // prepare and must not move while this lag is being minimized against.
+    const eps = lag.regularizationLength;
     const forceLimit = this.source.frictionCoefficient * lag.laggedNormalForce;
 
     // s(y): exact above eps, quadratic below. Below eps the force scale is
@@ -445,6 +649,7 @@ implements XpbdConservativeForceProviderN {
       slip,
       slipMagnitude,
       regime,
+      contactActive: forceLimit > 0,
       forceLimit,
       tangentForce,
       potentialEnergy: forceLimit * value,

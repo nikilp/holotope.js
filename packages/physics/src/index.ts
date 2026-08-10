@@ -12,8 +12,11 @@ export {
   type XpbdSourceSimplexPairFrictionLagN,
   type XpbdSourceSimplexPairFrictionLagStateN,
   type XpbdSourceSimplexPairFrictionNOptions,
+  type XpbdSourceSimplexPairFrictionPrepareNOptions,
   type XpbdSourceSimplexPairFrictionPrepareRefusalN,
-  type XpbdSourceSimplexPairFrictionRegimeN
+  type XpbdSourceSimplexPairFrictionRegimeN,
+  type XpbdSourceSimplexPairResolvedSlipRegularizationN,
+  type XpbdSourceSimplexPairSlipRegularizationN
 } from './xpbd-source-simplex-pair-friction.js';
 export {
   XpbdSourceSimplexPairBarrierFamilyN,
