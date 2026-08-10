@@ -1,5 +1,174 @@
 # Changelog
 
+## v0.0.15
+
+All five packages published at `0.0.15`; the substantive additions are in
+`@holotope/physics`.
+
+### `@holotope/physics@0.0.15`
+
+- Added `evaluateSourceSimplexPairDistanceN`: the exact closest-point distance
+  between two source-retained simplex features in any dimension, returning a
+  typed union rather than a number — `separated-unique` with a uniqueness gap,
+  `separated-multiple` carrying **every** tied witness and no gradient,
+  `zero-distance` with no invented normal, and `indeterminate` with its own
+  residuals. Witness weights are reported in each source reference's own vertex
+  order on both sides.
+- Added `XpbdSourceSimplexPairBarrierN`, the clamped-log barrier over that
+  certified distance, distributing force through the witness weights; tied
+  witnesses, certified zero distance, uncertified comparisons and the open
+  minimum each refuse by type instead of fabricating a force.
+- Added `XpbdSourceSimplexPairBarrierStepFilterN`, a two-sided Lipschitz step
+  filter that certifies a **conservative prefix** of a proposed segment. It is
+  not a collision time, and the point-to-convex-set filter's convexity shortcut
+  is deliberately not reused — pair distance under independently moving
+  vertices is not convex in the step parameter.
+- Added `compileXpbdSourceSimplexPairBarrierFamilyN`: one barrier and one paired
+  filter per source cell of a deforming simplicial group against **one static**
+  opposing feature. No self-contact, no mesh–mesh CCD, no moving-obstacle
+  family, no friction.
+- `createSourceSimplexReferenceN`'s vertex floor widened from two to one, so a
+  0-simplex is a legitimate feature and vertex–face pairs are expressible.
+
+Contact energy is a **sum over source cells**: when the closest approach falls on
+a sub-feature shared by several cells, each of those cells contributes a term
+naming the same witness at the same distance, so effective contact stiffness
+follows local mesh topology. A stiffness tuned on one mesh does not transfer to
+a refinement of it.
+
+## v0.0.14
+
+### `@holotope/core@0.0.14`
+
+- Added the display-map taxonomy: `DisplayMap3D` as the contract a render
+  product actually consumes, with `Projection` a type-identical specialization
+  of it, plus `InvertibleDisplayMap3D` and the `isInvertibleDisplayMap3D`
+  capability probe. Non-breaking by construction — no member was added,
+  removed, renamed or retyped on `Projection` or its subtypes.
+- Added `PlaneEmbedding3D`, the exact `[x, y] → [x, y, 0]` coordinate-plane
+  embedding: injective, with a unique inverse on its `z = 0` image and a typed
+  `off-image` status carrying the distance rather than a fabricated nearest
+  point. It implements neither the fibre nor the homogeneous surface, because an
+  embedding has no fibre to disclose.
+- Added the `'plane-embedding'` lineage recipe kind behind a total
+  `displayMapRecipe3` factory, leaving `projectionMapRecipeN`'s public union
+  unchanged.
+- Added `maxCellDimension` to `createSimplex` and `createCrossPolytope`, so any
+  simplicial face family can be authored up to the simplex's top cell. Defaults
+  are byte-identical to before. A cross-polytope has no simplicial top cell and
+  requesting one refuses by name; combinatorial explosions refuse
+  arithmetically, with the offending numbers, before any allocation.
+
+Authored cell groups are combinatorial and **unoriented** — render double-sided;
+oriented boundaries come from `sectionSimplexGroupN`, which derives orientation
+from geometry.
+
+### `@holotope/three@0.0.14`
+
+- Fixed `SectionChart3D`'s bounding volumes, which three.js computed over the
+  whole padded position attribute rather than the live draw range: a section at
+  x 40…41 reported a box containing the chart origin and a sphere far larger
+  than the geometry. Both volumes are now maintained over exactly the live
+  range, and an empty section reports explicitly empty volumes.
+
+## v0.0.13
+
+### `@holotope/physics@0.0.13`
+
+- Graduated the source-retained convex-hull barrier family: one certified
+  closest-point query per bound particle, source-retained witnesses, typed
+  domain refusals, four-axis staleness detection, and a paired Lipschitz step
+  filter whose result is a certificate rather than an impact time.
+- Fixed GJK termination under equal and nearly tied supports.
+
+The family's certificate is **per particle**, not surface disjointness: every
+vertex can be legally outside a support while the material surface between them
+passes through it.
+
+### `@holotope/three@0.0.13`
+
+- Rendered RN sections in their own chart with source evidence
+  (`SectionChart3D`, `representationHitFromSectionChart`), plus two
+  dimension-generic lineage recipes. Picks name the parent source cell exactly
+  and carry each corner's affine ancestry; the recovered ambient point is
+  reported `'approximate'`, never upgraded.
+
+### `@holotope/core@0.0.13`
+
+- Sections of simplicial complexes by any RN hyperplane
+  (`HyperplaneSliceN`, `sectionSimplexGroupN`) with ancestry that composes
+  through chained cuts, so a twice-cut vertex still names original source
+  vertices.
+- Emitted section cells are oriented as the boundary of each parent's
+  below-plane region, so reversing the hyperplane normal reverses the facing and
+  oriented integrals accumulate instead of cancelling.
+- The section diagnostics became a true partition:
+  `sourceCells = sectioned + suppressedOnPlane + below + collapsed`.
+
+### Showcase
+
+- The source-linked sheet page was **withheld** from the built site: a certified
+  audit showed the sheet surface passing through its support once it draped past
+  that support's finite edge, with every vertex still legally outside. It stays
+  out until surface-level contact exists to constrain it.
+
+## v0.0.12
+
+### `@holotope/physics@0.0.12`
+
+- Added a world-scoped incremental-potential step
+  (`stepXpbdIncrementalPotentialWorldN`) that compiles, minimizes and applies
+  within one transaction, refusing stale particle state without mutating it.
+- Added source-indexed simplex candidates and a **static** source-simplex AABB
+  hierarchy for candidate selection — opt-in, and static-only: it refuses rather
+  than silently rebuilding when its source moves.
+
+Two solver paths now exist, and the documentation states which one owns the
+world; the zero-interval rule is stated for both `XpbdWorldN` paths.
+
+## v0.0.11
+
+### `@holotope/core@0.0.11`
+
+- Added rotation queries and directional bounds
+  (`cellComplexBoundsAlongDirectionN` and the rotation-plane queries).
+- Enforced vector and rigid-body runtime invariants that had been documented but
+  unchecked.
+
+### `@holotope/three@0.0.11`
+
+- Validated edge styling inputs and documented slice frames.
+
+## v0.0.10
+
+### Showcase and documentation
+
+- The flagship scenario is now declared as a typed experiment document and
+  compiled from it, with picks traceable back to the compiled registry.
+- Added the canonical source-retained dimension-bridge guide, and documented the
+  chart resolver and the model/pane discovery seams.
+- Corrected two overclaims in the hyperrectangle evidence, and exercised
+  hyperrectangles from packed artifacts.
+
+### Build
+
+- Added a release preflight that checks CI for the exact commit being released.
+
+## v0.0.9
+
+### `@holotope/core@0.0.9`
+
+- Fixed the lattice barrel, which did not export `phiRing`.
+
+### Documentation and build
+
+- Every fenced example on every learning page is now compiled on each run, and
+  the cookbook's independent recipes are genuinely independent.
+- The theory and physics pages were given the subjects their examples assume.
+- Added a conformance build proving the packaged artifacts work outside this
+  workspace, from freshly packed tarballs.
+- `@holotope/experiment-physics` names its own directory in package metadata.
+
 ## v0.0.8
 
 ### `@holotope/physics@0.0.8`
