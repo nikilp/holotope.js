@@ -340,14 +340,15 @@ export function evaluateSourceSimplexPairDistanceN(
         const delta = pointA[axis]! - pointB[axis]!;
         squaredDistance += delta * delta;
       }
-      const weightsA = new Array<number>(countA).fill(0);
-      const weightsB = new Array<number>(countB).fill(0);
-      slotsA.forEach((slot, at) => {
-        weightsA[slot] = Math.min(1, Math.max(0, faceWeightsA[at]!));
-      });
-      slotsB.forEach((slot, at) => {
-        weightsB[slot] = Math.min(1, Math.max(0, faceWeightsB[at]!));
-      });
+      // Clamp into the closed simplex, then RENORMALIZE. Barycentric weights
+      // of a point sum to exactly one; what the affine solve leaves is a few
+      // ulps of noise, and clamping alone does not remove it. Without this the
+      // sum can drift past createSourceSimplexCoordinateN's 1e-12 band and the
+      // witness construction throws an untyped error from inside a query whose
+      // whole contract is typed refusals — found by the P57 sheet probe at a
+      // measured 1.0000000000023275.
+      const weightsA = normalizedWeights(countA, slotsA, faceWeightsA);
+      const weightsB = normalizedWeights(countB, slotsB, faceWeightsB);
       candidates.push({
         slotsA, slotsB, weightsA, weightsB, pointA, pointB, squaredDistance,
         key: [...pointA, ...pointB]
@@ -558,6 +559,30 @@ function solvePivoted(matrix: number[][], rhs: number[]): number[] | null {
     x[row] = sum / a[row]![row]!;
   }
   return x;
+}
+
+/**
+ * Places clamped face weights into a full-length source-ordered vector and
+ * renormalizes the sum to one. The renormalization moves each weight by less
+ * than a part in 1e11, so it is behaviour-neutral for every consumer while
+ * keeping the returned coordinates constructible.
+ */
+function normalizedWeights(
+  count: number,
+  slots: readonly number[],
+  faceWeights: readonly number[]
+): number[] {
+  const weights = new Array<number>(count).fill(0);
+  let sum = 0;
+  slots.forEach((slot, at) => {
+    const clamped = Math.min(1, Math.max(0, faceWeights[at]!));
+    weights[slot] = clamped;
+    sum += clamped;
+  });
+  if (sum > 0 && sum !== 1) {
+    for (const slot of slots) weights[slot] = weights[slot]! / sum;
+  }
+  return weights;
 }
 
 function nonemptySubsets(count: number): number[][] {

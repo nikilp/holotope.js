@@ -651,3 +651,60 @@ describe('gjkDistance and point--simplex answers, pinned', () => {
       .toEqual([0.5, 0.24999999999999997, 0.24999999999999994]);
   });
 });
+
+// --- 13. the P57-discovered weight-sum robustness regression -------------------
+
+describe('witness weights are always constructible as source coordinates', () => {
+  it('renormalizes solve noise instead of throwing from inside the query', () => {
+    // The P57 sheet probe drove a configuration whose face solve left the
+    // weight sum at 1.0000000000023275 — past createSourceSimplexCoordinateN's
+    // 1e-12 band — so the witness construction threw an UNTYPED error from
+    // inside a query whose whole contract is typed refusals. This sweeps a
+    // family of near-degenerate triangle/edge placements and demands that the
+    // query always returns a result and that every returned coordinate sums to
+    // one within the constructor's own tolerance.
+    const dim = 4;
+    let checked = 0;
+    for (let trial = 0; trial < 400; trial++) {
+      const t = trial / 400;
+      // A triangle sliding across an edge, sweeping the active-face
+      // transitions where the barycentric solve is worst conditioned.
+      const aValues = [
+        -1 + t * 0.7, 0.2 + t * 1e-3, 0, 1.15,
+        1 + t * 0.7, 0.2 - t * 1e-3, 0, 1.15,
+        t * 0.7, 1.2, 0.001 * t, 1.15
+      ];
+      const bValues = [
+        0, 0, 0, -0.6,
+        0, 0, 0, 0.9,
+        0.4, -0.3, 0.1, -0.6,
+        -0.3, 0.4, -0.1, -0.6
+      ];
+      const positions = new Float64Array([...aValues, ...bValues]);
+      const complex = new CellComplex(dim, positions, [
+        { dim: 2, verticesPerCell: 3, kind: 'simplex', indices: Uint32Array.from([0, 1, 2]) },
+        { dim: 3, verticesPerCell: 4, kind: 'simplex', indices: Uint32Array.from([3, 4, 5, 6]) }
+      ]);
+      const a = createSourceSimplexReferenceN(
+        createSourceCellReferenceN(complex, complex.groups[0]!, 0)
+      );
+      const b = createSourceSimplexReferenceN(
+        createSourceCellReferenceN(complex, complex.groups[1]!, 0)
+      );
+      const result = evaluateSourceSimplexPairDistanceN(
+        { reference: a }, { reference: b }
+      );
+      const witnesses = result.status === 'separated-multiple'
+        ? result.witnesses
+        : result.status === 'indeterminate' ? [] : [result.witness];
+      for (const witness of witnesses) {
+        for (const weights of [witness.coordinateA.weights, witness.coordinateB.weights]) {
+          const sum = weights.reduce((x, y) => x + y, 0);
+          expect(Math.abs(sum - 1)).toBeLessThanOrEqual(1e-12);
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(400); // liveness: witnesses really were built
+  });
+});
