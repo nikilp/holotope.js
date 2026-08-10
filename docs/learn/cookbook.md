@@ -926,6 +926,96 @@ Energy decay in the resulting trajectory is **not** by itself evidence that
 friction did the work — an integrator can lose energy with `frictionCoefficient: 0`.
 Measure the work through the realised displacement if you need to claim it.
 
+## Keep friction from vanishing when the timestep changes
+
+Per-step slip is `‖tangential velocity‖ · deltaTime`. Inside the regularized
+branch the force is `forceLimit · slip / length`, so a fixed `slipRegularization`
+**length** makes the force proportional to `deltaTime`, one step's impulse
+proportional to `deltaTime²`, and a fixed horizon of `T / deltaTime` steps total
+`T · deltaTime`. Friction does not soften under refinement; it disappears.
+Measured over an eight-fold refinement, the tangential impulse falls to 0.133 of
+its coarse value, last halving at 1.98 against the predicted 2.00.
+
+Author the scale as a slip *speed* when the interval may change. The length is
+then resolved as `velocity · deltaTime` once per `prepare`, which cancels
+`deltaTime` out of `slip / length` exactly:
+
+```ts
+import {
+  compileXpbdSourceSimplexPairFrictionFamilyN,
+  stepXpbdIncrementalPotentialWorldN,
+  type XpbdSourceSimplexPairBarrierFamilyN,
+  type XpbdWorldN
+} from '@holotope/physics';
+
+// The pair-contact family and the world it is registered on, exactly as the
+// recipe above builds them.
+declare const contact: XpbdSourceSimplexPairBarrierFamilyN;
+declare const world: XpbdWorldN;
+
+const stable = compileXpbdSourceSimplexPairFrictionFamilyN({
+  id: 'friction-stable',
+  contact,
+  frictionCoefficient: 0.4,
+  // A slip SPEED, in length/time. The bare-number spelling is a world length
+  // and is never reinterpreted as this one.
+  slipRegularization: { kind: 'slip-velocity', velocity: 1e-2 }
+});
+
+for (const interval of [1 / 100, 1 / 800]) {
+  // deltaTime is REQUIRED under a slip velocity and REFUSED under a slip
+  // length. The resolved length is frozen into every lag returned here.
+  const lags = stable.prepare({ deltaTime: interval });
+
+  for (const term of lags.prepared) {
+    const evaluation = term.evaluate();
+    console.log(
+      evaluation.lag.regularizationLength,  // velocity * interval
+      evaluation.contactActive,             // exactly forceLimit > 0
+      evaluation.regime                     // about SLIP only, orthogonal
+    );
+  }
+
+  const advance = stepXpbdIncrementalPotentialWorldN({
+    world,
+    deltaTime: interval,
+    stepFilters: contact.stepFilters,
+    preparedProviders: lags.prepared,
+    warmStart: 'feasible-inertial-prediction'
+  });
+  if (advance.step.status === 'applied') lags.markConsumed();
+  else lags.rollback();
+}
+```
+
+Under the same eight-fold refinement the tangential impulse now holds to 1.06 of
+its coarse value, last halving 0.99. The bare-number spelling is unchanged: a
+number normalizes to `{ kind: 'slip-length' }` carrying exactly that value, so no
+existing scene moves by a bit.
+
+Freezing the resolved length is not bookkeeping. Conservativeness within one lag
+is what lets the Armijo search evaluate the term repeatedly, and a length that
+moved mid-solve would leave the search minimizing a function whose shape had
+changed under it. That is also why `prepare({ deltaTime })` is refused under an
+authored slip length — accepting it would suggest the length responds to the
+timestep.
+
+Evaluate before committing: a consumed lag refuses evaluation, which is the same
+rule that stops one being reused across steps.
+
+Two claims a slip velocity does not support. It is a smoothing scale and nothing
+more, so it is not evidence of static friction and not evidence of
+finite-support retention. And `regime` never identifies whether a contact force
+is active — read `contactActive` for that. Neither direction holds: a lag
+carrying no normal force still has a slip and still reports a regime for it, and
+in the sheet probe 144 of 192 evaluations reported `'sliding'` while exerting
+exactly zero force. A population statistic mixing the two axes is mostly
+describing terms that are touching nothing.
+
+The step filters passed above certify a *fraction* of the search segment. That
+fraction is not a collision time and not the moment a contact changes friction
+regime; it is the prefix over which the barrier's distance bound still holds.
+
 ## Pick headlessly, with no renderer
 
 Picking needs geometry and a ray, not a canvas. A render product builds its
@@ -1516,6 +1606,64 @@ The result retains prediction, compiled problem, minimization trace, and—on
 success—verified application evidence. Refusal and thrown failure restore the
 complete pre-step particle state. This is the Float64 correctness path for
 small systems and backend comparisons, not a large-mesh production optimizer.
+
+## Keep a force resolution when the timestep changes
+
+`gradientTolerance` bounds the packed-gradient norm, which carries `deltaTime²`
+and is in mass·length rather than force. Held fixed while the interval is
+refined, the smallest force it can still see — `gradientTolerance / deltaTime²`
+— *grows*. A unit-mass particle under a constant 1000 N force integrates
+exactly at `deltaTime = 5e-6` and produces identically zero motion at `2e-6`,
+with every step of both runs reporting `applied`.
+
+State the stop test as an acceleration when the interval may change:
+
+```ts
+import {
+  diagnoseXpbdIncrementalPotentialStepN,
+  stepXpbdIncrementalPotentialN
+} from '@holotope/physics';
+
+for (const interval of [1 / 120, 1 / 2000]) {
+  const held = stepXpbdIncrementalPotentialN({
+    dimension: 4,
+    particles: binding.particles,
+    providers: [material, barrier],
+    deltaTime: interval,
+    gravity: [0, -9.81, 0, 0],
+    minimization: {
+      // max_i ‖gradient_i‖ / (mass_i * deltaTime^2) over the FREE particles,
+      // in length/time^2 — the same physical bound at both intervals.
+      convergence: { kind: 'maximum-acceleration-residual', tolerance: 1e-3 },
+      maximumIterations: 128
+    }
+  });
+  const why = diagnoseXpbdIncrementalPotentialStepN(held);
+  console.log(
+    interval,
+    held.status,
+    why.condition,                        // 'converged-without-iteration' is
+    why.facts.convergenceResidualFinal    // rest, or a force below the floor
+  );
+}
+```
+
+`{ kind: 'packed-gradient', tolerance }` is the criterion `gradientTolerance`
+has always named, at the same value, and it remains the default at `1e-8`.
+Authoring `gradientTolerance` and `convergence` together throws before the
+problem is evaluated once.
+
+This is a trade, not an upgrade. Over an eight-fold refinement at one fixed
+tolerance the packed norm delivers an acceleration spread of 45.43 and a
+position spread of 1.48; the acceleration residual delivers 1.0169 and 62.83.
+The two differ by exactly `deltaTime²`, so no criterion bounds both. Choose the
+packed norm when per-step position error is what must stay bounded, and the
+acceleration residual when a force resolution is.
+
+Prescribed particles hold no packed coordinate and their gradient is identically
+zero, so they contribute nothing to the maximum. Taking a per-particle maximum
+rather than a global norm is what keeps the bound independent of particle count
+and stops a heavy particle concealing a light one's acceleration.
 
 ## Add a proactive lower-measure barrier
 

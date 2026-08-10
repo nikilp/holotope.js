@@ -793,6 +793,129 @@ provider evidence or an invalid base state. Every result retains the exact
 compiled problem that produced it; this identity is used by the application
 transaction below.
 
+That packed-gradient norm is the default criterion. Which physical quantity it
+bounds, and what the alternative bounds instead, is the next section.
+
+## What the stop test bounds
+
+Both terms of the objective carry the same unit. The inertial term is
+mass·length², and `h²U(q)` is time²·energy, which is mass·length² again.
+Differentiating once removes one length, so a packed gradient entry is in
+mass·length — equivalently force·time². A threshold on the packed gradient is
+therefore a threshold in mass·length. It is not a force, and it does not become
+one by being small.
+
+Dividing by `h²` converts it back. At a fixed threshold, the smallest force the
+criterion can still distinguish from zero is `gradientTolerance / h²`, so that
+floor **rises** as the timestep falls: refining the interval, which improves the
+discretization in every other respect, coarsens this stop test quadratically.
+
+The consequence is not asymptotic. One free particle of unit mass under a
+constant 1000 N force, driven through the public world step over a fixed
+`1e-3` s horizon, has the exact Backward-Euler answer 1 m/s at every timestep.
+At the shipped default tolerance of `1e-8`:
+
+| `deltaTime` | warm-start gradient norm | steps applied | converged at the base | final speed |
+| --- | --- | --- | --- | --- |
+| `1e-4` | `1e-5` | 10 / 10 | 0 | `1.0000000000000016` |
+| `5e-5` | `2.5e-6` | 20 / 20 | 0 | `1.0000000000000004` |
+| `1e-5` | `1e-7` | 100 / 100 | 0 | `1.0000000000000133` |
+| `5e-6` | `2.5e-8` | 200 / 200 | 0 | `1.0000000000000675` |
+| `2e-6` | `4e-9` | 500 / 500 | 500 | `0` |
+| `1e-6` | `1e-9` | 1000 / 1000 | 1000 | `0` |
+
+A 2.5-fold refinement takes a 1000 N force from exactly integrated to
+identically absent. Every step of every row reports `applied`: converging at
+the warm start is a legitimate terminal, not a refusable one, so the bottom two
+rows produce no refusal to notice. `applied` therefore does not mean that every
+physical force exceeded the solver's resolution — only that a converged iterate
+reached the application boundary. This is the permanent test
+`packages/physics/test/xpbd-incremental-potential-convergence.test.ts`.
+
+### A criterion that does not move with the timestep
+
+`convergence: { kind: 'maximum-acceleration-residual', tolerance }` bounds
+
+$$
+\max_{i\ \mathrm{free}}\frac{\lVert\nabla_iE\rVert}{m_ih^2}
+$$
+
+in length/time². The `h²` cancels against the one folded into the objective, so
+the same authored number means the same physical thing at every timestep.
+
+Two properties of that definition are load-bearing. Prescribed particles hold
+no packed coordinate and their gradient entry is identically zero, so the
+maximum is over the free set and a fixed particle can neither raise nor lower
+it. And taking a per-particle maximum rather than a global norm is what keeps
+the bound independent of particle count: a Euclidean norm over `N` particles
+grows as `sqrt(N)` at fixed per-particle residual, and lets one heavy particle's
+small acceleration conceal a light particle's large one.
+
+### Two families, and why this is a union
+
+Six candidate criteria were ranked on delivered physical error against a
+closed-form minimizer, over an eight-fold refinement at one fixed authored
+tolerance. Each column is the spread of delivered error across that refinement;
+`1.0` is exact invariance.
+
+| candidate | acceleration spread | position spread |
+| --- | --- | --- |
+| packed gradient norm | 45.43 | 1.48 |
+| force-scaled residual | 1.0153 | 62.93 |
+| maximum acceleration residual | 1.0169 | 62.83 |
+| mass-weighted residual | 1.0153 | 62.93 |
+| relative residual (control) | 1.0120 | 63.14 |
+| per-particle position residual | 60.61 | 1.72 |
+
+There are exactly two families, and no candidate spans both. They differ by
+exactly `h²`, so a criterion that holds one quantity invariant under refinement
+must let the other move by that factor. The packed norm holds position error;
+the acceleration residual holds acceleration. Neither dominates the other, and
+the library cannot pick for the scene — which is why the option is a
+discriminated union and not a knob with a better default.
+
+Among the acceleration-stable candidates, the per-particle maximum is the one
+that is additionally mass-aware and count-invariant, which is why it is the one
+shipped.
+
+### Authoring, and what every terminal reports
+
+```ts
+import { minimizeXpbdIncrementalPotentialN } from '@holotope/physics';
+
+const bounded = minimizeXpbdIncrementalPotentialN({
+  problem,
+  initialCoordinates: coordinates,
+  convergence: { kind: 'maximum-acceleration-residual', tolerance: 1e-3 },
+  maximumIterations: 128
+});
+
+if (bounded.status !== 'initial-state-refused') {
+  console.log(
+    bounded.convergence.kind,           // the criterion that decided
+    bounded.convergence.tolerance,
+    bounded.convergence.initialResidual,
+    bounded.convergence.finalResidual,  // converged is exactly <= tolerance
+    bounded.final.gradientNorm          // retained whichever criterion ran
+  );
+}
+```
+
+`{ kind: 'packed-gradient', tolerance }` is the same criterion `gradientTolerance`
+has always named, at the same value; a scene that authors neither resolves to it
+at `1e-8`. Authoring `gradientTolerance` and `convergence` together throws before
+the problem is evaluated once, rather than resolving a precedence nobody wrote.
+
+`gradientTolerance` is retained on every result whatever criterion ran, and
+`gradientNorm` on every `initial` and `final` evaluation, so an existing reader
+keeps the quantity it knows. `'initial-state-refused'` accepted no evaluation
+at all, so it carries the criterion and its tolerance without residuals or
+evaluations — narrow that status away before reading either. Under any
+criterion other than `'packed-gradient'`, `gradientTolerance` is the inert
+default and did not decide anything — `convergence.kind` names what did. The
+same `convergence` field is accepted by the integrated step's and the world
+step's `minimization` policy.
+
 ## Matrix-free curvature reference
 
 `estimateXpbdIncrementalPotentialHessianVectorN()` differentiates the complete

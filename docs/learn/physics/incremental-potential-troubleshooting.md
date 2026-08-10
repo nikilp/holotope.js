@@ -133,7 +133,7 @@ scene supplies that intent; the solver cannot infer it.
 | Condition | What it establishes | Levers the helper may name |
 | --- | --- | --- |
 | `initial-state-refused` | The base is outside an open potential domain | Previous-position warm start; bounded feasible-prediction recovery; repair the authored state |
-| `converged-without-iteration` | The authored tolerance was satisfied at the base | Lower the tolerance only when the scene was expected to keep solving |
+| `converged-without-iteration` | The authored tolerance was satisfied at the base | Lower the tolerance only when the scene was expected to keep solving; under `'packed-gradient'`, re-author the stop test in a timestep-independent unit |
 | `iteration-limit` | The accepted-step budget ended before convergence | Newton or mass-diagonal direction; larger iteration budget |
 | `line-search-exhausted` | Armijo trials found no acceptable step | Newton or mass-diagonal direction |
 | `line-search-refused` | A step filter could not certify a positive segment | Inspect the blocking filter; repair the authored state |
@@ -145,6 +145,80 @@ scene supplies that intent; the solver cannot infer it.
 The gradient tolerance is intentionally absent from every refusal row. Raising
 it can transform a visible non-convergence into zero-iteration apparent success
 without advancing the intended solve.
+
+## "Every step reports `applied` and nothing moves"
+
+Nothing is being concealed here, and there is no refusal to catch. Converging
+at the warm start is a legitimate terminal, so the transaction applies a
+converged iterate that happens to equal its base, and `applied` is the honest
+report. What `applied` does **not** mean is that every physical force in the
+scene exceeded the solver's resolution.
+
+Under the default `'packed-gradient'` criterion the threshold is in mass·length,
+because the objective folds `deltaTime²` into the potential. It therefore
+resolves forces only down to `gradientTolerance / deltaTime²`. That floor
+*rises* as the timestep falls, so refining the step makes the criterion less
+sensitive to force, not more. A unit-mass particle under
+a constant 1000 N force integrates to 1 m/s at `deltaTime = 5e-6` and produces
+identically zero motion at `2e-6`, with every step of both runs reporting
+`applied`. See
+[what the stop test bounds](../theory/incremental-potentials#what-the-stop-test-bounds)
+for the full table and the units it rests on.
+
+The helper classifies this as `converged-without-iteration`. Three facts
+separate an over-loose stop test from genuine rest:
+
+| Fact | What it tells you |
+| --- | --- |
+| `convergenceKind` | Which criterion actually decided. Under anything but `'packed-gradient'`, the `gradientTolerance` fact is an inert echo that decided nothing |
+| `convergenceResidualFinal` | What that criterion measured, in its own unit, to be compared against `convergenceTolerance` |
+| `gradientNormFinal` | The packed-gradient norm, in mass·length, retained whichever criterion ran |
+
+Two levers are named under `'packed-gradient'`: `'lower-gradient-tolerance'`,
+which keeps the criterion and tightens it, and
+`'timestep-independent-convergence'`, which re-authors the stop test in a unit
+that does not move with the timestep:
+
+```ts
+import {
+  diagnoseXpbdIncrementalPotentialStepN,
+  stepXpbdIncrementalPotentialN
+} from '@holotope/physics';
+
+const attempt = stepXpbdIncrementalPotentialN({
+  dimension,
+  particles,
+  providers,
+  stepFilters,
+  deltaTime: 1 / 2000,
+  gravity,
+  warmStart: 'previous-positions',
+  minimization: {
+    // length/time^2, and the same physical bound at every deltaTime.
+    convergence: { kind: 'maximum-acceleration-residual', tolerance: 1e-3 }
+  }
+});
+
+const diagnosed = diagnoseXpbdIncrementalPotentialStepN(attempt);
+if (diagnosed.condition === 'converged-without-iteration') {
+  console.log(
+    diagnosed.facts.convergenceKind,
+    diagnosed.facts.convergenceTolerance,
+    diagnosed.facts.convergenceResidualFinal,
+    diagnosed.facts.gradientNormFinal
+  );
+}
+```
+
+Under `'maximum-acceleration-residual'` the helper names only
+`'lower-convergence-tolerance'`. That threshold is an acceleration and does not
+move with the timestep, so the same terminal there is much stronger evidence of
+actual rest — and naming a gradient tolerance to an author who never wrote one
+would be advice about the wrong number.
+
+Neither lever is applied for you, and neither is automatically right. A scene
+genuinely at equilibrium produces exactly this condition too. The scene supplies
+the intent; the helper supplies the units.
 
 ## A measured escalation
 
@@ -200,3 +274,57 @@ appear in `selection.preparedProviderIds`, separate from `selection.providerIds`
 so an authored scene term and a one-transaction lagged one are always
 distinguishable. Colliding ids, duplicates, and particles the world does not
 own are refused before anything is touched.
+
+## "Friction weakens when I refine the timestep"
+
+Per-step slip is `‖tangential velocity‖ · deltaTime`. Once that slip falls
+inside the regularized branch the force is `forceLimit · slip / length`, so with
+a fixed regularization **length** the force goes as `deltaTime`, one step's
+impulse as `deltaTime²`, and a fixed horizon of `T / deltaTime` steps totals
+`T · deltaTime`. Friction does not merely soften under refinement; it vanishes.
+
+Measured over an eight-fold refinement on two scenes, the tangential impulse
+falls to 0.133 of its coarse value, with the last halving at a ratio of 1.98
+against the 2.00 the scaling predicts. That was confirmed through two
+independent channels — force-side impulse and velocity-side energy — agreeing to
+0.19%, and cross-checked against a momentum audit to `1e-4`.
+
+`slipRegularization` written as a bare number is a world length, exactly as it
+has always been, and is never reinterpreted as a velocity. To hold the
+regularized branch over the same *speed* range at every timestep, author the
+slip speed below which contact should be treated as stuck:
+
+```ts
+import type { XpbdSourceSimplexPairFrictionFamilyN } from '@holotope/physics';
+
+// Compiled with slipRegularization: { kind: 'slip-velocity', velocity: 1e-2 }.
+declare const frictionFamily: XpbdSourceSimplexPairFrictionFamilyN;
+declare const interval: number;
+
+// The length is resolved once, here, as velocity * deltaTime, and frozen into
+// every lag this preparation returns.
+const lags = frictionFamily.prepare({ deltaTime: interval });
+console.log(lags.prepared.length, lags.skipped.length);
+```
+
+That resolution cancels `deltaTime` out of `slip / length` exactly. Under the
+same eight-fold refinement the impulse holds to 1.06 of its coarse value, last
+halving 0.99.
+
+`deltaTime` is required at `prepare` under a slip velocity and refused under a
+slip length. Accepting and ignoring it in the second case would leave an author
+believing their length tracked the timestep, which is the belief that makes
+friction disappear silently. Freezing the resolved length into the lag is what
+keeps the term conservative across one solve: a length that moved mid-search
+would leave Armijo minimizing a function whose own shape changed underneath it.
+
+Three readings this does not license. A velocity-derived length is a smoothing
+scale and nothing more — it is not evidence of static friction and not evidence
+of finite-support retention. `regime` and `contactActive` are orthogonal:
+`regime` is a statement about slip alone, `contactActive` is exactly
+`forceLimit > 0`, and in the sheet probe 144 of 192 evaluations read `'sliding'`
+while exerting exactly zero force, so a population statistic that does not
+separate the two is mostly reporting on terms touching nothing. And total-energy
+decay is not a measurement of friction work: an integrator loses energy at
+`frictionCoefficient: 0`, and the measured zero-friction control drifts 0.0395%,
+which is 24% of the smallest signal it would have to certify.

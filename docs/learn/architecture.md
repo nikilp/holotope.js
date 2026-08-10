@@ -246,6 +246,23 @@ caller-supplied because the base world owns no filter registry, and the
 complete lower-level result travels with the returned diagnosis so retained
 evidence is not flattened into a success flag.
 
+Two parameters of that path are discriminated unions rather than scalars,
+because in both cases a single number cannot carry the unit the author means.
+The incremental objective folds `deltaTime²` into the potential, so the packed
+gradient is in mass·length and a threshold on it resolves forces only down to
+`tolerance / deltaTime²`; a per-particle acceleration residual over the free
+set removes that factor. Measurement over an eight-fold refinement found two
+families separated by exactly `deltaTime²` and no criterion in both — the
+packed norm holds position error and lets acceleration spread by 45.43, the
+acceleration residual holds acceleration and lets position spread by 62.83. A
+library cannot choose which error a scene depends on, so `convergence` names
+the quantity and the legacy `gradientTolerance` spelling keeps its exact
+meaning. The same reasoning shapes `slipRegularization`: a bare number stays a
+world length and is never reinterpreted, while `{ kind: 'slip-velocity' }`
+resolves to `velocity · deltaTime` once at `prepare` and is frozen into the
+lag, since a scale that moved mid-solve would stop the friction term being a
+potential the line search can trust.
+
 Simplex measure has two deliberately separate contracts. A Gram determinant
 provides unsigned intrinsic k-measure for any `k <= N`, including embedded
 simplices. An ambient determinant provides signed measure only for an

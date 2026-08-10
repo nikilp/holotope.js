@@ -326,12 +326,40 @@ windows.
   Spread `...family.incrementalPotentialTerms()` into a problem or step, or
   pass existing terms to that method to append without mutating them.
 - Reference minimization: `minimizeXpbdIncrementalPotentialN` uses an explicit
-  packed direction policy and Armijo search under iteration, trial, and
-  gradient-tolerance bounds. `xpbdSteepestDescentDirectionN` is the unchanged
+  packed direction policy and Armijo search under iteration, trial, and stop-
+  test bounds. `xpbdSteepestDescentDirectionN` is the unchanged
   default; `xpbdMassPreconditionedDirectionN` scales each free-particle block
   by its exact inverse inertial mass. It returns converged, iteration-limit,
   line-search-exhausted, line-search-refused, or stalled evidence and retains
   its exact problem plus direction-policy identity.
+- Authored stationarity (P58A): `convergence: { kind: 'packed-gradient';
+  tolerance } | { kind: 'maximum-acceleration-residual'; tolerance }`, additive
+  on both the minimizer options and the world-step `minimization` policy.
+  **Safe first choice: for a scene whose timestep may change, author
+  `{ kind: 'maximum-acceleration-residual', tolerance }`** — it bounds
+  `max_i ||gradient_i|| / (mass_i * dt^2)` over **free** particles, in
+  length/time^2, and holds under refinement. "Safe" here is scoped, not a
+  ranking: it buys force resolution at the cost of scattering the per-step
+  position residual 62.8x, and it is the first choice under a changing timestep
+  only because the alternative failure is a real force dropped in silence. **`gradientTolerance` (default
+  `1e-8`) is unchanged and stays correct** for a fixed timestep, or when a
+  per-step **position** residual is what matters; it is the legacy spelling of
+  `'packed-gradient'` and is never reinterpreted. The objective is
+  `1/2||x - xPrediction||^2_M + dt^2 U(x)`, so that threshold bounds a quantity
+  carrying mass*length (= force*time^2) and resolves forces only down to
+  `tolerance / dt^2`. The two criteria differ by exactly `dt^2` and neither
+  dominates: over an eight-fold refinement at fixed tolerance the packed norm
+  spreads delivered acceleration 45.4x while holding position error to 1.5x,
+  and the acceleration residual reverses it, 1.02x and 62.8x. Authoring both
+  spellings throws before the problem is evaluated once. Every terminal that
+  evaluated the base carries
+  `convergence: { kind, tolerance, initialResidual, finalResidual }` and keeps
+  `gradientNorm` on `.initial`/`.final`; `'initial-state-refused'` is the one
+  exception — criterion and tolerance only, no residuals and no evaluations, so
+  narrow it away first. Diagnosis adds `convergenceKind`,
+  `convergenceTolerance`, `convergenceResidualInitial`,
+  `convergenceResidualFinal`, and the `'lower-convergence-tolerance'` and
+  `'timestep-independent-convergence'` levers.
 - Atomic application: `applyXpbdIncrementalPotentialResultN` applies only a
   converged result after proving live-state and result-evidence freshness.
   Default dynamic velocity is `(qNext - qBefore) / h`; fixed velocity is
@@ -485,7 +513,11 @@ const result = minimizeXpbdIncrementalPotentialN({
   problem,
   initialCoordinates: problem.packPositions(candidatePositions),
   directionPolicy: xpbdMassPreconditionedDirectionN,
-  gradientTolerance: 1e-8,
+  // Timestep-independent stop test, in length/time^2. Author
+  // `gradientTolerance: 1e-8` instead only for a fixed timestep, or when a
+  // per-step position residual is the quantity that matters; the two spellings
+  // are mutually exclusive and authoring both throws.
+  convergence: { kind: 'maximum-acceleration-residual', tolerance: 1e-4 },
   maximumIterations: 128
 });
 if (result.status === 'converged') {
@@ -582,7 +614,7 @@ if (hit.ambientPointStatus === 'exact') {
   a reproducibility anchor are different things, so do not "update" the pins to
   match the range. Never widen the range to make `pnpm check:three-compat`
   pass — that guard drives both ends from packed artifacts.
-- Friction (P57) has FOUR distinctions that are load-bearing and routinely
+- Friction (P57/P58B) has SIX distinctions that are load-bearing and routinely
   got wrong: (1) `XpbdParticleHyperplaneFrictionN` is the P16 **post-projection
   velocity response** for `world.step()`, while `XpbdSourceSimplexPairFrictionN`
   is a **term inside the incremental objective** — the optimizer refuses
@@ -591,8 +623,30 @@ if (hit.ambientPointStatus === 'exact') {
   globally conservative — dissipation happens when the lag is refreshed;
   (3) **friction work is not generic backward-Euler energy decay** — an
   integrator can lose energy with `mu = 0`, so decay alone proves nothing and
-  the work must be measured; (4) a P56 filter's **certified prefix is not a
-  collision or friction-transition time**. Also: only a `separated-unique`
+  the work must be measured; the measured `mu = 0` control drifts 0.0395%,
+  which is 24% of the smallest signal it certifies; (4) a P56 filter's
+  **certified prefix is not a collision or friction-transition time**;
+  (5) **`regime` and `contactActive` are orthogonal axes** — `regime`
+  (`'sticking'`/`'transition'`/`'sliding'`) is a statement about **slip alone**,
+  while `contactActive` is exactly `forceLimit > 0` and is the only thing that
+  says whether any tangential force exists; in the sheet probe 144 of 192
+  evaluations read `'sliding'` while exerting exactly zero force, so zero
+  lagged normal force does **not** mean zero slip and a regime histogram that
+  does not split on activity is mostly about terms touching nothing;
+  (6) **a fixed `slipRegularization` length collapses under refinement** —
+  per-step slip is `||tangential velocity|| * dt`, so inside the regularized
+  branch the force goes as `dt`, one step's impulse as `dt^2`, and a fixed
+  `T/dt` horizon totals `T*dt`; measured over an eight-fold refinement the
+  tangential impulse falls to 0.133 of its coarse value (last halving 1.98
+  against a predicted 2.00). Author `{ kind: 'slip-velocity', velocity }` to
+  hold it (1.06 of coarse, last halving 0.99); the resolved length is
+  `velocity * dt`, **frozen into the lag**, so `prepare` takes `{ deltaTime }`
+  — REQUIRED under a slip velocity, REFUSED under a slip length, because
+  conservativeness within one lag is what lets the Armijo search evaluate the
+  term repeatedly. **A bare number stays a world LENGTH** (normalizing to
+  `{ kind: 'slip-length' }` with that exact value) and is never reinterpreted
+  as a velocity; either spelling is a smoothing scale only, and proves neither
+  static friction nor finite-support retention. Also: only a `separated-unique`
   pair may create a lag; a consumed lag is a named failure, never an implicit
   refresh; and the family's effective friction is **mesh-topology dependent**
   (shared edge 2x, four-cell refinement 4x), so a coefficient tuned on one
@@ -637,6 +691,21 @@ if (hit.ambientPointStatus === 'exact') {
   constraints, responses, and guards, while the optimization path cannot
   represent any of them and rejects their presence. Running both integrates
   the interval twice. Pick one per frame.
+- Do not read a refined timestep as a more accurate solve at fixed
+  `gradientTolerance` — it is a **coarser** force resolution, `tolerance / dt^2`
+  — and do not read `applied` as evidence that every physical force exceeded
+  the solver's resolution: converging at the warm start is a legitimate
+  outcome, and one free unit-mass particle under a constant 1000 N force
+  reaches Newton's 1 m/s at `dt = 5e-6` and identically 0 m/s at `2e-6` with
+  all 500 steps `applied`. `gradientTolerance` is not in force units (it is
+  mass*length), a global Euclidean norm is not particle-count independent (it
+  grows as `sqrt(N)` and lets a heavy particle hide a light one's
+  acceleration), and **fixed particles contribute no acceleration residual** —
+  they hold no packed coordinate and their gradient is identically zero. Adding
+  `convergence` changes nothing for a run that does not author it; a 40-row
+  bitwise freeze pins the legacy terminals. Neither criterion is better
+  outright: the acceleration residual trades position stability for
+  acceleration stability.
 - Do not pass a bending provider to an incremental solve without its paired
   `stepFilter`, treat the cosine coordinate as a signed dihedral, expect
   mesh-convergent or transferable stiffness, or expect Newton-CG support.

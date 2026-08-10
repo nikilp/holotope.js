@@ -725,8 +725,23 @@ lives *in* the incremental objective rather than after the solve:
   cases.
 - **The regularized Coulomb law** is C¹, with a force that stays linear through
   zero slip (`u/‖u‖` is never evaluated) and satisfies `‖f‖ ≤ μ·λ_lag` by
-  construction. Its parameter, `slipRegularization`, is a **length** in world
-  units — not a velocity threshold and not scaled by the timestep.
+  construction. Its parameter, `slipRegularization`, written as a bare number is
+  a **length** in world units — not a velocity threshold and not scaled by the
+  timestep, and never reinterpreted as one.
+- **A fixed length does not survive timestep refinement.** Per-step slip is
+  `‖tangential velocity‖ · deltaTime`, so inside the regularized branch the
+  force goes as `deltaTime` and a fixed horizon's total impulse as `deltaTime` —
+  friction vanishes, measured at 0.133 of its coarse value over an eight-fold
+  refinement. `{ kind: 'slip-velocity', velocity }` resolves the length as
+  `velocity · deltaTime` once per `prepare({ deltaTime })`, cancelling the
+  timestep out of `slip / length`; the same refinement then holds the impulse to
+  1.06. `deltaTime` is required at `prepare` under a slip velocity and refused
+  under a slip length. A velocity-resolved scale is still a smoothing scale: it
+  is not static friction and not finite-support retention.
+- **`regime` and `contactActive` are orthogonal.** `regime` is a statement about
+  slip alone; `contactActive` is exactly `forceLimit > 0`. Neither implies the
+  other — in the sheet probe 144 of 192 evaluations read `'sliding'` while
+  exerting exactly zero force.
 - **A consumed lag is a named failure**, never an implicit refresh, so a lag
   cannot move between Armijo trials.
 - `compileXpbdSourceSimplexPairFrictionFamilyN` lifts it over a contact family

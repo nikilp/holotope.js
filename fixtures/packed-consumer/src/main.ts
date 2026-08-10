@@ -17,7 +17,9 @@ import {
   sectionChartRender,
   hyperrectangleComposition,
   physicsComposition,
-  representationClaims
+  representationClaims,
+  slipVelocityRegularization,
+  stationarityCriterion
 } from './checks.js';
 
 const checks: readonly [name: string, run: () => void | Promise<void>][] = [
@@ -30,6 +32,8 @@ const checks: readonly [name: string, run: () => void | Promise<void>][] = [
   ['authoredDimensionBridge', authoredDimensionBridge],
   ['featurePairContact', featurePairContact],
   ['laggedPairFriction', laggedPairFriction],
+  ['slipVelocityRegularization', slipVelocityRegularization],
+  ['stationarityCriterion', stationarityCriterion],
   ['representationClaims', representationClaims],
   ['experimentProbe', experimentProbe],
   ['physicsComposition', physicsComposition],

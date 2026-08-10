@@ -70,6 +70,62 @@ typed-domain-refused trial and makes no depenetration, nearest-point, global
 feasibility, or performance claim. It exists to initialize open-domain
 objectives without turning a solver policy into hidden behavior.
 
+Its stop test is authored, and the unit that test bounds is a choice the
+library cannot make on the scene's behalf. The packed objective is
+`F(x) = 1/2||x - xPrediction||^2_M + deltaTime^2 * U(x)`, so a packed gradient
+entry carries mass*length — force*time^2, not force. The shipped
+`gradientTolerance` (default `1e-8`) is an absolute bound on the norm of that
+packed gradient and therefore resolves forces only down to
+`gradientTolerance / deltaTime^2`. That floor *rises* as the timestep falls, so
+refining the step makes the criterion **less** sensitive to force, not more.
+Driven end to end through the public world step, one free unit-mass particle
+under a constant 1000 N force over a fixed 1e-3 s horizon reaches the exact
+backward-Euler answer of 1 m/s at `deltaTime = 5e-6` and identically 0 m/s at
+`2e-6`. A 2.5-fold refinement takes a 1000 N force from exactly right to
+nothing, and all 500 steps of the `2e-6` run report `applied` — converging at the
+warm start is a legitimate outcome, not a refusable condition, and no field
+said otherwise.
+
+`convergence: { kind: 'packed-gradient'; tolerance }` names that legacy
+criterion explicitly; `{ kind: 'maximum-acceleration-residual'; tolerance }`
+instead bounds `max_i ||gradient_i|| / (mass_i * deltaTime^2)` over the free
+particles, in length/time^2. Fixed particles are excluded because they hold no
+packed coordinate and their gradient is identically zero, so they can neither
+raise nor lower it. The option is available on both
+`minimizeXpbdIncrementalPotentialN` and the world step's `minimization` policy.
+Authoring `gradientTolerance` and `convergence` together throws before the
+problem is evaluated once, since the two carry different units and no
+reconciliation between them is defensible. Every terminal that evaluated the
+base carries `convergence: { kind, tolerance, initialResidual, finalResidual }`
+whichever criterion decided it, and retains `gradientNorm` on its `initial` and
+`final` evaluations. The one exception is `initial-state-refused`, where no
+evaluation was accepted: it carries the criterion and its tolerance but no
+residuals and no evaluations, so narrow that status away before reading either.
+Diagnosis
+gains matching `convergenceKind`, `convergenceTolerance`,
+`convergenceResidualInitial`, and `convergenceResidualFinal` facts with
+`'lower-convergence-tolerance'` and `'timestep-independent-convergence'` as
+levers — an author who never wrote a `gradientTolerance` is no longer told to
+lower one.
+
+The union is discriminated rather than a second scalar because measurement
+found no criterion to prefer outright. Six candidates were ranked on delivered
+physical error against a closed-form minimizer over an eight-fold refinement at
+fixed authored tolerance, as delivered acceleration spread / position-error
+spread: packed gradient norm 45.43 / 1.48, force-scaled residual 1.0153 /
+62.93, maximum acceleration residual 1.0169 / 62.83, mass-weighted residual
+1.0153 / 62.93, relative residual 1.0120 / 63.14, per-particle position
+residual 60.61 / 1.72. There are two families and no criterion spans both,
+because they differ by exactly `deltaTime^2`: the packed norm holds position
+error, the acceleration residual holds acceleration. The acceleration criterion
+is therefore not better — it trades position stability for acceleration
+stability. Author it when the timestep may change and a force resolution has to
+hold; keep the packed norm for a fixed timestep, or when a per-step position
+residual is the quantity that matters. Among the acceleration-stable candidates
+the per-particle one is the only one that is also mass-aware and
+count-invariant, since a global force norm grows as `sqrt(N)` and lets a heavy
+particle hide a light particle's acceleration behind it.
+
 Its authored obstacle terms include both an oriented infinite hyperplane and
 one finite persistent source simplex. The latter retains the closest
 barycentric source coordinate and pairs its unsigned barrier with a
@@ -121,6 +177,46 @@ contact family with atomic consume/rollback, and states plainly that
 **effective friction follows mesh topology** (a shared-edge contact resists
 exactly 2× one cell; a four-cell refinement 4×) rather than averaging that
 away.
+
+`slipRegularization` poses the same shape of choice as the stop test above. A
+bare number is a world **length** and is never reinterpreted as anything else;
+it normalizes to `{ kind: 'slip-length'; length }` carrying that exact value.
+A fixed length does not survive timestep refinement. Per-step slip is
+`||tangential velocity|| * deltaTime`, so once the slip falls inside the
+regularized branch the force is `forceLimit * slip / length` and goes as
+`deltaTime`, one step's impulse as `deltaTime^2`, and a fixed horizon of
+`T/deltaTime` steps totals `T*deltaTime` — friction vanishes under refinement.
+Measured over an eight-fold refinement on two scenes, the tangential impulse
+falls to 0.133 of its coarse value with a last-halving ratio of 1.98 against
+the 2.00 that scaling predicts, confirmed through two independent channels —
+force-side impulse and velocity-side energy — agreeing to 0.19%, and
+cross-checked against a momentum audit to 1e-4. `{ kind: 'slip-velocity';
+velocity }` resolves the length as `velocity * deltaTime`, which cancels
+`deltaTime` out of `slip / length` exactly; under the same refinement the
+impulse holds to 1.06 of its coarse value, last halving 0.99. It remains a
+smoothing scale and nothing more: a velocity-derived scale does not establish
+static friction and does not give the law finite-support retention.
+
+The resolved length is **frozen into the lag**, so `prepare` takes
+`{ deltaTime }` — required under a slip velocity and refused under a slip
+length, because supplying it under an authored length would suggest that length
+responds to the timestep. Freezing is load-bearing rather than incidental:
+conservativeness within one lag is what lets the Armijo search evaluate the
+term repeatedly, and a length that moved mid-solve would leave the search
+minimizing a function whose own shape changed under it.
+
+Evaluations separate two axes that read like one. `regime` — `'sticking'`,
+`'transition'`, `'sliding'` — is a statement about **slip alone**; a lag
+carrying no normal force still has a slip and still reports a regime.
+`contactActive` is exactly `forceLimit > 0` and is what decides whether the
+term can exert any tangential force at all. The two are orthogonal, and
+neither may be inferred from the other: in the sheet probe 144 of 192
+evaluations read `'sliding'` while exerting exactly zero force, so a population
+statistic that does not split on activity is mostly reporting about terms that
+are not touching anything. Friction work is likewise measured rather than
+inferred from total-energy decay — an integrator loses energy at `mu = 0`, and
+the measured `mu = 0` control drifts 0.0395%, which is 24% of the smallest
+signal it certifies.
 
 This is a different mechanism from `XpbdParticleHyperplaneFrictionN`, which
 is a post-projection Coulomb **velocity response** for the projected-XPBD

@@ -60,10 +60,13 @@ import {
   type XpbdSourceSimplexPairFrictionLagN,
   type XpbdSourceSimplexPairFrictionLagStateN,
   type XpbdSourceSimplexPairFrictionNOptions,
+  type XpbdSourceSimplexPairFrictionPrepareNOptions,
   type XpbdSourceSimplexPairFrictionPrepareRefusalN,
   type XpbdSourceSimplexPairFrictionPreparationN,
   type XpbdSourceSimplexPairFrictionRegimeN,
   type XpbdSourceSimplexPairFrictionSkipN,
+  type XpbdSourceSimplexPairResolvedSlipRegularizationN,
+  type XpbdSourceSimplexPairSlipRegularizationN,
   evaluateSourceSimplexPairDistanceN,
   type CompileXpbdSourceSimplexPairBarrierFamilyNOptions,
   type SourceSimplexPairDistanceN,
@@ -94,9 +97,14 @@ import {
   compileXpbdSourceSimplexAabbHierarchyN,
   compileXpbdSourceSimplexCosineBendingFamilyN,
   evaluateSimplexHingeCosineN,
+  minimizeXpbdIncrementalPotentialN,
   recoverXpbdIncrementalPotentialFeasibleBaseN,
   stepXpbdIncrementalPotentialWorldN,
   type XpbdConservativeForceProviderN,
+  type XpbdIncrementalPotentialConvergenceContractN,
+  type XpbdIncrementalPotentialConvergenceEvidenceN,
+  type XpbdIncrementalPotentialConvergenceKindN,
+  type XpbdIncrementalPotentialConvergenceN,
   type XpbdIncrementalPotentialDiagnosisN,
   type XpbdIncrementalPotentialWorldSelectionN,
   type XpbdIncrementalPotentialWorldStepN,
@@ -145,6 +153,27 @@ import { buildScenario, buildSection, buildSurface, cellCountOf, requireGroup } 
 /** An assertion function, so a checked `result.ok` narrows the union after it. */
 function assert(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(`packed consumer: ${message}`);
+}
+
+/**
+ * The first element of a list, as a value rather than an assertion.
+ *
+ * `noUncheckedIndexedAccess` is on in this consumer, and a non-null assertion
+ * would erase exactly the emptiness this check exists to notice.
+ */
+function requireFirst<T>(values: readonly T[], what: string): T {
+  const first = values[0];
+  if (first === undefined) throw new Error(`packed consumer: ${what} is empty`);
+  return first;
+}
+
+/** A packed coordinate read through the same guard, never asserted away. */
+function requireCoordinate(vector: VecN, axis: number, what: string): number {
+  const value = vector.data[axis];
+  if (value === undefined) {
+    throw new Error(`packed consumer: ${what} has no coordinate ${axis}`);
+  }
+  return value;
 }
 
 /** The eight oriented facets of a hypercube, in emission order. */
@@ -559,6 +588,371 @@ export function laggedPairFriction(): void {
     'prepared ids appear in selection evidence, separate from authored ones');
   if (advance.step.status === 'applied') preparation.markConsumed();
   else preparation.rollback();
+}
+
+/**
+ * `U(x) = -f · x`, so the reported force is exactly `f` everywhere and the
+ * packed gradient at an unmoved warm start is exactly `-deltaTime² f`.
+ *
+ * That makes both residuals analytic rather than fitted: the packed norm is
+ * `deltaTime² ‖f‖`, and the acceleration residual is `‖f‖ / mass`.
+ */
+function packedConstantForce(
+  id: string,
+  particle: XpbdParticleN,
+  force: VecN
+): XpbdConservativeForceProviderN {
+  const evaluateAt: XpbdConservativeForceProviderN['evaluateAt'] = (
+    positionOf
+  ) => ({
+    potentialEnergy: -force.dot(positionOf(particle)),
+    forces: [force.clone()]
+  });
+  return {
+    id,
+    dimension: particle.dimension,
+    particles: [particle],
+    evaluate: () => evaluateAt((bound) => bound.position.clone()),
+    evaluateAt
+  };
+}
+
+/**
+ * P58A scale-aware stationarity from the packed tarballs.
+ *
+ * The packed objective is `½‖x − xPrediction‖²_M + deltaTime² U(x)`, so a
+ * packed gradient entry carries mass·length. An absolute bound on its norm
+ * therefore resolves forces only down to `tolerance / deltaTime²`, and
+ * refining the timestep *lowers* the force the stop test can still see. One
+ * free particle of unit mass under a constant 1000 N force demonstrates it
+ * here: at `deltaTime = 1e-6` the shipped default of `1e-8` accepts the
+ * unmoved warm start, delivers exactly zero velocity, and reports `applied` at
+ * every step. Nothing in the result says otherwise, because converging
+ * immediately is a legitimate outcome rather than a refusable one.
+ *
+ * The two criteria are not ranked. They differ by exactly `deltaTime²`: over
+ * an eight-fold refinement at a fixed authored tolerance the packed norm holds
+ * delivered position error to 1.5× while scattering acceleration by 45×, and
+ * the acceleration residual does the reverse, 1.02× and 62.8×. Which error the
+ * scene must bound is the scene author's to state, so the surface is a
+ * discriminated stop test rather than a second scalar.
+ */
+export function stationarityCriterion(): void {
+  const FORCE = 1000;
+  const DELTA_TIME = 1e-6;
+  const STEPS = 20;
+
+  const drive = (
+    convergence?: XpbdIncrementalPotentialConvergenceN
+  ): { readonly applied: number; readonly velocity: number } => {
+    const particle = new XpbdParticleN({
+      id: 'packed-stationarity', position: [0, 0, 0]
+    });
+    const world = new XpbdWorldN({ dimension: 3, gravity: [0, 0, 0] });
+    world.addParticle(particle);
+    world.addForceProvider(packedConstantForce(
+      'packed-constant-force', particle, new VecN([FORCE, 0, 0])
+    ));
+    let applied = 0;
+    for (let step = 0; step < STEPS; step += 1) {
+      const advance = stepXpbdIncrementalPotentialWorldN({
+        world,
+        deltaTime: DELTA_TIME,
+        ...(convergence === undefined ? {} : { minimization: { convergence } })
+      });
+      if (advance.step.status === 'applied') applied += 1;
+    }
+    return {
+      applied,
+      velocity: requireCoordinate(particle.velocity, 0, 'the driven particle')
+    };
+  };
+
+  // The legacy criterion at this timestep: every step succeeds and the whole
+  // force is below the resolution the packed bound can still see.
+  const legacy = drive();
+  assert(legacy.applied === STEPS,
+    'every packed-gradient step reports applied, whatever it resolved');
+  assert(legacy.velocity === 0,
+    'at this timestep the packed bound resolves no part of a 1000 N force');
+
+  // The same scene bounded in length/time² instead. One metre per second
+  // squared is four hundred thousand times smaller than the acceleration this
+  // scene produces, and is authorable without knowing the timestep at all.
+  const bounded = drive({ kind: 'maximum-acceleration-residual', tolerance: 1 });
+  assert(bounded.applied === STEPS,
+    'every acceleration-bounded step reports applied');
+  assert(Math.abs(bounded.velocity - FORCE * DELTA_TIME * STEPS) < 1e-12,
+    "the acceleration bound delivers Newton's answer at this timestep");
+
+  // The evidence every terminal carries, read straight off the minimizer.
+  const witness = new XpbdParticleN({
+    id: 'packed-stationarity-witness', position: [0, 0, 0]
+  });
+  const problem = compileXpbdIncrementalPotentialProblemN({
+    dimension: 3,
+    particles: [witness],
+    predictedPositions: [new VecN([0, 0, 0])],
+    deltaTime: DELTA_TIME,
+    providers: [packedConstantForce(
+      'packed-witness-force', witness, new VecN([FORCE, 0, 0])
+    )]
+  });
+  const stopTest: XpbdIncrementalPotentialConvergenceN = {
+    kind: 'maximum-acceleration-residual', tolerance: 1
+  };
+  const evaluated = minimizeXpbdIncrementalPotentialN({
+    problem, initialCoordinates: [0, 0, 0],
+    convergence: stopTest, maximumIterations: 0
+  });
+  // Only the refused-initial-state terminal carries the bare contract; every
+  // terminal that reached an evaluation carries what the criterion measured.
+  assert(evaluated.status !== 'initial-state-refused',
+    `the evaluation-only run refused its initial state (${evaluated.status})`);
+  const evidence: XpbdIncrementalPotentialConvergenceEvidenceN =
+    evaluated.convergence;
+  const kind: XpbdIncrementalPotentialConvergenceKindN = evidence.kind;
+  assert(kind === 'maximum-acceleration-residual',
+    'the terminal names the criterion that ran, not the default');
+  assert(evidence.tolerance === 1,
+    'the authored threshold is echoed in its own unit');
+  // grad = -deltaTime² f at the base, so the residual is ‖f‖ / mass exactly.
+  assert(Math.abs(evidence.initialResidual - FORCE) <= 1e-6 * FORCE,
+    'the acceleration residual is the force divided by the mass, in length/time²');
+  assert(evidence.finalResidual === evidence.initialResidual,
+    'an evaluation-only run moves no iterate, and says so at both endpoints');
+  // The packed norm is retained whichever criterion decided, and the legacy
+  // threshold is reported as the inert default it now is.
+  assert(Math.abs(evaluated.initial.gradientNorm - DELTA_TIME * DELTA_TIME * FORCE)
+      <= 1e-6 * DELTA_TIME * DELTA_TIME * FORCE,
+    'the packed gradient norm survives alongside the criterion that decided');
+  assert(evaluated.gradientTolerance === 1e-8,
+    'the legacy threshold is echoed untouched under another criterion');
+  // The evidence is the contract plus what it measured, so it reads as either.
+  const contract: XpbdIncrementalPotentialConvergenceContractN = evidence;
+  assert(contract.tolerance === evidence.tolerance,
+    'the authored contract is recoverable from the evidence that extends it');
+
+  const converged = minimizeXpbdIncrementalPotentialN({
+    problem, initialCoordinates: [0, 0, 0], convergence: stopTest
+  });
+  assert(converged.status === 'converged',
+    `the acceleration-bounded solve reported ${converged.status}`);
+  assert(converged.convergence.initialResidual > converged.convergence.tolerance &&
+    converged.convergence.finalResidual <= converged.convergence.tolerance,
+    'a converged run crosses its own threshold, and reports both sides of it');
+
+  // Two thresholds in different units are refused before anything is
+  // evaluated, rather than reconciled by a rule nobody authored.
+  let bothRefused = false;
+  try {
+    minimizeXpbdIncrementalPotentialN({
+      problem, initialCoordinates: [0, 0, 0],
+      gradientTolerance: 1e-6, convergence: stopTest
+    });
+  } catch { bothRefused = true; }
+  assert(bothRefused,
+    'authoring both stop tests is refused, never silently resolved');
+
+  // Diagnosis follows the criterion that ran rather than always naming the
+  // packed threshold.
+  const diagnosisParticle = new XpbdParticleN({
+    id: 'packed-stationarity-diagnosis', position: [0, 0, 0]
+  });
+  const diagnosisWorld = new XpbdWorldN({ dimension: 3, gravity: [0, 0, 0] });
+  diagnosisWorld.addParticle(diagnosisParticle);
+  diagnosisWorld.addForceProvider(packedConstantForce(
+    'packed-diagnosis-force', diagnosisParticle, new VecN([FORCE, 0, 0])
+  ));
+  const diagnosed = stepXpbdIncrementalPotentialWorldN({
+    world: diagnosisWorld,
+    deltaTime: DELTA_TIME,
+    minimization: { convergence: stopTest }
+  });
+  const facts = diagnosed.diagnosis.facts;
+  assert(facts['convergenceKind'] === 'maximum-acceleration-residual',
+    'diagnosis names the criterion that decided the step');
+  assert(facts['convergenceTolerance'] === 1,
+    'diagnosis carries the authored tolerance');
+  assert(typeof facts['convergenceResidualInitial'] === 'number' &&
+    typeof facts['convergenceResidualFinal'] === 'number',
+    'diagnosis reports the criterion residual at both endpoints');
+  assert(typeof facts['gradientNormInitial'] === 'number',
+    'the packed norm is reported alongside, never replaced');
+}
+
+/**
+ * P58B timestep-consistent friction regularization from the packed tarballs.
+ *
+ * Per-step slip is `‖tangential velocity‖ · deltaTime`, so inside the
+ * regularized branch a *fixed* length gives a force proportional to
+ * `deltaTime`, one step's impulse proportional to `deltaTime²`, and a fixed
+ * horizon of `T/deltaTime` steps a total proportional to `T · deltaTime`:
+ * friction vanishes under refinement. Measured over an eight-fold refinement
+ * the tangential impulse falls to 0.133 of its coarse value, last halving 1.98
+ * against a predicted 2.00; authored as a slip velocity it holds to 1.06, last
+ * halving 0.99.
+ *
+ * The velocity form resolves to `velocity · deltaTime` once, and that resolved
+ * length is frozen into the lag. Freezing is load-bearing rather than tidy:
+ * conservativeness within one lag is what lets the Armijo search evaluate the
+ * term repeatedly, and a length that moved mid-solve would leave the search
+ * minimizing a function whose shape changed under it. `prepare` therefore
+ * takes the timestep, required under a velocity and refused under a length.
+ */
+export function slipVelocityRegularization(): void {
+  const SLIP_VELOCITY = 0.5;
+  // Binary-exact, so the resolved length is comparable without a tolerance.
+  const DELTA_TIME = 1 / 128;
+  const RESOLVED_LENGTH = SLIP_VELOCITY * DELTA_TIME;
+
+  const sheet = new CellComplex(4, Float64Array.from([
+    0, 0, 0, 1.2,
+    1, 0, 0, 1.2,
+    0, 1, 0, 1.2,
+    1, 1, 0, 1.2
+  ]), [{
+    dim: 2, verticesPerCell: 3, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2, 1, 3, 2])
+  }]);
+  const support = new CellComplex(4, Float64Array.from([
+    0.3, 0.3, 0, -0.5,
+    0.3, 0.3, 0, 0.9,
+    0.55, 0.1, 0.08, -0.5,
+    0.1, 0.55, -0.08, -0.5
+  ]), [{
+    dim: 3, verticesPerCell: 4, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2, 3])
+  }]);
+  const binding = compileXpbdParticleBindingN({
+    id: 'packed-slip-sheet', source: sheet
+  });
+  const sheetGroup = requireFirst(sheet.groups, 'the sheet cell groups');
+  const obstacle = createSourceSimplexReferenceN(createSourceCellReferenceN(
+    support, requireFirst(support.groups, 'the support cell groups'), 0
+  ));
+  /** The apex sits 0.3 below the sheet, so activation decides contact here. */
+  const contactAt = (activationDistance: number, id: string) =>
+    compileXpbdSourceSimplexPairBarrierFamilyN({
+      id, binding, simplexGroup: sheetGroup, obstacle,
+      activationDistance, stiffness: 3
+    });
+  const touching = contactAt(0.5, 'packed-slip-touching');
+  const clear = contactAt(0.2, 'packed-slip-clear');
+
+  // The authored spelling, held the way an outside caller holds it.
+  const authored: XpbdSourceSimplexPairSlipRegularizationN = {
+    kind: 'slip-velocity', velocity: SLIP_VELOCITY
+  };
+  const prepareOptions: XpbdSourceSimplexPairFrictionPrepareNOptions = {
+    deltaTime: DELTA_TIME
+  };
+  const soloOptions: XpbdSourceSimplexPairFrictionNOptions = {
+    id: 'packed-slip-velocity',
+    barrier: requireFirst(touching.barriers, 'the touching contact barriers'),
+    frictionCoefficient: 0.5,
+    slipRegularization: authored
+  };
+  const solo = new XpbdSourceSimplexPairFrictionN(soloOptions);
+  const prepared: XpbdPreparedSourceSimplexPairFrictionN =
+    solo.prepare(prepareOptions);
+  const lag: XpbdSourceSimplexPairFrictionLagN = prepared.lag;
+  assert(lag.regularizationLength === RESOLVED_LENGTH,
+    'a slip velocity resolves to velocity * deltaTime, once, into the lag');
+  assert(lag.regularizationLength !== SLIP_VELOCITY,
+    'the authored velocity is never itself taken for a length');
+
+  // The timestep is required under a velocity and refused under a length:
+  // accepting and discarding it would leave an author believing a fixed length
+  // tracked the timestep, which is the belief that makes friction disappear.
+  let missingTimestep = false;
+  try { solo.prepare(); } catch { missingTimestep = true; }
+  assert(missingTimestep,
+    'a slip velocity cannot be frozen without the timestep it resolves against');
+  const byLength = new XpbdSourceSimplexPairFrictionN({
+    id: 'packed-slip-length',
+    barrier: requireFirst(touching.barriers, 'the touching contact barriers'),
+    frictionCoefficient: 0.5,
+    slipRegularization: { kind: 'slip-length', length: 1e-3 }
+  });
+  assert(byLength.prepare().lag.regularizationLength === 1e-3,
+    'an authored length is frozen exactly as written');
+  let timestepRefused = false;
+  try { byLength.prepare(prepareOptions); } catch { timestepRefused = true; }
+  assert(timestepRefused,
+    'a timestep under an authored length is refused, not accepted and dropped');
+
+  // Contact activity is its own axis. Regime is decided by the slip, activity
+  // by the lagged normal force, and neither may be inferred from the other.
+  const atRest: XpbdSourceSimplexPairFrictionEvaluationN = prepared.evaluate();
+  const active: boolean = atRest.contactActive;
+  assert(active === (atRest.forceLimit > 0),
+    'contact activity is exactly a positive force limit');
+  assert(active === (lag.laggedNormalForce > 0),
+    'under a positive coefficient, activity is the lagged normal force');
+  assert(active, 'a pair inside the activation distance carries a force limit');
+
+  const slide = (
+    term: XpbdPreparedSourceSimplexPairFrictionN
+  ): XpbdSourceSimplexPairFrictionEvaluationN => term.evaluateAt((particle) => {
+    const position = particle.position.clone();
+    position.data[0] = requireCoordinate(position, 0, 'a bound sheet particle') + 0.05;
+    return position;
+  });
+  const sliding = slide(prepared);
+  const regime: XpbdSourceSimplexPairFrictionRegimeN = sliding.regime;
+  assert(regime === 'sliding',
+    'a slip well above the resolved length saturates');
+  assert(sliding.contactActive === (sliding.forceLimit > 0),
+    'activity is read from the force limit, never from the regime');
+  assert(Math.abs(sliding.tangentForce.length() - sliding.forceLimit) < 1e-9,
+    'a saturated active force sits exactly on the Coulomb bound');
+
+  // The orthogonality, live: a pair outside the activation distance still has
+  // a slip and still reports a regime, while exerting exactly zero force.
+  const clearTerm = new XpbdSourceSimplexPairFrictionN({
+    id: 'packed-slip-clear-term',
+    barrier: requireFirst(clear.barriers, 'the clear contact barriers'),
+    frictionCoefficient: 0.5,
+    slipRegularization: authored
+  });
+  const clearPrepared = clearTerm.prepare(prepareOptions);
+  assert(clearPrepared.lag.regularizationLength === RESOLVED_LENGTH,
+    'every lag freezes the same resolved length');
+  const clearSliding = slide(clearPrepared);
+  assert(clearSliding.regime === 'sliding' && !clearSliding.contactActive,
+    "a 'sliding' regime is not evidence that any contact force is active");
+  assert(clearSliding.forceLimit === 0 &&
+    clearSliding.tangentForce.length() === 0 &&
+    clearSliding.forces.every((force) => force.length() === 0),
+    'an inactive term exerts exactly zero force whatever its slip says');
+
+  // The family carries the same authored scale, normalized without
+  // reinterpretation, and hands the timestep down to every term it freezes.
+  const family = compileXpbdSourceSimplexPairFrictionFamilyN({
+    id: 'packed-slip-family', contact: touching,
+    frictionCoefficient: 0.5, slipRegularization: authored
+  });
+  const resolved: XpbdSourceSimplexPairResolvedSlipRegularizationN =
+    family.slipRegularization;
+  assert(resolved.kind === 'slip-velocity' && resolved.velocity === SLIP_VELOCITY,
+    'the family normalizes the authored scale without changing its unit');
+  const preparation = family.prepare(prepareOptions);
+  assert(preparation.prepared.length > 0, 'the family prepared no term');
+  assert(preparation.prepared.every(
+    (term) => term.lag.regularizationLength === RESOLVED_LENGTH
+  ), 'every family term freezes the one resolved length');
+  preparation.rollback();
+
+  // The numeric spelling remains a world length carrying its exact value, so
+  // no existing scene is rescaled by the new one.
+  const legacy = compileXpbdSourceSimplexPairFrictionFamilyN({
+    id: 'packed-slip-legacy', contact: touching,
+    frictionCoefficient: 0.5, slipRegularization: 1e-3
+  });
+  const legacyScale = legacy.slipRegularization;
+  assert(legacyScale.kind === 'slip-length' && legacyScale.length === 1e-3,
+    'a bare number is a world length, and is never read as a velocity');
 }
 
 export function featurePairContact(): void {

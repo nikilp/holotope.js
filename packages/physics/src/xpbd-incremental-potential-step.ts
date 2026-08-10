@@ -47,8 +47,12 @@ export interface XpbdIncrementalPotentialMinimizationPolicyN {
    * The safe first choice for a scene whose timestep may change is
    * `{ kind: 'maximum-acceleration-residual', tolerance }`, which bounds the
    * residual acceleration left on the worst-resolved free particle and holds
-   * that bound under refinement. `'packed-gradient'` is the legacy criterion
-   * described below, kept exactly as it was.
+   * that bound under refinement. It is not the better criterion outright: it
+   * buys that stability by scattering the per-step position residual, and it
+   * is the first choice under a changing timestep only because the failure it
+   * removes is a real force dropped in silence. `'packed-gradient'` is the
+   * legacy criterion described below, kept exactly as it was, and remains the
+   * right choice at a fixed timestep or when position error is the budget.
    *
    * Mutually exclusive with {@link gradientTolerance}; authoring both is
    * refused before the step mutates anything.
