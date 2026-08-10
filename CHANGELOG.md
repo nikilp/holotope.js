@@ -27,6 +27,9 @@ All five packages published at `0.0.15`; the substantive additions are in
   filter per source cell of a deforming simplicial group against **one static**
   opposing feature. No self-contact, no mesh–mesh CCD, no moving-obstacle
   family, no friction.
+
+### `@holotope/core@0.0.15`
+
 - `createSourceSimplexReferenceN`'s vertex floor widened from two to one, so a
   0-simplex is a legitimate feature and vertex–face pairs are expressible.
 
@@ -53,6 +56,14 @@ a refinement of it.
 - Added the `'plane-embedding'` lineage recipe kind behind a total
   `displayMapRecipe3` factory, leaving `projectionMapRecipeN`'s public union
   unchanged.
+- Added sections of simplicial complexes by any RN hyperplane
+  (`HyperplaneSliceN`, `sectionSimplexGroupN`) with ancestry that composes
+  through chained cuts, so a twice-cut vertex still names original source
+  vertices. Emitted section cells are oriented as the boundary of each parent's
+  below-plane region, so reversing the hyperplane normal reverses the facing and
+  oriented integrals accumulate instead of cancelling. The section diagnostics
+  are a true partition:
+  `sourceCells = sectioned + suppressedOnPlane + below + collapsed`.
 - Added `maxCellDimension` to `createSimplex` and `createCrossPolytope`, so any
   simplicial face family can be authored up to the simplex's top cell. Defaults
   are byte-identical to before. A cross-polytope has no simplicial top cell and
@@ -65,6 +76,11 @@ from geometry.
 
 ### `@holotope/three@0.0.14`
 
+- Added `SectionChart3D` and `representationHitFromSectionChart`, rendering RN
+  sections in their own chart with source evidence, plus two dimension-generic
+  lineage recipes. Picks name the parent source cell exactly and carry each
+  corner's affine ancestry; the recovered ambient point is reported
+  `'approximate'`, never upgraded.
 - Fixed `SectionChart3D`'s bounding volumes, which three.js computed over the
   whole padded position attribute rather than the live draw range: a section at
   x 40…41 reported a box containing the chart origin and a sphere far larger
@@ -84,26 +100,6 @@ from geometry.
 The family's certificate is **per particle**, not surface disjointness: every
 vertex can be legally outside a support while the material surface between them
 passes through it.
-
-### `@holotope/three@0.0.13`
-
-- Rendered RN sections in their own chart with source evidence
-  (`SectionChart3D`, `representationHitFromSectionChart`), plus two
-  dimension-generic lineage recipes. Picks name the parent source cell exactly
-  and carry each corner's affine ancestry; the recovered ambient point is
-  reported `'approximate'`, never upgraded.
-
-### `@holotope/core@0.0.13`
-
-- Sections of simplicial complexes by any RN hyperplane
-  (`HyperplaneSliceN`, `sectionSimplexGroupN`) with ancestry that composes
-  through chained cuts, so a twice-cut vertex still names original source
-  vertices.
-- Emitted section cells are oriented as the boundary of each parent's
-  below-plane region, so reversing the hyperplane normal reverses the facing and
-  oriented integrals accumulate instead of cancelling.
-- The section diagnostics became a true partition:
-  `sourceCells = sectioned + suppressedOnPlane + below + collapsed`.
 
 ### Showcase
 
@@ -141,6 +137,11 @@ world; the zero-interval rule is stated for both `XpbdWorldN` paths.
 
 ## v0.0.10
 
+### `@holotope/core@0.0.10`
+
+- Added exact N-dimensional hyperrectangles, and admitted them as experiment
+  sources.
+
 ### Showcase and documentation
 
 - The flagship scenario is now declared as a typed experiment document and
@@ -153,11 +154,15 @@ world; the zero-interval rule is stated for both `XpbdWorldN` paths.
 ### Build
 
 - Added a release preflight that checks CI for the exact commit being released.
+- Pinned `@types/three` to the `three` revision it describes.
 
 ## v0.0.9
 
 ### `@holotope/core@0.0.9`
 
+- Restated a representation hit as a claim a caller can act on, rather than a
+  bare coordinate.
+- Named the boundary facet a cuboid cell lies on.
 - Fixed the lattice barrel, which did not export `phiRing`.
 
 ### Documentation and build
