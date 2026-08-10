@@ -1,4 +1,9 @@
 export {
+  XpbdSourceSimplexPairBarrierFamilyN,
+  compileXpbdSourceSimplexPairBarrierFamilyN,
+  type CompileXpbdSourceSimplexPairBarrierFamilyNOptions
+} from './xpbd-source-simplex-pair-barrier-family.js';
+export {
   XpbdSourceSimplexPairBarrierN,
   XpbdSourceSimplexPairBarrierStepFilterN,
   type XpbdSourceSimplexPairBarrierDomainReasonN,
