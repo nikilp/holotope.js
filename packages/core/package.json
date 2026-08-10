@@ -1,6 +1,6 @@
 {
   "name": "@holotope/core",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "N-dimensional geometry, transforms, polytopes, and projection for TypeScript.",
   "license": "MIT",
   "repository": {

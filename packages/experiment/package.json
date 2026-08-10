@@ -1,6 +1,6 @@
 {
   "name": "@holotope/experiment",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "Headless experiment descriptors, validation, and canonical preparation for Holotope.",
   "license": "MIT",
   "repository": {
