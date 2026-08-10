@@ -1,4 +1,11 @@
 export {
+  XpbdSourceSimplexPairFrictionFamilyN,
+  compileXpbdSourceSimplexPairFrictionFamilyN,
+  type CompileXpbdSourceSimplexPairFrictionFamilyNOptions,
+  type XpbdSourceSimplexPairFrictionPreparationN,
+  type XpbdSourceSimplexPairFrictionSkipN
+} from './xpbd-source-simplex-pair-friction-family.js';
+export {
   XpbdPreparedSourceSimplexPairFrictionN,
   XpbdSourceSimplexPairFrictionN,
   type XpbdSourceSimplexPairFrictionEvaluationN,
