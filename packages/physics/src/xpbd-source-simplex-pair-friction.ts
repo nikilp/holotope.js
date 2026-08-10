@@ -156,10 +156,17 @@ export interface XpbdSourceSimplexPairFrictionEvaluationN
    * Whether the frozen lag can exert any tangential force.
    *
    * Exactly `forceLimit > 0`, and orthogonal to {@link regime}: activity is
-   * decided by the lagged normal force, regime by the slip. A term that is not
-   * active contributes exactly zero force and zero potential energy whatever
-   * its slip says, so a population statistic that does not separate the two is
-   * reporting mostly about terms that are not touching anything.
+   * decided by `frictionCoefficient * laggedNormalForce`, regime by the slip. A
+   * term that is not active contributes exactly zero force and zero potential
+   * energy whatever its slip says, so a population statistic that does not
+   * separate the two is reporting mostly about terms that are not touching
+   * anything.
+   *
+   * It describes **this term**, not the contact. At `frictionCoefficient: 0` the
+   * paired barrier can be pressing hard and the lag can carry a large
+   * `laggedNormalForce` while this reads `false`, because the product is zero.
+   * So it is neither a non-penetration nor a retention certificate; read the
+   * barrier's own distance for the contact itself.
    */
   readonly contactActive: boolean;
   /** `frictionCoefficient * laggedNormalForce`; the force may not exceed it. */
