@@ -387,3 +387,29 @@ describe('the world transaction seam', () => {
     expect(speedOf(frictional)).toBeLessThan(speedOf(frictionless));
   });
 });
+
+describe('a consumed lag is a named failure on every path', () => {
+  it('refuses evaluation after markConsumed, not only a second consume', () => {
+    const { barrier } = contactPair();
+    const friction = new XpbdSourceSimplexPairFrictionN({
+      id: 'consumed-guard', barrier, frictionCoefficient: 0.4, slipRegularization: 1e-3
+    });
+    const prepared = friction.prepare();
+    // Non-vacuous: the same lag evaluates fine while it is prepared.
+    const live = prepared.evaluate();
+    expect(Number.isFinite(live.potentialEnergy)).toBe(true);
+
+    prepared.markConsumed();
+    // Both reuse paths must now be named failures, not just the second consume.
+    expect(() => prepared.markConsumed()).toThrow(/already consumed/);
+    expect(() => prepared.evaluate()).toThrow(/consumed/);
+    expect(() => prepared.evaluateAt((particle) => particle.position.clone()))
+      .toThrow(/consumed/);
+
+    // And rollback restores usability, so the guard is a state check rather
+    // than a one-way latch.
+    prepared.rollback();
+    const afterRollback = prepared.evaluate();
+    expect(Number.isFinite(afterRollback.potentialEnergy)).toBe(true);
+  });
+});

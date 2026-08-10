@@ -365,6 +365,9 @@ implements XpbdConservativeForceProviderN {
     if (typeof positionOf !== 'function') {
       throw new Error(`${caller}: positionOf must be a function`);
     }
+    // A consumed lag is single-use by contract, so evaluating one is the misuse
+    // the state exists to make visible — not a silently stale force.
+    this.assertUsable();
     const dim = this.dimension;
     const lag = this.lagState;
     const barrier = this.source.barrier;
