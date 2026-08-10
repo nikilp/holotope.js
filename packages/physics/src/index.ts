@@ -1,4 +1,15 @@
 export {
+  XpbdSourceSimplexPairBarrierN,
+  XpbdSourceSimplexPairBarrierStepFilterN,
+  type XpbdSourceSimplexPairBarrierDomainReasonN,
+  type XpbdSourceSimplexPairBarrierEvaluationN,
+  type XpbdSourceSimplexPairBarrierNOptions,
+  type XpbdSourceSimplexPairBarrierStepFilterEvaluationN,
+  type XpbdSourceSimplexPairBarrierStepFilterEvidenceN,
+  type XpbdSourceSimplexPairBarrierStepFilterNOptions,
+  type XpbdSourceSimplexPairBarrierStepFilterRefusalReasonN
+} from './xpbd-source-simplex-pair-barrier.js';
+export {
   evaluateSourceSimplexPairDistanceN,
   type SourceSimplexPairDistanceN,
   type SourceSimplexPairDistanceOptionsN,
