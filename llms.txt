@@ -585,7 +585,12 @@ if (hit.ambientPointStatus === 'exact') {
   type; (3) **a filter's certified prefix is not a collision time** —
   `maximumStepLength` is a conservative Lipschitz bound, never an impact
   solve. Weights are in source vertex order on both sides; swapping the pair
-  negates the direction and swaps the evidence.
+  negates the direction and swaps the evidence. Four exclusions belong beside
+  those warnings: this is **not** self-contact, **not** general mesh-mesh CCD,
+  the family opposes **one static** feature (no moving-obstacle family), and
+  there is **no friction or dissipation**. Overlapping source cells that share
+  the contacted sub-feature each contribute a term naming the same witness, so
+  effective contact stiffness follows local mesh topology.
 - Do not call `PlaneEmbedding3D` a projection, and do not ask it for a fibre
   or a homogeneous matrix — it is injective, implements neither, and its
   lineage step is `plane-embedding`, never a projection kind. Do not upgrade

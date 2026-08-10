@@ -74,16 +74,35 @@ export class XpbdSourceSimplexPairBarrierFamilyN {
    * Compiles one pair barrier and one paired step filter per source cell of a
    * deforming simplicial group against one static opposing feature.
    *
-   * The energy is the **sum over source cells** of the pair barrier, so its
-   * density is discretization-defined: a contact under an edge shared by two
-   * cells carries both cells' terms (measured: exactly 2× one term), and a
-   * topology-preserving refinement that puts four cells at the contact
-   * carries four (measured: exactly 4×). That is the same documented
-   * discretization dependence the cosine bending family ships with — a
-   * stiffness tuned on one mesh does not transfer to a refinement of it —
-   * and it is stated here instead of being averaged away. Candidates are one
-   * per source cell **by construction**, so no contact is ever emitted twice;
-   * registration order changes nothing; reversing a cell's vertex order
+   * The energy is the **sum over source cells** of the pair barrier. One
+   * *candidate pair* is emitted per source cell by construction — but that is
+   * not the same as one term per contact, and the difference is the limitation
+   * to understand before tuning a stiffness.
+   *
+   * When the closest approach falls on a sub-feature shared by several cells,
+   * every one of those cells produces a term **naming the same witness point at
+   * the same distance**: a contact under an edge shared by two cells is one
+   * physical interaction entering the potential twice (measured: identical
+   * witness pair, identical distance, exactly 2× the energy), and a refinement
+   * that puts several cells at the contact multiplies it again by however many
+   * of them are equidistant — 4× when four are, less when they are not (a
+   * mid-edge-split refinement measured 3.63×). Effective contact stiffness
+   * therefore follows local mesh topology: an edge contact is stiffer than an
+   * interior contact on the same surface.
+   *
+   * This is the familiar behaviour of per-element penalty contact, and it does
+   * not weaken the barrier — non-penetration still holds, every individual term
+   * is independently correct, and forces still conserve. It is *not* the same
+   * shape of dependence as the cosine bending family's: a bending hinge is a
+   * distinct entity appearing in exactly one term, whereas a shared contact
+   * feature appears in several. A decomposition that counted each geometric
+   * feature pair once (point–cell and edge–edge, as the published feature-pair
+   * literature does) would not duplicate; this family deliberately does not
+   * attempt that, and says so rather than averaging it away. A stiffness tuned
+   * on one mesh does not transfer to a refinement of it, nor across regions of
+   * differing local connectivity.
+   *
+   * Registration order changes nothing; reversing a cell's vertex order
    * permutes its weights and changes no scalar.
    *
    * Every per-pair semantics is the barrier's own: tied witnesses, certified
