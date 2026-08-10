@@ -582,6 +582,21 @@ if (hit.ambientPointStatus === 'exact') {
   a reproducibility anchor are different things, so do not "update" the pins to
   match the range. Never widen the range to make `pnpm check:three-compat`
   pass — that guard drives both ends from packed artifacts.
+- Friction (P57) has FOUR distinctions that are load-bearing and routinely
+  got wrong: (1) `XpbdParticleHyperplaneFrictionN` is the P16 **post-projection
+  velocity response** for `world.step()`, while `XpbdSourceSimplexPairFrictionN`
+  is a **term inside the incremental objective** — the optimizer refuses
+  velocity responses on purpose and the second does not route around that;
+  (2) the P57 term is conservative **only while one frozen lag is held**, not
+  globally conservative — dissipation happens when the lag is refreshed;
+  (3) **friction work is not generic backward-Euler energy decay** — an
+  integrator can lose energy with `mu = 0`, so decay alone proves nothing and
+  the work must be measured; (4) a P56 filter's **certified prefix is not a
+  collision or friction-transition time**. Also: only a `separated-unique`
+  pair may create a lag; a consumed lag is a named failure, never an implicit
+  refresh; and the family's effective friction is **mesh-topology dependent**
+  (shared edge 2x, four-cell refinement 4x), so a coefficient tuned on one
+  mesh does not transfer to a refinement of it.
 - Feature contact (P56): `evaluateSourceSimplexPairDistanceN`,
   `XpbdSourceSimplexPairBarrierN` + its step filter, and
   `compileXpbdSourceSimplexPairBarrierFamilyN`. Three warnings are load-

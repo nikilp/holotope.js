@@ -705,9 +705,45 @@ interior cuts through it. Feature contact closes that gap by constraining
   placing four cells there, exactly 4×) — stated in the docs, like the
   bending family's stiffness, rather than averaged away.
 
-What this is not: self-contact, mesh–mesh continuous collision detection, or
-friction. Those remain explicitly out of scope until their own slices prove
-them.
+### Lagged friction inside the objective
+
+`XpbdSourceSimplexPairFrictionN` adds the first dissipative contact term that
+lives *in* the incremental objective rather than after the solve:
+
+- **`prepare()` freezes one lag** at an accepted state — the certified normal,
+  the source-ordered witness weights, and the paired barrier's own normal-force
+  magnitude. While that snapshot is held the term is an ordinary conservative
+  potential with an exact gradient, so every line-search trial sees one
+  consistent objective. Dissipation appears *between* accepted states, when the
+  lag is refreshed. It is **not** a globally conservative physical force.
+- **Only `separated-unique` may create a lag.** Tied witnesses, certified zero
+  distance, uncertified comparisons and sub-minimum distances refuse by type —
+  a friction frame cannot be chosen from among equally optimal witnesses, and a
+  zero gap has no tangent plane at all.
+- **No authored tangent basis.** `I − n nᵀ` is applied directly, which is what
+  makes the term dimension-generic instead of a 3D construction with extra
+  cases.
+- **The regularized Coulomb law** is C¹, with a force that stays linear through
+  zero slip (`u/‖u‖` is never evaluated) and satisfies `‖f‖ ≤ μ·λ_lag` by
+  construction. Its parameter, `slipRegularization`, is a **length** in world
+  units — not a velocity threshold and not scaled by the timestep.
+- **A consumed lag is a named failure**, never an implicit refresh, so a lag
+  cannot move between Armijo trials.
+- `compileXpbdSourceSimplexPairFrictionFamilyN` lifts it over a contact family
+  with atomic consume/rollback, and **effective friction follows mesh
+  topology** (shared edge 2×, four-cell refinement 4×) — measured and stated,
+  never averaged away.
+
+Two things this is not. It is not `XpbdParticleHyperplaneFrictionN`, the
+post-projection velocity response for `world.step()`; the incremental path
+refuses velocity responses and this term satisfies the conservative contract
+honestly instead of routing around that. And observed energy decay is **not**
+evidence that friction did the work: an integrator can lose energy on its own,
+so the work has to be measured.
+
+What this is not: self-contact, mesh–mesh continuous collision detection,
+moving-obstacle friction, adhesion, restitution, or anisotropic friction.
+Those remain explicitly out of scope until their own slices prove them.
 
 ## Source particles and intrinsic mass
 

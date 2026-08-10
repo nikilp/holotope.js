@@ -805,6 +805,127 @@ try {
 }
 ```
 
+## Prepare, execute, inspect, and refresh a friction lag
+
+Friction here is a term *inside* the incremental objective, not a velocity
+correction after it. The term is conservative only while one lag snapshot is
+frozen, so the lifecycle is the API: prepare at an accepted state, minimize
+against it, then either consume it (the step applied) or roll it back (the step
+refused). A consumed lag is a named failure rather than an implicit refresh —
+that is what stops the objective moving between line-search trials.
+
+```ts
+import {
+  CellComplex, createSourceCellReferenceN, createSourceSimplexReferenceN
+} from '@holotope/core';
+import {
+  XpbdPotentialDomainErrorN,
+  XpbdWorldN,
+  compileXpbdParticleBindingN,
+  compileXpbdSourceSimplexPairBarrierFamilyN,
+  compileXpbdSourceSimplexPairFrictionFamilyN,
+  stepXpbdIncrementalPotentialWorldN
+} from '@holotope/physics';
+
+const sheet = new CellComplex(4, Float64Array.from([
+  0, 0, 0, 1.2,
+  1, 0, 0, 1.2,
+  0, 1, 0, 1.2,
+  1, 1, 0, 1.2
+]), [{ dim: 2, verticesPerCell: 3, kind: 'simplex',
+       indices: Uint32Array.from([0, 1, 2, 1, 3, 2]) }]);
+const support = new CellComplex(4, Float64Array.from([
+  0.3, 0.3, 0, -0.5,
+  0.3, 0.3, 0, 0.9,
+  0.55, 0.1, 0.08, -0.5,
+  0.1, 0.55, -0.08, -0.5
+]), [{ dim: 3, verticesPerCell: 4, kind: 'simplex',
+       indices: Uint32Array.from([0, 1, 2, 3]) }]);
+const sheetGroup = sheet.groups[0];
+const supportGroup = support.groups[0];
+if (sheetGroup === undefined || supportGroup === undefined) {
+  throw new Error('expected both authored groups');
+}
+const binding = compileXpbdParticleBindingN({ id: 'sheet', source: sheet });
+const contact = compileXpbdSourceSimplexPairBarrierFamilyN({
+  id: 'contact',
+  binding,
+  simplexGroup: sheetGroup,
+  obstacle: createSourceSimplexReferenceN(
+    createSourceCellReferenceN(support, supportGroup, 0)
+  ),
+  activationDistance: 0.25,
+  stiffness: 3
+});
+const world = new XpbdWorldN({ dimension: 4, gravity: [0, 0, 0, -9.81] });
+binding.addToWorld(world);
+contact.addToWorld(world);
+
+const friction = compileXpbdSourceSimplexPairFrictionFamilyN({
+  id: 'friction',
+  contact,                       // the P56 contact family, reused wholesale
+  frictionCoefficient: 0.4,
+  slipRegularization: 1e-3       // a LENGTH in world units, not a velocity
+});
+
+// 1. Freeze one lag per contact pair at the accepted state.
+const preparation = friction.prepare();
+console.log(preparation.prepared.length, 'terms');
+for (const skip of preparation.skipped) {
+  // Tied witnesses, zero distance, uncertified pairs: no frame exists, so no
+  // term is fabricated. The reason is typed, never a silent drop.
+  console.log('no friction for cell', skip.cellIndex, skip.reason);
+}
+
+// 2. Minimize against it. Prepared providers are transient and appear in
+//    selection evidence separately from the world's authored registry.
+const advance = stepXpbdIncrementalPotentialWorldN({
+  world,
+  deltaTime: 0.01,
+  stepFilters: contact.stepFilters,
+  preparedProviders: preparation.prepared,
+  warmStart: 'feasible-inertial-prediction',
+  minimization: { directionPolicy: 'steepest-descent' }
+});
+console.log(advance.selection.providerIds);          // authored terms
+console.log(advance.selection.preparedProviderIds);  // this transaction's lags
+
+// 3. Inspect what each active term actually did.
+for (const term of preparation.prepared) {
+  const evaluation = term.evaluate();
+  console.log(
+    evaluation.regime,              // 'sticking' | 'transition' | 'sliding'
+    evaluation.slipMagnitude,
+    evaluation.forceLimit,          // mu * lagged normal force: the Coulomb cap
+    evaluation.lag.uniquenessGap    // the P56 margin that justified the frame
+  );
+}
+
+// 4. Commit or roll back with the step it was minimized against — atomically
+//    over the whole family, so a partly consumed family is unrepresentable.
+if (advance.step.status === 'applied') preparation.markConsumed();
+else preparation.rollback();
+
+// 5. The next step needs a NEW lag. Reusing a consumed one is refused.
+try {
+  preparation.prepared[0]?.assertUsable();
+} catch (stale) {
+  console.log('refresh required:', String(stale));
+}
+
+// A single pair can also refuse outright at prepare time.
+try {
+  friction.terms[0]?.prepare();
+} catch (refusal) {
+  if (refusal instanceof XpbdPotentialDomainErrorN) console.log(refusal.reason);
+  else throw refusal;
+}
+```
+
+Energy decay in the resulting trajectory is **not** by itself evidence that
+friction did the work — an integrator can lose energy with `frictionCoefficient: 0`.
+Measure the work through the realised displacement if you need to claim it.
+
 ## Pick headlessly, with no renderer
 
 Picking needs geometry and a ray, not a canvas. A render product builds its

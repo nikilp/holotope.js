@@ -180,6 +180,32 @@ export class XpbdSourceSimplexPairFrictionFamilyN {
  * @example
  * One lag iteration end to end, with every typed branch handled:
  * ```ts
+ * const sheet = new CellComplex(4, Float64Array.from([
+ *   0, 0, 0, 1.2, 1, 0, 0, 1.2, 0, 1, 0, 1.2, 1, 1, 0, 1.2
+ * ]), [{ dim: 2, verticesPerCell: 3, kind: 'simplex',
+ *        indices: Uint32Array.from([0, 1, 2, 1, 3, 2]) }]);
+ * const support = new CellComplex(4, Float64Array.from([
+ *   0.3, 0.3, 0, -0.5, 0.3, 0.3, 0, 0.9,
+ *   0.55, 0.1, 0.08, -0.5, 0.1, 0.55, -0.08, -0.5
+ * ]), [{ dim: 3, verticesPerCell: 4, kind: 'simplex',
+ *        indices: Uint32Array.from([0, 1, 2, 3]) }]);
+ * const sheetGroup = sheet.groups[0];
+ * const supportGroup = support.groups[0];
+ * if (sheetGroup === undefined || supportGroup === undefined) {
+ *   throw new Error('expected both authored groups');
+ * }
+ * const binding = compileXpbdParticleBindingN({ id: 'sheet', source: sheet });
+ * const contact = compileXpbdSourceSimplexPairBarrierFamilyN({
+ *   id: 'contact', binding, simplexGroup: sheetGroup,
+ *   obstacle: createSourceSimplexReferenceN(
+ *     createSourceCellReferenceN(support, supportGroup, 0)
+ *   ),
+ *   activationDistance: 0.3, stiffness: 3
+ * });
+ * const world = new XpbdWorldN({ dimension: 4, gravity: [0, 0, 0, -9.81] });
+ * binding.addToWorld(world);
+ * contact.addToWorld(world);
+ *
  * const friction = compileXpbdSourceSimplexPairFrictionFamilyN({
  *   id: 'friction', contact, frictionCoefficient: 0.4, slipRegularization: 1e-3
  * });

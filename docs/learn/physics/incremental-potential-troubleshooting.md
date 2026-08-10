@@ -167,3 +167,36 @@ Newton is the correct first choice for every objective.
 
 See [The ND contact demo](./nd-contact-demo) for the comparison, its liveness
 assertions, and the limits of the contact model.
+
+## "My friction provider is refused by the world step"
+
+The incremental-potential path accepts **conservative** providers only, and it
+refuses registered velocity responses outright. That is deliberate: a velocity
+response corrects state after a position solve, so it has no energy for a
+minimizer to descend.
+
+A lagged friction term is not an exception to that rule — it satisfies the
+conservative contract for one frozen lag. Supply it through `preparedProviders`
+rather than registering it on the world:
+
+<!-- doc-check: skip — a call-shape fragment; the self-contained version is
+     the cookbook's "Prepare, execute, inspect, and refresh a friction lag" -->
+
+```ts
+const preparation = friction.prepare();          // freeze one lag
+const advance = stepXpbdIncrementalPotentialWorldN({
+  world,
+  deltaTime,
+  stepFilters: contact.stepFilters,
+  preparedProviders: preparation.prepared,        // transient, this step only
+  warmStart: 'feasible-inertial-prediction'
+});
+if (advance.step.status === 'applied') preparation.markConsumed();
+else preparation.rollback();
+```
+
+The world's authored registry stays authoritative and untouched; prepared ids
+appear in `selection.preparedProviderIds`, separate from `selection.providerIds`,
+so an authored scene term and a one-transaction lagged one are always
+distinguishable. Colliding ids, duplicates, and particles the world does not
+own are refused before anything is touched.

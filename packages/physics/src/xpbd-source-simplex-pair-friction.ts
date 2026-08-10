@@ -146,6 +146,40 @@ const CALLER = 'XpbdSourceSimplexPairFrictionN';
  * @example
  * Prepare a lag at an accepted state, minimize against it, then refresh:
  * ```ts
+ * const complex = new CellComplex(3, Float64Array.from([
+ *   -1, 0.1, -1,
+ *   1, 0.1, 1,
+ *   -1, 0, 0,
+ *   1, 0, 0
+ * ]), [
+ *   { dim: 1, verticesPerCell: 2, kind: 'simplex', indices: Uint32Array.from([0, 1]) },
+ *   { dim: 1, verticesPerCell: 2, kind: 'simplex', indices: Uint32Array.from([2, 3]) }
+ * ]);
+ * const moverGroup = complex.groups[0];
+ * const staticGroup = complex.groups[1];
+ * if (moverGroup === undefined || staticGroup === undefined) {
+ *   throw new Error('expected both authored groups');
+ * }
+ * const particles = [0, 1].map((vertex) => new XpbdParticleN({
+ *   id: `a-${vertex}`,
+ *   position: new VecN(Array.from(
+ *     complex.positions.subarray(vertex * 3, (vertex + 1) * 3)
+ *   )),
+ *   inverseMass: 1
+ * }));
+ * const barrier = new XpbdSourceSimplexPairBarrierN({
+ *   id: 'contact',
+ *   particlesA: particles,
+ *   featureA: createSourceSimplexReferenceN(
+ *     createSourceCellReferenceN(complex, moverGroup, 0)
+ *   ),
+ *   featureB: createSourceSimplexReferenceN(
+ *     createSourceCellReferenceN(complex, staticGroup, 0)
+ *   ),
+ *   activationDistance: 0.5,
+ *   stiffness: 4
+ * });
+ *
  * const friction = new XpbdSourceSimplexPairFrictionN({
  *   id: 'slide', barrier, frictionCoefficient: 0.4, slipRegularization: 1e-3
  * });

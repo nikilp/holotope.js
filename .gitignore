@@ -14,3 +14,5 @@ docs/.vitepress/dist/
 .claude/
 docs/.doc-examples/
 .packed/
+# Scratch output of the tested-Three-compatibility guard.
+.packed-three-compat/

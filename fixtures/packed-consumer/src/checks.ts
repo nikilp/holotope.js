@@ -51,7 +51,19 @@ import {
   PhysicsWorld4,
   XpbdSourceSimplexPairBarrierN,
   XpbdSourceSimplexPairBarrierStepFilterN,
+  XpbdPreparedSourceSimplexPairFrictionN,
+  XpbdSourceSimplexPairFrictionN,
   compileXpbdSourceSimplexPairBarrierFamilyN,
+  compileXpbdSourceSimplexPairFrictionFamilyN,
+  type CompileXpbdSourceSimplexPairFrictionFamilyNOptions,
+  type XpbdSourceSimplexPairFrictionEvaluationN,
+  type XpbdSourceSimplexPairFrictionLagN,
+  type XpbdSourceSimplexPairFrictionLagStateN,
+  type XpbdSourceSimplexPairFrictionNOptions,
+  type XpbdSourceSimplexPairFrictionPrepareRefusalN,
+  type XpbdSourceSimplexPairFrictionPreparationN,
+  type XpbdSourceSimplexPairFrictionRegimeN,
+  type XpbdSourceSimplexPairFrictionSkipN,
   evaluateSourceSimplexPairDistanceN,
   type CompileXpbdSourceSimplexPairBarrierFamilyNOptions,
   type SourceSimplexPairDistanceN,
@@ -433,6 +445,122 @@ export function dimensionGenericSection(): void {
  * branches, the family through the shipping world step, and the P53d gap
  * closed - outside every workspace.
  */
+
+/**
+ * P57 lagged friction from the packed tarballs: the lag lifecycle, the typed
+ * refusals, a live sliding/sticking distinction, and the world transaction
+ * seam - outside every workspace.
+ */
+export function laggedPairFriction(): void {
+  const sheet = new CellComplex(4, Float64Array.from([
+    0, 0, 0, 1.2,
+    1, 0, 0, 1.2,
+    0, 1, 0, 1.2,
+    1, 1, 0, 1.2
+  ]), [{
+    dim: 2, verticesPerCell: 3, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2, 1, 3, 2])
+  }]);
+  const support = new CellComplex(4, Float64Array.from([
+    0.3, 0.3, 0, -0.5,
+    0.3, 0.3, 0, 0.9,
+    0.55, 0.1, 0.08, -0.5,
+    0.1, 0.55, -0.08, -0.5
+  ]), [{
+    dim: 3, verticesPerCell: 4, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2, 3])
+  }]);
+  const binding = compileXpbdParticleBindingN({ id: 'sheet', source: sheet });
+  const contact = compileXpbdSourceSimplexPairBarrierFamilyN({
+    id: 'contact',
+    binding,
+    simplexGroup: sheet.groups[0]!,
+    obstacle: createSourceSimplexReferenceN(
+      createSourceCellReferenceN(support, support.groups[0]!, 0)
+    ),
+    activationDistance: 0.3,
+    stiffness: 3
+  });
+
+  // Every published friction type, annotated the way an outside caller holds it.
+  const familyOptions: CompileXpbdSourceSimplexPairFrictionFamilyNOptions = {
+    id: 'friction', contact, frictionCoefficient: 0.5, slipRegularization: 1e-3
+  };
+  const family = compileXpbdSourceSimplexPairFrictionFamilyN(familyOptions);
+  assert(family.terms.length === contact.barriers.length,
+    'one friction term per contact pair, with no obstacle fan-out');
+
+  const soloOptions: XpbdSourceSimplexPairFrictionNOptions = {
+    id: 'solo', barrier: contact.barriers[0]!,
+    frictionCoefficient: 0.5, slipRegularization: 1e-3
+  };
+  const solo = new XpbdSourceSimplexPairFrictionN(soloOptions);
+  const prepared: XpbdPreparedSourceSimplexPairFrictionN = solo.prepare();
+  const lag: XpbdSourceSimplexPairFrictionLagN = prepared.lag;
+  const lagState: XpbdSourceSimplexPairFrictionLagStateN = lag.state;
+  assert(lagState === 'prepared', 'a fresh lag is prepared');
+  assert(lag.uniquenessGap > 0, 'the lag records the P56 margin that justified it');
+  assert(Math.abs(lag.normal.length() - 1) < 1e-12, 'the frozen normal is a unit vector');
+  assert(lag.laggedNormalForce >= 0, 'the lagged normal magnitude is non-negative');
+
+  // A live sticking/sliding distinction, not merely a constructed object.
+  const atRest: XpbdSourceSimplexPairFrictionEvaluationN = prepared.evaluate();
+  const restRegime: XpbdSourceSimplexPairFrictionRegimeN = atRest.regime;
+  assert(restRegime === 'sticking', 'zero slip must read as sticking');
+  assert(atRest.forces.every((force) => force.length() === 0),
+    'zero slip exerts exactly zero force');
+  const sliding = prepared.evaluateAt((particle) => {
+    const position = particle.position.clone();
+    position.data[0] = position.data[0]! + 0.05;
+    return position;
+  });
+  assert(sliding.regime === 'sliding', 'a large slip must saturate');
+  assert(Math.abs(sliding.tangentForce.length() - sliding.forceLimit) < 1e-9,
+    'a saturated force sits exactly on the Coulomb bound');
+  assert(Math.abs(sliding.tangentForce.dot(lag.normal)) < 1e-11,
+    'the friction force is tangent to the frozen normal');
+
+  // The single-use lifecycle is a named failure, never an implicit refresh.
+  prepared.markConsumed();
+  let staleRefused = false;
+  try { prepared.assertUsable(); } catch { staleRefused = true; }
+  assert(staleRefused, 'a consumed lag must refuse reuse by name');
+  prepared.rollback();
+  prepared.assertUsable();
+
+  // Typed prepare refusals reach the packed surface with their vocabulary.
+  const refusalReason: XpbdSourceSimplexPairFrictionPrepareRefusalN =
+    'tied-witness-no-unique-gradient';
+  assert(refusalReason.length > 0, 'the refusal vocabulary is published');
+
+  // The transaction seam: prepared ids appear separately from authored ones.
+  const world = new XpbdWorldN({ dimension: 4, gravity: [0, 0, 0, -9.81] });
+  binding.addToWorld(world);
+  contact.addToWorld(world);
+  const preparation: XpbdSourceSimplexPairFrictionPreparationN = family.prepare();
+  const skips: readonly XpbdSourceSimplexPairFrictionSkipN[] = preparation.skipped;
+  assert(preparation.prepared.length > 0, 'the family prepared no term');
+  assert(Array.isArray(skips), 'skipped pairs are reported as a list');
+  const advance = stepXpbdIncrementalPotentialWorldN({
+    world,
+    deltaTime: 0.01,
+    stepFilters: contact.stepFilters,
+    preparedProviders: preparation.prepared,
+    warmStart: 'feasible-inertial-prediction',
+    minimization: { directionPolicy: 'steepest-descent' }
+  });
+  // The family registers one barrier per cell, so the authored ids are
+  // 'contact-0', 'contact-1', ... - not the family id itself.
+  assert(advance.selection.providerIds.length === contact.barriers.length &&
+    advance.selection.providerIds.every((id) => id.startsWith('contact-')),
+    'the authored registry stays authoritative');
+  assert(advance.selection.preparedProviderIds !== undefined &&
+    advance.selection.preparedProviderIds.length === preparation.prepared.length,
+    'prepared ids appear in selection evidence, separate from authored ones');
+  if (advance.step.status === 'applied') preparation.markConsumed();
+  else preparation.rollback();
+}
+
 export function featurePairContact(): void {
   const sheet = new CellComplex(4, Float64Array.from([
     0, 0, 0, 1.2,

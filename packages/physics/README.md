@@ -101,7 +101,31 @@ summed energy's density is discretization-defined (a shared edge carries both
 adjacent cells' terms — measured at exactly 2×), which the family documents
 instead of averaging away. This closes the P53d boundary: a sheet triangle
 can now be held off an obstacle that pierces its interior while every vertex
-is legally separated. It is not self-contact, mesh–mesh CCD, or friction.
+is legally separated. It is not self-contact or mesh–mesh CCD.
+
+P57 adds the first **dissipative** contact term to the objective itself.
+`XpbdSourceSimplexPairFrictionN` freezes one *lag* at an accepted state — the
+certified contact frame, the source-ordered witness weights, and the paired
+barrier's own normal-force magnitude — and is then conservative for exactly
+that snapshot, so every line-search trial sees one consistent objective.
+Dissipation happens **between** accepted states, when the lag is refreshed;
+calling it a globally conservative force would be wrong, and the vocabulary
+says so. The tangent projector `I − n nᵀ` is applied directly, with no
+authored basis, so the term is dimension-generic; the regularized Coulomb law
+is C¹ with a force that stays linear through zero slip (`u/‖u‖` is never
+evaluated) and satisfies `‖f‖ ≤ μ·λ_lag` by construction rather than by
+clamping. Only a `separated-unique` pair may create a lag — tied witnesses,
+certified zero distance, uncertified comparisons and sub-minimum distances
+refuse by type. `compileXpbdSourceSimplexPairFrictionFamilyN` lifts it over a
+contact family with atomic consume/rollback, and states plainly that
+**effective friction follows mesh topology** (a shared-edge contact resists
+exactly 2× one cell; a four-cell refinement 4×) rather than averaging that
+away.
+
+This is a different mechanism from `XpbdParticleHyperplaneFrictionN`, which
+is a post-projection Coulomb **velocity response** for the projected-XPBD
+path. The two are not interchangeable, and the incremental-potential path
+still refuses velocity responses outright.
 
 When the obstacle's cells are only a decomposition of one solid rather than
 independently meaningful features, the per-cell sum is the wrong composition:

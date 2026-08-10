@@ -69,6 +69,10 @@ distance certified without an invented normal, and an indeterminate band that
 refuses with its own residuals. It is the kernel under the deformable
 feature-contact stack described on the deformable page.
 
+Friction over these pairs is a separate, lagged potential described on the
+deformable page: it is conservative only while one frozen lag is held, and it
+is not the post-projection velocity response used by the projected-XPBD path.
+
 ## Vertex-polytope contact manifolds
 
 A support function alone cannot reveal the topology of the face selected by

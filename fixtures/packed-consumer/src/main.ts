@@ -7,6 +7,7 @@
 import {
   authoredDimensionBridge,
   featurePairContact,
+  laggedPairFriction,
   certifiedConvexQuery,
   convexHullContact,
   dimensionGenericSection,
@@ -28,6 +29,7 @@ const checks: readonly [name: string, run: () => void | Promise<void>][] = [
   ['planeEmbeddingComposition', planeEmbeddingComposition],
   ['authoredDimensionBridge', authoredDimensionBridge],
   ['featurePairContact', featurePairContact],
+  ['laggedPairFriction', laggedPairFriction],
   ['representationClaims', representationClaims],
   ['experimentProbe', experimentProbe],
   ['physicsComposition', physicsComposition],

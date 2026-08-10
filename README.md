@@ -25,7 +25,10 @@ visual effects.
 
 ## Architecture
 
-Contact constrains features, not just points: source-simplex pairs carry
+Contact can also dissipate: friction enters the incremental objective as a
+term that is conservative while one lag snapshot is frozen and dissipative
+across accepted states, never as a post-solve velocity correction smuggled
+into the minimizer. Contact constrains features, not just points: source-simplex pairs carry
 certified distances with source-ordered witnesses, tied configurations are
 evidence rather than a fabricated winner, and step filters certify prefixes,
 never collision times. Higher-dimensional state stays higher-dimensional until the last responsible moment. The zero-dependency core does all N-D math in Float64 on the CPU; renderer adapters turn explicit **projections** of that state into ordinary 3D objects.

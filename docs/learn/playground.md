@@ -74,11 +74,13 @@ there is improved here.
 | [`TransformN`](/api/core/math/classes/TransformN) | [open](https://nikilp.github.io/holotope.js/playground.html#TransformN) |
 | [`XpbdParticleHyperplaneBarrierFamilyN`](/api/physics/classes/XpbdParticleHyperplaneBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#XpbdParticleHyperplaneBarrierFamilyN) |
 | [`XpbdParticleHyperplaneBarrierStepFilterN`](/api/physics/classes/XpbdParticleHyperplaneBarrierStepFilterN) | [open](https://nikilp.github.io/holotope.js/playground.html#XpbdParticleHyperplaneBarrierStepFilterN) |
+| [`XpbdSourceSimplexPairFrictionN`](/api/physics/classes/XpbdSourceSimplexPairFrictionN) | [open](https://nikilp.github.io/holotope.js/playground.html#XpbdSourceSimplexPairFrictionN) |
 | [`compileXpbdIncrementalPotentialAnalyticHessianOperatorN`](/api/physics/functions/compileXpbdIncrementalPotentialAnalyticHessianOperatorN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdIncrementalPotentialAnalyticHessianOperatorN) |
 | [`compileXpbdParticleSourceConvexHullBarrierFamilyN`](/api/physics/functions/compileXpbdParticleSourceConvexHullBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdParticleSourceConvexHullBarrierFamilyN) |
 | [`compileXpbdSourceSimplexAabbHierarchyN`](/api/physics/functions/compileXpbdSourceSimplexAabbHierarchyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexAabbHierarchyN) |
 | [`compileXpbdSourceSimplexCosineBendingFamilyN`](/api/physics/functions/compileXpbdSourceSimplexCosineBendingFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexCosineBendingFamilyN) |
 | [`compileXpbdSourceSimplexPairBarrierFamilyN`](/api/physics/functions/compileXpbdSourceSimplexPairBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexPairBarrierFamilyN) |
+| [`compileXpbdSourceSimplexPairFrictionFamilyN`](/api/physics/functions/compileXpbdSourceSimplexPairFrictionFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexPairFrictionFamilyN) |
 | [`create24Cell`](/api/core/polytope/functions/create24Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create24Cell) |
 | [`create600Cell`](/api/core/polytope/functions/create600Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create600Cell) |
 | [`createCrossPolytope`](/api/core/polytope/functions/createCrossPolytope) | [open](https://nikilp.github.io/holotope.js/playground.html#createCrossPolytope) |
