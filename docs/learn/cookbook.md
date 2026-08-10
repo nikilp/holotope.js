@@ -924,7 +924,21 @@ try {
 
 Energy decay in the resulting trajectory is **not** by itself evidence that
 friction did the work — an integrator can lose energy with `frictionCoefficient: 0`.
-Measure the work through the realised displacement if you need to claim it.
+
+If you need to claim a number, name which one, because two defensible readings
+differ by a factor of two and the gap does not close under refinement:
+
+- the work the frozen field does along the step,
+  `potentialEnergy(base) − potentialEnergy(end)`. No quadrature is involved:
+  the force is `−∇D`, so this is a potential difference.
+- the term the discrete energy balance contains, `force(end) · displacement`,
+  because an implicit step satisfies `M·Δv/Δt = force(end)`.
+
+Inside the quadratic branch, starting from the lag's own zero slip, the first is
+`L·u²/(2ε)` and the second is `L·u²/ε` — exactly twice as large — and the lag
+resets every step, so refining the timestep does not reconcile them. Whichever
+you cite, subtract a `frictionCoefficient: 0` control at the **same** timestep
+first, and say which quantity and which rule you used.
 
 ## Keep friction from vanishing when the timestep changes
 
