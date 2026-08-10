@@ -43,3 +43,10 @@ jobs:
       # `routes` reads the built site, so the build runs first.
       - name: Verify
         run: pnpm verify
+
+      # The peer range is a claim about other people's installs, and `verify`
+      # only ever exercises the pinned development revision. This drives both
+      # ends of the declared range from freshly packed artifacts, so a range
+      # that over-claims fails here rather than in a consumer's project.
+      - name: Tested Three compatibility
+        run: pnpm check:three-compat

@@ -36,7 +36,7 @@
     "@holotope/core": "workspace:*"
   },
   "peerDependencies": {
-    "three": ">=0.185.0 <0.186.0"
+    "three": ">=0.184.0 <0.186.0"
   },
   "devDependencies": {
     "three": "0.185.1",

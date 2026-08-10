@@ -574,6 +574,14 @@ if (hit.ambientPointStatus === 'exact') {
   refuses — it is not a simplex). Authored index order is combinatorial, NOT
   boundary-coherent: shared faces double, so render double-sided; oriented
   boundaries come from `sectionSimplexGroupN`, not from authored order.
+- `@holotope/three` peer range is **`>=0.184.0 <0.186.0`**, and it is a
+  *tested* interval (r183.0-r185.1 were all driven; r183 is excluded because
+  `@types/three` is broken at 0.183.0 and missing at 0.183.2, not because the
+  runtime failed). It is not a forward-compatibility promise. The development,
+  showcase, and CDN reference stays exactly `three@0.185.1`: a peer window and
+  a reproducibility anchor are different things, so do not "update" the pins to
+  match the range. Never widen the range to make `pnpm check:three-compat`
+  pass — that guard drives both ends from packed artifacts.
 - Feature contact (P56): `evaluateSourceSimplexPairDistanceN`,
   `XpbdSourceSimplexPairBarrierN` + its step filter, and
   `compileXpbdSourceSimplexPairBarrierFamilyN`. Three warnings are load-
