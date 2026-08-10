@@ -175,7 +175,13 @@ export function runLaggedFrictionContract(): LaggedFrictionContractReport {
     obstacle: createSourceSimplexReferenceN(
       createSourceCellReferenceN(support, supportGroup, 0)
     ),
-    activationDistance: 0.3,
+    // Comfortably beyond the 0.3 separation this scene sets up. At exactly 0.3
+    // the clamped-log barrier is zero by construction, so the lag would freeze a
+    // ~1e-31 normal force: `contactActive` would still read `true`, correctly,
+    // while the Coulomb bound it reports carried no physical meaning. This
+    // example exists to show a force-carrying contact next to an inert one, so
+    // the active side has to actually press.
+    activationDistance: 0.6,
     stiffness: 3
   });
   const friction: XpbdSourceSimplexPairFrictionFamilyN =
