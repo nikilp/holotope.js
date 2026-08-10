@@ -80,6 +80,29 @@ and blocking-pair evidence separate while presenting one stable provider and
 one paired filter to the solver. It is not inside/outside classification, moving-simplex contact, or a claim of
 mesh self-collision.
 
+P56 extends contact from constrained *points* to constrained **features**:
+`evaluateSourceSimplexPairDistanceN` is the dimension- and arity-generic
+minimum distance between two finite source simplices, certified by a
+variational inequality against every input vertex, with witnesses as
+source-ordered barycentric coordinates on both sides. Its result union keeps
+the mathematics honest — `separated-unique` carries the measured uniqueness
+margin that justifies the envelope-form gradient; `separated-multiple`
+returns *every* tied optimal witness (parallel edges are the canonical case)
+and no gradient, because none uniquely exists; `zero-distance` is certified
+with no invented normal; `indeterminate` refuses with its own residuals.
+`XpbdSourceSimplexPairBarrierN` lifts the clamped-log law over that distance
+with forces distributed through the witness weights (net internal force and
+the RN antisymmetric first moment cancel for two moving sides), and its
+paired filter certifies segment prefixes by the two-sided Hausdorff/Lipschitz
+bound `d(t) ≥ d(0) − t·(maxDispA + maxDispB)` — a certified fraction, never a
+collision time. `compileXpbdSourceSimplexPairBarrierFamilyN` sweeps one such
+pair per source cell of a deforming group against one static feature; the
+summed energy's density is discretization-defined (a shared edge carries both
+adjacent cells' terms — measured at exactly 2×), which the family documents
+instead of averaging away. This closes the P53d boundary: a sheet triangle
+can now be held off an obstacle that pierces its interior while every vertex
+is legally separated. It is not self-contact, mesh–mesh CCD, or friction.
+
 When the obstacle's cells are only a decomposition of one solid rather than
 independently meaningful features, the per-cell sum is the wrong composition:
 each cell's barrier pushes away from itself, so a point over a flat support

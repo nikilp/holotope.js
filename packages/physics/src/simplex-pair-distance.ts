@@ -42,11 +42,15 @@ export interface SourceSimplexPairWitnessN {
 
 /** Certified separated pair whose closest points are unique. */
 export interface SourceSimplexPairSeparatedUniqueN {
+  /** Certified separation with a unique closest pair. */
   readonly status: 'separated-unique';
+  /** Certified unsigned distance between the features. */
   readonly distance: number;
+  /** `distance * distance`, from the optimal candidate's own arithmetic. */
   readonly squaredDistance: number;
   /** Unit separating direction from B toward A. */
   readonly direction: VecN;
+  /** The unique closest pair, in source vertex order on both sides. */
   readonly witness: SourceSimplexPairWitnessN;
   /**
    * Squared-distance gap to the best geometrically distinct candidate — the
@@ -62,8 +66,11 @@ export interface SourceSimplexPairSeparatedUniqueN {
 
 /** Certified distance whose optimal witness pair is not unique. */
 export interface SourceSimplexPairSeparatedMultipleN {
+  /** Certified separation whose optimal witness pair is not unique. */
   readonly status: 'separated-multiple';
+  /** Certified unsigned distance, shared by every returned witness. */
   readonly distance: number;
+  /** `distance * distance`, from the best candidate's own arithmetic. */
   readonly squaredDistance: number;
   /** Shared unit separating direction (B toward A), common to all witnesses. */
   readonly direction: VecN;
@@ -75,7 +82,9 @@ export interface SourceSimplexPairSeparatedMultipleN {
    * would fabricate physics.
    */
   readonly witnesses: readonly SourceSimplexPairWitnessN[];
+  /** Worst variational-certificate residual of the accepted optimum. */
   readonly certificateResidual: number;
+  /** Scale-derived certification tolerance used by this evaluation. */
   readonly tolerance: number;
 }
 
@@ -85,9 +94,13 @@ export interface SourceSimplexPairSeparatedMultipleN {
  * distinguish which, and **no separating normal is invented**.
  */
 export interface SourceSimplexPairZeroDistanceN {
+  /** Certified contact-or-overlap; no separating direction exists. */
   readonly status: 'zero-distance';
+  /** Residual squared distance of the coinciding witnesses. */
   readonly squaredDistance: number;
+  /** The coinciding pair, still in source vertex order. */
   readonly witness: SourceSimplexPairWitnessN;
+  /** Scale-derived certification tolerance used by this evaluation. */
   readonly tolerance: number;
 }
 
@@ -97,11 +110,13 @@ export interface SourceSimplexPairZeroDistanceN {
  * never silently converted into a separation.
  */
 export interface SourceSimplexPairIndeterminateN {
+  /** Explicit refusal to certify; never converted into a separation. */
   readonly status: 'indeterminate';
   /** Best uncertified candidate's squared distance — evidence, not a claim. */
   readonly bestSquaredDistance: number;
   /** The certificate residual that exceeded tolerance. */
   readonly certificateResidual: number;
+  /** The tolerance it exceeded — the audit trail of the refusal. */
   readonly tolerance: number;
 }
 
@@ -165,11 +180,13 @@ const CALLER = 'evaluateSourceSimplexPairDistanceN';
  *   1, 0.75, -0.4
  * ]), [{ dim: 1, verticesPerCell: 2, kind: 'simplex',
  *        indices: Uint32Array.from([0, 1, 2, 3]) }]);
+ * const group = complex.groups[0];
+ * if (group === undefined) throw new Error('expected the segment group');
  * const obstacle = createSourceSimplexReferenceN(
- *   createSourceCellReferenceN(complex, { groupIndex: 0, cellIndex: 0 }), [0, 1]
+ *   createSourceCellReferenceN(complex, group, 0), [0, 1]
  * );
  * const mover = createSourceSimplexReferenceN(
- *   createSourceCellReferenceN(complex, { groupIndex: 0, cellIndex: 1 }), [2, 3]
+ *   createSourceCellReferenceN(complex, group, 1), [2, 3]
  * );
  *
  * const result = evaluateSourceSimplexPairDistanceN(
@@ -179,6 +196,10 @@ const CALLER = 'evaluateSourceSimplexPairDistanceN';
  * if (result.status === 'separated-unique') {
  *   log('distance', result.distance); // 0.75
  *   log('weights on the mover', result.witness.coordinateA.weights);
+ *   // Which feature carried the answer: the active slots name the vertices
+ *   // (in source order) whose convex combination is the witness.
+ *   log('active mover vertices', result.witness.activeSlotsA);
+ *   log('active obstacle vertices', result.witness.activeSlotsB);
  *   log('margin', result.uniquenessGap); // > 0: a derivative is justified
  * }
  *

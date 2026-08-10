@@ -199,13 +199,18 @@ export class XpbdSourceSimplexPairBarrierFamilyN {
  *   0.1, 0.55, -0.08, -0.5
  * ]), [{ dim: 3, verticesPerCell: 4, kind: 'simplex',
  *        indices: Uint32Array.from([0, 1, 2, 3]) }]);
+ * const sheetGroup = sheet.groups[0];
+ * const spikeGroup = obstacle.groups[0];
+ * if (sheetGroup === undefined || spikeGroup === undefined) {
+ *   throw new Error('expected both authored groups');
+ * }
  * const binding = compileXpbdParticleBindingN({ id: 'sheet', source: sheet });
  * const family = compileXpbdSourceSimplexPairBarrierFamilyN({
  *   id: 'contact',
  *   binding,
- *   simplexGroup: sheet.groups[0],
+ *   simplexGroup: sheetGroup,
  *   obstacle: createSourceSimplexReferenceN(
- *     createSourceCellReferenceN(obstacle, obstacle.groups[0], 0)
+ *     createSourceCellReferenceN(obstacle, spikeGroup, 0)
  *   ),
  *   activationDistance: 0.25,
  *   stiffness: 3
@@ -226,8 +231,10 @@ export class XpbdSourceSimplexPairBarrierFamilyN {
  *
  * // The witness explains WHICH features carried an active term, or refuses
  * // by type when no unique gradient exists.
+ * const first = family.barriers[0];
+ * if (first === undefined) throw new Error('expected a compiled barrier');
  * try {
- *   const evaluation = family.barriers[0].evaluate();
+ *   const evaluation = first.evaluate();
  *   log('distance', evaluation.distance);
  *   log('weights', evaluation.pair.witness.coordinateA.weights);
  * } catch (refusal) {

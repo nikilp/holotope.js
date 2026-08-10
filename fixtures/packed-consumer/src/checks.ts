@@ -49,6 +49,26 @@ import {
 import {
   ConvexHullSupportShapeN,
   PhysicsWorld4,
+  XpbdSourceSimplexPairBarrierN,
+  XpbdSourceSimplexPairBarrierStepFilterN,
+  compileXpbdSourceSimplexPairBarrierFamilyN,
+  evaluateSourceSimplexPairDistanceN,
+  type CompileXpbdSourceSimplexPairBarrierFamilyNOptions,
+  type SourceSimplexPairDistanceN,
+  type SourceSimplexPairDistanceOptionsN,
+  type SourceSimplexPairIndeterminateN,
+  type SourceSimplexPairSeparatedMultipleN,
+  type SourceSimplexPairSeparatedUniqueN,
+  type SourceSimplexPairSideN,
+  type SourceSimplexPairWitnessN,
+  type SourceSimplexPairZeroDistanceN,
+  type XpbdSourceSimplexPairBarrierDomainReasonN,
+  type XpbdSourceSimplexPairBarrierEvaluationN,
+  type XpbdSourceSimplexPairBarrierNOptions,
+  type XpbdSourceSimplexPairBarrierStepFilterEvaluationN,
+  type XpbdSourceSimplexPairBarrierStepFilterEvidenceN,
+  type XpbdSourceSimplexPairBarrierStepFilterNOptions,
+  type XpbdSourceSimplexPairBarrierStepFilterRefusalReasonN,
   RigidBody4,
   XpbdParticleN,
   XpbdParticleSourceSimplexBarrierN,
@@ -407,6 +427,170 @@ export function dimensionGenericSection(): void {
  * an injective display map drawn on the same path as a lossy projection, with
  * the taxonomy's evidence claims intact outside every workspace.
  */
+
+/**
+ * P56 feature-pair contact from the packed tarballs: the query's typed
+ * branches, the family through the shipping world step, and the P53d gap
+ * closed - outside every workspace.
+ */
+export function featurePairContact(): void {
+  const sheet = new CellComplex(4, Float64Array.from([
+    0, 0, 0, 1.2,
+    1, 0, 0, 1.2,
+    0, 1, 0, 1.2,
+    1, 1, 0, 1.2
+  ]), [{
+    dim: 2, verticesPerCell: 3, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2, 1, 3, 2])
+  }]);
+  const obstacle = new CellComplex(4, Float64Array.from([
+    0.3, 0.3, 0, -0.5,
+    0.3, 0.3, 0, 0.9,
+    0.55, 0.1, 0.08, -0.5,
+    0.1, 0.55, -0.08, -0.5
+  ]), [{
+    dim: 3, verticesPerCell: 4, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2, 3])
+  }]);
+  const sheetGroup = sheet.groups[0]!;
+  const spike = createSourceSimplexReferenceN(
+    createSourceCellReferenceN(obstacle, obstacle.groups[0]!, 0)
+  );
+
+  // The P53d gap through the packed surface: pierced interior, legal
+  // vertices. Every published type is exercised as an outside caller would
+  // annotate it, so the packed d.ts carries each one.
+  const piercedSide: SourceSimplexPairSideN = {
+    reference: createSourceSimplexReferenceN(
+      createSourceCellReferenceN(sheet, sheetGroup, 0)
+    ),
+    positions: Float64Array.from([0, 0, 0, 0.2, 1, 0, 0, 0.2, 0, 1, 0, 0.2])
+  };
+  const queryOptions: SourceSimplexPairDistanceOptionsN = { rankTolerance: 1e-10 };
+  const pierced: SourceSimplexPairDistanceN = evaluateSourceSimplexPairDistanceN(
+    piercedSide, { reference: spike }, queryOptions
+  );
+  assert(pierced.status === 'zero-distance',
+    'a pierced triangle interior must certify zero distance');
+  const zero: SourceSimplexPairZeroDistanceN = pierced;
+  const zeroWitness: SourceSimplexPairWitnessN = zero.witness;
+  assert(zeroWitness.activeSlotsA.length > 0, 'the witness names its active slots');
+  assert(!('direction' in pierced), 'zero distance must not invent a normal');
+
+  // A tied placement returns multiplicity evidence, never one blessed witness.
+  const tied = evaluateSourceSimplexPairDistanceN(
+    {
+      reference: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(sheet, sheetGroup, 0), [0, 1]
+      ),
+      positions: Float64Array.from([-1, 0, 0, 0, 1, 0, 0, 0])
+    },
+    {
+      reference: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(sheet, sheetGroup, 1), [1, 3]
+      ),
+      positions: Float64Array.from([-0.5, 0.75, 0, 0, 0.5, 0.75, 0, 0])
+    }
+  );
+  assert(tied.status === 'separated-multiple',
+    'an exactly parallel pair must certify with multiplicity');
+  const multiple: SourceSimplexPairSeparatedMultipleN = tied;
+  assert(multiple.witnesses.length >= 2,
+    'an exactly parallel pair must return every tied witness');
+
+  // A separated-unique result and its margin, plus branch types a caller
+  // narrows into - including the refusal branches, spelled as the union
+  // members they are.
+  const uniquePair = evaluateSourceSimplexPairDistanceN(
+    {
+      reference: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(sheet, sheetGroup, 0), [0, 1]
+      ),
+      positions: Float64Array.from([-1, 0.3, 0, 0, 1, 0.3, 0, 0])
+    },
+    {
+      reference: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(sheet, sheetGroup, 1), [1, 3]
+      ),
+      positions: Float64Array.from([0.1, 0, -1, 0, 0.1, 0, 1, 0])
+    }
+  );
+  assert(uniquePair.status === 'separated-unique', 'the skew pair must be unique');
+  const unique: SourceSimplexPairSeparatedUniqueN = uniquePair;
+  assert(unique.uniquenessGap > 0, 'a unique witness carries its margin');
+  const audit: SourceSimplexPairIndeterminateN | null =
+    uniquePair.status === ('indeterminate' as typeof uniquePair.status)
+      ? (uniquePair as unknown as SourceSimplexPairIndeterminateN)
+      : null;
+  assert(audit === null, 'a certified pair is not an audit refusal');
+
+  // The family composes through the world step from the packed artifacts.
+  const binding = compileXpbdParticleBindingN({ id: 'packed-sheet', source: sheet });
+  const familyOptions: CompileXpbdSourceSimplexPairBarrierFamilyNOptions = {
+    id: 'packed-contact',
+    binding,
+    simplexGroup: sheetGroup,
+    obstacle: spike,
+    activationDistance: 0.25,
+    stiffness: 3
+  };
+  const family = compileXpbdSourceSimplexPairBarrierFamilyN(familyOptions);
+  assert(family.barriers.length === 2, 'one pair per sheet triangle');
+  assert(family.barriers[0] instanceof XpbdSourceSimplexPairBarrierN,
+    'family members must be the public barrier class');
+  const world = new XpbdWorldN({ dimension: 4, gravity: [0, 0, 0, -9.81] });
+  binding.addToWorld(world);
+  family.addToWorld(world);
+  let applied = 0;
+  for (let step = 0; step < 8; step++) {
+    const advance = stepXpbdIncrementalPotentialWorldN({
+      world,
+      deltaTime: 0.01,
+      stepFilters: family.stepFilters,
+      warmStart: 'feasible-inertial-prediction',
+      minimization: { directionPolicy: 'steepest-descent' }
+    });
+    if (advance.step.status === 'applied') applied++;
+  }
+  assert(applied > 4, 'the packed world step must advance the sheet');
+
+  // The barrier and filter option bags, evaluations, and refusal vocabularies
+  // as typed values, the way an outside caller holds them.
+  const barrierOptions: XpbdSourceSimplexPairBarrierNOptions = {
+    id: 'packed-solo',
+    particlesA: family.features[0]!.vertexIndices.map(
+      (vertexIndex) => binding.particleForSourceVertex(vertexIndex)
+    ),
+    featureA: family.features[0]!,
+    featureB: spike,
+    activationDistance: 0.25,
+    stiffness: 3
+  };
+  const solo = new XpbdSourceSimplexPairBarrierN(barrierOptions);
+  const soloEvaluation: XpbdSourceSimplexPairBarrierEvaluationN = solo.evaluate();
+  assert(soloEvaluation.forces.length === 3, 'one force per moving vertex');
+  const domainReason: XpbdSourceSimplexPairBarrierDomainReasonN =
+    'tied-witness-no-unique-gradient';
+  assert(domainReason.length > 0, 'the refusal vocabulary is published');
+  const filterOptions: XpbdSourceSimplexPairBarrierStepFilterNOptions = {
+    id: 'packed-solo-filter', barrier: solo
+  };
+  const soloFilter = new XpbdSourceSimplexPairBarrierStepFilterN(filterOptions);
+  const verdict: XpbdSourceSimplexPairBarrierStepFilterEvaluationN =
+    soloFilter.evaluate({
+      dimension: 4,
+      requestedStepLength: 1,
+      positionBefore: (particle) => particle.position.clone(),
+      positionAfter: (particle) => particle.position.clone()
+    });
+  const evidence: XpbdSourceSimplexPairBarrierStepFilterEvidenceN = verdict;
+  assert(evidence.certification === 'stationary',
+    'an unmoved segment certifies as stationary');
+  const refusalReason: XpbdSourceSimplexPairBarrierStepFilterRefusalReasonN =
+    'initial-domain-violation';
+  assert(refusalReason.length > 0, 'the filter refusal vocabulary is published');
+}
+
 export function planeEmbeddingComposition(): void {
   const square = new CellComplex(2, Float64Array.from([
     0, 0,

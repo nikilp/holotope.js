@@ -708,6 +708,103 @@ than cancel under ascending-index order), so render authored facets
 double-sided; the *section* is the oriented object — P55's contract makes its
 cells the coherent boundary of the below-plane region.
 
+## Hold a deformable feature off an obstacle, and handle every typed branch
+
+Point contact cannot certify a surface: every vertex of a sheet triangle can
+be legally separated while the triangle's interior is pierced. The feature
+pair stack is the honest vocabulary — a certified pair distance with
+source-ordered witnesses, a barrier that refuses everything without a unique
+gradient, and a filter whose result is a certified fraction, never a
+collision time.
+
+```ts
+import {
+  CellComplex, createSourceCellReferenceN, createSourceSimplexReferenceN
+} from '@holotope/core';
+import {
+  XpbdPotentialDomainErrorN,
+  XpbdWorldN,
+  compileXpbdParticleBindingN,
+  compileXpbdSourceSimplexPairBarrierFamilyN,
+  evaluateSourceSimplexPairDistanceN,
+  stepXpbdIncrementalPotentialWorldN
+} from '@holotope/physics';
+
+const sheet = new CellComplex(4, Float64Array.from([
+  0, 0, 0, 1.2,
+  1, 0, 0, 1.2,
+  0, 1, 0, 1.2,
+  1, 1, 0, 1.2
+]), [{ dim: 2, verticesPerCell: 3, kind: 'simplex',
+       indices: Uint32Array.from([0, 1, 2, 1, 3, 2]) }]);
+const obstacle = new CellComplex(4, Float64Array.from([
+  0.3, 0.3, 0, -0.5,
+  0.3, 0.3, 0, 0.9,
+  0.55, 0.1, 0.08, -0.5,
+  0.1, 0.55, -0.08, -0.5
+]), [{ dim: 3, verticesPerCell: 4, kind: 'simplex',
+       indices: Uint32Array.from([0, 1, 2, 3]) }]);
+const spike = createSourceSimplexReferenceN(
+  createSourceCellReferenceN(obstacle, obstacle.groups[0]!, 0)
+);
+
+// Every typed branch of the pair query, handled rather than assumed.
+const pair = evaluateSourceSimplexPairDistanceN(
+  { reference: createSourceSimplexReferenceN(
+      createSourceCellReferenceN(sheet, sheet.groups[0]!, 0)) },
+  { reference: spike }
+);
+switch (pair.status) {
+  case 'separated-unique':
+    console.log(pair.distance, pair.uniquenessGap); // a gradient is justified
+    console.log(pair.witness.coordinateA.weights);  // source order, sums to 1
+    break;
+  case 'separated-multiple':
+    console.log(pair.witnesses.length); // every tied witness; no gradient
+    break;
+  case 'zero-distance':
+    console.log('contact');            // certified; no invented normal
+    break;
+  case 'indeterminate':
+    console.log(pair.certificateResidual, pair.tolerance); // an audit, not a miss
+    break;
+}
+
+// Provider and filter travel together through the world step.
+const binding = compileXpbdParticleBindingN({ id: 'sheet', source: sheet });
+const family = compileXpbdSourceSimplexPairBarrierFamilyN({
+  id: 'contact',
+  binding,
+  simplexGroup: sheet.groups[0]!,
+  obstacle: spike,
+  activationDistance: 0.25,
+  stiffness: 3
+});
+const world = new XpbdWorldN({ dimension: 4, gravity: [0, 0, 0, -9.81] });
+binding.addToWorld(world);
+family.addToWorld(world);
+const advance = stepXpbdIncrementalPotentialWorldN({
+  world,
+  deltaTime: 0.01,
+  stepFilters: family.stepFilters, // certified prefixes, not impact times
+  warmStart: 'feasible-inertial-prediction',
+  minimization: { directionPolicy: 'steepest-descent' }
+});
+console.log(advance.step.status);
+
+// A barrier evaluation either derives a force or refuses by type.
+try {
+  const evaluation = family.barriers[0]!.evaluate();
+  console.log(evaluation.distance, evaluation.forces.length);
+} catch (refusal) {
+  if (refusal instanceof XpbdPotentialDomainErrorN) {
+    console.log(refusal.reason); // e.g. 'tied-witness-no-unique-gradient'
+  } else {
+    throw refusal;
+  }
+}
+```
+
 ## Pick headlessly, with no renderer
 
 Picking needs geometry and a ray, not a canvas. A render product builds its

@@ -574,6 +574,18 @@ if (hit.ambientPointStatus === 'exact') {
   refuses — it is not a simplex). Authored index order is combinatorial, NOT
   boundary-coherent: shared faces double, so render double-sided; oriented
   boundaries come from `sectionSimplexGroupN`, not from authored order.
+- Feature contact (P56): `evaluateSourceSimplexPairDistanceN`,
+  `XpbdSourceSimplexPairBarrierN` + its step filter, and
+  `compileXpbdSourceSimplexPairBarrierFamilyN`. Three warnings are load-
+  bearing: (1) **point contact does not certify a surface** — every sheet
+  vertex can be legally separated while a triangle interior is pierced, which
+  is exactly what the pair query exists to see; (2) **a certified distance
+  does not imply a unique differentiable witness** — `separated-multiple`
+  carries every tied witness and no gradient, and the barrier refuses it by
+  type; (3) **a filter's certified prefix is not a collision time** —
+  `maximumStepLength` is a conservative Lipschitz bound, never an impact
+  solve. Weights are in source vertex order on both sides; swapping the pair
+  negates the direction and swaps the evidence.
 - Do not call `PlaneEmbedding3D` a projection, and do not ask it for a fibre
   or a homogeneous matrix — it is injective, implements neither, and its
   lineage step is `plane-embedding`, never a projection kind. Do not upgrade

@@ -6,6 +6,7 @@
  */
 import {
   authoredDimensionBridge,
+  featurePairContact,
   certifiedConvexQuery,
   convexHullContact,
   dimensionGenericSection,
@@ -26,6 +27,7 @@ const checks: readonly [name: string, run: () => void | Promise<void>][] = [
   ['sectionChartRender', sectionChartRender],
   ['planeEmbeddingComposition', planeEmbeddingComposition],
   ['authoredDimensionBridge', authoredDimensionBridge],
+  ['featurePairContact', featurePairContact],
   ['representationClaims', representationClaims],
   ['experimentProbe', experimentProbe],
   ['physicsComposition', physicsComposition],

@@ -78,6 +78,7 @@ there is improved here.
 | [`compileXpbdParticleSourceConvexHullBarrierFamilyN`](/api/physics/functions/compileXpbdParticleSourceConvexHullBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdParticleSourceConvexHullBarrierFamilyN) |
 | [`compileXpbdSourceSimplexAabbHierarchyN`](/api/physics/functions/compileXpbdSourceSimplexAabbHierarchyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexAabbHierarchyN) |
 | [`compileXpbdSourceSimplexCosineBendingFamilyN`](/api/physics/functions/compileXpbdSourceSimplexCosineBendingFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexCosineBendingFamilyN) |
+| [`compileXpbdSourceSimplexPairBarrierFamilyN`](/api/physics/functions/compileXpbdSourceSimplexPairBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexPairBarrierFamilyN) |
 | [`create24Cell`](/api/core/polytope/functions/create24Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create24Cell) |
 | [`create600Cell`](/api/core/polytope/functions/create600Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create600Cell) |
 | [`createCrossPolytope`](/api/core/polytope/functions/createCrossPolytope) | [open](https://nikilp.github.io/holotope.js/playground.html#createCrossPolytope) |
@@ -93,6 +94,7 @@ there is improved here.
 | [`evaluateSimplexHingeCosineN`](/api/physics/functions/evaluateSimplexHingeCosineN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexHingeCosineN) |
 | [`evaluateSimplexMeasureBarrierHessianVectorN`](/api/physics/functions/evaluateSimplexMeasureBarrierHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexMeasureBarrierHessianVectorN) |
 | [`evaluateSimplexStVenantKirchhoffHessianVectorN`](/api/physics/functions/evaluateSimplexStVenantKirchhoffHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexStVenantKirchhoffHessianVectorN) |
+| [`evaluateSourceSimplexPairDistanceN`](/api/physics/functions/evaluateSourceSimplexPairDistanceN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSourceSimplexPairDistanceN) |
 | [`evaluateXpbdIncrementalPotentialAnalyticHessianVectorN`](/api/physics/functions/evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateXpbdIncrementalPotentialAnalyticHessianVectorN) |
 | [`fibonacciPatch`](/api/core/lattice/functions/fibonacciPatch) | [open](https://nikilp.github.io/holotope.js/playground.html#fibonacciPatch) |
 | [`findIncidentCellsN`](/api/core/geometry/functions/findIncidentCellsN) | [open](https://nikilp.github.io/holotope.js/playground.html#findIncidentCellsN) |

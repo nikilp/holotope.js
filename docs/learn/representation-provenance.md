@@ -72,6 +72,10 @@ steps are discriminated recipes for operations that exist in the library:
 - affine section and affine slice chart;
 - orthographic, coordinate-subspace, iterated-perspective, or explicitly
   custom projection;
+- contact evidence reuses the same vocabulary: a feature-pair witness is a
+  pair of `SourceSimplexCoordinateN` values — persistent references plus
+  source-ordered weights — so the feature that carried a force is explainable
+  after the fact exactly like a picked render primitive;
 - the injective plane embedding (`plane-embedding`), recorded as what it is —
   never misfiled as a projection kind, with `ambiguity: 'none'` because an
   injective map cannot overlap, and its recovered points qualified

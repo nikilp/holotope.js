@@ -672,6 +672,43 @@ orientation guard; the intrinsic guard is only a rank/measure policy. Its
 coefficient construction costs `O(3^k k^3 + N k^2)` and has the same linear
 chord, Float64 tolerance, and non-formal-certificate boundary.
 
+
+## Feature contact: source-simplex pairs
+
+Point barriers constrain vertices, and P53d measured their exact boundary:
+every sheet vertex can remain legally outside a support while a triangle
+interior cuts through it. Feature contact closes that gap by constraining
+**pairs of source simplices**:
+
+- `evaluateSourceSimplexPairDistanceN` — the certified minimum distance
+  between two finite source features (any arities: vertex–face and edge–edge
+  are the same query), with ordered barycentric witnesses on both sides. The
+  result union is the contract: `separated-unique` carries a measured
+  uniqueness margin (the gradient's justification, by Danskin's theorem);
+  `separated-multiple` returns every tied witness — parallel edges are the
+  canonical case — and **no gradient**, because none uniquely exists;
+  `zero-distance` certifies contact with no invented normal; `indeterminate`
+  refuses with its own residuals.
+- `XpbdSourceSimplexPairBarrierN` — the same clamped-log law the point
+  barrier uses, over the pair distance, with forces distributed through the
+  witness weights (the envelope form). Two moving sides conserve net force
+  and the RN antisymmetric first moment to roundoff. Everything without a
+  unique gradient refuses by type.
+- `XpbdSourceSimplexPairBarrierStepFilterN` — the two-sided Lipschitz proof
+  `d(t) ≥ d(0) − t·(maxDispA + maxDispB)`. A **certified fraction, never a
+  collision time**; a tied start is accepted because the bound needs only the
+  certified distance.
+- `compileXpbdSourceSimplexPairBarrierFamilyN` — one pair per source cell of
+  a deforming group against one static feature. The summed energy's density
+  is **discretization-defined**: a contact under an edge shared by two cells
+  carries both cells' terms (measured: exactly 2× one term; a refinement
+  placing four cells there, exactly 4×) — stated in the docs, like the
+  bending family's stiffness, rather than averaged away.
+
+What this is not: self-contact, mesh–mesh continuous collision detection, or
+friction. Those remain explicitly out of scope until their own slices prove
+them.
+
 ## Source particles and intrinsic mass
 
 Simulation state is bound to source topology independently of any constraint or

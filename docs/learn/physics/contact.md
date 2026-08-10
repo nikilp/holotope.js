@@ -59,6 +59,16 @@ declare const floor: HyperplaneColliderN;
 declare const currentPlatformPose: TransformN;
 ```
 
+## Source-simplex pair distance
+
+`evaluateSourceSimplexPairDistanceN` answers the feature-pair question the
+point queries cannot: the certified minimum distance between two finite
+source simplices in RN, with source-ordered barycentric witnesses on both
+sides, ties returned as complete evidence (never a fabricated winner), zero
+distance certified without an invented normal, and an indeterminate band that
+refuses with its own residuals. It is the kernel under the deformable
+feature-contact stack described on the deformable page.
+
 ## Vertex-polytope contact manifolds
 
 A support function alone cannot reveal the topology of the face selected by

@@ -25,7 +25,10 @@ visual effects.
 
 ## Architecture
 
-Higher-dimensional state stays higher-dimensional until the last responsible moment. The zero-dependency core does all N-D math in Float64 on the CPU; renderer adapters turn explicit **projections** of that state into ordinary 3D objects.
+Contact constrains features, not just points: source-simplex pairs carry
+certified distances with source-ordered witnesses, tied configurations are
+evidence rather than a fabricated winner, and step filters certify prefixes,
+never collision times. Higher-dimensional state stays higher-dimensional until the last responsible moment. The zero-dependency core does all N-D math in Float64 on the CPU; renderer adapters turn explicit **projections** of that state into ordinary 3D objects.
 
 ```
 @holotope/core            zero-dependency N-D kernel
