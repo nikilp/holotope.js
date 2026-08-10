@@ -22,9 +22,109 @@ import {
 } from './xpbd-incremental-potential-newton-policy.js';
 import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
 
+/**
+ * The packed-gradient tolerance used when the author states no stop test.
+ *
+ * Declared once and referenced everywhere the default is needed, so the value
+ * a caller observes and the value the code applies cannot drift apart.
+ */
+const DEFAULT_PACKED_GRADIENT_TOLERANCE = 1e-8;
+
+/**
+ * Which physical quantity a stop test bounds.
+ *
+ * The packed objective is `½‖x − x̃‖²_M + deltaTime² U(x)`, so a packed
+ * gradient entry carries mass·length and the two criteria below differ by
+ * exactly `deltaTime²`. That factor is not a detail: no single criterion
+ * bounds both the per-step position error and the residual acceleration, so
+ * the choice belongs to the author of the scene rather than to this library.
+ *
+ * Measured over an eight-fold timestep refinement at a fixed authored
+ * tolerance, the delivered error spreads by:
+ *
+ * | criterion                       | acceleration | position |
+ * | ------------------------------- | ------------ | -------- |
+ * | `'packed-gradient'`             | 45.4×        | 1.5×     |
+ * | `'maximum-acceleration-residual'`| 1.02×       | 62.8×    |
+ *
+ * Pick `'packed-gradient'` to hold a per-step position residual, and
+ * `'maximum-acceleration-residual'` to hold a force resolution.
+ */
+export type XpbdIncrementalPotentialConvergenceKindN =
+  | 'packed-gradient'
+  | 'maximum-acceleration-residual';
+
+/**
+ * An authored stop test: which quantity is bounded, and by how much.
+ *
+ * Discriminated rather than a bare number because the two tolerances are not
+ * interconvertible without a timestep and a mass, and are not even in the same
+ * units.
+ */
+export type XpbdIncrementalPotentialConvergenceN =
+  | {
+    readonly kind: 'packed-gradient';
+    /**
+     * Absolute packed-gradient norm, in mass·length (= force·time²).
+     *
+     * Because `deltaTime²` is folded into the potential, this bounds forces
+     * only down to `tolerance / deltaTime²`: halving the timestep quarters
+     * the force this test can still see. It is exactly the shipped default's
+     * semantics.
+     */
+    readonly tolerance: number;
+  }
+  | {
+    readonly kind: 'maximum-acceleration-residual';
+    /**
+     * Largest residual acceleration left on any free particle, in
+     * length/time².
+     *
+     * Computed as `max_i ‖gradient_i‖ / (mass_i · deltaTime²)`. Fixed
+     * particles are excluded: they hold no packed coordinate and their
+     * gradient is identically zero, so they can neither raise nor lower it.
+     *
+     * Independent of the timestep, of the particle count, and of the choice
+     * of mass unit — a scene whose particles differ in mass by a thousandfold
+     * is bounded by the worst-accelerated one, not by an aggregate that a
+     * heavy particle can hide inside.
+     */
+    readonly tolerance: number;
+  };
+
+/** The authored stop test, echoed on every terminal. */
+export interface XpbdIncrementalPotentialConvergenceContractN {
+  /** Which quantity decided this result. */
+  readonly kind: XpbdIncrementalPotentialConvergenceKindN;
+  /** Authored threshold, in that criterion's own unit. */
+  readonly tolerance: number;
+}
+
+/** The authored stop test together with what it actually measured. */
+export interface XpbdIncrementalPotentialConvergenceEvidenceN
+  extends XpbdIncrementalPotentialConvergenceContractN {
+  /** Criterion residual at the authored initial coordinates. */
+  readonly initialResidual: number;
+  /**
+   * Criterion residual at the last accepted iterate.
+   *
+   * `converged` is exactly `finalResidual <= tolerance`; every other terminal
+   * reports how far short it stopped, in the unit the author chose.
+   */
+  readonly finalResidual: number;
+}
+
 export interface MinimizeXpbdIncrementalPotentialNOptions {
   readonly problem: XpbdIncrementalPotentialProblemN;
   readonly initialCoordinates: ArrayLike<number>;
+  /**
+   * Stop test to apply; defaults to `'packed-gradient'` at `1e-8`.
+   *
+   * Mutually exclusive with {@link gradientTolerance}, which is the legacy
+   * spelling of the same packed-gradient criterion. Authoring both is refused
+   * before anything is evaluated rather than silently resolved.
+   */
+  readonly convergence?: XpbdIncrementalPotentialConvergenceN;
   /**
    * Absolute packed-gradient norm tolerance; default `1e-8`.
    *
@@ -94,8 +194,17 @@ interface XpbdIncrementalPotentialMinimizationBaseN {
   readonly iterations: readonly XpbdIncrementalPotentialIterationN[];
   /** Stable identity of the direction policy used for every attempt. */
   readonly directionPolicyId: string;
-  /** Absolute packed-gradient norm required for convergence. */
+  /**
+   * Packed-gradient norm threshold, in mass·length.
+   *
+   * Retained on every terminal, and still the stop test whenever
+   * `convergence.kind` is `'packed-gradient'`. Under any other criterion this
+   * is the inert default and did **not** decide the result — read
+   * {@link convergence}, which names the criterion that did.
+   */
   readonly gradientTolerance: number;
+  /** The stop test that decided this result, and what it measured. */
+  readonly convergence: XpbdIncrementalPotentialConvergenceEvidenceN;
   /** Authored accepted-step budget. */
   readonly maximumIterations: number;
   /**
@@ -198,6 +307,13 @@ export interface XpbdIncrementalPotentialInitialStateRefusedN {
   readonly directionPolicyId: string;
   /** Authored gradient tolerance, retained for diagnosis. */
   readonly gradientTolerance: number;
+  /**
+   * The stop test that would have applied, retained for diagnosis.
+   *
+   * Carries no residuals: the base could not be evaluated, so neither
+   * criterion has a measured value here.
+   */
+  readonly convergence: XpbdIncrementalPotentialConvergenceContractN;
   /** Authored iteration budget, retained for diagnosis. */
   readonly maximumIterations: number;
 }
@@ -231,7 +347,28 @@ export function minimizeXpbdIncrementalPotentialN(
       `${caller}: problem must be an XpbdIncrementalPotentialProblemN`
     );
   }
-  const gradientTolerance = options.gradientTolerance ?? 1e-8;
+  // Refused before any evaluation, and before the problem is touched: the two
+  // spellings carry different units, so there is no defensible way to reconcile
+  // them and picking one silently would decide physics on the author's behalf.
+  if (options.convergence !== undefined &&
+    options.gradientTolerance !== undefined) {
+    throw new Error(
+      `${caller}: author either gradientTolerance or convergence, not both; ` +
+      "gradientTolerance is the legacy spelling of " +
+      "convergence: { kind: 'packed-gradient', tolerance }"
+    );
+  }
+  const convergence = resolveConvergence(
+    options.convergence,
+    options.gradientTolerance,
+    caller
+  );
+  // Legacy echo. Under a non-packed-gradient criterion nothing was authored
+  // here (that combination is refused above), so this reports the untouched
+  // default and `convergence` states what actually decided.
+  const gradientTolerance = convergence.kind === 'packed-gradient'
+    ? convergence.tolerance
+    : DEFAULT_PACKED_GRADIENT_TOLERANCE;
   const maximumIterations = options.maximumIterations ?? 128;
   const initialStep = options.initialStep ?? 1;
   const contractionFactor = options.contractionFactor ?? 0.5;
@@ -242,9 +379,11 @@ export function minimizeXpbdIncrementalPotentialN(
     options.problem,
     caller
   );
-  if (!Number.isFinite(gradientTolerance) || gradientTolerance < 0) {
+  if (!Number.isFinite(convergence.tolerance) || convergence.tolerance < 0) {
     throw new Error(
-      `${caller}: gradientTolerance must be finite and non-negative`
+      options.convergence === undefined
+        ? `${caller}: gradientTolerance must be finite and non-negative`
+        : `${caller}: convergence.tolerance must be finite and non-negative`
     );
   }
   if (!Number.isSafeInteger(maximumIterations) || maximumIterations < 0) {
@@ -289,12 +428,36 @@ export function minimizeXpbdIncrementalPotentialN(
       iterations: Object.freeze([]) as readonly [],
       directionPolicyId,
       gradientTolerance,
+      convergence: Object.freeze({ ...convergence }),
       maximumIterations
     });
   }
+  const freeParticleInverseMasses = Float64Array.from(
+    options.problem.freeParticleIndices,
+    (particleIndex) => options.problem.particles[particleIndex]!.inverseMass
+  );
+  const residualOf = (
+    evaluation: XpbdPackedIncrementalPotentialEvaluationN
+  ): number => convergenceResidual(
+    convergence.kind,
+    evaluation,
+    options.problem.dimension,
+    freeParticleInverseMasses,
+    options.problem.deltaTime
+  );
+  const initialResidual = residualOf(initial);
+  const evidence = (
+    final: XpbdPackedIncrementalPotentialEvaluationN
+  ): XpbdIncrementalPotentialConvergenceEvidenceN => Object.freeze({
+    kind: convergence.kind,
+    tolerance: convergence.tolerance,
+    initialResidual,
+    finalResidual: residualOf(final)
+  });
+
   let current = initial;
   const iterations: XpbdIncrementalPotentialIterationN[] = [];
-  if (current.gradientNorm <= gradientTolerance) {
+  if (initialResidual <= convergence.tolerance) {
     return resultBase({
       status: 'converged',
       convergencePoint: 'initial',
@@ -304,14 +467,11 @@ export function minimizeXpbdIncrementalPotentialN(
       iterations,
       directionPolicyId,
       gradientTolerance,
+      convergence: evidence(current),
       maximumIterations
     });
   }
 
-  const freeParticleInverseMasses = Float64Array.from(
-    options.problem.freeParticleIndices,
-    (particleIndex) => options.problem.particles[particleIndex]!.inverseMass
-  );
   for (let index = 0; index < maximumIterations; index++) {
     const proposal = evaluateDirectionPolicy(
       directionPolicy,
@@ -345,6 +505,7 @@ export function minimizeXpbdIncrementalPotentialN(
         iterations,
         directionPolicyId,
         gradientTolerance,
+        convergence: evidence(current),
         maximumIterations
       });
     }
@@ -373,6 +534,7 @@ export function minimizeXpbdIncrementalPotentialN(
         iterations,
         directionPolicyId,
         gradientTolerance,
+        convergence: evidence(current),
         maximumIterations
       });
     }
@@ -387,6 +549,7 @@ export function minimizeXpbdIncrementalPotentialN(
         iterations,
         directionPolicyId,
         gradientTolerance,
+        convergence: evidence(current),
         maximumIterations
       });
     }
@@ -401,6 +564,7 @@ export function minimizeXpbdIncrementalPotentialN(
         iterations,
         directionPolicyId,
         gradientTolerance,
+        convergence: evidence(current),
         maximumIterations
       });
     }
@@ -446,12 +610,13 @@ export function minimizeXpbdIncrementalPotentialN(
         iterations,
         directionPolicyId,
         gradientTolerance,
+        convergence: evidence(current),
         maximumIterations
       });
     }
 
     current = search.accepted;
-    if (current.gradientNorm <= gradientTolerance) {
+    if (residualOf(current) <= convergence.tolerance) {
       return resultBase({
         status: 'converged',
         convergencePoint: 'accepted-iterate',
@@ -461,6 +626,7 @@ export function minimizeXpbdIncrementalPotentialN(
         iterations,
         directionPolicyId,
         gradientTolerance,
+        convergence: evidence(current),
         maximumIterations
       });
     }
@@ -476,6 +642,7 @@ export function minimizeXpbdIncrementalPotentialN(
         iterations,
         directionPolicyId,
         gradientTolerance,
+        convergence: evidence(current),
         maximumIterations
       });
     }
@@ -489,8 +656,80 @@ export function minimizeXpbdIncrementalPotentialN(
     iterations,
     directionPolicyId,
     gradientTolerance,
+    convergence: evidence(current),
     maximumIterations
   });
+}
+
+/**
+ * Turns the two authored spellings into one criterion.
+ *
+ * Only one of them can be present; the caller refuses both before reaching
+ * here, so this never has to reconcile a disagreement.
+ */
+function resolveConvergence(
+  authored: XpbdIncrementalPotentialConvergenceN | undefined,
+  legacyGradientTolerance: number | undefined,
+  caller: string
+): XpbdIncrementalPotentialConvergenceContractN {
+  if (authored === undefined) {
+    return {
+      kind: 'packed-gradient',
+      tolerance: legacyGradientTolerance ?? DEFAULT_PACKED_GRADIENT_TOLERANCE
+    };
+  }
+  if (typeof authored !== 'object' || authored === null) {
+    throw new Error(`${caller}: convergence must be an object`);
+  }
+  // Read before narrowing: inside the refusal branch `authored` is `never`,
+  // and the message has to be able to name what was actually passed.
+  const kind: unknown = authored.kind;
+  if (kind !== 'packed-gradient' &&
+    kind !== 'maximum-acceleration-residual') {
+    throw new Error(
+      `${caller}: convergence.kind must be 'packed-gradient' or ` +
+      `'maximum-acceleration-residual', received ${JSON.stringify(kind)}`
+    );
+  }
+  return { kind, tolerance: authored.tolerance };
+}
+
+/**
+ * The residual a criterion compares against its tolerance.
+ *
+ * `'packed-gradient'` reads the evaluation's own `gradientNorm` rather than
+ * recomputing it. That is deliberate: the shipped norm is a `Math.hypot` fold
+ * and is not bitwise equal to `sqrt(Σ g²)` — the two disagree by an ULP on
+ * some problems, which is enough to move a boundary case between converging at
+ * the initial point and converging one iterate later. Recomputing here would
+ * silently change existing results.
+ */
+function convergenceResidual(
+  kind: XpbdIncrementalPotentialConvergenceKindN,
+  evaluation: XpbdPackedIncrementalPotentialEvaluationN,
+  dimension: number,
+  freeParticleInverseMasses: Float64Array,
+  deltaTime: number
+): number {
+  if (kind === 'packed-gradient') return evaluation.gradientNorm;
+  const deltaTimeSquared = deltaTime * deltaTime;
+  let maximum = 0;
+  for (let slot = 0; slot < freeParticleInverseMasses.length; slot++) {
+    const base = slot * dimension;
+    let sumOfSquares = 0;
+    for (let axis = 0; axis < dimension; axis++) {
+      const component = evaluation.gradient[base + axis]!;
+      sumOfSquares += component * component;
+    }
+    // inverseMass is 1/mass on a free particle, so multiplying by it is the
+    // division by mass the criterion is defined with. Free particles are the
+    // only ones packed, so this loop is already the "excluding fixed" set.
+    const residual =
+      Math.sqrt(sumOfSquares) * freeParticleInverseMasses[slot]! /
+      deltaTimeSquared;
+    if (residual > maximum) maximum = residual;
+  }
+  return maximum;
 }
 
 /**

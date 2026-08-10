@@ -159,7 +159,14 @@ describe('the diagnosis seam names legitimate levers', () => {
 
     const diagnosis = records[0]!.diagnosis;
     expect(diagnosis.condition).toBe('converged-without-iteration');
-    expect(diagnosis.levers).toEqual(['lower-gradient-tolerance']);
+    // This scene is the silent success itself: every step reports `applied`
+    // and nothing moves. Both offered levers are legitimate — lower the packed
+    // threshold, or state the stop test in a unit that does not shrink with
+    // the timestep, which is what makes this failure mode possible at all.
+    expect(diagnosis.levers).toEqual([
+      'lower-gradient-tolerance',
+      'timestep-independent-convergence'
+    ]);
     expect(records[0]!.convergencePoint).toBe('initial');
     expect(records[0]!.acceptedIterations).toBe(0);
   }, 120_000);

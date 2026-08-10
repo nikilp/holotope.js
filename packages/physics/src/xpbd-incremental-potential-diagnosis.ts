@@ -3,6 +3,9 @@ import type {
   XpbdIncrementalPotentialStepResultN
 } from './xpbd-incremental-potential-step.js';
 import type {
+  XpbdIncrementalPotentialConvergenceContractN,
+  XpbdIncrementalPotentialConvergenceEvidenceN,
+  XpbdIncrementalPotentialConvergenceKindN,
   XpbdIncrementalPotentialInitialStateRefusedN
 } from './xpbd-incremental-potential-minimizer.js';
 import type {
@@ -36,8 +39,91 @@ export type XpbdIncrementalPotentialDiagnosisLeverN =
   | 'mass-diagonal-policy'
   | 'raise-iteration-budget'
   | 'lower-gradient-tolerance'
+  /** Lower the authored threshold of a non-packed-gradient stop test. */
+  | 'lower-convergence-tolerance'
+  /**
+   * Re-author the stop test in a unit that does not move with the timestep.
+   *
+   * Offered only under `'packed-gradient'`, where the threshold is on a
+   * quantity carrying a `deltaTime²` factor and an immediate accept can mean
+   * a real force fell below the solver's resolution rather than that the
+   * scene is at rest.
+   */
+  | 'timestep-independent-convergence'
   | 'inspect-blocking-filter'
   | 'inspect-application-evidence';
+
+/**
+ * Which stop test was in force, on every terminal including the refused base.
+ *
+ * Takes the contract rather than the evidence because the initial-state
+ * refusal has no residuals to report: nothing was evaluated, so neither
+ * criterion has a measured value there.
+ */
+function convergenceContractFacts(
+  convergence: XpbdIncrementalPotentialConvergenceContractN
+): Record<string, number | string> {
+  return {
+    // Named alongside `gradientTolerance` so a reader can never mistake an
+    // inert legacy echo for the test that actually decided this step.
+    convergenceKind: convergence.kind,
+    convergenceTolerance: convergence.tolerance
+  };
+}
+
+/**
+ * What the authored criterion measured, in the authored criterion's unit.
+ *
+ * Equal to `gradientNormInitial` / `gradientNormFinal` exactly when the
+ * criterion is `'packed-gradient'`, and differing from them by `deltaTime²`
+ * per unit mass otherwise.
+ */
+function convergenceResidualFacts(
+  convergence: XpbdIncrementalPotentialConvergenceEvidenceN
+): Record<string, number> {
+  return {
+    convergenceResidualInitial: convergence.initialResidual,
+    convergenceResidualFinal: convergence.finalResidual
+  };
+}
+
+/**
+ * What an immediate accept means, and what to do about it, per criterion.
+ *
+ * The two criteria warrant genuinely different advice. Under
+ * `'packed-gradient'` the threshold sits on a quantity carrying `deltaTime²`,
+ * so refining the timestep shrinks the force the test can still see and an
+ * immediate accept may be a real force falling under the floor. Under
+ * `'maximum-acceleration-residual'` the bound is an acceleration and does not
+ * move with the timestep, so the same terminal is much stronger evidence of
+ * actual rest — and telling that author to "lower the gradient tolerance"
+ * would name a threshold they never wrote.
+ */
+const CONVERGENCE_ADVICE: Record<
+  XpbdIncrementalPotentialConvergenceKindN,
+  {
+    readonly name: string;
+    readonly caution: string;
+    readonly levers: readonly XpbdIncrementalPotentialDiagnosisLeverN[];
+  }
+> = {
+  'packed-gradient': {
+    name: 'packed-gradient tolerance',
+    caution:
+      'That threshold carries a deltaTime squared factor, so it resolves ' +
+      'forces only down to tolerance / deltaTime squared and a smaller ' +
+      'timestep sees less, not more.',
+    levers: ['lower-gradient-tolerance', 'timestep-independent-convergence']
+  },
+  'maximum-acceleration-residual': {
+    name: 'maximum acceleration residual',
+    caution:
+      'That threshold is an acceleration and does not move with the ' +
+      'timestep, so this terminal is not the timestep-resolution artifact ' +
+      'the packed-gradient criterion can produce.',
+    levers: ['lower-convergence-tolerance']
+  }
+};
 
 /** Pure diagnosis of one integrated incremental-potential step. */
 export interface XpbdIncrementalPotentialDiagnosisN {
@@ -73,6 +159,7 @@ export function diagnoseXpbdIncrementalPotentialStepN(
     objectiveDecrease: progress.objectiveDecrease,
     directionPolicyId: minimization.directionPolicyId,
     gradientTolerance: minimization.gradientTolerance,
+    ...convergenceContractFacts(minimization.convergence),
     maximumIterations: minimization.maximumIterations,
     ...(result.feasibleBaseRecovery === undefined
       ? {}
@@ -112,8 +199,11 @@ export function diagnoseXpbdIncrementalPotentialStepN(
 
   const facts = {
     ...commonFacts,
+    // Retained unconditionally, whichever criterion decided: the packed norm
+    // is the quantity every existing reader already knows how to interpret.
     gradientNormInitial: minimization.initial.gradientNorm,
     gradientNormFinal: minimization.final.gradientNorm,
+    ...convergenceResidualFacts(minimization.convergence),
     ...(minimization.status === 'converged'
       ? { convergencePoint: minimization.convergencePoint }
       : {})
@@ -126,12 +216,13 @@ export function diagnoseXpbdIncrementalPotentialStepN(
     result.progress.acceptedIterations === 0 &&
     result.progress.displacementNorm === 0
   ) {
+    const advice = CONVERGENCE_ADVICE[minimization.convergence.kind];
     return diagnosis(
       'converged-without-iteration',
-      ['lower-gradient-tolerance'],
-      'The base already satisfies the authored gradient tolerance, so the ' +
+      advice.levers,
+      `The base already satisfies the authored ${advice.name}, so the ` +
         'minimizer accepted no iteration. This may be genuine rest; lower the ' +
-        'tolerance only when the scene was expected to keep solving.',
+        `tolerance only when the scene was expected to keep solving. ${advice.caution}`,
       facts
     );
   }

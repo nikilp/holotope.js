@@ -144,11 +144,18 @@ describe('incremental-potential step diagnosis', () => {
     expect(result.status).toBe('applied');
     expect(particle.position.data[0]).toBe(0.25);
     expect(diagnosis.condition).toBe('converged-without-iteration');
-    expect(diagnosis.levers).toEqual(['lower-gradient-tolerance']);
+    // Under the packed-gradient criterion an immediate accept can mean a real
+    // force fell below `tolerance / deltaTime²`, so re-authoring the stop test
+    // in a timestep-independent unit is offered alongside lowering it.
+    expect(diagnosis.levers).toEqual([
+      'lower-gradient-tolerance',
+      'timestep-independent-convergence'
+    ]);
     expect(diagnosis.facts).toMatchObject({
       acceptedIterations: 0,
       displacementNorm: 0,
-      convergencePoint: 'initial'
+      convergencePoint: 'initial',
+      convergenceKind: 'packed-gradient'
     });
   });
 

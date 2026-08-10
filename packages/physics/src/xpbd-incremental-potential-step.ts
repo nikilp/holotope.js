@@ -12,6 +12,7 @@ import {
 import {
   minimizeXpbdIncrementalPotentialN,
   type XpbdIncrementalPotentialConvergedN,
+  type XpbdIncrementalPotentialConvergenceN,
   type XpbdIncrementalPotentialMinimizationResultN
 } from './xpbd-incremental-potential-minimizer.js';
 import {
@@ -40,6 +41,19 @@ import {
 } from './xpbd-world.js';
 
 export interface XpbdIncrementalPotentialMinimizationPolicyN {
+  /**
+   * Stop test to apply; defaults to `'packed-gradient'` at `1e-8`.
+   *
+   * The safe first choice for a scene whose timestep may change is
+   * `{ kind: 'maximum-acceleration-residual', tolerance }`, which bounds the
+   * residual acceleration left on the worst-resolved free particle and holds
+   * that bound under refinement. `'packed-gradient'` is the legacy criterion
+   * described below, kept exactly as it was.
+   *
+   * Mutually exclusive with {@link gradientTolerance}; authoring both is
+   * refused before the step mutates anything.
+   */
+  readonly convergence?: XpbdIncrementalPotentialConvergenceN;
   /**
    * Absolute packed-gradient norm tolerance; default `1e-8`.
    *
@@ -317,6 +331,9 @@ export function stepXpbdIncrementalPotentialN(
     const minimization = minimizeXpbdIncrementalPotentialN({
       problem,
       initialCoordinates,
+      ...(policy?.convergence === undefined
+        ? {}
+        : { convergence: policy.convergence }),
       ...(policy?.gradientTolerance === undefined
         ? {}
         : { gradientTolerance: policy.gradientTolerance }),
