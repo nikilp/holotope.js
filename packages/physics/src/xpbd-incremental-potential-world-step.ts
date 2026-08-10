@@ -13,6 +13,7 @@ import type { XpbdIncrementalPotentialFeasibleWarmStartNOptions } from './xpbd-i
 import type { XpbdIncrementalPotentialStepFilterN } from './xpbd-incremental-potential-step-filter.js';
 import {
   XpbdWorldN,
+  XpbdParticleN,
   type XpbdConservativeForceProviderN
 } from './xpbd-world.js';
 
@@ -33,6 +34,19 @@ export interface StepXpbdIncrementalPotentialWorldNOptions {
   readonly world: XpbdWorldN;
   /** Ordered admissible-segment filters; no implicit world registry exists. */
   readonly stepFilters?: readonly XpbdIncrementalPotentialStepFilterN[];
+  /**
+   * Transient conservative providers prepared for **this step only**, such as
+   * a lagged friction term frozen at the accepted base state.
+   *
+   * They are deliberately not part of the world's authored registry: the world
+   * stays authoritative for what a scene *is*, while these describe what one
+   * transaction additionally minimizes against. They appear in the returned
+   * selection evidence under their own field, never merged into
+   * `providerIds`, so an authored base term and a transient lagged one are
+   * always distinguishable after the fact. Supplying none leaves this step's
+   * behaviour and its returned object exactly as they were.
+   */
+  readonly preparedProviders?: readonly XpbdConservativeForceProviderN[];
   /**
    * Physical interval, finite and strictly positive.
    *
@@ -81,6 +95,13 @@ export interface XpbdIncrementalPotentialWorldSelectionN {
   readonly providerIds: readonly string[];
   /** The supplied filters, in supplied order; never sorted or deduplicated. */
   readonly stepFilterIds: readonly string[];
+  /**
+   * Transient prepared providers, in supplied order — present **only** when
+   * some were supplied, so a step without them returns the object it always
+   * did. Kept separate from `providerIds` on purpose: a reader must be able to
+   * tell an authored scene term from a one-transaction lagged one.
+   */
+  readonly preparedProviderIds?: readonly string[];
 }
 
 /**
@@ -102,6 +123,7 @@ export interface XpbdIncrementalPotentialWorldStepN {
 const KNOWN_OPTION_KEYS: ReadonlySet<string> = new Set([
   'world',
   'stepFilters',
+  'preparedProviders',
   'deltaTime',
   'initialPositions',
   'warmStart',
@@ -261,6 +283,47 @@ export function stepXpbdIncrementalPotentialWorldN(
     throw new Error(`${caller}: stepFilters must be an array`);
   }
 
+  // Prepared providers are validated against the authored world before
+  // anything is derived: a colliding identity or a foreign particle is a
+  // configuration error, not a step that merely failed.
+  const preparedProviders = options.preparedProviders ?? [];
+  if (!Array.isArray(preparedProviders)) {
+    throw new Error(`${caller}: preparedProviders must be an array`);
+  }
+  if (preparedProviders.length > 0) {
+    const authoredIds = new Set(providers.map((provider) => provider.id));
+    const worldParticles = new Set<XpbdParticleN>(particles);
+    const seen = new Set<string>();
+    for (const prepared of preparedProviders) {
+      if (typeof prepared !== 'object' || prepared === null ||
+        typeof (prepared as Partial<XpbdConservativeForceProviderN>).evaluateAt
+          !== 'function') {
+        throw new Error(
+          `${caller}: every prepared provider must be conservative — it must ` +
+          'define evaluateAt(positionOf)'
+        );
+      }
+      if (authoredIds.has(prepared.id)) {
+        throw new Error(
+          `${caller}: prepared provider "${prepared.id}" collides with an ` +
+          'authored world force provider of the same id'
+        );
+      }
+      if (seen.has(prepared.id)) {
+        throw new Error(`${caller}: duplicate prepared provider id "${prepared.id}"`);
+      }
+      seen.add(prepared.id);
+      for (const particle of prepared.particles) {
+        if (!worldParticles.has(particle)) {
+          throw new Error(
+            `${caller}: prepared provider "${prepared.id}" names particle ` +
+            `"${particle.id}", which this world does not own`
+          );
+        }
+      }
+    }
+  }
+
   // Snapshotted before delegation and frozen, so a caller mutating its own
   // filter array afterwards cannot reshape the returned evidence. Duplicate
   // filter IDs are left for the existing compiler refusal rather than being
@@ -269,13 +332,22 @@ export function stepXpbdIncrementalPotentialWorldN(
     dimension: world.dimension,
     particleIds: Object.freeze(particles.map((particle) => particle.id)),
     providerIds: Object.freeze(providers.map((provider) => provider.id)),
-    stepFilterIds: Object.freeze(stepFilters.map((filter) => filter.id))
+    stepFilterIds: Object.freeze(stepFilters.map((filter) => filter.id)),
+    // Conditional, so a step with no prepared provider returns the object it
+    // returned before this option existed.
+    ...(preparedProviders.length === 0 ? {} : {
+      preparedProviderIds: Object.freeze(preparedProviders.map((provider) => provider.id))
+    })
   });
 
   const step = stepXpbdIncrementalPotentialN({
     dimension: world.dimension,
     particles,
-    providers,
+    // Authored order first, then the transaction's transient terms: the
+    // world's registry stays authoritative and its order is never reshuffled.
+    providers: preparedProviders.length === 0
+      ? providers
+      : [...providers, ...preparedProviders],
     gravity: world.gravity,
     stepFilters: stepFilters.slice(),
     deltaTime: options.deltaTime,

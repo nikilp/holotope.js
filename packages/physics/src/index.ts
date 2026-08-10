@@ -1,4 +1,14 @@
 export {
+  XpbdPreparedSourceSimplexPairFrictionN,
+  XpbdSourceSimplexPairFrictionN,
+  type XpbdSourceSimplexPairFrictionEvaluationN,
+  type XpbdSourceSimplexPairFrictionLagN,
+  type XpbdSourceSimplexPairFrictionLagStateN,
+  type XpbdSourceSimplexPairFrictionNOptions,
+  type XpbdSourceSimplexPairFrictionPrepareRefusalN,
+  type XpbdSourceSimplexPairFrictionRegimeN
+} from './xpbd-source-simplex-pair-friction.js';
+export {
   XpbdSourceSimplexPairBarrierFamilyN,
   compileXpbdSourceSimplexPairBarrierFamilyN,
   type CompileXpbdSourceSimplexPairBarrierFamilyNOptions
