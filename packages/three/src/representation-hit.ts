@@ -51,6 +51,17 @@ export interface RepresentationIntersection3D {
  * every honest pick. The band is explicit here because the recovered point is
  * *qualified approximate* in the hit — acceptance within the band and the
  * qualification are the same statement.
+ *
+ * `invertPoint` applies this **relatively** — a point is on the image when
+ * `|z| <= tolerance * max(1, |x|, |y|, |z|)` — so the accepted window grows
+ * with scene scale, as Float32 and world-to-local error both do. Measured
+ * headroom on honest picks, posed and unposed, from scene scale 1e-3 to 1e8:
+ * the worst observed `|z|` was 3.0e-8 against a band of 1e3 at that scale.
+ * The constant is generous rather than tight, and the consequence is worth
+ * stating plainly: at a translation of 1e6 a point nearly ten units off the
+ * plane still inverts as on-image, and an accepted result carries no residual
+ * — only the hit's `'approximate'` qualification says the answer is not
+ * certified. Narrowing it has about ten orders of magnitude to work with.
  */
 const OBSERVED_POINT_INVERSE_TOLERANCE = 1e-5;
 

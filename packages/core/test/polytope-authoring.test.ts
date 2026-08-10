@@ -353,11 +353,17 @@ describe('typed refusals, before any allocation', () => {
 
 describe('the orientation decision, measured rather than assumed', () => {
   it('ascending-index facets double their shared faces instead of cancelling', () => {
-    // The documented limitation, pinned as a fact: under the emitted order,
-    // every interior tet of the R5 simplex boundary appears in its two
-    // parent facets with the SAME orientation class, so the chain boundary
-    // doubles. Authored groups are combinatorial, not oriented — the
-    // oriented path is sectionSimplexGroupN, which derives it from geometry.
+    // The documented limitation, pinned as a fact: under the emitted order the
+    // boundary chain of the R5 simplex's facets does not cancel, so authored
+    // groups are combinatorial rather than oriented — the oriented path is
+    // sectionSimplexGroupN, which derives orientation from geometry.
+    //
+    // The failure is partial, not uniform, and the assertions below are
+    // deliberately bounded because of it. Facet `i` omits vertex `i`; for
+    // i < j their shared tet carries (-1)^(j-1) from facet i and (-1)^i from
+    // facet j, so it cancels exactly when i + j is even. That is 6 of the 15
+    // interior tets; the other 9 double. Accidental partial coherence is
+    // precisely what the `cancelled < size` assertion guards against.
     const complex = createSimplex({ dim: 5, maxCellDimension: 4 });
     const facets = groupOfDim(complex, 4);
     const oriented = new Map<string, number>();
@@ -368,7 +374,8 @@ describe('the orientation decision, measured rather than assumed', () => {
         const sign = omit % 2 === 0 ? 1 : -1; // boundary sign of the ordered cell
         // Orientation class of the ordered face vs its sorted form: parity of
         // the sort permutation. Ascending emission makes every face sorted
-        // already, so the class is always +1 and the signs never pair up.
+        // already, so the class is always +1 and only the boundary sign
+        // varies — which is why some pairs cancel and most do not.
         const key = [...face].sort((a, b) => a - b).join(',');
         oriented.set(key, (oriented.get(key) ?? 0) + sign);
       }
