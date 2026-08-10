@@ -222,15 +222,19 @@ interface ConstraintObjective {
  * `vertexIndices` may name the whole source simplex or an authored simplex
  * used to triangulate a non-simplex parent face. Lifecycle follows the parent
  * cell; changing its vertex tuple retires every derived simplex reference.
+  *
+ * A single vertex is a legitimate 0-simplex feature: the pair-distance
+ * vocabulary needs vertex--face pairs, whose vertex side is exactly this.
+ * (The floor was 2 before P56; nothing downstream assumed it.)
  */
 export function createSourceSimplexReferenceN(
   parent: SourceCellReferenceN,
   vertexIndices: readonly number[] = parent.vertexIndices
 ): SourceSimplexReferenceN {
   requireCurrentCell(parent, 'createSourceSimplexReferenceN');
-  if (vertexIndices.length < 2) {
+  if (vertexIndices.length < 1) {
     throw new Error(
-      'createSourceSimplexReferenceN: a source simplex needs at least 2 vertices'
+      'createSourceSimplexReferenceN: a source simplex needs at least 1 vertex'
     );
   }
   if (vertexIndices.length > parent.complex.ambientDim + 1) {

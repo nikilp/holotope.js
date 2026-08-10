@@ -1,4 +1,15 @@
 export {
+  evaluateSourceSimplexPairDistanceN,
+  type SourceSimplexPairDistanceN,
+  type SourceSimplexPairDistanceOptionsN,
+  type SourceSimplexPairIndeterminateN,
+  type SourceSimplexPairSeparatedMultipleN,
+  type SourceSimplexPairSeparatedUniqueN,
+  type SourceSimplexPairSideN,
+  type SourceSimplexPairWitnessN,
+  type SourceSimplexPairZeroDistanceN
+} from './simplex-pair-distance.js';
+export {
   inverseRotateBivector4,
   rotateBivector4
 } from './bivector4.js';
