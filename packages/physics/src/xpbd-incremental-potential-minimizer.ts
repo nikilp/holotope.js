@@ -25,7 +25,14 @@ import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
 export interface MinimizeXpbdIncrementalPotentialNOptions {
   readonly problem: XpbdIncrementalPotentialProblemN;
   readonly initialCoordinates: ArrayLike<number>;
-  /** Absolute packed-gradient norm tolerance; default `1e-8`. */
+  /**
+   * Absolute packed-gradient norm tolerance; default `1e-8`.
+   *
+   * The packed objective folds `deltaTime²` into the potential, so this
+   * threshold resolves forces only down to `gradientTolerance / deltaTime²` and
+   * is not invariant under timestep refinement. See
+   * {@link XpbdIncrementalPotentialMinimizationPolicyN.gradientTolerance}.
+   */
   readonly gradientTolerance?: number;
   /** Accepted-step budget; default 128. Zero performs evaluation only. */
   readonly maximumIterations?: number;

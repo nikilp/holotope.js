@@ -40,7 +40,19 @@ import {
 } from './xpbd-world.js';
 
 export interface XpbdIncrementalPotentialMinimizationPolicyN {
-  /** Absolute packed-gradient norm tolerance; default `1e-8`. */
+  /**
+   * Absolute packed-gradient norm tolerance; default `1e-8`.
+   *
+   * The objective is `½‖x − x̃‖²_M + deltaTime² · U(x)`, so a potential's
+   * contribution to this gradient carries the `deltaTime²` factor. The
+   * threshold is therefore **not** invariant under timestep refinement: at
+   * fixed tolerance, halving `deltaTime` quarters every force's share of the
+   * gradient. Below `gradientTolerance / deltaTime²` in force magnitude a term
+   * cannot move the iterate at all — the minimizer converges at the warm start
+   * and the step reports `applied`, since converging immediately is a
+   * legitimate outcome and not a refusable condition. Scale the tolerance with
+   * `deltaTime²` to hold a fixed force resolution.
+   */
   readonly gradientTolerance?: number;
   /** Accepted-step budget; default 128. Zero performs evaluation only. */
   readonly maximumIterations?: number;
