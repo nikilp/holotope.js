@@ -54,7 +54,16 @@ repository develops, bundles, and publishes CDN examples against. A peer
 the first does not move the second.
 
 CI drives both ends of the range (`0.184.0` and `0.185.1`) from freshly packed
-artifacts on every run: `pnpm check:three-compat`.
+artifacts on every run — `pnpm check:three-compat` — and drives **both
+columns** at each end: a live runtime lifecycle *and* a strict TypeScript
+compile of a composition of both entry points against that revision's own
+published declarations (`strict`, `skipLibCheck: false`,
+`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`). The
+strict-TypeScript column is the one this table's exclusions turn on, so it is
+checked at the declared **minimum**, not only at the pinned reference. A
+revision whose declarations are unpublished fails the guard rather than
+skipping it, and a run that reaches the runtime column without the typecheck
+fails its own postcondition.
 
 **[Live showcase](https://nikilp.github.io/holotope.js/)** ·
 **[Repository & docs](https://github.com/nikilp/holotope.js)**
