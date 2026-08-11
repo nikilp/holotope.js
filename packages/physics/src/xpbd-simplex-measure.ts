@@ -127,22 +127,46 @@ export interface XpbdOrientedSimplexMeasureConstraintEvaluationN
  * visits `k^2` cofactors per subset. Counted over `R^2..R^7` with `k <= 4`, the
  * FLOATING-POINT arithmetic alone stays competitive with forming the Gram matrix
  * — 1.28x at the widest — while value-with-gradients reaches 12.69x, at
- * `n = 7, k = 4`. **Both of those figures exclude the exact predicate.**
+ * `n = 7, k = 4`. **Both of those figures count floating-point operations only
+ * and therefore exclude the exact predicate entirely**, so neither is this
+ * function's cost; the measured wall clock below is.
  *
- * On top of them, every minor also pays one exact `BigInt` Bareiss determinant.
- * That cost is *not* flat in the data: the scaled integers carry
- * `O(mantissa bits + exponent spread)` bits, so a cell whose coordinates span a
- * wide exponent range costs materially more than one whose do not, and a cell
- * containing a subnormal is the worst case. There is a pivot and there is a
- * branch — the elimination pivots, and the magnitude path is skipped when the
- * predicate already returned zero. What there is *not* is a conditioning test:
- * no fitted threshold on cell shape decides anything, because none is a bound.
+ * On top of them, every minor pays one exact `BigInt` Bareiss determinant, and
+ * that is where the real cost now sits. It runs unconditionally — the invocation
+ * rate is `1.0` on well-conditioned and degenerate cells alike, so there is no
+ * data-dependent fallback rate to quote. What the data does change is the WIDTH:
+ * the entries are scaled to a common power of two, so they carry
+ * `exponent spread + 53` bits. Measured, that is 53-bit entries on an ordinary
+ * cell, 80 on a `1e-8` sliver, 173 across a `2^60` exponent spread, and 1075 —
+ * with a roughly 3200-bit determinant — for a cell containing a subnormal
+ * coordinate. The worst case is a wide exponent range, NOT a bad aspect ratio.
+ *
+ * End to end against the released Gram evaluator, value-with-gradients:
+ *
+ * | shape | this | v0.0.16 | ratio |
+ * | --- | --- | --- | --- |
+ * | R2, k=2 | 1.95us | 1.26us | 1.54x |
+ * | R3, k=3 | 3.63us | 2.80us | 1.30x |
+ * | R4, k=4 | 6.64us | 5.19us | 1.28x |
+ * | R7, k=4 | 44.42us | 5.55us | 8.00x |
+ *
+ * The `R7, k=4` row is the honest worst case and it is dominated by the exact
+ * predicate: 35 minors, 35 `BigInt` determinants, and at least 1,260 `BigInt`
+ * allocations per call, none of them reusable. Allocation shape in `Float64Array`
+ * and `VecN` is unchanged from v0.0.16; the `BigInt` column is entirely new and is
+ * the dominant allocation term at every size measured.
+ *
+ * There is a pivot and there is a branch: the elimination pivots, and it runs at
+ * all only on the rare path where the exact magnitude has no Float64. What there
+ * is *not* is a conditioning test — no fitted threshold on cell shape decides
+ * anything, because no such threshold is a bound.
  *
  * There is no way to ask for the value without the gradients: they are always
- * computed, so a caller that reads only `measure` still pays for both. That is
- * the honest cost of the current signature rather than a property of the method,
- * and it is the argument for a value-only entry point if a high-`n`, high-`k`
- * caller ever measures it as hot.
+ * computed, so a caller that reads only `measure` still pays for both. A
+ * value-only entry point would not avoid the `BigInt` work either, because the
+ * predicate is what produces the value. That is the honest cost of the current
+ * signature rather than a property of the method, and it is the argument for such
+ * an entry point if a high-`n`, high-`k` caller ever measures this as hot.
  */
 export function evaluateSimplexSquaredMeasureN(
   positions: readonly VecN[]
@@ -199,9 +223,13 @@ export function evaluateSimplexSquaredMeasureN(
   // the four sliver families that motivated this it is exact or within one
   // rounding step where the Gram route reaches 5.8e-3.
   //
-  // The singular contract is preserved STRUCTURALLY rather than by clamping:
-  // every minor of a rank-deficient edge matrix is identically zero, so the
-  // sum and its derivative are exactly zero without a tolerance anywhere.
+  // The singular contract is preserved by an EXACT PREDICATE rather than by
+  // clamping, and — despite what an earlier revision of this comment said — not
+  // by Float64 structure alone. Every minor of a rank-deficient edge matrix is
+  // identically zero mathematically, but the elimination that evaluates it
+  // divides, so it can return a residue instead; see {@link
+  // robustMinorDeterminant}, which decides each minor's zero in exact dyadic
+  // `BigInt` arithmetic. There is still no tolerance anywhere.
   //
   // COST. This visits `C(ambientDimension, simplexDimension)` minors, so it is
   // combinatorial in the ambient dimension where the Gram route was linear.
@@ -809,19 +837,35 @@ function robustMinorDeterminant(source: readonly (readonly number[])[]): number 
   // bound is trusted here now; the predicate runs every time.
   const exact = exactDeterminantScaled(source);
   if (exact.value === 0n) return 0;
-  // Away from zero the pivoted elimination is the better-conditioned number, so
-  // it supplies the magnitude. It is only overridden when it disagrees about
-  // whether there is anything there at all, or when it has lost the value
-  // entirely to cancellation.
-  const approximate = determinant(source);
-  if (approximate !== 0 && Number.isFinite(approximate)) return approximate;
+  // The exact integer determinant is now in hand, so the MAGNITUDE comes from it
+  // too, not from the elimination. An earlier revision returned the elimination's
+  // value here on the reasoning that it was the better-conditioned number. It is
+  // not: a correctly rounded exact determinant is within half an ulp whatever the
+  // conditioning, where the elimination carries `ε·κ`. Keeping the elimination was
+  // measurably worse in two ways — a relative value error of 4.1e-1 on a minor at
+  // `κ ≈ 2.6e16`, and, because pivoting depends on the row order and the row order
+  // depends on which vertex the caller listed first, a measure that DISAGREED WITH
+  // ITSELF by up to a factor of 2.3 across cyclic vertex permutations of one cell.
+  // An unsigned simplex measure is a symmetric function of its vertices, so that
+  // was a contract defect and not merely an accuracy one. Using the exact value is
+  // also cheaper: the elimination is now computed only in the rare unrepresentable
+  // case below.
   const converted = dyadicToFloat64(exact.value, exact.exponent);
-  // A non-zero determinant with no Float64 magnitude: report the smallest
-  // representable non-zero rather than a zero, so a genuinely non-degenerate cell
-  // is never reported as collapsed. Overflow keeps the elimination's infinity so
-  // the caller's existing non-finite refusal still fires.
-  if (converted === null) return approximate === 0 ? Number.MIN_VALUE : approximate;
-  return converted;
+  if (converted !== null) return converted;
+  // The true magnitude has no Float64 at all. On overflow the elimination's own
+  // infinity is kept so the caller's existing non-finite refusal fires by name; on
+  // underflow the smallest representable non-zero is returned WITH THE EXACT SIGN,
+  // so a cell that is merely tiny is not reported as collapsed.
+  //
+  // That last promise has a floor, and it is worth stating rather than implying.
+  // The caller squares this minor, so a minor near `2^-1074` produces a squared
+  // measure near `2^-2148`, which has no Float64 either — such a cell reads as
+  // degenerate however carefully the minor is computed. That is a representability
+  // boundary of the SQUARED coordinate, not a tolerance, and a caller working there
+  // must rescale its coordinates rather than expect the measure to resolve it.
+  const approximate = determinant(source);
+  if (Number.isFinite(approximate) && approximate !== 0) return approximate;
+  return exact.value < 0n ? -Number.MIN_VALUE : Number.MIN_VALUE;
 }
 
 function determinant(source: readonly (readonly number[])[]): number {

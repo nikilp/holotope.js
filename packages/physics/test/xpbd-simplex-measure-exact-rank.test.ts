@@ -65,15 +65,47 @@ describe('evaluateSimplexSquaredMeasureN: exact rank deficiency', () => {
     }
   });
 
-  it('keeps a nearby positive-volume perturbation strictly positive', () => {
+  it('keeps a nearby positive-volume perturbation strictly positive, and exact', () => {
     // One representable step in the last coordinate makes the area genuinely
     // positive, and it must not be clamped to zero.
     const result = evaluateSimplexSquaredMeasureN(
       points([[0, 0], [2, 49], [4, 98 + 2 ** -46]])
     );
-    expect(result.measure).toBeGreaterThan(0);
-    // Exactly `|2*(98 + 2^-46) - 4*49| / 2 = 2^-46`.
-    expect(result.measure).toBeCloseTo(2 ** -46, 20);
+    // The minor is exactly `2*(98 + 2^-46) - 4*49 = 2^-45`, so the area is
+    // exactly `2^-46` and the squared measure exactly `2^-92`. Pinned as an
+    // equality rather than a tolerance: the value comes from an exact integer
+    // determinant, so approximate agreement here would mean a regression.
+    expect(result.squaredMeasure).toBe(2 ** -92);
+    expect(result.measure).toBe(2 ** -46);
+  });
+
+  it('is a function of the point set, not of which vertex is listed first', () => {
+    /**
+     * An unsigned simplex measure is a symmetric function of its vertices, so
+     * relabelling them cannot change it. That held only approximately while the
+     * minor's magnitude came from a pivoted elimination: pivoting depends on the
+     * row order, the row order depends on which vertex the caller listed first,
+     * and on this sliver the three cyclic orders disagreed by a factor of 2.345
+     * — 2.019e-28 against 4.735e-28. Two callers describing one cell differently
+     * got different rest measures from it.
+     */
+    const rows = [[0, 0], [2, 49], [4, 98 + 2 ** -46]];
+    for (let shift = 0; shift < 3; shift += 1) {
+      const order = [0, 1, 2].map((i) => rows[(i + shift) % 3] as readonly number[]);
+      const result = evaluateSimplexSquaredMeasureN(points(order));
+      expect(result.squaredMeasure, `cyclic shift ${shift}`).toBe(2 ** -92);
+    }
+    // The same statement for a sliver tetrahedron in R3, over all four sources.
+    const tetra = [[0, 0, 0], [1e4, 0, 0], [0, 1e4, 0], [1e4, 1e4, 2 ** -20]];
+    const first = evaluateSimplexSquaredMeasureN(points(tetra)).squaredMeasure;
+    expect(first).toBeGreaterThan(0);
+    for (let shift = 1; shift < 4; shift += 1) {
+      const order = [0, 1, 2, 3].map((i) => tetra[(i + shift) % 4] as readonly number[]);
+      expect(
+        evaluateSimplexSquaredMeasureN(points(order)).squaredMeasure,
+        `tetra cyclic shift ${shift}`
+      ).toBe(first);
+    }
   });
 
   it('resolves a needle and a cap exactly on representable inputs', () => {
