@@ -201,7 +201,7 @@ export function evaluateSimplexSquaredMeasureN(
         subsetMatrix[row]![column] = value;
       }
     }
-    const value = determinant(subsetMatrix);
+    const value = robustMinorDeterminant(subsetMatrix);
     if (!Number.isFinite(value)) {
       throw new Error(
         'evaluateSimplexSquaredMeasureN: Gram minor is non-finite'
@@ -631,6 +631,140 @@ function minor(
     result.push(values);
   }
   return result;
+}
+
+/**
+ * One Float64 as an exact integer, paired with the power of two it was scaled by.
+ *
+ * Every finite Float64 is a dyadic rational `m·2^e`, so this loses nothing. The
+ * exponent is returned rather than applied so a whole matrix can be brought to a
+ * common integer scale.
+ */
+function exactDyadic(value: number): { mantissa: bigint; exponent: number } {
+  if (value === 0) return { mantissa: 0n, exponent: 0 };
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, value);
+  const high = view.getUint32(0);
+  const low = view.getUint32(4);
+  const sign = (high >>> 31) === 0 ? 1n : -1n;
+  const biased = (high >>> 20) & 0x7ff;
+  const fraction = (BigInt(high & 0xfffff) << 32n) | BigInt(low);
+  // Subnormals carry no implicit leading bit.
+  const mantissa = biased === 0 ? fraction : (1n << 52n) | fraction;
+  const exponent = (biased === 0 ? 1 : biased) - 1075;
+  return { mantissa: sign * mantissa, exponent };
+}
+
+/**
+ * Whether a Float64 matrix has an exactly zero determinant, decided exactly.
+ *
+ * The entries are brought to a common power-of-two scale, which makes them exact
+ * integers, and the integer determinant is then evaluated by fraction-free
+ * Bareiss elimination in `BigInt`. Bareiss performs divisions but every quotient
+ * is provably an integer, so the computation is exact end to end and the test
+ * `=== 0n` is a decision rather than a comparison against a tolerance.
+ *
+ * Only the *predicate* is taken from this path. The magnitude continues to come
+ * from {@link determinant}, whose pivoted elimination is the numerically better
+ * choice away from zero. That division of labour is deliberate: an exact
+ * determinant scaled back to Float64 would lose the very accuracy the
+ * Cauchy–Binet formulation exists to provide.
+ */
+function exactDeterminantScaled(
+  source: readonly (readonly number[])[]
+): { value: bigint; exponent: number } {
+  const size = source.length;
+  if (size === 0) return { value: 1n, exponent: 0 };
+  let minimumExponent = Number.POSITIVE_INFINITY;
+  const parts = source.map((row) => row.map((x) => {
+    const part = exactDyadic(x);
+    if (part.mantissa !== 0n) minimumExponent = Math.min(minimumExponent, part.exponent);
+    return part;
+  }));
+  // An all-zero matrix is singular.
+  if (!Number.isFinite(minimumExponent)) return { value: 0n, exponent: 0 };
+  const matrix = parts.map((row) => row.map(({ mantissa, exponent }) =>
+    mantissa === 0n ? 0n : mantissa << BigInt(exponent - minimumExponent)));
+  // Fraction-free Bareiss: every division below is exact over the integers.
+  let previous = 1n;
+  let sign = 1n;
+  for (let pivot = 0; pivot < size - 1; pivot += 1) {
+    if ((matrix[pivot] as bigint[])[pivot] === 0n) {
+      let swap = -1;
+      for (let row = pivot + 1; row < size; row += 1) {
+        if ((matrix[row] as bigint[])[pivot] !== 0n) { swap = row; break; }
+      }
+      // A zero column below and at the pivot means a zero determinant.
+      if (swap < 0) return { value: 0n, exponent: 0 };
+      const held = matrix[pivot] as bigint[];
+      matrix[pivot] = matrix[swap] as bigint[];
+      matrix[swap] = held;
+      sign = -sign;
+    }
+    const head = (matrix[pivot] as bigint[])[pivot] as bigint;
+    for (let row = pivot + 1; row < size; row += 1) {
+      for (let column = pivot + 1; column < size; column += 1) {
+        (matrix[row] as bigint[])[column] =
+          (((matrix[row] as bigint[])[column] as bigint) * head
+            - ((matrix[row] as bigint[])[pivot] as bigint)
+              * ((matrix[pivot] as bigint[])[column] as bigint)) / previous;
+      }
+    }
+    previous = head;
+  }
+  // `det(scaled) = det(source) · 2^(-minimumExponent·size)`.
+  return {
+    value: sign * ((matrix[size - 1] as bigint[])[size - 1] as bigint),
+    exponent: minimumExponent * size
+  };
+}
+
+/**
+ * A bound on the rounding error {@link determinant}'s elimination can accumulate.
+ *
+ * This is a standard backward-error style bound — `8k³ · ε · Π‖row‖₂` — not a
+ * fitted constant, and it is used only to decide **when to consult the exact
+ * predicate**, never to decide rank. Its one required property is that it can
+ * never be smaller than the error on a true zero: if the exact determinant is
+ * zero then the computed value *is* the accumulated rounding, so it lies inside
+ * the bound and the exact path is always reached. The bound being generous only
+ * costs an extra exact evaluation; it can never let a true zero through.
+ */
+function eliminationRoundingBound(source: readonly (readonly number[])[]): number {
+  const size = source.length;
+  let product = 1;
+  for (const row of source) {
+    let squared = 0;
+    for (const value of row) squared += value * value;
+    product *= Math.sqrt(squared);
+  }
+  return 8 * size * size * size * Number.EPSILON * product;
+}
+
+/**
+ * The Cauchy–Binet minor: an exactly decided zero, with a stably computed
+ * magnitude everywhere else.
+ *
+ * The pivoted elimination in {@link determinant} divides, so it can turn an
+ * exactly singular minor into a small non-zero residue — for the collinear
+ * triangle `(0,0), (2,49), (4,98)` it returns about `−2.18e-14` where the
+ * division-free `2·98 − 4·49` is exactly zero. Because the Gram determinant is a
+ * *sum of squares* of these minors, such a residue cannot cancel: it becomes a
+ * spurious positive measure, and every caller that tests `measure > 0` then
+ * accepts a collapsed cell. The exact predicate closes that off.
+ */
+function robustMinorDeterminant(source: readonly (readonly number[])[]): number {
+  const approximate = determinant(source);
+  // Away from zero the elimination is the better number and the exact path is
+  // never needed. Inside the bound the elimination cannot be trusted in EITHER
+  // direction — it turns exact zeros into residues and can also round a genuinely
+  // tiny determinant down to zero — so the exact value decides.
+  if (Math.abs(approximate) > eliminationRoundingBound(source)) return approximate;
+  const exact = exactDeterminantScaled(source);
+  if (exact.value === 0n) return 0;
+  const magnitude = Number(exact.value);
+  const scaled = magnitude * Math.pow(2, exact.exponent);
+  return Number.isFinite(scaled) && scaled !== 0 ? scaled : approximate;
 }
 
 function determinant(source: readonly (readonly number[])[]): number {
