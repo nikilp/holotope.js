@@ -69,11 +69,54 @@ export interface XpbdOrientedSimplexMeasureConstraintEvaluationN
 }
 
 /**
- * Evaluates `det(E^T E) / (k!)^2` and its ambient point gradients.
+ * Evaluates `det(E^T E) / (k!)^2` and its ambient point gradients, for a
+ * `k`-simplex given as `k + 1` points in `R^n` with `k <= n`.
  *
- * The cofactor form remains finite for singular Gram matrices. At a fully
- * collapsed or rank-deficient simplex the first derivative may be zero; no
- * recovery direction is fabricated.
+ * Units: `squaredMeasure` is `length^(2k)`, `measure` is `length^k`, and
+ * `gradients` are of the SQUARED measure — `length^(2k-1)` — in point order.
+ * They are not gradients of `measure`; away from rank loss the two differ by
+ * `2 * measure`.
+ *
+ * ## Rank semantics
+ *
+ * Exact rank deficiency and ill-conditioning are different statements and this
+ * function keeps them apart. At exact rank deficiency — collinear points, a
+ * repeated point, a collapsed simplex — `squaredMeasure` is exactly `0` and
+ * every gradient component is exactly `0`. That is structural rather than
+ * clamped: the determinant is evaluated as a sum of squared minors, each
+ * gradient term carries a factor of its own minor, and every minor of a
+ * rank-deficient edge matrix is identically zero. Callers may therefore use a
+ * zero measure as a degeneracy test.
+ *
+ * No recovery direction is fabricated there, and none is available: the
+ * unsigned measure has no unique gradient at exact collapse. Approaching one
+ * flattened configuration along different paths gives different finite limits
+ * for `d(measure)`, while `d(squaredMeasure)` tends to zero along all of them.
+ * A caller that needs `d(measure)` must divide by `2 * measure` itself and
+ * handle the vanishing denominator; this function will not choose a direction
+ * on its behalf.
+ *
+ * Ill-conditioning is separate and is not reported. A thin simplex has a well
+ * defined positive measure that this routine resolves to a relative error
+ * proportional to the conditioning — not to its square, which is what forming
+ * `E^T E` would cost. No conditioning threshold is applied, because no fitted
+ * threshold on cell shape is a bound: one regressed on a fan of slivers
+ * mispredicts a needle of slivers by a whole power.
+ *
+ * ## Cost
+ *
+ * That accuracy is bought, and the gradients pay for it. The determinant is a
+ * sum over the `C(n, k)` axis subsets of `E`, and each gradient additionally
+ * visits `k^2` cofactors per subset. Counted over `R^2..R^7` with `k <= 4`, the
+ * value alone stays competitive with forming the Gram matrix — 1.28x the
+ * arithmetic at the widest — while value-with-gradients reaches 12.69x, at
+ * `n = 7, k = 4`. Cost is flat in the data: there is no branch, no pivot and no
+ * conditioning test, so the same shape always costs the same. There is no way to
+ * ask for the value without the gradients: they are always computed, so a caller
+ * that reads only `measure` still pays the 12.69x. That is the honest cost of the
+ * current signature rather than a property of the method — the value column
+ * alone is 1.28x — and it is the argument for a value-only entry point if a
+ * high-`n`, high-`k` caller ever measures it as hot.
  */
 export function evaluateSimplexSquaredMeasureN(
   positions: readonly VecN[]
