@@ -4,6 +4,8 @@ import { evaluateSimplexSquaredMeasureN } from '../src/xpbd-simplex-measure.js';
 import { lumpSimplexMassesN } from '../src/simplex-mass.js';
 import { compileXpbdSimplexMeasureFamilyN } from '../src/xpbd-simplex-family.js';
 import { XpbdParticleN } from '../src/xpbd-world.js';
+import { compileSimplexConstitutiveFamilyN } from '../src/simplex-constitutive-family.js';
+import { simplexStVenantKirchhoffLawN } from '../src/simplex-constitutive-laws.js';
 
 /**
  * The documented rank contract, pinned publicly.
@@ -83,13 +85,25 @@ describe('evaluateSimplexSquaredMeasureN: exact rank deficiency', () => {
   });
 });
 
-describe('the downstream degeneracy guards refuse a collapsed cell', () => {
+describe('all three downstream degeneracy guards', () => {
   const simplexGroup = {
     key: 'collinear', dim: 2, verticesPerCell: 3, kind: 'simplex' as const,
     indices: Uint32Array.from([0, 1, 2])
   };
-  const source = new CellComplex(
-    2, Float64Array.from([0, 0, 2, 49, 4, 98]), [simplexGroup as never]);
+  const collapsed = Float64Array.from([0, 0, 2, 49, 4, 98]);
+  const source = new CellComplex(2, collapsed, [simplexGroup as never]);
+  // The same point set moved comfortably off collinearity. A single representable
+  // step gives an area of 2^-46, which the MEASURE resolves correctly but whose
+  // rest metric the constitutive family then legitimately refuses to invert — a
+  // separate downstream condition, not a measure defect.
+  const positive = Float64Array.from([0, 0, 2, 49, 4, 108]);
+  const positiveSource = new CellComplex(2, positive, [simplexGroup as never]);
+  const particlesOf = (flat: Float64Array): XpbdParticleN[] =>
+    [0, 1, 2].map((i) => new XpbdParticleN({
+      id: `p${i}`,
+      position: new VecN(Float64Array.from([flat[i * 2] as number, flat[i * 2 + 1] as number])),
+      inverseMass: 1
+    }));
 
   it('lumpSimplexMassesN refuses by name', () => {
     expect(() => lumpSimplexMassesN({
@@ -98,11 +112,50 @@ describe('the downstream degeneracy guards refuse a collapsed cell', () => {
   });
 
   it('compileXpbdSimplexMeasureFamilyN refuses by name', () => {
-    const particles = [[0, 0], [2, 49], [4, 98]].map((p, i) => new XpbdParticleN({
-      id: `p${i}`, position: new VecN(Float64Array.from(p)), inverseMass: 1
-    }));
     expect(() => compileXpbdSimplexMeasureFamilyN({
-      id: 'collinear', source, simplexGroup: simplexGroup as never, particles
+      id: 'collinear', source, simplexGroup: simplexGroup as never,
+      particles: particlesOf(collapsed)
     } as never)).toThrow(/degenerate/);
+  });
+
+  it('the constitutive-family source-cell guard refuses by name', () => {
+    expect(() => compileSimplexConstitutiveFamilyN({
+      id: 'collinear', source, simplexGroup: simplexGroup as never,
+      particles: particlesOf(collapsed), law: simplexStVenantKirchhoffLawN,
+      material: { firstLameParameter: 1, shearModulus: 1 }
+    } as never)).toThrow(/degenerate/);
+  });
+
+  it('all three accept a nearby positive-volume cell', () => {
+    expect(() => lumpSimplexMassesN({
+      source: positiveSource, simplexGroup: simplexGroup as never, density: 1
+    } as never)).not.toThrow();
+    expect(() => compileXpbdSimplexMeasureFamilyN({
+      id: 'positive', source: positiveSource, simplexGroup: simplexGroup as never,
+      particles: particlesOf(positive)
+    } as never)).not.toThrow();
+    expect(() => compileSimplexConstitutiveFamilyN({
+      id: 'positive', source: positiveSource, simplexGroup: simplexGroup as never,
+      particles: particlesOf(positive), law: simplexStVenantKirchhoffLawN,
+      material: { firstLameParameter: 1, shearModulus: 1 }
+    } as never)).not.toThrow();
+  });
+
+  it('leaves source data unchanged after each refusal', () => {
+    const before = Array.from(source.positions);
+    for (const attempt of [
+      () => lumpSimplexMassesN({
+        source, simplexGroup: simplexGroup as never, density: 1 } as never),
+      () => compileXpbdSimplexMeasureFamilyN({
+        id: 'a', source, simplexGroup: simplexGroup as never,
+        particles: particlesOf(collapsed) } as never),
+      () => compileSimplexConstitutiveFamilyN({
+        id: 'b', source, simplexGroup: simplexGroup as never,
+        particles: particlesOf(collapsed), law: simplexStVenantKirchhoffLawN,
+        material: { firstLameParameter: 1, shearModulus: 1 } } as never)
+    ]) {
+      expect(attempt).toThrow(/degenerate/);
+      expect(Array.from(source.positions)).toEqual(before);
+    }
   });
 });

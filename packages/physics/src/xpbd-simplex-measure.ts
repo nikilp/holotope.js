@@ -82,11 +82,28 @@ export interface XpbdOrientedSimplexMeasureConstraintEvaluationN
  * Exact rank deficiency and ill-conditioning are different statements and this
  * function keeps them apart. At exact rank deficiency — collinear points, a
  * repeated point, a collapsed simplex — `squaredMeasure` is exactly `0` and
- * every gradient component is exactly `0`. That is structural rather than
- * clamped: the determinant is evaluated as a sum of squared minors, each
- * gradient term carries a factor of its own minor, and every minor of a
- * rank-deficient edge matrix is identically zero. Callers may therefore use a
- * zero measure as a degeneracy test.
+ * every gradient component is exactly `0`. Callers may therefore use a zero
+ * measure as a degeneracy test.
+ *
+ * That guarantee does **not** follow from the Float64 minor sum alone, and it is
+ * worth being precise about why. Each minor's magnitude comes from a *pivoted
+ * Gaussian elimination*, which divides, so an exactly singular minor can come
+ * back as a small residue — for the collinear triangle `(0,0), (2,49), (4,98)`
+ * the minor `[[2,4],[49,98]]` is `196 − 196`, exactly zero, but the elimination
+ * pivots on 49 and forms the unrepresentable `fl(2/49)`. Because the Gram
+ * determinant is a **sum of squares**, such a residue cannot cancel: it would
+ * become a positive measure. The zero is therefore decided by an **exact dyadic
+ * predicate** — entries scaled to a common power of two, hence exact integers,
+ * then fraction-free Bareiss over `BigInt` — and that predicate, not the Float64
+ * structure, is what restores the contract.
+ *
+ * The predicate runs on **every** minor, unconditionally. An earlier revision
+ * consulted it only when the elimination's magnitude fell inside a
+ * `8k³·ε·Π‖row‖₂` bound; that bound is not valid, because partial pivoting's
+ * error depends on the growth factor rather than on the product of row norms. A
+ * 3×3 minor with row scales spanning `2^40` was measured returning `8.9e-3` for
+ * an exactly singular matrix against a bound of `7.2e-13`, skipping the fallback.
+ * No cheap bound decides rank here.
  *
  * No recovery direction is fabricated there, and none is available: the
  * unsigned measure has no unique gradient at exact collapse. Approaching one
@@ -108,15 +125,24 @@ export interface XpbdOrientedSimplexMeasureConstraintEvaluationN
  * That accuracy is bought, and the gradients pay for it. The determinant is a
  * sum over the `C(n, k)` axis subsets of `E`, and each gradient additionally
  * visits `k^2` cofactors per subset. Counted over `R^2..R^7` with `k <= 4`, the
- * value alone stays competitive with forming the Gram matrix — 1.28x the
- * arithmetic at the widest — while value-with-gradients reaches 12.69x, at
- * `n = 7, k = 4`. Cost is flat in the data: there is no branch, no pivot and no
- * conditioning test, so the same shape always costs the same. There is no way to
- * ask for the value without the gradients: they are always computed, so a caller
- * that reads only `measure` still pays the 12.69x. That is the honest cost of the
- * current signature rather than a property of the method — the value column
- * alone is 1.28x — and it is the argument for a value-only entry point if a
- * high-`n`, high-`k` caller ever measures it as hot.
+ * FLOATING-POINT arithmetic alone stays competitive with forming the Gram matrix
+ * — 1.28x at the widest — while value-with-gradients reaches 12.69x, at
+ * `n = 7, k = 4`. **Both of those figures exclude the exact predicate.**
+ *
+ * On top of them, every minor also pays one exact `BigInt` Bareiss determinant.
+ * That cost is *not* flat in the data: the scaled integers carry
+ * `O(mantissa bits + exponent spread)` bits, so a cell whose coordinates span a
+ * wide exponent range costs materially more than one whose do not, and a cell
+ * containing a subnormal is the worst case. There is a pivot and there is a
+ * branch — the elimination pivots, and the magnitude path is skipped when the
+ * predicate already returned zero. What there is *not* is a conditioning test:
+ * no fitted threshold on cell shape decides anything, because none is a bound.
+ *
+ * There is no way to ask for the value without the gradients: they are always
+ * computed, so a caller that reads only `measure` still pays for both. That is
+ * the honest cost of the current signature rather than a property of the method,
+ * and it is the argument for a value-only entry point if a high-`n`, high-`k`
+ * caller ever measures it as hot.
  */
 export function evaluateSimplexSquaredMeasureN(
   positions: readonly VecN[]
@@ -720,25 +746,42 @@ function exactDeterminantScaled(
 }
 
 /**
- * A bound on the rounding error {@link determinant}'s elimination can accumulate.
+ * Converts an exact dyadic `value · 2^exponent` to the nearest Float64, without
+ * ever forming an intermediate that overflows or underflows.
  *
- * This is a standard backward-error style bound — `8k³ · ε · Π‖row‖₂` — not a
- * fitted constant, and it is used only to decide **when to consult the exact
- * predicate**, never to decide rank. Its one required property is that it can
- * never be smaller than the error on a true zero: if the exact determinant is
- * zero then the computed value *is* the accumulated rounding, so it lies inside
- * the bound and the exact path is always reached. The bound being generous only
- * costs an extra exact evaluation; it can never let a true zero through.
+ * `Number(value) * 2 ** exponent` cannot be used: a scaled integer carrying a
+ * subnormal input has on the order of `1074·k` bits and converts to `Infinity`,
+ * while `2 ** exponent` underflows to zero, so the product is `NaN` even when the
+ * true magnitude is perfectly representable. Instead the mantissa is truncated to
+ * its leading 53 bits and the discarded bits are folded into the exponent, which
+ * is then applied in two steps so neither factor leaves range.
+ *
+ * Returns `null` when the true magnitude genuinely has no Float64 -- overflow or
+ * underflow of the RESULT rather than of an intermediate. That is a documented
+ * policy rather than a silent zero: the caller reports it.
  */
-function eliminationRoundingBound(source: readonly (readonly number[])[]): number {
-  const size = source.length;
-  let product = 1;
-  for (const row of source) {
-    let squared = 0;
-    for (const value of row) squared += value * value;
-    product *= Math.sqrt(squared);
+function dyadicToFloat64(value: bigint, exponent: number): number | null {
+  if (value === 0n) return 0;
+  const negative = value < 0n;
+  let magnitude = negative ? -value : value;
+  const bits = magnitude.toString(2).length;
+  let shift = 0;
+  if (bits > 53) {
+    shift = bits - 53;
+    magnitude >>= BigInt(shift);
   }
-  return 8 * size * size * size * Number.EPSILON * product;
+  const total = exponent + shift;
+  const scaled = Number(magnitude);
+  // log2 of the result, to decide representability before computing it.
+  const log2 = (bits - 1) + exponent;
+  if (log2 > 1023) return null;
+  if (log2 < -1074) return null;
+  // Apply the exponent in halves so neither multiply overflows or underflows.
+  const half = Math.trunc(total / 2);
+  const rest = total - half;
+  const result = scaled * Math.pow(2, half) * Math.pow(2, rest);
+  if (!Number.isFinite(result)) return null;
+  return negative ? -result : result;
 }
 
 /**
@@ -754,17 +797,31 @@ function eliminationRoundingBound(source: readonly (readonly number[])[]): numbe
  * accepts a collapsed cell. The exact predicate closes that off.
  */
 function robustMinorDeterminant(source: readonly (readonly number[])[]): number {
-  const approximate = determinant(source);
-  // Away from zero the elimination is the better number and the exact path is
-  // never needed. Inside the bound the elimination cannot be trusted in EITHER
-  // direction — it turns exact zeros into residues and can also round a genuinely
-  // tiny determinant down to zero — so the exact value decides.
-  if (Math.abs(approximate) > eliminationRoundingBound(source)) return approximate;
+  // The zero is ALWAYS decided exactly. An earlier draft of this routine
+  // consulted the exact predicate only when `|approximate|` fell inside a
+  // `8k³·ε·Π‖row‖₂` bound, on the reasoning that a true zero's computed value IS
+  // its accumulated rounding and so must lie inside any valid bound on that
+  // rounding. The reasoning was right and the bound was not: partial pivoting's
+  // error depends on the growth factor, not on the product of row norms, and a
+  // 3x3 minor with row scales spanning 2^40 was measured returning 8.9e-3 for an
+  // exactly singular matrix against a bound of 7.2e-13 — skipping the fallback
+  // and restoring the very defect this function exists to prevent. No cheap
+  // bound is trusted here now; the predicate runs every time.
   const exact = exactDeterminantScaled(source);
   if (exact.value === 0n) return 0;
-  const magnitude = Number(exact.value);
-  const scaled = magnitude * Math.pow(2, exact.exponent);
-  return Number.isFinite(scaled) && scaled !== 0 ? scaled : approximate;
+  // Away from zero the pivoted elimination is the better-conditioned number, so
+  // it supplies the magnitude. It is only overridden when it disagrees about
+  // whether there is anything there at all, or when it has lost the value
+  // entirely to cancellation.
+  const approximate = determinant(source);
+  if (approximate !== 0 && Number.isFinite(approximate)) return approximate;
+  const converted = dyadicToFloat64(exact.value, exact.exponent);
+  // A non-zero determinant with no Float64 magnitude: report the smallest
+  // representable non-zero rather than a zero, so a genuinely non-degenerate cell
+  // is never reported as collapsed. Overflow keeps the elimination's infinity so
+  // the caller's existing non-finite refusal still fires.
+  if (converted === null) return approximate === 0 ? Number.MIN_VALUE : approximate;
+  return converted;
 }
 
 function determinant(source: readonly (readonly number[])[]): number {
