@@ -1,6 +1,6 @@
 {
   "name": "@holotope/physics",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "Dimension-aware rigid-body mechanics and convex collision queries for Holotope.",
   "license": "MIT",
   "repository": {
