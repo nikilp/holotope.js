@@ -174,27 +174,101 @@ explains why a projected mesh is never the source object — then work from
 - ✅ Immutable named constraint composition with stable evidence replacement, removal, snapshots, and keyed diagnostics
 - ◐ Versioned experiment documents: bounded intake, validation, canonical identity, dependency planning, explicit-capability source/model/representation compilation, live parameter reads and writes, bounded actions, stamped observations, exact CPU snapshots, traces, replay, and renderer-deferred presentation panes shipped. Source vocabulary now includes an exact N-dimensional hyperrectangle, whose unequal edges give a body non-isotropic R4 inertia; the dimension-bridge example compiles its whole scene — source, rigid model, and three representation maps — from one typed document. Presentation remains renderer- and application-owned; broader descriptor vocabularies remain
 - ✅ Published-artifact conformance: the five package tarballs are packed once, installed into a project outside every workspace, and exercised through their public entry points — strict declarations, runtime composition, representation claims, and a browser production build — before the same bytes are published
-- GPU surface/section rendering and the materials/transparency phase
+- ◐ GPU realization. Shipped: vertex-stage 4D projection, compute-shader
+  marching-tetrahedra slicing, and packed-point field evaluation with readback for
+  CPU differential checks. Remaining: broader GPU coverage of the product surface,
+  streaming/zero-copy geometry upload, and the materials/transparency phase
 - `.hyper.json` container format and OFF import/export
-- ◐ `@holotope/physics`. **Deformable collision candidates are still authored,
-  not automatic**: barrier/filter pairs cover a point against either a static
-  plane or one finite persistent source simplex. **Spatial acceleration is
-  opt-in and static-only**: a compiled AABB hierarchy over an unmoving obstacle
-  is selected explicitly and refuses a moved source rather than rebuilding. Mesh self-collision — cloth,
-  stacked deformables, a rod in a knot — remains out of reach today. **The
-  linear solve is matrix-free**: a preconditioned
-  conjugate gradient rather than a sparse direct factorization, which is a
-  convergence limit rather than a speed one, since the barrier Hessian
-  conditions like 1/d² as a gap closes. **A world carries two solver paths
-  and they are alternatives, not stages**: projected XPBD applies registered
-  constraints, responses, and guards; the optimization path represents none
-  of the three and refuses their presence by name. Pick one per physical
-  interval. Read those three before deciding whether this fits your problem;
-  everything below is what exists inside them.
+- ◐ `@holotope/physics`. Read **Current limitations** before deciding whether this
+  fits your problem; everything else here is what exists inside them.
 
-  Shipped: ballistic and prescribed-kinematic bodies, fixed-clock animation-to-trajectory driving, support/GJK, dimension-independent swept broadphase, typed StVK, compressible Neo-Hookean, smooth lower-measure and point–hyperplane barrier references with provenance-preserving generic family assembly and exact matrix-free constitutive Hessian-vector products, candidate-state conservative energy, mass-weighted incremental objectives, deterministic free-coordinate packing, first-order Armijo backtracking, ordered admissible-step filters with an exact RN point–static-plane specialization, a source-retained finite point–simplex barrier with conservative convexity/Lipschitz prefix certification, source-indexed paired point–plane families, and an exhaustive source-retained dynamic-point/static-simplex candidate family with swept-AABB rejection and aggregate step evidence plus an opt-in deterministic static-obstacle AABB hierarchy that preserves exhaustive candidate identity and order and refuses a moved source, a source-retained dynamic-point/static-convex-hull barrier family answering one certified closest-point query per particle with source-vertex witnesses, typed closest-point-indeterminate refusals, a static-source staleness contract, and a paired convexity/Lipschitz prefix filter, bounded non-mutating direction-policy references with steepest-descent and inertial-mass preconditioning, a bounded matrix-free preconditioned-CG Newton-direction diagnostic with explicit unsupported-provider and non-positive-curvature evidence plus opt-in auditable dense provider-local and exact provider-block PSD curvature policies, source-simplex block decomposition, fixed-coordinate compiled-curvature reuse across Krylov iterations, and atomic converged-result application with state/evidence staleness proofs, source-retained discrete cosine-fold bending over adjacent simplices with a closed-form gradient, exact rigid null modes, and a paired intrinsic-rank segment certificate, one world-scoped nonlinear advance that derives dimension, particle order, gravity, and conservative providers from an authored world and refuses unrepresentable registrations rather than skipping them, endpoint accepted-state guards, conservative full-dimensional orientation checks, and intrinsic embedded-simplex rank/measure checks along linear substep chords, intrinsic density-based simplex mass lumping, topology-neutral source-particle bindings with per-substep RN force providers, projected Float64 XPBD relations with exact RN particle–hyperplane contact, post-projection RN velocity policies, bounded transactional adaptive subdivision, isotropic particle–plane Coulomb friction, timestep-invariant damping, distance plus unsigned and full-dimensional signed simplex compliance, a renderer-neutral RN point world, provenance-preserving `CellComplex` distance networks, simplex families, and cuboid-to-oriented-simplex families, and linear CCD, explicit R4 rigid trajectories, conservative rotational casts, and a shared pose-plan event loop, bounded R4 EPA penetration, persistent clipped polytope manifolds, analytic mixed contact, coupled three-ball friction, deterministic mixed-shape response, point/distance policies, branch-aware SO(4) coordinates, exact small equality and one-bounded blocks, SO(3)-stabilizer direction, SO(2)-stabilizer planar rotation with motors and continuous-angle guardians, and six-row fixed-relative-frame orientation joints.
+  **Shipped — mechanics.** Ballistic and prescribed-kinematic R4 bodies,
+  fixed-clock animation-to-trajectory driving, intrinsic density-based simplex
+  mass lumping, and a renderer-neutral RN point world. Linear CCD, conservative
+  rotational casts, a shared pose-plan event loop, bounded R4 EPA penetration,
+  persistent clipped polytope manifolds, analytic mixed contact, coupled
+  three-ball friction, and deterministic mixed-shape response. Branch-aware SO(4)
+  coordinates, exact small equality and one-bounded blocks, SO(3)-stabilizer
+  direction, SO(2)-stabilizer planar rotation with motors and continuous-angle
+  guardians, and six-row fixed-relative-frame orientation joints.
 
-  Not yet: cached sparse/global PSD assembly and globally admissible Newton material stepping, automatic active-set mesh collision candidates and complete collision-filtered search, moving-obstacle hierarchy refit, continuum-convergent shell bending, collision-aware deformable systems, spatial trees, distance servos, rolling resistance, and sleeping remain.
+  **Shipped — deformables and contact.** Typed StVK and compressible
+  Neo-Hookean materials with exact matrix-free constitutive Hessian-vector
+  products. Source-retained barriers for a point against a static plane, a finite
+  simplex, and a convex hull, each with typed refusals and a paired
+  convexity/Lipschitz prefix filter. **Source-simplex feature contact** (v0.0.15):
+  `evaluateSourceSimplexPairDistanceN` returns the exact closest-point distance
+  between two source-retained simplex features in any dimension as a typed union —
+  `separated-unique` with a uniqueness gap, `separated-multiple` carrying every
+  tied witness and no gradient, `zero-distance` with no invented normal, and
+  `indeterminate` with its own residuals — plus a clamped-log pair barrier, a
+  two-sided Lipschitz step filter certifying a conservative prefix, and a
+  per-source-cell family against one static opposing feature. **Lagged pair
+  friction** (v0.0.16) with length- and velocity-authored regularization that
+  freezes the resolved length into each lag. Source-retained discrete cosine-fold
+  bending with a closed-form gradient, exact rigid null modes, and a paired
+  intrinsic-rank segment certificate.
+
+  **Shipped — solvers and numerics.** One world-scoped nonlinear advance deriving
+  dimension, particle order, gravity and conservative providers from an authored
+  world, refusing unrepresentable registrations rather than skipping them.
+  Mass-weighted incremental objectives, deterministic free-coordinate packing,
+  first-order Armijo backtracking, ordered admissible-step filters, matrix-free
+  preconditioned-CG Newton directions with explicit unsupported-provider and
+  non-positive-curvature evidence, opt-in dense provider-local and exact
+  provider-block PSD curvature, and atomic converged-result application with
+  staleness proofs. A **convergence-policy union** (v0.0.16) separating the legacy
+  packed-gradient norm from a maximum per-particle acceleration residual — neither
+  criterion is presented as universally superior. Projected Float64 XPBD relations
+  with exact RN particle–hyperplane contact, post-projection velocity policies,
+  bounded transactional adaptive subdivision, isotropic particle–plane Coulomb
+  friction, timestep-invariant damping, and distance plus unsigned and
+  full-dimensional signed simplex compliance. An **exact-rank embedded-simplex
+  measure** (v0.0.17) evaluated through the Cauchy–Binet sum of squared minors,
+  improving conditioning from about `ε·κ²` to about `ε·κ`, with every minor's rank
+  decision made exactly by fraction-free `BigInt` elimination rather than a fitted
+  tolerance.
+
+  **Current limitations.**
+
+  - **Contact candidates are authored, not automatic.** Feature pairs are named
+    by the caller or enumerated per source cell against **one static** opposing
+    feature. There is no automatic active-set search, no self-contact, no
+    mesh–mesh CCD, and no moving-obstacle family. Cloth, stacked deformables and a
+    rod in a knot remain out of reach.
+  - **Contact stiffness follows mesh topology.** Contact energy is a sum over
+    source cells, so a closest approach on a shared sub-feature contributes one
+    term per adjacent cell. A stiffness tuned on one mesh does not transfer to a
+    refinement of it. Lagged friction inherits this: its effective coefficient
+    follows contact-term multiplicity, and it demonstrates sliding deceleration,
+    not static friction or sticking.
+  - **Spatial acceleration is opt-in and static-only.** A compiled AABB hierarchy
+    over an unmoving obstacle is selected explicitly and refuses a moved source
+    rather than rebuilding.
+  - **The linear solve is matrix-free** — a preconditioned conjugate gradient
+    rather than a sparse direct factorization. That is a convergence limit rather
+    than a speed one, since the barrier Hessian conditions like `1/d²` as a gap
+    closes.
+  - **A world carries two solver paths and they are alternatives, not stages.**
+    Projected XPBD applies registered constraints, responses and guards; the
+    optimization path represents none of the three and refuses their presence by
+    name. Pick one per physical interval.
+
+  **Next validated boundary — designed, not shipped.** A contact-specific,
+  fixed-rule, **reference-measure** surface-contact compiler: contact integrated
+  over a source cell's rest measure rather than sampled at its vertices. Its
+  authoritative geometry, particle binding, moving-obstacle semantics and evidence
+  surface are being designed before any implementation, and no public symbol
+  exists. Reference measure only — the current-measure form and a caller-authored
+  force-usability policy are both held back for want of a certified enclosure of
+  the assembled contact force.
+
+  **Longer-term research.** Cached sparse/global PSD assembly and globally
+  admissible Newton material stepping; automatic and dynamic broadphase with
+  moving-source refit and deformable–deformable candidate generation;
+  continuum-convergent shell bending; topology-independent contact and friction
+  density; self-contact and mesh–mesh continuous collision; distance servos;
+  rolling resistance; and sleeping.
 
 ## License
 
