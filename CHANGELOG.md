@@ -1,5 +1,71 @@
 # Changelog
 
+## v0.0.17
+
+All five packages are synchronized at `0.0.17`; the behavioural change is in
+`@holotope/physics`. No public symbol was added, removed, renamed or retyped.
+
+### `@holotope/physics@0.0.17`
+
+- Reworked `evaluateSimplexSquaredMeasureN` to evaluate the embedded-simplex
+  Gram determinant through the Cauchy–Binet sum of squared minors, with value
+  gradients derived from the same minors. This improves the conditioning
+  signature from the Gram route's approximately `epsilon * kappa^2` to
+  approximately `epsilon * kappa`; the remaining loss is in forming the edge
+  differences, upstream of the determinant calculation.
+- Made every minor's rank decision exact for the supplied Float64 coordinates:
+  power-of-two-scaled integer entries are evaluated with fraction-free `BigInt`
+  elimination. Exactly rank-deficient cells return exactly zero measure and
+  gradients without a fitted tolerance, while positive cells as small as the
+  pinned `2^-46` triangle are no longer mistaken for rank loss.
+- Took the minor magnitude from the exact determinant as well as its zero/nonzero
+  decision. This restores vertex-order symmetry and removes data-dependent
+  pivoting noise that changed one unsigned measure by `2.345x` under a harmless
+  permutation.
+- Added public regression coverage for exact rank loss, a nearby positive cell,
+  embedding, reflection, reordering, power-of-two scaling, gradient covariance,
+  and all three downstream degeneracy guards.
+
+The exact predicate is unconditional, not a rare fallback. Its cost depends on
+integer width: the independently reviewed worst case was `8.00x` the v0.0.16
+evaluator at R7/k4 with at least 1,260 `BigInt` allocations. No value-only fast
+path is claimed, and no conditioning threshold or public surface-measure
+quadrature API is introduced in this release.
+
+## v0.0.16
+
+All five packages published at `0.0.16`; the substantive additions are in
+`@holotope/three` and `@holotope/physics`.
+
+### `@holotope/three@0.0.16`
+
+- Widened the tested Three.js peer range to `>=0.184.0 <0.186.0`, while keeping
+  development, showcase, declarations and CDN reproduction pinned exactly to
+  `0.185.1`.
+- Added a packed-artifact compatibility gate that strict-typechecks and
+  runtime-drives both ends of that declared range, including WebGL and WebGPU
+  entry points.
+
+### `@holotope/physics@0.0.16`
+
+- Added source-retained lagged pair friction: explicit lag preparation,
+  consumption and rollback; a conservative objective for one frozen lag; typed
+  reuse and configuration refusals; and a family over the v0.0.15 deformable
+  feature-contact terms.
+- Added a convergence-policy union separating the legacy packed-gradient norm
+  from a maximum per-particle acceleration residual. Neither criterion is
+  presented as universally superior; their scaling and refinement behaviour are
+  deliberately different.
+- Added length- and velocity-authored friction regularization, freezing the
+  resolved length into each lag so a step cannot change its own objective.
+- Fixed source-simplex-pair witness weights drifting by Float64 roundoff into an
+  untyped coordinate-constructor exception.
+
+Lagged friction in this release demonstrates sliding deceleration, not static
+friction or sticking. Its effective coefficient follows contact-term
+multiplicity and therefore mesh topology. It does not provide self-contact,
+moving-obstacle friction or mesh-independent tuning.
+
 ## v0.0.15
 
 All five packages published at `0.0.15`; the substantive additions are in
