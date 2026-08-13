@@ -46,6 +46,19 @@ export {
   type SourceSimplexPairZeroDistanceN
 } from './simplex-pair-distance.js';
 export {
+  evaluateExactPointSimplexResult,
+  type PointSimplexProjectedErrorBounds,
+  type PointSimplexProjectedResult,
+  type PointSimplexProjectedWitness,
+  type PointSimplexPublicationReason,
+  type PointSimplexRankDeficientResult,
+  type PointSimplexResult,
+  type PointSimplexUncertifiedResult,
+  type PointSimplexZeroErrorBounds,
+  type PointSimplexZeroResult,
+  type PointSimplexZeroWitness
+} from './exact-point-simplex-distance.js';
+export {
   inverseRotateBivector4,
   rotateBivector4
 } from './bivector4.js';
