@@ -2,6 +2,7 @@ import {
   VecN,
   inspectSourceSimplexReferenceN,
   projectPointToSourceSimplexN,
+  type SourceSimplexCoordinateN,
   type SourceSimplexProjectionN,
   type SourceSimplexReferenceN
 } from '@holotope/core';
@@ -15,6 +16,11 @@ import {
 } from './xpbd-incremental-potential-step-filter.js';
 import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
 import {
+  evaluateExactPointSimplexResult,
+  type PointSimplexProjectedResult,
+  type PointSimplexResult
+} from './exact-point-simplex-distance.js';
+import {
   XpbdParticleN,
   type XpbdConservativeForceProviderEvaluationN,
   type XpbdConservativeForceProviderN,
@@ -23,7 +29,11 @@ import {
 
 /** Open-domain refusal vocabulary of a point--source-simplex barrier. */
 export type XpbdParticleSourceSimplexBarrierDomainReasonN =
-  'at-or-below-minimum-distance';
+  | 'at-or-below-minimum-distance'
+  | 'minimum-distance-not-certified';
+
+/** Maximum certified Euclidean direction error admitted by the force law. */
+const MAX_POINT_SIMPLEX_DIRECTION_ERROR = 2 ** -12;
 
 /** Construction options for one conservative RN point--source-simplex barrier. */
 export interface XpbdParticleSourceSimplexBarrierNOptions {
@@ -39,12 +49,6 @@ export interface XpbdParticleSourceSimplexBarrierNOptions {
   readonly activationDistance: number;
   /** Positive energy scale. */
   readonly stiffness: number;
-  /** Scale-relative closest-simplex tolerance. Default `1e-9`. */
-  readonly projectionTolerance?: number;
-  /** Relative affine-rank tolerance. Default `1e-10`. */
-  readonly rankTolerance?: number;
-  /** Bound on exact active-face candidates. Default `262143`. */
-  readonly maxCandidateFaces?: number;
 }
 
 /** Conservative force and closest-source evidence at one candidate point. */
@@ -52,6 +56,8 @@ export interface XpbdParticleSourceSimplexBarrierEvaluationN
   extends XpbdConservativeForceProviderEvaluationN {
   /** Closest point, barycentric coordinate, and source-simplex evidence. */
   readonly projection: SourceSimplexProjectionN;
+  /** Exact decision and outward error evidence for source dimensions 1..3. */
+  readonly pointSimplex?: PointSimplexProjectedResult;
   /** Unsigned Euclidean distance to the closed finite simplex. */
   readonly distance: number;
   /** Unit vector from the closest simplex point toward the particle. */
@@ -99,12 +105,6 @@ implements XpbdConservativeForceProviderN {
   readonly activationDistance: number;
   /** Positive scalar energy multiplier. */
   readonly stiffness: number;
-  /** Closest-simplex solve tolerance. */
-  readonly projectionTolerance: number;
-  /** Closest-simplex affine-rank tolerance. */
-  readonly rankTolerance: number;
-  /** Exact active-face enumeration bound. */
-  readonly maxCandidateFaces: number;
 
   /**
    * Creates one source-retained finite-simplex proximity barrier.
@@ -118,7 +118,7 @@ implements XpbdConservativeForceProviderN {
     }
     const unknown = Object.keys(options).filter((key) => ![
       'id', 'particle', 'simplex', 'minimumDistance', 'activationDistance',
-      'stiffness', 'projectionTolerance', 'rankTolerance', 'maxCandidateFaces'
+      'stiffness'
     ].includes(key));
     if (unknown.length > 0) {
       throw new Error(
@@ -141,6 +141,11 @@ implements XpbdConservativeForceProviderN {
       throw new Error(`${caller}: source simplex is retired (${status.reason})`);
     }
     const dimension = options.simplex.complex.ambientDim;
+    if (options.simplex.intrinsicDim < 1 || options.simplex.intrinsicDim > 17) {
+      throw new Error(
+        `${caller}: simplex dimension must be between 1 and 17`
+      );
+    }
     if (options.particle.dimension !== dimension) {
       throw new Error(
         `${caller}: particle is R${options.particle.dimension}, source simplex is in R${dimension}`
@@ -159,15 +164,6 @@ implements XpbdConservativeForceProviderN {
     if (!(options.stiffness > 0) || !Number.isFinite(options.stiffness)) {
       throw new Error(`${caller}: stiffness must be finite and positive`);
     }
-    const projectionTolerance = options.projectionTolerance ?? 1e-9;
-    const rankTolerance = options.rankTolerance ?? 1e-10;
-    const maxCandidateFaces = options.maxCandidateFaces ?? 262_143;
-    positive(projectionTolerance, `${caller}: projectionTolerance`);
-    positive(rankTolerance, `${caller}: rankTolerance`);
-    if (!Number.isSafeInteger(maxCandidateFaces) || maxCandidateFaces < 1) {
-      throw new Error(`${caller}: maxCandidateFaces must be a positive safe integer`);
-    }
-
     this.id = options.id;
     this.dimension = dimension;
     this.particle = options.particle;
@@ -176,9 +172,6 @@ implements XpbdConservativeForceProviderN {
     this.minimumDistance = minimumDistance;
     this.activationDistance = options.activationDistance;
     this.stiffness = options.stiffness;
-    this.projectionTolerance = projectionTolerance;
-    this.rankTolerance = rankTolerance;
-    this.maxCandidateFaces = maxCandidateFaces;
   }
 
   /** Evaluates from the particle's current live position without mutation. */
@@ -197,13 +190,16 @@ implements XpbdConservativeForceProviderN {
     const position = finitePosition(
       positionOf(this.particle), this.dimension, `${caller}: candidate position`
     );
-    const projection = projectForBarrier(this, position);
-    const distance = Math.sqrt(projection.squaredDistance);
+    const queried = projectForBarrier(this, position);
+    const { projection, result: pointSimplex } = queried;
+    const distance = pointSimplex === null
+      ? Math.sqrt(projection.squaredDistance)
+      : pointSimplexDistance(pointSimplex);
     if (!Number.isFinite(distance)) {
       throw new Error(`${caller}: distance is outside Float64`);
     }
-    const barrierCoordinate = distance - this.minimumDistance;
-    if (!(barrierCoordinate > 0)) {
+    const certifiedDistance = certifiedDistanceLowerBound(queried);
+    if (!(distance > this.minimumDistance)) {
       throw new XpbdPotentialDomainErrorN<
         XpbdParticleSourceSimplexBarrierDomainReasonN
       >(
@@ -212,20 +208,42 @@ implements XpbdConservativeForceProviderN {
         `${caller}: distance must be greater than minimumDistance`
       );
     }
+    if (!(certifiedDistance > this.minimumDistance)) {
+      throw new XpbdPotentialDomainErrorN<
+        XpbdParticleSourceSimplexBarrierDomainReasonN
+      >(
+        this.id,
+        'minimum-distance-not-certified',
+        `${caller}: the distance error bound reaches minimumDistance`
+      );
+    }
+    const barrierCoordinate = distance - this.minimumDistance;
     const barrierActivation = this.activationDistance - this.minimumDistance;
     const barrier = evaluateClampedLogBarrier({
       coordinate: barrierCoordinate,
       activation: barrierActivation,
       stiffness: this.stiffness
     });
-    const separationNormal = position.clone()
-      .sub(projection.point)
-      .multiplyScalar(1 / distance);
+    if (pointSimplex !== null && pointSimplex.status !== 'projected') {
+      throw new Error(`${caller}: internal positive-distance classification was lost`);
+    }
+    if (pointSimplex !== null &&
+      pointSimplex.error.directionErrorBound >
+      MAX_POINT_SIMPLEX_DIRECTION_ERROR) {
+      throw new Error(
+        `${caller}: certified direction error ${pointSimplex.error.directionErrorBound} ` +
+        `exceeds ${MAX_POINT_SIMPLEX_DIRECTION_ERROR}`
+      );
+    }
+    const separationNormal = pointSimplex === null
+      ? position.clone().sub(projection.point).multiplyScalar(1 / distance)
+      : new VecN(pointSimplex.witness.direction);
     const force = separationNormal.clone().multiplyScalar(
       -barrier.firstDerivative
     );
     return Object.freeze({
       projection,
+      ...(pointSimplex === null ? {} : { pointSimplex }),
       distance,
       separationNormal,
       barrierCoordinate,
@@ -258,9 +276,9 @@ export interface XpbdParticleSourceSimplexBarrierStepFilterEvidenceN {
   readonly startDistance: number;
   /** Unsigned point--simplex distance at the requested endpoint. */
   readonly endDistance: number;
-  /** Start distance above the barrier's open minimum. */
+  /** Certified lower bound on start distance above the open minimum. */
   readonly startMargin: number;
-  /** Endpoint distance above the barrier's open minimum. */
+  /** Certified lower bound on endpoint distance above the open minimum. */
   readonly endMargin: number;
   /** Euclidean length of the complete proposed point path. */
   readonly pathLength: number;
@@ -367,23 +385,32 @@ implements XpbdIncrementalPotentialStepFilterN {
       this.dimension,
       `${caller}: positionAfter`
     );
-    const startProjection = projectForBarrier(this.barrier, before);
-    const endProjection = projectForBarrier(this.barrier, after);
-    const startDistance = Math.sqrt(startProjection.squaredDistance);
-    const endDistance = Math.sqrt(endProjection.squaredDistance);
+    const startQuery = projectForBarrier(this.barrier, before);
+    const endQuery = projectForBarrier(this.barrier, after);
+    const startProjection = startQuery.projection;
+    const startDistance = startQuery.result === null
+      ? Math.sqrt(startProjection.squaredDistance)
+      : pointSimplexDistance(startQuery.result);
+    const endDistance = endQuery.result === null
+      ? Math.sqrt(endQuery.projection.squaredDistance)
+      : pointSimplexDistance(endQuery.result);
     if (!Number.isFinite(startDistance) || !Number.isFinite(endDistance)) {
       throw new Error(`${caller}: distance is outside Float64`);
     }
-    const startMargin = startDistance - this.barrier.minimumDistance;
-    const endMargin = endDistance - this.barrier.minimumDistance;
+    const startCertifiedDistance = certifiedDistanceLowerBound(startQuery);
+    const endCertifiedDistance = certifiedDistanceLowerBound(endQuery);
+    const startMargin = startCertifiedDistance - this.barrier.minimumDistance;
+    const endMargin = endCertifiedDistance - this.barrier.minimumDistance;
     const displacement = after.clone().sub(before);
     const pathLength = displacement.length();
     let startDirectionalDerivative = 0;
+    let startDirection: VecN | null = null;
     if (startDistance > 0 && pathLength > 0) {
-      startDirectionalDerivative = before.clone()
-        .sub(startProjection.point)
-        .multiplyScalar(1 / startDistance)
-        .dot(displacement);
+      startDirection = startQuery.result !== null &&
+        startQuery.result.status === 'projected'
+        ? new VecN(startQuery.result.witness.direction)
+        : before.clone().sub(startProjection.point).multiplyScalar(1 / startDistance);
+      startDirectionalDerivative = startDirection.dot(displacement);
     }
     const common = {
       startDistance,
@@ -411,7 +438,17 @@ implements XpbdIncrementalPotentialStepFilterN {
         certification: 'stationary'
       });
     }
-    if (startDirectionalDerivative >= 0) {
+    const directionError = startQuery.result !== null &&
+      startQuery.result.status === 'projected'
+      ? startQuery.result.error.directionErrorBound
+      : 0;
+    const directionalDerivativeError = startDirection === null
+      ? 0
+      : addUpNonnegative(
+        multiplyUpNonnegative(directionError, pathLength),
+        dotRoundoffBound(startDirection, displacement)
+      );
+    if (startDirectionalDerivative >= directionalDerivativeError) {
       return Object.freeze({
         ...common,
         status: 'safe',
@@ -473,12 +510,141 @@ function validateContext(
 function projectForBarrier(
   barrier: XpbdParticleSourceSimplexBarrierN,
   position: VecN
-): SourceSimplexProjectionN {
-  return projectPointToSourceSimplexN(barrier.simplex, position.data, {
-    tolerance: barrier.projectionTolerance,
-    rankTolerance: barrier.rankTolerance,
-    maxCandidateFaces: barrier.maxCandidateFaces
+): {
+  readonly projection: SourceSimplexProjectionN;
+  readonly result: PointSimplexResult | null;
+} {
+  const { simplex } = barrier;
+  if (simplex.intrinsicDim > 3) {
+    return Object.freeze({
+      result: null,
+      projection: projectPointToSourceSimplexN(simplex, position.data)
+    });
+  }
+  const packed = new Float64Array(
+    simplex.vertexIndices.length * barrier.dimension
+  );
+  for (let slot = 0; slot < simplex.vertexIndices.length; slot += 1) {
+    const source = simplex.complex.getPosition(simplex.vertexIndices[slot]!);
+    for (let axis = 0; axis < barrier.dimension; axis += 1) {
+      packed[slot * barrier.dimension + axis] = source[axis]!;
+    }
+  }
+  const result = evaluateExactPointSimplexResult(
+    position.data, packed, barrier.dimension
+  );
+  if (result.status === 'rank-deficient') {
+    throw new Error(
+      `XpbdParticleSourceSimplexBarrierN: source simplex is exactly rank-deficient (rank ${result.exactRank})`
+    );
+  }
+  if (result.status === 'uncertified') {
+    throw new Error(
+      `XpbdParticleSourceSimplexBarrierN: point--simplex result is uncertified (${result.reason}: ${result.detail})`
+    );
+  }
+  const coordinate: SourceSimplexCoordinateN = Object.freeze({
+    kind: 'source-simplex-coordinate',
+    reference: simplex,
+    weights: result.witness.weights
   });
+  return Object.freeze({
+    result,
+    projection: Object.freeze({
+      coordinate,
+      point: new VecN(result.witness.point),
+      squaredDistance: result.status === 'zero'
+        ? 0
+        : result.witness.squaredDistance,
+      affineRank: result.exactRank,
+      unresolvedDegreesOfFreedom: 0,
+      candidateFaces: (1 << simplex.vertexIndices.length) - 1
+    })
+  });
+}
+
+function pointSimplexDistance(result: PointSimplexResult): number {
+  if (result.status === 'projected') return result.witness.distance;
+  if (result.status === 'zero') return 0;
+  if (result.status === 'rank-deficient') {
+    throw new Error(
+      `XpbdParticleSourceSimplexBarrierN: source simplex is exactly rank-deficient (rank ${result.exactRank})`
+    );
+  }
+  throw new Error(
+    `XpbdParticleSourceSimplexBarrierN: point--simplex result is uncertified (${result.reason}: ${result.detail})`
+  );
+}
+
+function certifiedDistanceLowerBound(query: {
+  readonly projection: SourceSimplexProjectionN;
+  readonly result: PointSimplexResult | null;
+}): number {
+  const { result } = query;
+  if (result === null) return Math.sqrt(query.projection.squaredDistance);
+  if (result.status === 'zero') return 0;
+  if (result.status === 'rank-deficient') {
+    throw new Error(
+      `XpbdParticleSourceSimplexBarrierN: source simplex is exactly rank-deficient (rank ${result.exactRank})`
+    );
+  }
+  if (result.status === 'uncertified') {
+    throw new Error(
+      `XpbdParticleSourceSimplexBarrierN: point--simplex result is uncertified (${result.reason}: ${result.detail})`
+    );
+  }
+  const lowerSquared = nextDownNonnegative(
+    result.witness.squaredDistance - result.error.squaredDistanceErrorBound
+  );
+  if (!(lowerSquared > 0)) return 0;
+  return nextDownNonnegative(Math.sqrt(lowerSquared));
+}
+
+/** Greatest non-negative Float64 strictly below a positive finite input. */
+function nextDownNonnegative(value: number): number {
+  if (!(value > 0)) return 0;
+  if (!Number.isFinite(value)) return Number.MAX_VALUE;
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, value);
+  const bits = view.getBigUint64(0);
+  view.setBigUint64(0, bits - 1n);
+  return view.getFloat64(0);
+}
+
+function nextUpNonnegative(value: number): number {
+  if (value === 0) return 0;
+  if (!Number.isFinite(value)) return Number.POSITIVE_INFINITY;
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, value);
+  const bits = view.getBigUint64(0);
+  view.setBigUint64(0, bits + 1n);
+  return view.getFloat64(0);
+}
+
+function addUpNonnegative(left: number, right: number): number {
+  return nextUpNonnegative(left + right);
+}
+
+function multiplyUpNonnegative(left: number, right: number): number {
+  const product = left * right;
+  if (product === 0 && left > 0 && right > 0) return Number.MIN_VALUE;
+  return nextUpNonnegative(product);
+}
+
+function dotRoundoffBound(left: VecN, right: VecN): number {
+  let absoluteProducts = 0;
+  for (let axis = 0; axis < left.dim; axis += 1) {
+    absoluteProducts = addUpNonnegative(
+      absoluteProducts,
+      multiplyUpNonnegative(
+        Math.abs(left.data[axis]!), Math.abs(right.data[axis]!)
+      )
+    );
+  }
+  const operations = 2 * left.dim;
+  const gamma = operations * Number.EPSILON /
+    (1 - operations * Number.EPSILON);
+  return multiplyUpNonnegative(gamma, absoluteProducts);
 }
 
 function finitePosition(value: VecN, dimension: number, label: string): VecN {
@@ -491,10 +657,4 @@ function finitePosition(value: VecN, dimension: number, label: string): VecN {
     }
   }
   return value.clone();
-}
-
-function positive(value: number, label: string): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`${label} must be finite and positive`);
-  }
 }

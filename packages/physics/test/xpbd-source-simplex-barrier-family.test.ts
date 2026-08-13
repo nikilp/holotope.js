@@ -300,10 +300,11 @@ describe('source-indexed point--simplex candidate family', () => {
 
     expect(evaluated).toMatchObject({
       status: 'limited',
-      maximumStepLength: 0.81,
       blockingCandidateId: 'mesh-contact/source-vertex/0/obstacle-cell/0',
       candidateQuery: { scope: 'segment' }
     });
+    expect(evaluated.status === 'limited' && evaluated.maximumStepLength)
+      .toBeCloseTo(0.81, 14);
     expect(evaluated.candidates).toHaveLength(1);
     expect(evaluated.candidates[0]!.evaluation).toMatchObject({
       status: 'limited',

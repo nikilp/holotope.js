@@ -112,12 +112,6 @@ export interface CompileXpbdParticleSourceSimplexBarrierFamilyNOptions {
   readonly stiffness: number;
   /** Fraction of each certified Lipschitz prefix retained. Default `0.9`. */
   readonly conservativeScale?: number;
-  /** Scale-relative closest-simplex tolerance. Default `1e-9`. */
-  readonly projectionTolerance?: number;
-  /** Relative affine-rank tolerance. Default `1e-10`. */
-  readonly rankTolerance?: number;
-  /** Bound on exact active-face candidates per simplex query. Default `262143`. */
-  readonly maxCandidateFaces?: number;
   /**
    * Optional precompiled static hierarchy over the same obstacle and group.
    *
@@ -243,12 +237,6 @@ implements XpbdConservativeForceProviderN {
   readonly activationDistance: number;
   /** Positive energy scale shared by pair barriers. */
   readonly stiffness: number;
-  /** Closest-simplex solve tolerance. */
-  readonly projectionTolerance: number;
-  /** Affine-rank tolerance. */
-  readonly rankTolerance: number;
-  /** Exact active-face enumeration bound. */
-  readonly maxCandidateFaces: number;
   /** Strict prefix scale shared by pair filters. */
   readonly conservativeScale: number;
   /**
@@ -266,9 +254,6 @@ implements XpbdConservativeForceProviderN {
     options: CompileXpbdParticleSourceSimplexBarrierFamilyNOptions,
     simplices: readonly SourceSimplexReferenceN[],
     minimumDistance: number,
-    projectionTolerance: number,
-    rankTolerance: number,
-    maxCandidateFaces: number,
     conservativeScale: number
   ) {
     this.id = options.id;
@@ -281,9 +266,6 @@ implements XpbdConservativeForceProviderN {
     this.minimumDistance = minimumDistance;
     this.activationDistance = options.activationDistance;
     this.stiffness = options.stiffness;
-    this.projectionTolerance = projectionTolerance;
-    this.rankTolerance = rankTolerance;
-    this.maxCandidateFaces = maxCandidateFaces;
     this.conservativeScale = conservativeScale;
     this.candidateHierarchy = options.candidateHierarchy ?? null;
     this.stepFilter = new XpbdParticleSourceSimplexBarrierFamilyStepFilterN(this);
@@ -298,9 +280,6 @@ implements XpbdConservativeForceProviderN {
       options,
       compileSimplexReferences(options.obstacle, options.simplexGroup),
       validated.minimumDistance,
-      validated.projectionTolerance,
-      validated.rankTolerance,
-      validated.maxCandidateFaces,
       validated.conservativeScale
     );
   }
@@ -329,6 +308,13 @@ implements XpbdConservativeForceProviderN {
       const barrier = barrierForCandidate(this, candidate);
       const position = internal.positions.before[candidate.sourceVertexIndex]!;
       const evaluation = barrier.evaluateAt(() => position);
+      if (evaluation.pointSimplex !== undefined &&
+        evaluation.projection.coordinate.weights !==
+        evaluation.pointSimplex.witness.weights) {
+        throw new Error(
+          'XpbdParticleSourceSimplexBarrierFamilyN.evaluateAt: exact and source-retained witnesses diverged'
+        );
+      }
       if (evaluation.distance >= this.activationDistance) continue;
       potentialEnergy += evaluation.potentialEnergy;
       forces[candidate.sourceVertexIndex]!.add(evaluation.forces[0]);
@@ -503,9 +489,6 @@ function validateCompilerInput(
   options: CompileXpbdParticleSourceSimplexBarrierFamilyNOptions
 ): {
   readonly minimumDistance: number;
-  readonly projectionTolerance: number;
-  readonly rankTolerance: number;
-  readonly maxCandidateFaces: number;
   readonly conservativeScale: number;
 } {
   const caller = 'compileXpbdParticleSourceSimplexBarrierFamilyN';
@@ -515,7 +498,6 @@ function validateCompilerInput(
   const allowed = [
     'id', 'binding', 'obstacle', 'simplexGroup', 'minimumDistance',
     'activationDistance', 'stiffness', 'conservativeScale',
-    'projectionTolerance', 'rankTolerance', 'maxCandidateFaces',
     'candidateHierarchy'
   ];
   const unknown = Object.keys(options).filter((key) => !allowed.includes(key));
@@ -549,7 +531,7 @@ function validateCompilerInput(
   if (!options.obstacle.groups.includes(group)) {
     throw new Error(`${caller}: simplexGroup must belong to obstacle`);
   }
-  if (!Number.isSafeInteger(group.dim) || group.dim < 1 ||
+  if (!Number.isSafeInteger(group.dim) || group.dim < 1 || group.dim > 17 ||
     group.dim > options.obstacle.ambientDim || group.kind !== 'simplex' ||
     group.verticesPerCell !== group.dim + 1 || group.indices.length === 0 ||
     group.indices.length % group.verticesPerCell !== 0) {
@@ -572,20 +554,6 @@ function validateCompilerInput(
   if (!Number.isFinite(conservativeScale) ||
     conservativeScale <= 0 || conservativeScale >= 1) {
     throw new Error(`${caller}: conservativeScale must be in (0, 1)`);
-  }
-  const projectionTolerance = options.projectionTolerance ?? 1e-9;
-  const rankTolerance = options.rankTolerance ?? 1e-10;
-  for (const [label, value] of [
-    ['projectionTolerance', projectionTolerance],
-    ['rankTolerance', rankTolerance]
-  ] as const) {
-    if (!Number.isFinite(value) || value <= 0) {
-      throw new Error(`${caller}: ${label} must be finite and positive`);
-    }
-  }
-  const maxCandidateFaces = options.maxCandidateFaces ?? 262_143;
-  if (!Number.isSafeInteger(maxCandidateFaces) || maxCandidateFaces < 1) {
-    throw new Error(`${caller}: maxCandidateFaces must be a positive safe integer`);
   }
   const candidateHierarchy = options.candidateHierarchy;
   if (candidateHierarchy !== undefined) {
@@ -614,9 +582,6 @@ function validateCompilerInput(
   assertFiniteObstacle(options.obstacle, group, caller);
   return {
     minimumDistance,
-    projectionTolerance,
-    rankTolerance,
-    maxCandidateFaces,
     conservativeScale
   };
 }
@@ -792,10 +757,7 @@ function barrierForCandidate(
     simplex: candidate.simplex,
     minimumDistance: family.minimumDistance,
     activationDistance: family.activationDistance,
-    stiffness: family.stiffness,
-    projectionTolerance: family.projectionTolerance,
-    rankTolerance: family.rankTolerance,
-    maxCandidateFaces: family.maxCandidateFaces
+    stiffness: family.stiffness
   });
 }
 
@@ -882,4 +844,3 @@ function finitePosition(value: VecN, dimension: number, label: string): VecN {
   }
   return value.clone();
 }
-

@@ -15,6 +15,7 @@ import {
   XpbdPotentialDomainErrorN,
   compileXpbdIncrementalPotentialAnalyticHessianOperatorN,
   compileXpbdIncrementalPotentialProblemN,
+  evaluateExactPointSimplexResult,
   evaluateClampedLogBarrier,
   searchXpbdIncrementalPotentialArmijoN
 } from '../src/index.js';
@@ -101,6 +102,9 @@ describe('RN particle--source-simplex conservative barrier', () => {
     });
 
     expect(evaluated.distance).toBeCloseTo(0.3, 13);
+    expect(evaluated.pointSimplex.status).toBe('projected');
+    expect(evaluated.pointSimplex.witness.distance).toBe(evaluated.distance);
+    expect(evaluated.pointSimplex.witness.direction).toEqual([0, 0, 0, 1]);
     expect(evaluated.projection.coordinate.reference).toBe(reference);
     [0.4, 0.2, 0.25, 0.15].forEach((weight, index) => {
       expect(evaluated.projection.coordinate.weights[index]!)
@@ -205,6 +209,33 @@ describe('RN particle--source-simplex conservative barrier', () => {
     expect(candidate.toArray()).toEqual([0.2, 0.2, 0.2, 0.04]);
   });
 
+  it('distinguishes a crossed error bound from a reported sub-minimum distance', () => {
+    const point = [7, 2 ** -40];
+    const raw = evaluateExactPointSimplexResult(point, [0, 0, 25, 0], 2);
+    expect(raw.status).toBe('projected');
+    if (raw.status !== 'projected') return;
+    const lower = Math.sqrt(Math.max(
+      0,
+      raw.witness.squaredDistance - raw.error.squaredDistanceErrorBound
+    ));
+    expect(lower).toBeLessThan(raw.witness.distance);
+    const minimumDistance = (lower + raw.witness.distance) / 2;
+    const { reference } = simplex(2, [[0, 0], [25, 0]]);
+    const provider = barrier(reference, new VecN(point), {
+      minimumDistance,
+      activationDistance: 1
+    });
+    try {
+      provider.evaluate();
+      throw new Error('expected the distance-bound refusal');
+    } catch (error) {
+      expect(error).toMatchObject({
+        lawId: 'simplex-barrier',
+        reason: 'minimum-distance-not-certified'
+      });
+    }
+  });
+
   it('fails fast on dimension, option, and retired-source violations', () => {
     const fixture = tetra4();
     const particle = new XpbdParticleN({ id: 'bad', position: [0, 0, 0] });
@@ -263,14 +294,15 @@ describe('RN particle--source-simplex admissible-step filter', () => {
       status: 'limited',
       startDistance: 0.5,
       endDistance: 0.5,
-      startMargin: 0.45,
-      endMargin: 0.45,
       pathLength: 1,
       startDirectionalDerivative: -1,
-      certifiedFraction: 0.405,
-      maximumStepLength: 0.81,
       certification: 'global-lipschitz'
     });
+    expect(evaluated.startMargin).toBeCloseTo(0.45, 14);
+    expect(evaluated.endMargin).toBeCloseTo(0.45, 14);
+    expect(evaluated.certifiedFraction).toBeCloseTo(0.405, 14);
+    expect(evaluated.status === 'limited' && evaluated.maximumStepLength)
+      .toBeCloseTo(0.81, 14);
     expect('impactFraction' in evaluated).toBe(false);
   });
 
@@ -281,13 +313,13 @@ describe('RN particle--source-simplex admissible-step filter', () => {
       id: 'branches', barrier: provider
     });
     const start = new VecN([0.2, 0.2, 0.2, 0.2]);
-    const cases = [
+    const safeCases = [
       [start, start, 'stationary'],
       [start, new VecN([1.4, 0.2, 0.2, 0.2]), 'convex-nondecreasing'],
       [start, new VecN([0.2, 0.2, 0.2, 0.8]), 'convex-nondecreasing'],
       [start, new VecN([0.2, 0.2, 0.2, 0.1]), 'global-lipschitz']
     ] as const;
-    for (const [before, after, certification] of cases) {
+    for (const [before, after, certification] of safeCases) {
       expect(filter.evaluate(context(before, after))).toMatchObject({
         status: 'safe',
         maximumStepLength: 1,
