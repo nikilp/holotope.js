@@ -232,15 +232,23 @@ search exhaustion.
 For one authored finite obstacle feature,
 `XpbdParticleSourceSimplexBarrierN` instead uses unsigned distance to a
 persistent closed source simplex and retains its closest barycentric source
-coordinate. Its paired step filter certifies a complete non-closing segment or
-a conservative Lipschitz prefix. That prefix is not an exact impact time, and
-neither class discovers candidate pairs from a mesh.
+coordinate. For source dimensions 1 through 3, the query makes its rank,
+active-face, and zero-distance decisions exactly on the supplied Float64
+geometry, then publishes a coherent Float64 witness with outward error bounds.
+It has no rank or barycentric tolerance knobs. Its paired step filter certifies
+a complete non-closing segment or a conservative Lipschitz prefix. That prefix
+is not an exact impact time, and neither class discovers candidate pairs from a
+mesh.
+
+Higher-dimensional source simplices currently use the legacy Float64
+projector and therefore do not expose exact `pointSimplex` evidence.
 
 For a bounded dynamic-source/static-obstacle scene,
 `compileXpbdParticleSourceSimplexBarrierFamilyN()` adds that missing discovery
 layer without changing the pair law. It keeps the dynamic source vertex and
 static source simplex in every candidate ID, culls only through a conservative
-swept-AABB envelope, evaluates exact P44 barriers for point-query-active pairs,
+swept-AABB envelope, evaluates exact-on-supplied-Float64 barriers for
+point-query-active pairs,
 and aggregates the per-pair prefix certificates through one paired step
 filter. The diagnostics keep possible, retained, and exact-active counts
 separate. This remains an exhaustive reference query rather than a spatial

@@ -357,6 +357,16 @@ part is the simplex interior, an edge, or a vertex instead of discarding that
 transition. In R4, a point and a tetrahedron form the complementary
 zero-dimensional/three-dimensional contact-feature pair.
 
+For line segments, triangles, and tetrahedra, the projection decision is exact
+on the supplied Float64 geometry: Float64 coordinates are decoded as dyadic
+rationals, affine rank and every feasible active face are decided without a
+tolerance, and exact zero remains distinct from positive distance. The public
+result is still a practical Float64 object. Its point, distance, and direction
+come from one published set of barycentric weights, and its absolute error
+bounds are rounded outward. If either the witness or its accuracy evidence
+cannot fit Float64, the query refuses by a typed reason instead of substituting
+a scale-dependent band.
+
 ```ts
 import {
   CellComplex,

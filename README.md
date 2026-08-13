@@ -28,10 +28,15 @@ visual effects.
 Contact can also dissipate: friction enters the incremental objective as a
 term that is conservative while one lag snapshot is frozen and dissipative
 across accepted states, never as a post-solve velocity correction smuggled
-into the minimizer. Contact constrains features, not just points: source-simplex pairs carry
-certified distances with source-ordered witnesses, tied configurations are
-evidence rather than a fabricated winner, and step filters certify prefixes,
-never collision times. Higher-dimensional state stays higher-dimensional until the last responsible moment. The zero-dependency core does all N-D math in Float64 on the CPU; renderer adapters turn explicit **projections** of that state into ordinary 3D objects.
+into the minimizer. Contact constrains features, not just points: the exact
+point–simplex path decides rank, zero distance, and the closest active face on
+the supplied Float64 geometry, publishes one coherent witness with outward
+error bounds, and lets step filters certify prefixes rather than collision
+times. The generic moving simplex-pair path remains experimental while its
+scale-dependent Float64 comparison policy is replaced. Higher-dimensional
+state stays higher-dimensional until the last responsible moment. The
+zero-dependency core does all N-D math in Float64 on the CPU; renderer adapters
+turn explicit **projections** of that state into ordinary 3D objects.
 
 ```
 @holotope/core            zero-dependency N-D kernel

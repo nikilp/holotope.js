@@ -53,6 +53,7 @@ import {
   XpbdSourceSimplexPairBarrierStepFilterN,
   XpbdPreparedSourceSimplexPairFrictionN,
   XpbdSourceSimplexPairFrictionN,
+  evaluateExactPointSimplexResult,
   compileXpbdSourceSimplexPairBarrierFamilyN,
   compileXpbdSourceSimplexPairFrictionFamilyN,
   type CompileXpbdSourceSimplexPairFrictionFamilyNOptions,
@@ -67,6 +68,16 @@ import {
   type XpbdSourceSimplexPairFrictionSkipN,
   type XpbdSourceSimplexPairResolvedSlipRegularizationN,
   type XpbdSourceSimplexPairSlipRegularizationN,
+  type PointSimplexProjectedErrorBounds,
+  type PointSimplexProjectedResult,
+  type PointSimplexProjectedWitness,
+  type PointSimplexPublicationReason,
+  type PointSimplexRankDeficientResult,
+  type PointSimplexResult,
+  type PointSimplexUncertifiedResult,
+  type PointSimplexZeroErrorBounds,
+  type PointSimplexZeroResult,
+  type PointSimplexZeroWitness,
   evaluateSourceSimplexPairDistanceN,
   type CompileXpbdSourceSimplexPairBarrierFamilyNOptions,
   type SourceSimplexPairDistanceN,
@@ -191,6 +202,69 @@ function facetNames(complex: CellComplex): string {
     names.push(`${facet.axis}:${facet.sign > 0 ? '+' : '-'}`);
   }
   return names.join(' ');
+}
+
+/**
+ * 0a. Exact-on-supplied-Float64 point--simplex decisions and publication.
+ *
+ * This consumes every result arm and every evidence field from the packed
+ * declaration surface. The finite-witness accuracy overflow is intentionally
+ * distinct from a witness that is itself outside Float64.
+ */
+export function exactPointSimplexQuery(): void {
+  const projected: PointSimplexResult = evaluateExactPointSimplexResult(
+    [0.25, 0.125, 2],
+    [0, 0, 0, 1, 0, 0, 0, 1, 0],
+    3
+  );
+  assert(projected.status === 'projected', 'exact triangle query did not project');
+  const projectedResult: PointSimplexProjectedResult = projected;
+  const projectedWitness: PointSimplexProjectedWitness = projectedResult.witness;
+  const projectedError: PointSimplexProjectedErrorBounds = projectedResult.error;
+  assert(projectedResult.exactRank === 2, 'exact triangle rank is wrong');
+  assert(projectedResult.activeSlots.length === 3, 'exact active face is wrong');
+  assert(projectedWitness.anchorSlot === 0, 'unexpected residual-weight anchor');
+  assert(projectedWitness.weights.reduce((sum, weight) => sum + weight, 0) === 1,
+    'published weights do not sum to one');
+  assert(projectedWitness.point[2] === 0 && projectedWitness.distance === 2 &&
+    projectedWitness.squaredDistance === 4 && projectedWitness.direction[2] === 1,
+  'published projected witness is incoherent');
+  assert(projectedError.weightAbsoluteErrorBound.every((bound) => bound === 0) &&
+    projectedError.pointAbsoluteErrorBound.every((bound) => bound === 0) &&
+    projectedError.squaredDistanceErrorBound === 0 &&
+    projectedError.directionErrorBound === 0,
+  'exact dyadic fixture unexpectedly carries publication error');
+
+  const zero = evaluateExactPointSimplexResult(
+    [0.25, 0.25, 0], [0, 0, 0, 1, 0, 0, 0, 1, 0], 3
+  );
+  assert(zero.status === 'zero', 'on-simplex point did not report exact zero');
+  const zeroResult: PointSimplexZeroResult = zero;
+  const zeroWitness: PointSimplexZeroWitness = zeroResult.witness;
+  const zeroError: PointSimplexZeroErrorBounds = zeroResult.error;
+  assert(zeroWitness.point[2] === 0 &&
+    zeroError.squaredDistanceErrorBound === 0,
+  'zero witness or its error evidence is wrong');
+
+  const rank = evaluateExactPointSimplexResult(
+    [0, 0, 1], [0, 0, 0, 1, 0, 0, 2, 0, 0], 3
+  );
+  assert(rank.status === 'rank-deficient', 'collinear triangle was admitted');
+  const rankResult: PointSimplexRankDeficientResult = rank;
+  assert(rankResult.exactRank === 1, 'exact deficient rank is wrong');
+
+  const uncertain = evaluateExactPointSimplexResult(
+    [7, Number.MIN_VALUE], [0, 0, 25, 0], 2
+  );
+  assert(uncertain.status === 'uncertified', 'accuracy overflow was certified');
+  const uncertified: PointSimplexUncertifiedResult = uncertain;
+  const reason: PointSimplexPublicationReason = uncertified.reason;
+  assert(reason === 'accuracy-bound-overflow' && uncertified.detail.length > 0,
+    'finite accuracy overflow lost its typed reason');
+  assert(Object.isFrozen(projectedResult) &&
+    Object.isFrozen(projectedWitness.weights) &&
+    Object.isFrozen(projectedError.pointAbsoluteErrorBound),
+  'published evidence is not owned and frozen');
 }
 
 /**

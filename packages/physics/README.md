@@ -128,8 +128,12 @@ particle hide a light particle's acceleration behind it.
 
 Its authored obstacle terms include both an oriented infinite hyperplane and
 one finite persistent source simplex. The latter retains the closest
-barycentric source coordinate and pairs its unsigned barrier with a
-conservative convexity/Lipschitz segment certificate. A source-indexed family
+barycentric source coordinate. Its line-segment, triangle, and tetrahedron
+queries decide affine rank, zero distance, and the closest active face exactly
+on the supplied Float64 values, then publish one coherent Float64 witness with
+outward-rounded error bounds. There are no geometric tolerance knobs. The
+unsigned barrier pairs that query with a conservative convexity/Lipschitz
+segment certificate. A source-indexed family
 now lifts that pair over dynamic bound vertices and a separate static simplex
 mesh: exhaustive swept-AABB rejection keeps possible, retained, exact-active,
 and blocking-pair evidence separate while presenting one stable provider and
@@ -158,6 +162,18 @@ adjacent cells' terms — measured at exactly 2×), which the family documents
 instead of averaging away. This closes the P53d boundary: a sheet triangle
 can now be held off an obstacle that pierces its interior while every vertex
 is legally separated. It is not self-contact or mesh–mesh CCD.
+
+The generic pair query is still an experimental surface. A later scale audit
+found that its Float64 rank, zero, and optimality bands can change a result
+under exact similarity transforms. Do not use its 0-simplex specialization as
+the point–simplex authority. `evaluateExactPointSimplexResult` and the
+point–simplex barrier/family use the exact-on-supplied-Float64 path instead;
+the moving simplex-pair replacement remains current research.
+
+Higher-dimensional point–simplex barriers remain available through the
+legacy Float64 projector so existing RN experiments can still be inspected,
+but they do not carry `pointSimplex` exact-decision evidence and inherit that
+projector's tolerance boundary. They are not part of the exact claim above.
 
 P57 adds the first **dissipative** contact term to the objective itself.
 `XpbdSourceSimplexPairFrictionN` freezes one *lag* at an accepted state — the

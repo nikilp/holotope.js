@@ -61,6 +61,49 @@ declare const currentPlatformPose: TransformN;
 
 ## Source-simplex pair distance
 
+For a point against a line segment, triangle, or tetrahedron, use the narrower
+exact boundary:
+
+```ts
+import { evaluateExactPointSimplexResult } from '@holotope/physics';
+
+const result = evaluateExactPointSimplexResult(
+  [0.25, 0.125, 2],
+  [0, 0, 0, 1, 0, 0, 0, 1, 0],
+  3
+);
+
+if (result.status === 'projected') {
+  console.log(result.witness.distance, result.witness.weights);
+  console.log(result.error.directionErrorBound);
+}
+```
+
+The operation treats each supplied finite Float64 as its exact dyadic value.
+It decides affine rank, the closest active face, and exact zero without a
+tolerance. A success publishes one coherent Float64 witness: the point,
+distance, and direction are derived from the same source-ordered weights.
+Absolute error bounds are rounded outward. `rank-deficient` is an exact
+geometric decision; `uncertified` means that the exact decision cannot be
+represented honestly by this Float64 evidence surface. Returned evidence is
+owned and frozen; caller arrays remain caller-owned. The supported source
+simplex dimensions are 1 through 3.
+
+`XpbdParticleSourceSimplexBarrierN` and its candidate family use this exact
+path and retain the caller's `SourceSimplexReferenceN`. The barrier evaluation
+exposes the exact decision as `pointSimplex` beside the legacy-shaped
+`projection` convenience view.
+
+Higher-dimensional point–simplex barriers currently fall back to the legacy
+Float64 projector. They remain usable for RN experiments, but do not expose
+`pointSimplex` evidence and are outside this exact claim.
+
+The broader `evaluateSourceSimplexPairDistanceN` surface remains experimental.
+Its current Float64 comparison bands are not similarity-invariant at extreme
+scales, so its 0-simplex specialization is not an alternative point–simplex
+authority. Replacing those bands for the genuinely moving feature-pair case is
+separate work.
+
 `evaluateSourceSimplexPairDistanceN` answers the feature-pair question the
 point queries cannot: the certified minimum distance between two finite
 source simplices in RN, with source-ordered barycentric witnesses on both
