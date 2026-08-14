@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.0.18
+
+All five packages are synchronized at `0.0.18`; the substantive additions and
+breaking pre-1.0 contract changes are in `@holotope/physics`.
+
+### `@holotope/physics@0.0.18`
+
+- Added `evaluateExactPointSimplexResult` for a point against a segment,
+  triangle or tetrahedron. It treats each supplied Float64 as its exact dyadic
+  value, decides affine rank, the closest active face and exact zero without a
+  fitted tolerance, and publishes one coherent, frozen Float64 witness with
+  source-ordered weights and outward-rounded error bounds.
+- Replaced the point source-simplex barrier's tolerance-driven projection
+  authority with explicit
+  `projected`, `zero`, `rank-deficient` and `uncertified` outcomes. Publication
+  failures distinguish weight underflow, value overflow, value underflow and
+  accuracy-bound overflow rather than silently choosing a witness or leaking
+  an untyped arithmetic error.
+- Migrated the point source-simplex barrier and its compiled family to that
+  exact boundary for simplex dimensions 1–3. Publication uncertainty and a
+  caller-authored direction-error policy now leave through named
+  `XpbdPotentialDomainErrorN` reasons; equality with the policy is admitted,
+  and construction requires a finite `maximumDirectionError` in `(0, 2)` on
+  the exact arm.
+- Re-derived the paired step filter from the segment's certified start state.
+  It now performs one exact query rather than querying an uncertifiable
+  endpoint, forwards an unpublishable start without fabricated `NaN` evidence,
+  and attaches a certification only when a positive prefix was actually
+  proved.
+- Added public regression ownership for the historical negative-barycentric,
+  ill-conditioned active-face and extreme-scale publication failures, plus
+  barrier, Armijo, world-step, family and packed-consumer composition.
+
+The direction enclosure is a bound on the unit direction, not on the final
+force, so `maximumDirectionError` is intentionally caller policy rather than a
+library default. Point–simplex barriers of dimensions 4–17 retain the legacy
+Float64 projector and no exact evidence claim; at `k = 17`, one `evaluateAt()`
+was measured at roughly 7.8–12.2 seconds and is suitable only for offline
+study. The broader moving simplex-pair query remains experimental: its current
+comparison bands are not similarity-invariant at extreme scales, and this
+release does not claim mesh–mesh contact or self-contact.
+
 ## v0.0.17
 
 All five packages are synchronized at `0.0.17`; the behavioural change is in
