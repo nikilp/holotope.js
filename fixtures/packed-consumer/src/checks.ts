@@ -1672,10 +1672,15 @@ export function physicsComposition(): void {
       simplexFilterEvaluation;
   assert(
     simplexFilterEvaluation.status === 'limited' &&
-      simplexFilterEvidence.certification === 'global-lipschitz' &&
+      simplexFilterEvaluation.certification === 'global-lipschitz' &&
       simplexFilterEvidence.certifiedFraction > 0 &&
       simplexFilterEvidence.certifiedFraction < 0.5,
     'the finite source-simplex segment was not conservatively limited'
+  );
+  assert(
+    !('endDistance' in simplexFilterEvaluation) &&
+      !('endMargin' in simplexFilterEvaluation),
+    'the step filter published endpoint evidence it never queries'
   );
   const domainReason: XpbdParticleSourceSimplexBarrierDomainReasonN =
     'at-or-below-minimum-distance';
@@ -1685,6 +1690,146 @@ export function physicsComposition(): void {
   assert(
     String(domainReason) !== String(filterReason),
     'potential and step-filter refusal vocabularies collapsed together'
+  );
+
+  // ---------------------------------------------------------------------
+  // The typed uncertainty boundary, exercised against the PACKED build.
+  //
+  // A consumer of the tarball must be able to branch on WHY an exact
+  // point--simplex decision could not be published, must see the direction
+  // policy applied consistently, and must not be handed fabricated evidence.
+  // These are behavioural drives, not string or filename checks.
+  // ---------------------------------------------------------------------
+  const uncertaintySegment = (row: readonly number[]) => {
+    const group: CellGroup = {
+      dim: 1, verticesPerCell: 2, kind: 'simplex',
+      indices: Uint32Array.from([0, 1])
+    };
+    const complex = new CellComplex(
+      2, new Float64Array([0, 0, row[0]!, row[1]!]), [group]
+    );
+    return createSourceSimplexReferenceN(
+      createSourceCellReferenceN(complex, group, 0)
+    );
+  };
+  const uncertaintyBarrier = (
+    at: readonly number[], row: readonly number[],
+    options: { maximumDirectionError?: number, activationDistance?: number } = {}
+  ) => new XpbdParticleSourceSimplexBarrierN({
+    id: 'packed-uncertainty',
+    particle: new XpbdParticleN({ id: 'packed-uncertainty-point', position: [...at] }),
+    simplex: uncertaintySegment(row),
+    minimumDistance: 0,
+    activationDistance: options.activationDistance ?? 50,
+    stiffness: 1,
+    maximumDirectionError: options.maximumDirectionError ?? 2 ** -12
+  });
+
+  // Each of the four publication reasons reaches a consumer as its own typed
+  // reason. Collapsing any two would leave this set short.
+  const packedReasons = new Set<string>();
+  for (const [at, row] of [
+    [[7, Number.MIN_VALUE], [25, 0]],
+    [[7 * 2 ** 600, 2 ** (600 - 1074 + 53)], [25 * 2 ** 600, 0]],
+    [[2 ** -1070, 2 ** -1070], [2 ** -1070, 0]],
+    [[5e-324, 2 ** -1074], [2 ** 500, 0]]
+  ] as const) {
+    try {
+      uncertaintyBarrier(at, row).evaluate();
+      assert(false, 'an unpublishable exact decision was silently accepted');
+    } catch (error) {
+      assert(
+        error instanceof XpbdPotentialDomainErrorN,
+        'an unpublishable exact decision arrived as an untyped Error'
+      );
+      packedReasons.add(
+        (error as XpbdPotentialDomainErrorN<string>).reason
+      );
+    }
+  }
+  assert(
+    packedReasons.size === 4,
+    'the four exact publication reasons were collapsed before the consumer'
+  );
+
+  // The direction policy admits a bound exactly equal to it and refuses only a
+  // strictly larger one, at BOTH released entry points.
+  const policyProbe = uncertaintyBarrier([7, 2 ** -30], [25, 0]);
+  const policyWitness = policyProbe.evaluate().pointSimplex;
+  assert(
+    policyWitness !== undefined && policyWitness.status === 'projected',
+    'the exact arm published no point--simplex witness'
+  );
+  const measuredBound = policyWitness!.error.directionErrorBound;
+  assert(
+    measuredBound > 0, 'the direction probe published no positive bound'
+  );
+  uncertaintyBarrier([7, 2 ** -30], [25, 0], {
+    maximumDirectionError: measuredBound
+  }).evaluate();
+  const strictPolicy = uncertaintyBarrier([7, 2 ** -30], [25, 0], {
+    maximumDirectionError: measuredBound * (1 - 2 ** -52)
+  });
+  for (const call of [
+    () => strictPolicy.evaluate(),
+    () => strictPolicy.evaluateAt(() => new VecN([7, 2 ** -30]))
+  ]) {
+    let policyRefusal: unknown;
+    try {
+      call();
+    } catch (error) {
+      policyRefusal = error;
+    }
+    assert(
+      policyRefusal instanceof XpbdPotentialDomainErrorN &&
+        (policyRefusal as XpbdPotentialDomainErrorN<string>).reason ===
+          'direction-error-exceeds-policy',
+      'the direction policy was not applied at both entry points'
+    );
+  }
+
+  // A segment whose ENDPOINT cannot be published still certifies: the proof
+  // reads the start state and the displacement, never the endpoint distance.
+  const unit = 2 ** -475;
+  const endpointBarrier = uncertaintyBarrier(
+    [4 * unit, 1], [2 ** 600, 0], { activationDistance: 4 }
+  );
+  const endpointFilter = new XpbdParticleSourceSimplexBarrierStepFilterN({
+    id: 'packed-endpoint-filter', barrier: endpointBarrier
+  });
+  const endpointCertified = endpointFilter.evaluate({
+    dimension: 2, requestedStepLength: 1,
+    positionBefore: () => new VecN([4 * unit, 1]),
+    positionAfter: () => new VecN([unit, 1])
+  });
+  assert(
+    endpointCertified.status === 'safe' &&
+      endpointCertified.certifiedFraction === 1,
+    'an unpublishable endpoint destroyed a certifiable prefix'
+  );
+
+  // An unpublishable START refuses with the forwarded reason and reports no
+  // start evidence at all — not NaN, not zero, not a sentinel.
+  const startFilter = new XpbdParticleSourceSimplexBarrierStepFilterN({
+    id: 'packed-start-filter',
+    barrier: uncertaintyBarrier([5e-324, 2 ** -1074], [2 ** 500, 0])
+  });
+  const startRefusal = startFilter.evaluate({
+    dimension: 2, requestedStepLength: 1,
+    positionBefore: () => new VecN([5e-324, 2 ** -1074]),
+    positionAfter: () => new VecN([1, 1])
+  });
+  assert(
+    startRefusal.status === 'indeterminate' &&
+      startRefusal.reason === 'point-simplex-weight-underflow',
+    'an unpublishable start lost its typed cause'
+  );
+  assert(
+    !('startDistance' in startRefusal) &&
+      !('startMargin' in startRefusal) &&
+      !('certification' in startRefusal) &&
+      Object.values(startRefusal).every((value) => !Number.isNaN(value)),
+    'a refusal fabricated evidence the filter never held'
   );
 
   // The packed graph must also compose the source-indexed candidate layer.
