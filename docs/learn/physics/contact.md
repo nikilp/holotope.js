@@ -94,9 +94,71 @@ path and retain the caller's `SourceSimplexReferenceN`. The barrier evaluation
 exposes the exact decision as `pointSimplex` beside the legacy-shaped
 `projection` convenience view.
 
-Higher-dimensional point–simplex barriers currently fall back to the legacy
-Float64 projector. They remain usable for RN experiments, but do not expose
-`pointSimplex` evidence and are outside this exact claim.
+### Publication uncertainty is a typed refusal, not an internal error
+
+The exact query's mathematics is unchanged by this boundary work. What changed
+is what its principal consumer does with an `uncertified` result: each
+publication reason is forwarded **one to one** into the barrier's
+potential-domain vocabulary, so a caller branches on a recovery class instead
+of parsing a message.
+
+| query publication reason | barrier domain reason |
+| --- | --- |
+| `weight-underflow` | `point-simplex-weight-underflow` |
+| `value-overflow` | `point-simplex-value-overflow` |
+| `value-underflow` | `point-simplex-value-underflow` |
+| `accuracy-bound-overflow` | `point-simplex-accuracy-bound-overflow` |
+
+These leave through `XpbdPotentialDomainErrorN`, exactly like the measured
+distance refusals, and `evaluate()` and `evaluateAt()` classify identically.
+
+**Not every one of them is repairable by shortening the step.**
+`accuracy-bound-overflow` and `value-underflow` depend on the candidate
+position and clear when it retreats. `value-overflow` and `weight-underflow`
+are properties of the simplex's own scale: at a `2^600` obstacle every
+candidate still fails, and the honest recovery is to rescale the scene rather
+than to backtrack. The typed reason is what tells the two situations apart.
+
+An exactly rank-deficient source simplex stays a configuration error rather
+than a recoverable refusal — no shorter step repairs authored geometry. Because
+the barrier reads its source complex on every query, a caller that mutates the
+complex after construction can surface that error mid-flight.
+
+### Direction usability is caller policy
+
+`maximumDirectionError` is a **dimensionless Euclidean radius** on the
+published unit direction. It is required on the exact source dimensions 1–3,
+must be finite, and must lie in the open interval `(0, 2)`: two unit vectors
+are at most 2 apart, so a bound at or above 2 would admit even the exact
+opposite direction while looking like a policy.
+
+A published `directionErrorBound` **equal** to the authored policy is admitted;
+only a strictly greater bound raises `direction-error-exceeds-policy`.
+
+There is no default. There is no universal correct value, so the library does
+not invent one — and it is **not** a force-accuracy guarantee: it bounds the
+direction the force is built from, and says nothing about the resulting force's
+error.
+
+No monotonicity in the gap is promised. Measured on an ordinary contact
+geometry, the published direction bound is not a monotone function of either
+the normal gap or the tangential position: at fixed gap it alternates between
+exactly zero and one positive value across *adjacent* representable
+coordinates, in regions rather than at isolated points. Do not bisect for a
+threshold; test the configurations you care about.
+
+Higher-dimensional point–simplex barriers (source dimensions 4–17) currently
+fall back to the legacy Float64 projector. They remain usable for RN
+experiments, but do not expose `pointSimplex` evidence, publish no direction
+enclosure, and are outside this exact claim. Because they cannot honour a
+direction policy, supplying `maximumDirectionError` there is a construction
+error rather than a silently ignored option — so a dimension-generic caller
+branches on the simplex dimension.
+
+The step filter answers endpoint publication uncertainty with its
+`indeterminate` status and the `endpoint-publication-uncertified` reason,
+carrying `certifiedFraction: 0` and no `maximumStepLength`: a prefix whose
+endpoint distance could not be published cannot be certified.
 
 The broader `evaluateSourceSimplexPairDistanceN` surface remains experimental.
 Its current Float64 comparison bands are not similarity-invariant at extreme

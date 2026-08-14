@@ -1630,7 +1630,11 @@ export function physicsComposition(): void {
     simplex: simplexReference,
     minimumDistance: 0.05,
     activationDistance: 0.8,
-    stiffness: 1
+    stiffness: 1,
+    // Required on the exact source dimensions 1..3: a dimensionless Euclidean
+    // radius on the published unit direction, authored by the caller because
+    // no universal value exists.
+    maximumDirectionError: 2 ** -12
   };
   const simplexBarrier = new XpbdParticleSourceSimplexBarrierN(
     simplexBarrierOptions
