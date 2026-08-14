@@ -47,6 +47,14 @@ export type XpbdParticleSourceSimplexBarrierPublicationReasonN =
   | 'point-simplex-value-underflow'
   | 'point-simplex-accuracy-bound-overflow';
 
+/**
+ * Open-domain refusal vocabulary of a point--source-simplex barrier.
+ *
+ * Three kinds of failure, kept apart because their recoveries differ: the
+ * distance was measured and is inadmissible, the exact decision could not be
+ * published at all, or the published direction is less accurate than the
+ * caller's authored policy admits.
+ */
 export type XpbdParticleSourceSimplexBarrierDomainReasonN =
   | 'at-or-below-minimum-distance'
   | 'minimum-distance-not-certified'
