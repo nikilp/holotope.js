@@ -28,14 +28,29 @@ import {
   type XpbdParticlePositionQueryN
 } from './xpbd-world.js';
 
-/** Open-domain refusal vocabulary of a point--source-simplex barrier. */
-export type XpbdParticleSourceSimplexBarrierDomainReasonN =
-  | 'at-or-below-minimum-distance'
-  | 'minimum-distance-not-certified'
+/**
+ * Reasons naming an exact point--simplex decision that could not be published.
+ *
+ * One vocabulary serves both released refusals — the barrier's typed domain
+ * error and the step filter's `indeterminate` — because both describe the same
+ * event: a decision the exact query declined to certify. A caller writes one
+ * recovery table keyed by these four strings and reads it in both places.
+ *
+ * A publication reason states what could NOT be represented. It does not, on
+ * its own, classify recoverability: see the per-reason measurements in the
+ * contact guide, where each reason is shown to be repairable by a shorter step
+ * from some start states and not from others.
+ */
+export type XpbdParticleSourceSimplexBarrierPublicationReasonN =
   | 'point-simplex-weight-underflow'
   | 'point-simplex-value-overflow'
   | 'point-simplex-value-underflow'
-  | 'point-simplex-accuracy-bound-overflow'
+  | 'point-simplex-accuracy-bound-overflow';
+
+export type XpbdParticleSourceSimplexBarrierDomainReasonN =
+  | 'at-or-below-minimum-distance'
+  | 'minimum-distance-not-certified'
+  | XpbdParticleSourceSimplexBarrierPublicationReasonN
   | 'direction-error-exceeds-policy';
 
 /**
@@ -51,7 +66,8 @@ const POINT_SIMPLEX_DOMAIN_REASON = {
   'value-underflow': 'point-simplex-value-underflow',
   'accuracy-bound-overflow': 'point-simplex-accuracy-bound-overflow'
 } as const satisfies Record<
-  PointSimplexPublicationReason, XpbdParticleSourceSimplexBarrierDomainReasonN
+  PointSimplexPublicationReason,
+  XpbdParticleSourceSimplexBarrierPublicationReasonN
 >;
 
 /**
@@ -384,58 +400,83 @@ export interface XpbdParticleSourceSimplexBarrierStepFilterNOptions {
   readonly conservativeScale?: number;
 }
 
-/** Why the finite-simplex filter could not certify any segment prefix. */
+/**
+ * Why the finite-simplex filter could not certify any segment prefix.
+ *
+ * Exactly two things can go wrong, and they are different claims.
+ * `initial-domain-violation` says the start is certifiably NOT admissible — its
+ * certified distance does not clear the open minimum. The four publication
+ * reasons say the start's exact decision could not be published at all, so
+ * there is no certified start distance to compare. Unknown is not violated, and
+ * conflating them would report a domain error the filter never established.
+ */
 export type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN =
   | 'initial-domain-violation'
-  /**
-   * Either segment endpoint's exact point--simplex decision could not be
-   * published, so no prefix can be certified. This is a typed refusal, not an
-   * internal error: over-certifying a prefix whose endpoint distance is
-   * unknown would be unsound.
-   */
-  | 'endpoint-publication-uncertified';
+  | XpbdParticleSourceSimplexBarrierPublicationReasonN;
 
-/** Evidence behind one finite-simplex segment certification. */
+/** Evidence available for every finite-simplex segment result. */
 export interface XpbdParticleSourceSimplexBarrierStepFilterEvidenceN {
-  /** Unsigned point--simplex distance at the segment start. */
-  readonly startDistance: number;
-  /** Unsigned point--simplex distance at the requested endpoint. */
-  readonly endDistance: number;
-  /** Certified lower bound on start distance above the open minimum. */
-  readonly startMargin: number;
-  /** Certified lower bound on endpoint distance above the open minimum. */
-  readonly endMargin: number;
   /** Euclidean length of the complete proposed point path. */
   readonly pathLength: number;
-  /** Initial distance derivative over the complete segment fraction. */
-  readonly startDirectionalDerivative: number;
   /** Certified fraction of the requested segment, in `[0, 1]`. */
   readonly certifiedFraction: number;
-  /** Proof used; never an inferred or exact impact time. */
-  readonly certification:
-    | 'stationary'
-    | 'convex-nondecreasing'
-    | 'global-lipschitz'
-    | 'initial-domain-violation';
 }
+
+/**
+ * Evidence available whenever the segment START published a decision.
+ *
+ * These three quantities exist only when the start's exact point--simplex
+ * decision was certified. When it was not, they are absent from the result
+ * rather than filled with `NaN`, `0`, or a sentinel: a fabricated distance in
+ * an evidence field is indistinguishable from a measured one at the call site.
+ */
+export interface XpbdParticleSourceSimplexBarrierStepFilterStartEvidenceN
+  extends XpbdParticleSourceSimplexBarrierStepFilterEvidenceN {
+  /** Unsigned point--simplex distance at the segment start. */
+  readonly startDistance: number;
+  /** Certified lower bound on start distance above the open minimum. */
+  readonly startMargin: number;
+  /** Initial distance derivative over the complete segment fraction. */
+  readonly startDirectionalDerivative: number;
+}
+
+/**
+ * Proof used to certify a prefix; never an inferred or exact impact time.
+ *
+ * Each name is a theorem about the START state and the displacement vector.
+ * `stationary`: the path has zero length. `convex-nondecreasing`: distance to a
+ * convex set is convex, so a non-negative start directional derivative makes it
+ * non-decreasing over the whole segment. `global-lipschitz`: distance is
+ * 1-Lipschitz, so the certified start margin bounds how far the point may move
+ * before the margin could be spent.
+ */
+export type XpbdParticleSourceSimplexBarrierStepFilterCertificationN =
+  | 'stationary'
+  | 'convex-nondecreasing'
+  | 'global-lipschitz';
 
 /** Result of one conservative finite-simplex segment query. */
 export type XpbdParticleSourceSimplexBarrierStepFilterEvaluationN =
-  XpbdParticleSourceSimplexBarrierStepFilterEvidenceN & (
-    | {
-      readonly status: 'safe';
-      readonly maximumStepLength: number;
-    }
-    | {
-      readonly status: 'limited';
-      readonly maximumStepLength: number;
-    }
-    | {
-      readonly status: 'indeterminate';
-      readonly reason:
-        XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN;
-    }
-  );
+  | (XpbdParticleSourceSimplexBarrierStepFilterStartEvidenceN & {
+    readonly status: 'safe';
+    readonly maximumStepLength: number;
+    readonly certification:
+      XpbdParticleSourceSimplexBarrierStepFilterCertificationN;
+  })
+  | (XpbdParticleSourceSimplexBarrierStepFilterStartEvidenceN & {
+    /** A strict prefix is certified; only the Lipschitz bound produces one. */
+    readonly status: 'limited';
+    readonly maximumStepLength: number;
+    readonly certification: 'global-lipschitz';
+  })
+  | (XpbdParticleSourceSimplexBarrierStepFilterStartEvidenceN & {
+    readonly status: 'indeterminate';
+    readonly reason: 'initial-domain-violation';
+  })
+  | (XpbdParticleSourceSimplexBarrierStepFilterEvidenceN & {
+    readonly status: 'indeterminate';
+    readonly reason: XpbdParticleSourceSimplexBarrierPublicationReasonN;
+  });
 
 /**
  * Conservative RN point--static-source-simplex collision-free step filter.
@@ -510,41 +551,36 @@ implements XpbdIncrementalPotentialStepFilterN {
       this.dimension,
       `${caller}: positionAfter`
     );
+    const displacement = after.clone().sub(before);
+    const pathLength = displacement.length();
+    // Only the START is queried. Every certification below bounds the whole
+    // segment from the start's certified distance and the displacement VECTOR:
+    // distance to a convex set is convex and 1-Lipschitz, so the endpoint's own
+    // distance appears in none of the three theorems. Querying it anyway would
+    // add a second way to fail — an endpoint the exact query declines to
+    // publish — and refuse a prefix that demonstrably exists.
     const startQuery = projectForBarrier(this.barrier, before);
-    const endQuery = projectForBarrier(this.barrier, after);
-    // An unpublishable endpoint refuses the whole certification. Reporting
-    // `safe` or a shrunken prefix here would over-certify against a distance
-    // this filter could not compute.
-    for (const query of [startQuery, endQuery]) {
-      if (query.result !== null && query.result.status === 'uncertified') {
-        return Object.freeze({
-          startDistance: Number.NaN, endDistance: Number.NaN,
-          startMargin: Number.NaN, endMargin: Number.NaN,
-          pathLength: after.clone().sub(before).length(),
-          startDirectionalDerivative: 0,
-          status: 'indeterminate',
-          reason: 'endpoint-publication-uncertified',
-          certifiedFraction: 0,
-          certification: 'initial-domain-violation'
-        });
-      }
+    if (startQuery.result !== null &&
+      startQuery.result.status === 'uncertified') {
+      // No certified start distance exists, so no start evidence is reported.
+      // The typed cause is forwarded intact; a caller reads it with the same
+      // recovery table it uses for the barrier's domain refusals.
+      return Object.freeze({
+        pathLength,
+        certifiedFraction: 0,
+        status: 'indeterminate',
+        reason: POINT_SIMPLEX_DOMAIN_REASON[startQuery.result.reason]
+      });
     }
     const startProjection = startQuery.projection as SourceSimplexProjectionN;
     const startDistance = startQuery.result === null
       ? Math.sqrt(startProjection.squaredDistance)
       : pointSimplexDistance(startQuery.result);
-    const endDistance = endQuery.result === null
-      ? Math.sqrt((endQuery.projection as SourceSimplexProjectionN).squaredDistance)
-      : pointSimplexDistance(endQuery.result);
-    if (!Number.isFinite(startDistance) || !Number.isFinite(endDistance)) {
+    if (!Number.isFinite(startDistance)) {
       throw new Error(`${caller}: distance is outside Float64`);
     }
     const startCertifiedDistance = certifiedDistanceLowerBound(startQuery);
-    const endCertifiedDistance = certifiedDistanceLowerBound(endQuery);
     const startMargin = startCertifiedDistance - this.barrier.minimumDistance;
-    const endMargin = endCertifiedDistance - this.barrier.minimumDistance;
-    const displacement = after.clone().sub(before);
-    const pathLength = displacement.length();
     let startDirectionalDerivative = 0;
     let startDirection: VecN | null = null;
     if (startDistance > 0 && pathLength > 0) {
@@ -556,19 +592,19 @@ implements XpbdIncrementalPotentialStepFilterN {
     }
     const common = {
       startDistance,
-      endDistance,
       startMargin,
-      endMargin,
       pathLength,
       startDirectionalDerivative
     } as const;
     if (!(startMargin > 0)) {
+      // The start published, and what it published does not clear the open
+      // minimum. That is a domain violation, established rather than assumed,
+      // and the measured start evidence is reported with it.
       return Object.freeze({
         ...common,
         status: 'indeterminate',
         reason: 'initial-domain-violation',
-        certifiedFraction: 0,
-        certification: 'initial-domain-violation'
+        certifiedFraction: 0
       });
     }
     if (pathLength === 0) {

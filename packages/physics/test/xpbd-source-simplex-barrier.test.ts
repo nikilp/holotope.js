@@ -296,13 +296,15 @@ describe('RN particle--source-simplex admissible-step filter', () => {
     expect(evaluated).toMatchObject({
       status: 'limited',
       startDistance: 0.5,
-      endDistance: 0.5,
       pathLength: 1,
       startDirectionalDerivative: -1,
       certification: 'global-lipschitz'
     });
+    // No endpoint distance is queried or reported: the Lipschitz prefix is a
+    // statement about the start margin and the path length only.
+    expect('endDistance' in evaluated).toBe(false);
+    expect('endMargin' in evaluated).toBe(false);
     expect(evaluated.startMargin).toBeCloseTo(0.45, 14);
-    expect(evaluated.endMargin).toBeCloseTo(0.45, 14);
     expect(evaluated.certifiedFraction).toBeCloseTo(0.405, 14);
     expect(evaluated.status === 'limited' && evaluated.maximumStepLength)
       .toBeCloseTo(0.81, 14);
@@ -341,12 +343,18 @@ describe('RN particle--source-simplex admissible-step filter', () => {
     const before = new VecN([0.2, 0.2, 0.2, 0.04]);
     const after = new VecN([0.2, 0.2, 0.2, 0.4]);
     const live = provider.particle.position.toArray();
-    expect(filter.evaluate(context(before, after))).toMatchObject({
+    const refused = filter.evaluate(context(before, after));
+    expect(refused).toMatchObject({
       status: 'indeterminate',
       reason: 'initial-domain-violation',
-      certifiedFraction: 0,
-      certification: 'initial-domain-violation'
+      certifiedFraction: 0
     });
+    // A refusal carries no `certification`: that field names the proof used,
+    // and this result proves nothing. The measured start evidence that
+    // ESTABLISHED the violation is present and finite.
+    expect('certification' in refused).toBe(false);
+    expect(refused.startDistance).toBeCloseTo(0.04, 15);
+    expect(refused.startMargin).toBeLessThanOrEqual(0);
     expect(before.toArray()).toEqual([0.2, 0.2, 0.2, 0.04]);
     expect(after.toArray()).toEqual([0.2, 0.2, 0.2, 0.4]);
     expect(provider.particle.position.toArray()).toEqual(live);

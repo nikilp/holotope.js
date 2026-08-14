@@ -254,10 +254,13 @@ export {
   type XpbdParticleSourceSimplexBarrierDomainReasonN,
   type XpbdParticleSourceSimplexBarrierEvaluationN,
   type XpbdParticleSourceSimplexBarrierNOptions,
+  type XpbdParticleSourceSimplexBarrierPublicationReasonN,
+  type XpbdParticleSourceSimplexBarrierStepFilterCertificationN,
   type XpbdParticleSourceSimplexBarrierStepFilterEvaluationN,
   type XpbdParticleSourceSimplexBarrierStepFilterEvidenceN,
   type XpbdParticleSourceSimplexBarrierStepFilterNOptions,
-  type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN
+  type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN,
+  type XpbdParticleSourceSimplexBarrierStepFilterStartEvidenceN
 } from './xpbd-source-simplex-barrier.js';
 export {
   evaluateSimplexHingeCosineN,

@@ -327,9 +327,13 @@ describe('source-indexed point--simplex candidate family', () => {
       fixture.binding.particles
     ));
 
+    // The aggregate reports the refusing CANDIDATE's own reason, not an
+    // aggregate-specific relabelling of it. Which candidate refused is carried
+    // by `blockingCandidateId`, so no information is lost by dropping the
+    // prefix — and none is invented when the cause is something else.
     expect(evaluated).toMatchObject({
       status: 'indeterminate',
-      reason: 'candidate-initial-domain-violation',
+      reason: 'initial-domain-violation',
       blockingCandidateId: 'mesh-contact/source-vertex/0/obstacle-cell/0'
     });
     expect(() => fixture.family.evaluate()).toThrow(/distance must be greater/);

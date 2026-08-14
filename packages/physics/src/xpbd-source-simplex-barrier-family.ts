@@ -24,7 +24,8 @@ import {
   XpbdParticleSourceSimplexBarrierN,
   XpbdParticleSourceSimplexBarrierStepFilterN,
   type XpbdParticleSourceSimplexBarrierEvaluationN,
-  type XpbdParticleSourceSimplexBarrierStepFilterEvaluationN
+  type XpbdParticleSourceSimplexBarrierStepFilterEvaluationN,
+  type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN
 } from './xpbd-source-simplex-barrier.js';
 import {
   XpbdParticleN,
@@ -164,9 +165,18 @@ export interface XpbdParticleSourceSimplexSegmentCandidateN {
   readonly evaluation: XpbdParticleSourceSimplexBarrierStepFilterEvaluationN;
 }
 
-/** Why an aggregate point--simplex segment query refused certification. */
+/**
+ * Why an aggregate point--simplex segment query refused certification.
+ *
+ * Deliberately the CANDIDATE filter's own vocabulary, not a re-labelled copy of
+ * it. The family adds no new failure mode: it refuses exactly when one of its
+ * candidates refuses, so re-stating that candidate's reason under an
+ * aggregate-specific name would replace a measured cause with a prefix. Which
+ * candidate refused is carried by `blockingCandidateId`, and the full
+ * per-candidate evaluation stays in `candidates`.
+ */
 export type XpbdParticleSourceSimplexBarrierFamilyStepFilterRefusalReasonN =
-  'candidate-initial-domain-violation';
+  XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN;
 
 /** Aggregate candidate and certification evidence for one proposed segment. */
 export type XpbdParticleSourceSimplexBarrierFamilyStepFilterEvaluationN = {
@@ -440,6 +450,8 @@ implements XpbdIncrementalPotentialStepFilterN {
     let maximumStepLength = context.requestedStepLength;
     let blockingCandidateId: string | null = null;
     let refusedCandidateId: string | null = null;
+    let refusedReason:
+      XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN | null = null;
     for (const candidate of internal.query.candidates) {
       const barrier = barrierForCandidate(this.family, candidate);
       const filter = new XpbdParticleSourceSimplexBarrierStepFilterN({
@@ -457,7 +469,12 @@ implements XpbdIncrementalPotentialStepFilterN {
       });
       candidates.push(Object.freeze({ candidate, evaluation }));
       if (evaluation.status === 'indeterminate') {
-        refusedCandidateId ??= candidate.id;
+        // First refusal in stable source order wins, and its own reason travels
+        // with its id so the pair never disagrees.
+        if (refusedCandidateId === null) {
+          refusedCandidateId = candidate.id;
+          refusedReason = evaluation.reason;
+        }
         continue;
       }
       if (evaluation.maximumStepLength < maximumStepLength) {
@@ -468,7 +485,7 @@ implements XpbdIncrementalPotentialStepFilterN {
     if (refusedCandidateId !== null) {
       return Object.freeze({
         status: 'indeterminate',
-        reason: 'candidate-initial-domain-violation',
+        reason: refusedReason!,
         candidateQuery: internal.query,
         candidates: Object.freeze(candidates),
         blockingCandidateId: refusedCandidateId
