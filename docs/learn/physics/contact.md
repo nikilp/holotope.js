@@ -112,12 +112,30 @@ of parsing a message.
 These leave through `XpbdPotentialDomainErrorN`, exactly like the measured
 distance refusals, and `evaluate()` and `evaluateAt()` classify identically.
 
-**Not every one of them is repairable by shortening the step.**
-`accuracy-bound-overflow` and `value-underflow` depend on the candidate
-position and clear when it retreats. `value-overflow` and `weight-underflow`
-are properties of the simplex's own scale: at a `2^600` obstacle every
-candidate still fails, and the honest recovery is to rescale the scene rather
-than to backtrack. The typed reason is what tells the two situations apart.
+**A publication reason says what could not be represented. It does not, by
+itself, say whether a shorter step helps.** Every one of the four is
+repairable from some start states and not from others, so branching recovery
+on the reason alone gives the wrong answer roughly half the time.
+
+The question that does predict the outcome is asked of the *state*: can the
+exact query publish at the position you are standing on right now?
+
+- **It can.** The refusal came from somewhere along the step, so a shorter one
+  is worth trying. Measured through a real Armijo search: `weight-underflow`
+  accepts at step `0.5` and `value-overflow` at step `0.25`, each after real
+  domain refusals, with the obstacle untouched.
+- **It cannot.** No step length helps — every contracted trial converges back
+  onto the position that already fails. Change the state instead: reposition,
+  or re-scale this obstacle. The search will not even hand you a refused
+  trial; it evaluates the potential at your base point first, so the typed
+  error arrives as an exception before any step length is proposed.
+
+The failing region is a neighbourhood of the simplex's vertices whose size is
+fixed *relative* to the obstacle, not an all-or-nothing property of the scene.
+Against a segment of extent `S`, the boundary sits near `S · 2^-1074` — the
+point at which a positive barycentric weight can no longer be represented.
+Measured across five scales from `2^200` to `2^1000`, the boundary tracks that
+relation exactly, and every candidate outside the neighbourhood publishes.
 
 An exactly rank-deficient source simplex stays a configuration error rather
 than a recoverable refusal — no shorter step repairs authored geometry. Because
@@ -148,17 +166,35 @@ coordinates, in regions rather than at isolated points. Do not bisect for a
 threshold; test the configurations you care about.
 
 Higher-dimensional point–simplex barriers (source dimensions 4–17) currently
-fall back to the legacy Float64 projector. They remain usable for RN
-experiments, but do not expose `pointSimplex` evidence, publish no direction
-enclosure, and are outside this exact claim. Because they cannot honour a
+fall back to the legacy Float64 projector. They do not expose `pointSimplex`
+evidence, publish no direction enclosure, and are outside this exact claim.
+
+They are also **slow**, and the cost is worth stating in numbers rather than
+adjectives: at `k = 17` a single `evaluateAt()` was measured at roughly
+**7.8–12.2 seconds**. That is a batch-scale cost. It is suitable for offline
+study of a fixed configuration and unsuitable for anything driven by a clock —
+no interactive loop, no per-frame stepping, no throughput figure, and no
+production workload should be planned around it. Because they cannot honour a
 direction policy, supplying `maximumDirectionError` there is a construction
 error rather than a silently ignored option — so a dimension-generic caller
 branches on the simplex dimension.
 
-The step filter answers endpoint publication uncertainty with its
-`indeterminate` status and the `endpoint-publication-uncertified` reason,
-carrying `certifiedFraction: 0` and no `maximumStepLength`: a prefix whose
-endpoint distance could not be published cannot be certified.
+The paired step filter certifies from the segment's **start state alone**.
+Distance to a closed convex simplex is convex and 1-Lipschitz, so each of its
+three proofs — `stationary`, `convex-nondecreasing`, `global-lipschitz` —
+bounds the whole segment from the start's certified distance and the
+displacement vector. The endpoint's own distance appears in none of them, so
+the filter does not query it: an endpoint the exact query declines to publish
+does not invalidate a prefix that provably exists.
+
+Its refusals are correspondingly narrow. `initial-domain-violation` means the
+start published a distance that fails to clear the open minimum; a start that
+could not be published at all forwards the exact query's own reason, because
+unknown is not violated. Both carry `certifiedFraction: 0` and no
+`maximumStepLength`, and neither carries a `certification` — that field names
+the proof used, and a refusal has none. When the start could not be published
+there is no start evidence in the result at all, rather than `NaN`: a
+fabricated distance is indistinguishable from a measured one at the call site.
 
 The broader `evaluateSourceSimplexPairDistanceN` surface remains experimental.
 Its current Float64 comparison bands are not similarity-invariant at extreme

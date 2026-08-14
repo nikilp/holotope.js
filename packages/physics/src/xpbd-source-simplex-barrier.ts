@@ -56,9 +56,15 @@ export type XpbdParticleSourceSimplexBarrierDomainReasonN =
 /**
  * One-to-one forwarding of every exact point--simplex publication reason.
  *
- * Each publication reason has a distinct caller recovery — shorten the step,
- * rescale the scene up, rescale it down — so they are forwarded individually
- * rather than flattened into one reason plus a message.
+ * Each publication reason names a distinct representation failure, so they are
+ * forwarded individually rather than flattened into one reason plus a message.
+ *
+ * The reason does NOT classify recoverability. Whether shortening the step
+ * helps is a property of the current iterate: if the exact query publishes
+ * there, the refusal came from somewhere along the step and a shorter one may
+ * clear it; if it does not publish there, no step length helps, because every
+ * contracted trial converges back onto the position that already fails. Both
+ * outcomes are measured for every reason.
  */
 const POINT_SIMPLEX_DOMAIN_REASON = {
   'weight-underflow': 'point-simplex-weight-underflow',
@@ -486,6 +492,14 @@ export type XpbdParticleSourceSimplexBarrierStepFilterEvaluationN =
  * full; otherwise the global Lipschitz bound certifies a strict prefix. The
  * result intentionally reports a `certifiedFraction`, not an impact time:
  * this filter does not solve the piecewise closest-feature crossing exactly.
+ *
+ * Only the segment's START is queried. Both proofs above are statements about
+ * the start state and the displacement VECTOR — convexity propagates from a
+ * start subgradient, and the Lipschitz constant is 1 globally, so neither
+ * needs a sample at the far end. Querying the endpoint anyway would add a
+ * failure mode without adding a proof: an endpoint whose exact decision cannot
+ * be published would refuse a prefix that provably exists, and take the
+ * enclosing line search down with it.
  */
 export class XpbdParticleSourceSimplexBarrierStepFilterN
 implements XpbdIncrementalPotentialStepFilterN {
@@ -700,6 +714,12 @@ function projectForBarrier(
   readonly result: PointSimplexResult | null;
 } {
   const { simplex } = barrier;
+  // The 4..17 legacy fallback. It publishes no exact decision and no direction
+  // enclosure, and it is slow enough that the cost belongs in the contract
+  // rather than in a footnote: one `evaluateAt()` was measured at roughly
+  // 7.8-12.2 seconds at k = 17. That is a batch-scale cost, suitable for
+  // offline study of a fixed configuration and unsuitable for anything driven
+  // by a clock.
   if (simplex.intrinsicDim > 3) {
     return Object.freeze({
       result: null,

@@ -236,12 +236,17 @@ coordinate. For source dimensions 1 through 3, the query makes its rank,
 active-face, and zero-distance decisions exactly on the supplied Float64
 geometry, then publishes a coherent Float64 witness with outward error bounds.
 It has no rank or barycentric tolerance knobs. Its paired step filter certifies
-a complete non-closing segment or a conservative Lipschitz prefix. That prefix
-is not an exact impact time, and neither class discovers candidate pairs from a
+a complete non-closing segment or a conservative Lipschitz prefix, reading the
+segment's **start state alone** — convexity and the global 1-Lipschitz bound
+make the endpoint's own distance irrelevant to both proofs, so an endpoint the
+exact query cannot publish does not refuse a prefix that exists. That prefix is
+not an exact impact time, and neither class discovers candidate pairs from a
 mesh.
 
-Higher-dimensional source simplices currently use the legacy Float64
-projector and therefore do not expose exact `pointSimplex` evidence.
+Higher-dimensional source simplices currently use the legacy Float64 projector
+and therefore do not expose exact `pointSimplex` evidence. They are also slow
+enough to plan around: roughly 7.8–12.2 seconds per `evaluateAt()` at `k = 17`,
+a batch-scale cost with no interactive or per-frame use.
 
 For a bounded dynamic-source/static-obstacle scene,
 `compileXpbdParticleSourceSimplexBarrierFamilyN()` adds that missing discovery
@@ -250,8 +255,10 @@ static source simplex in every candidate ID, culls only through a conservative
 swept-AABB envelope, evaluates exact-on-supplied-Float64 barriers for
 point-query-active pairs,
 and aggregates the per-pair prefix certificates through one paired step
-filter. The diagnostics keep possible, retained, and exact-active counts
-separate. This remains an exhaustive reference query rather than a spatial
+filter. When a candidate refuses, the aggregate reports **that candidate's own
+reason** rather than an aggregate-specific relabelling of it, and
+`blockingCandidateId` names which candidate it came from. The diagnostics keep
+possible, retained, and exact-active counts separate. This remains an exhaustive reference query rather than a spatial
 hierarchy, and it deliberately refuses to present a same-source mesh as
 self-contact because obstacle reaction and moving simplex geometry are not yet
 part of the contract.
