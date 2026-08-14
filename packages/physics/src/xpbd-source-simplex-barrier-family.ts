@@ -110,6 +110,16 @@ export interface CompileXpbdParticleSourceSimplexBarrierFamilyNOptions {
   readonly activationDistance: number;
   /** Positive energy scale shared by active pairs. */
   readonly stiffness: number;
+  /**
+   * Caller policy forwarded verbatim to every generated barrier.
+   *
+   * A dimensionless Euclidean radius on the published unit direction, finite
+   * and in `(0, 2)`. Required whenever the obstacle group's simplex dimension
+   * is 1..3 (the exact arm) and rejected for 4..17, exactly as on a single
+   * barrier — the family has **no** default of its own, so no generated
+   * barrier can inherit a hidden policy.
+   */
+  readonly maximumDirectionError?: number;
   /** Fraction of each certified Lipschitz prefix retained. Default `0.9`. */
   readonly conservativeScale?: number;
   /**
@@ -237,6 +247,11 @@ implements XpbdConservativeForceProviderN {
   readonly activationDistance: number;
   /** Positive energy scale shared by pair barriers. */
   readonly stiffness: number;
+  /**
+   * Caller-authored direction policy forwarded to every generated barrier, or
+   * `null` on the legacy 4..17 arm. The family holds no default of its own.
+   */
+  readonly maximumDirectionError: number | null;
   /** Strict prefix scale shared by pair filters. */
   readonly conservativeScale: number;
   /**
@@ -266,6 +281,7 @@ implements XpbdConservativeForceProviderN {
     this.minimumDistance = minimumDistance;
     this.activationDistance = options.activationDistance;
     this.stiffness = options.stiffness;
+    this.maximumDirectionError = options.maximumDirectionError ?? null;
     this.conservativeScale = conservativeScale;
     this.candidateHierarchy = options.candidateHierarchy ?? null;
     this.stepFilter = new XpbdParticleSourceSimplexBarrierFamilyStepFilterN(this);
@@ -497,7 +513,8 @@ function validateCompilerInput(
   }
   const allowed = [
     'id', 'binding', 'obstacle', 'simplexGroup', 'minimumDistance',
-    'activationDistance', 'stiffness', 'conservativeScale',
+    'activationDistance', 'stiffness', 'maximumDirectionError',
+    'conservativeScale',
     'candidateHierarchy'
   ];
   const unknown = Object.keys(options).filter((key) => !allowed.includes(key));
@@ -549,6 +566,34 @@ function validateCompilerInput(
   }
   if (!Number.isFinite(options.stiffness) || !(options.stiffness > 0)) {
     throw new Error(`${caller}: stiffness must be finite and positive`);
+  }
+  // Direction policy, validated at the FAMILY boundary so a misauthored value
+  // fails once at compile time rather than per generated barrier — and so the
+  // family cannot supply a default of its own.
+  const familyExactArm = options.simplexGroup.dim <= 3;
+  if (familyExactArm) {
+    if (options.maximumDirectionError === undefined) {
+      throw new Error(
+        `${caller}: maximumDirectionError is required for obstacle simplex ` +
+        `dimension ${options.simplexGroup.dim} (the exact point--simplex arm ` +
+        'publishes a direction enclosure; author the policy explicitly)'
+      );
+    }
+    if (!Number.isFinite(options.maximumDirectionError) ||
+      !(options.maximumDirectionError > 0) ||
+      !(options.maximumDirectionError < 2)) {
+      throw new Error(
+        `${caller}: maximumDirectionError must be finite and in the open ` +
+        'interval (0, 2); two unit vectors are at most 2 apart, so a larger ' +
+        'bound certifies nothing'
+      );
+    }
+  } else if (options.maximumDirectionError !== undefined) {
+    throw new Error(
+      `${caller}: maximumDirectionError is not supported for obstacle ` +
+      `simplex dimension ${options.simplexGroup.dim}; the 4..17 fallback ` +
+      'publishes no direction enclosure and cannot honour a direction policy'
+    );
   }
   const conservativeScale = options.conservativeScale ?? 0.9;
   if (!Number.isFinite(conservativeScale) ||
@@ -752,6 +797,8 @@ function barrierForCandidate(
   candidate: XpbdParticleSourceSimplexCandidateN
 ): XpbdParticleSourceSimplexBarrierN {
   return new XpbdParticleSourceSimplexBarrierN({
+    ...(family.maximumDirectionError === null
+      ? {} : { maximumDirectionError: family.maximumDirectionError }),
     id: `${candidate.id}/barrier`,
     particle: candidate.particle,
     simplex: candidate.simplex,

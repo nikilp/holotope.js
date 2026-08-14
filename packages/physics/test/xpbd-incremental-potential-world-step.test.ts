@@ -155,7 +155,8 @@ function contactScene(id: string): {
     simplexGroup: SIMPLEX_GROUP,
     minimumDistance: 0.05,
     activationDistance: 0.8,
-    stiffness: 1.7
+    stiffness: 1.7,
+    maximumDirectionError: 2 ** -12
   });
 
   const world = new XpbdWorldN({ dimension: 4, gravity: [0, 0, 0, -9.81] });

@@ -91,6 +91,7 @@ function build(id: string, accelerated: boolean): {
     minimumDistance: 0.05,
     activationDistance: 0.8,
     stiffness: 1.7,
+    maximumDirectionError: 2 ** -12,
     ...(accelerated ? { candidateHierarchy: hierarchyFor(complex, group) } : {})
   });
 

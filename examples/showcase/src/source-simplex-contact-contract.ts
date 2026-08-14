@@ -32,7 +32,8 @@ export function sourceSimplexContactContractExample(options: {
     simplex: options.simplex,
     minimumDistance: 0.01,
     activationDistance: 0.1,
-    stiffness: 1
+    stiffness: 1,
+    maximumDirectionError: 2 ** -12
   };
   const barrier = new XpbdParticleSourceSimplexBarrierN(barrierOptions);
   const evaluated: XpbdParticleSourceSimplexBarrierEvaluationN =

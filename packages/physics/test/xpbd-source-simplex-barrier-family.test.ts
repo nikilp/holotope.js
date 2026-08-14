@@ -93,6 +93,7 @@ function familyFixture(
     [0, 0, 1, 0]
   ]);
   const family = compileXpbdParticleSourceSimplexBarrierFamilyN({
+    maximumDirectionError: 2 ** -12,
     id: 'mesh-contact',
     binding: dynamic.binding,
     obstacle: obstacle.obstacle,
@@ -135,6 +136,7 @@ describe('source-indexed point--simplex candidate family', () => {
     }));
     const obstacle = simplexStrip(4, 3, 32, 3);
     const family = compileXpbdParticleSourceSimplexBarrierFamilyN({
+      maximumDirectionError: 2 ** -12,
       id: 'bounded',
       binding: dynamic.binding,
       obstacle: obstacle.obstacle,
@@ -173,6 +175,7 @@ describe('source-indexed point--simplex candidate family', () => {
     const evaluated = fixture.family.evaluate();
     const candidate = evaluated.activeCandidates[0]!;
     const direct = new XpbdParticleSourceSimplexBarrierN({
+      maximumDirectionError: 2 ** -12,
       id: 'direct',
       particle: fixture.binding.particles[0]!,
       simplex: fixture.family.simplices[0]!,
@@ -208,6 +211,7 @@ describe('source-indexed point--simplex candidate family', () => {
       );
       const dynamic = dynamicSource(dimension, positions);
       const family = compileXpbdParticleSourceSimplexBarrierFamilyN({
+        maximumDirectionError: 2 ** -12,
         id: `r${dimension}`,
         binding: dynamic.binding,
         obstacle: obstacle.obstacle,
@@ -241,6 +245,7 @@ describe('source-indexed point--simplex candidate family', () => {
     ]);
     const obstacle = simplexStrip(4, 3, 12, 3);
     const family = compileXpbdParticleSourceSimplexBarrierFamilyN({
+      maximumDirectionError: 2 ** -12,
       id: 'swept',
       binding: dynamic.binding,
       obstacle: obstacle.obstacle,
@@ -360,6 +365,7 @@ describe('source-indexed point--simplex candidate family', () => {
   it('fails fast on scope, topology, dimensions, options, and retired cells', () => {
     const fixture = familyFixture([[0.2, 0.2, 0.2, 0.5]]);
     expect(() => compileXpbdParticleSourceSimplexBarrierFamilyN({
+      maximumDirectionError: 2 ** -12,
       id: 'self',
       binding: fixture.binding,
       obstacle: fixture.source,
@@ -368,6 +374,7 @@ describe('source-indexed point--simplex candidate family', () => {
       stiffness: 1
     })).toThrow(/separate.*self-contact/);
     expect(() => compileXpbdParticleSourceSimplexBarrierFamilyN({
+      maximumDirectionError: 2 ** -12,
       id: 'wrong-dimension',
       binding: dynamicSource(3, [[0, 0, 0]]).binding,
       obstacle: fixture.obstacle,
@@ -382,6 +389,7 @@ describe('source-indexed point--simplex candidate family', () => {
       simplexGroup: fixture.group,
       activationDistance: 1,
       stiffness: 1,
+      maximumDirectionError: 2 ** -12,
       typo: true
     } as never)).toThrow(/unknown option "typo"/);
     fixture.group.indices[0] = 1;

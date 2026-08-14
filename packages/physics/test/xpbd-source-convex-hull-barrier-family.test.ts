@@ -710,7 +710,11 @@ describe('convex-hull barrier: the simplex family is unchanged', () => {
     const { binding } = probe(2, [0.5, 0.5], 'unchanged');
     const family = compileXpbdParticleSourceSimplexBarrierFamilyN({
       id: 'unchanged', binding, obstacle,
-      simplexGroup: obstacle.groups[0]!, ...BARRIER
+      simplexGroup: obstacle.groups[0]!, ...BARRIER,
+      // The simplex family requires an explicit direction policy; the hull
+      // family has no such option, so BARRIER stays shared and this call
+      // authors the policy itself.
+      maximumDirectionError: 2 ** -12
     });
     const evaluation = family.evaluate();
     // Two cells, two active barriers, and a tangential resultant: exactly the

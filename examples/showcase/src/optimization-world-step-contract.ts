@@ -66,7 +66,8 @@ export function optimizationWorldStepContractExample(): string {
     simplexGroup,
     minimumDistance: 0.05,
     activationDistance: 0.8,
-    stiffness: 1.7
+    stiffness: 1.7,
+    maximumDirectionError: 2 ** -12
   });
 
   // The world is the single source of truth for dimension, particle order,

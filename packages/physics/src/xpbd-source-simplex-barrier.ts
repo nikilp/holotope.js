@@ -18,6 +18,7 @@ import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
 import {
   evaluateExactPointSimplexResult,
   type PointSimplexProjectedResult,
+  type PointSimplexPublicationReason,
   type PointSimplexResult
 } from './exact-point-simplex-distance.js';
 import {
@@ -30,10 +31,54 @@ import {
 /** Open-domain refusal vocabulary of a point--source-simplex barrier. */
 export type XpbdParticleSourceSimplexBarrierDomainReasonN =
   | 'at-or-below-minimum-distance'
-  | 'minimum-distance-not-certified';
+  | 'minimum-distance-not-certified'
+  | 'point-simplex-weight-underflow'
+  | 'point-simplex-value-overflow'
+  | 'point-simplex-value-underflow'
+  | 'point-simplex-accuracy-bound-overflow'
+  | 'direction-error-exceeds-policy';
 
-/** Maximum certified Euclidean direction error admitted by the force law. */
-const MAX_POINT_SIMPLEX_DIRECTION_ERROR = 2 ** -12;
+/**
+ * One-to-one forwarding of every exact point--simplex publication reason.
+ *
+ * Each publication reason has a distinct caller recovery — shorten the step,
+ * rescale the scene up, rescale it down — so they are forwarded individually
+ * rather than flattened into one reason plus a message.
+ */
+const POINT_SIMPLEX_DOMAIN_REASON = {
+  'weight-underflow': 'point-simplex-weight-underflow',
+  'value-overflow': 'point-simplex-value-overflow',
+  'value-underflow': 'point-simplex-value-underflow',
+  'accuracy-bound-overflow': 'point-simplex-accuracy-bound-overflow'
+} as const satisfies Record<
+  PointSimplexPublicationReason, XpbdParticleSourceSimplexBarrierDomainReasonN
+>;
+
+/**
+ * The same mapping read backwards, so the correspondence is pinned in BOTH
+ * directions at compile time: a new `PointSimplexPublicationReason` fails to
+ * compile at the forward record, and a forwarded reason that is renamed,
+ * dropped, or collapsed onto another fails to compile here. Neither table can
+ * be widened silently.
+ */
+const POINT_SIMPLEX_PUBLICATION_REASON: Record<
+  (typeof POINT_SIMPLEX_DOMAIN_REASON)[PointSimplexPublicationReason],
+  PointSimplexPublicationReason
+> = {
+  'point-simplex-weight-underflow': 'weight-underflow',
+  'point-simplex-value-overflow': 'value-overflow',
+  'point-simplex-value-underflow': 'value-underflow',
+  'point-simplex-accuracy-bound-overflow': 'accuracy-bound-overflow'
+};
+
+/**
+ * Largest meaningful Euclidean separation between two unit vectors.
+ *
+ * Two unit vectors differ by at most 2 (exact opposites), so a policy at or
+ * above 2 admits every direction including the reverse one. Such a value looks
+ * like a policy while certifying nothing, and is rejected at construction.
+ */
+const MAXIMUM_MEANINGFUL_DIRECTION_ERROR = 2;
 
 /** Construction options for one conservative RN point--source-simplex barrier. */
 export interface XpbdParticleSourceSimplexBarrierNOptions {
@@ -49,6 +94,21 @@ export interface XpbdParticleSourceSimplexBarrierNOptions {
   readonly activationDistance: number;
   /** Positive energy scale. */
   readonly stiffness: number;
+  /**
+   * Caller policy: the largest published direction error the force law admits.
+   *
+   * A dimensionless Euclidean radius on the published unit direction, finite
+   * and in the open interval `(0, 2)` — two unit vectors are at most 2 apart,
+   * so a larger bound would admit every direction including the exact
+   * opposite. **Required** on the exact `intrinsicDim` 1..3 arm, which
+   * publishes a direction enclosure, and **rejected** on the 4..17 legacy
+   * fallback, which publishes none: supplying it there would imply a
+   * certification the fallback cannot make.
+   *
+   * This is an explicit caller policy about direction usability. It is not a
+   * derived physical constant and it does not certify force accuracy.
+   */
+  readonly maximumDirectionError?: number;
 }
 
 /** Conservative force and closest-source evidence at one candidate point. */
@@ -105,6 +165,11 @@ implements XpbdConservativeForceProviderN {
   readonly activationDistance: number;
   /** Positive scalar energy multiplier. */
   readonly stiffness: number;
+  /**
+   * Caller-authored direction-usability policy, or `null` on the legacy
+   * `intrinsicDim` 4..17 arm, which publishes no direction enclosure.
+   */
+  readonly maximumDirectionError: number | null;
 
   /**
    * Creates one source-retained finite-simplex proximity barrier.
@@ -118,7 +183,7 @@ implements XpbdConservativeForceProviderN {
     }
     const unknown = Object.keys(options).filter((key) => ![
       'id', 'particle', 'simplex', 'minimumDistance', 'activationDistance',
-      'stiffness'
+      'stiffness', 'maximumDirectionError'
     ].includes(key));
     if (unknown.length > 0) {
       throw new Error(
@@ -164,6 +229,37 @@ implements XpbdConservativeForceProviderN {
     if (!(options.stiffness > 0) || !Number.isFinite(options.stiffness)) {
       throw new Error(`${caller}: stiffness must be finite and positive`);
     }
+    // Direction policy. The exact arm publishes a direction enclosure and
+    // therefore REQUIRES a policy — there is no default, because no universal
+    // value exists. The legacy arm publishes none, so accepting a policy there
+    // would imply a certification it cannot make.
+    const exactArm = options.simplex.intrinsicDim <= 3;
+    if (exactArm) {
+      if (options.maximumDirectionError === undefined) {
+        throw new Error(
+          `${caller}: maximumDirectionError is required for source dimension ` +
+          `${options.simplex.intrinsicDim} (the exact point--simplex arm ` +
+          'publishes a direction enclosure; author the policy explicitly)'
+        );
+      }
+      if (!Number.isFinite(options.maximumDirectionError) ||
+        !(options.maximumDirectionError > 0) ||
+        !(options.maximumDirectionError < MAXIMUM_MEANINGFUL_DIRECTION_ERROR)) {
+        throw new Error(
+          `${caller}: maximumDirectionError must be finite and in the open ` +
+          `interval (0, ${MAXIMUM_MEANINGFUL_DIRECTION_ERROR}); two unit ` +
+          'vectors are at most 2 apart, so a larger bound certifies nothing'
+        );
+      }
+    } else if (options.maximumDirectionError !== undefined) {
+      throw new Error(
+        `${caller}: maximumDirectionError is not supported for source ` +
+        `dimension ${options.simplex.intrinsicDim}; the 4..17 fallback ` +
+        'publishes no direction enclosure and cannot honour a direction policy'
+      );
+    }
+    this.maximumDirectionError = exactArm
+      ? options.maximumDirectionError as number : null;
     this.id = options.id;
     this.dimension = dimension;
     this.particle = options.particle;
@@ -191,7 +287,21 @@ implements XpbdConservativeForceProviderN {
       positionOf(this.particle), this.dimension, `${caller}: candidate position`
     );
     const queried = projectForBarrier(this, position);
-    const { projection, result: pointSimplex } = queried;
+    const { result: pointSimplex } = queried;
+    // Typed BEFORE any arithmetic: the exact query published no witness, and
+    // its own reason is forwarded one-to-one so the caller keeps the recovery
+    // class rather than a prose message.
+    if (pointSimplex !== null && pointSimplex.status === 'uncertified') {
+      throw new XpbdPotentialDomainErrorN<
+        XpbdParticleSourceSimplexBarrierDomainReasonN
+      >(
+        this.id,
+        POINT_SIMPLEX_DOMAIN_REASON[pointSimplex.reason],
+        `${caller}: the exact point--simplex decision could not be published ` +
+        `(${pointSimplex.reason}: ${pointSimplex.detail})`
+      );
+    }
+    const projection = queried.projection as SourceSimplexProjectionN;
     const distance = pointSimplex === null
       ? Math.sqrt(projection.squaredDistance)
       : pointSimplexDistance(pointSimplex);
@@ -225,14 +335,22 @@ implements XpbdConservativeForceProviderN {
       stiffness: this.stiffness
     });
     if (pointSimplex !== null && pointSimplex.status !== 'projected') {
+      // Genuinely unreachable: `zero` cannot survive the positive-distance
+      // gates above, `uncertified` was classified before any arithmetic, and
+      // `rank-deficient` threw as a configuration error inside the query
+      // wrapper. This is an internal invariant, not a caller-reachable state.
       throw new Error(`${caller}: internal positive-distance classification was lost`);
     }
     if (pointSimplex !== null &&
-      pointSimplex.error.directionErrorBound >
-      MAX_POINT_SIMPLEX_DIRECTION_ERROR) {
-      throw new Error(
-        `${caller}: certified direction error ${pointSimplex.error.directionErrorBound} ` +
-        `exceeds ${MAX_POINT_SIMPLEX_DIRECTION_ERROR}`
+      pointSimplex.error.directionErrorBound > this.maximumDirectionError!) {
+      throw new XpbdPotentialDomainErrorN<
+        XpbdParticleSourceSimplexBarrierDomainReasonN
+      >(
+        this.id,
+        'direction-error-exceeds-policy',
+        `${caller}: published direction error ` +
+        `${pointSimplex.error.directionErrorBound} exceeds the authored ` +
+        `maximumDirectionError ${this.maximumDirectionError}`
       );
     }
     const separationNormal = pointSimplex === null
@@ -268,7 +386,14 @@ export interface XpbdParticleSourceSimplexBarrierStepFilterNOptions {
 
 /** Why the finite-simplex filter could not certify any segment prefix. */
 export type XpbdParticleSourceSimplexBarrierStepFilterRefusalReasonN =
-  'initial-domain-violation';
+  | 'initial-domain-violation'
+  /**
+   * Either segment endpoint's exact point--simplex decision could not be
+   * published, so no prefix can be certified. This is a typed refusal, not an
+   * internal error: over-certifying a prefix whose endpoint distance is
+   * unknown would be unsound.
+   */
+  | 'endpoint-publication-uncertified';
 
 /** Evidence behind one finite-simplex segment certification. */
 export interface XpbdParticleSourceSimplexBarrierStepFilterEvidenceN {
@@ -387,12 +512,29 @@ implements XpbdIncrementalPotentialStepFilterN {
     );
     const startQuery = projectForBarrier(this.barrier, before);
     const endQuery = projectForBarrier(this.barrier, after);
-    const startProjection = startQuery.projection;
+    // An unpublishable endpoint refuses the whole certification. Reporting
+    // `safe` or a shrunken prefix here would over-certify against a distance
+    // this filter could not compute.
+    for (const query of [startQuery, endQuery]) {
+      if (query.result !== null && query.result.status === 'uncertified') {
+        return Object.freeze({
+          startDistance: Number.NaN, endDistance: Number.NaN,
+          startMargin: Number.NaN, endMargin: Number.NaN,
+          pathLength: after.clone().sub(before).length(),
+          startDirectionalDerivative: 0,
+          status: 'indeterminate',
+          reason: 'endpoint-publication-uncertified',
+          certifiedFraction: 0,
+          certification: 'initial-domain-violation'
+        });
+      }
+    }
+    const startProjection = startQuery.projection as SourceSimplexProjectionN;
     const startDistance = startQuery.result === null
       ? Math.sqrt(startProjection.squaredDistance)
       : pointSimplexDistance(startQuery.result);
     const endDistance = endQuery.result === null
-      ? Math.sqrt(endQuery.projection.squaredDistance)
+      ? Math.sqrt((endQuery.projection as SourceSimplexProjectionN).squaredDistance)
       : pointSimplexDistance(endQuery.result);
     if (!Number.isFinite(startDistance) || !Number.isFinite(endDistance)) {
       throw new Error(`${caller}: distance is outside Float64`);
@@ -507,11 +649,18 @@ function validateContext(
   }
 }
 
+/**
+ * Queries the simplex, keeping uncertified publication TYPED.
+ *
+ * `projection` is `null` exactly when `result.status === 'uncertified'`: no
+ * witness was published, so there is no projection to build. Callers classify
+ * that state themselves rather than receiving a bare error.
+ */
 function projectForBarrier(
   barrier: XpbdParticleSourceSimplexBarrierN,
   position: VecN
 ): {
-  readonly projection: SourceSimplexProjectionN;
+  readonly projection: SourceSimplexProjectionN | null;
   readonly result: PointSimplexResult | null;
 } {
   const { simplex } = barrier;
@@ -539,9 +688,10 @@ function projectForBarrier(
     );
   }
   if (result.status === 'uncertified') {
-    throw new Error(
-      `XpbdParticleSourceSimplexBarrierN: point--simplex result is uncertified (${result.reason}: ${result.detail})`
-    );
+    // NOT an error here: the caller decides. `evaluateAt` raises the typed
+    // potential-domain refusal; the step filter answers `indeterminate`. Both
+    // keep the query's own reason, which a bare throw would have destroyed.
+    return Object.freeze({ result, projection: null });
   }
   const coordinate: SourceSimplexCoordinateN = Object.freeze({
     kind: 'source-simplex-coordinate',
@@ -571,17 +721,18 @@ function pointSimplexDistance(result: PointSimplexResult): number {
       `XpbdParticleSourceSimplexBarrierN: source simplex is exactly rank-deficient (rank ${result.exactRank})`
     );
   }
+  // Unreachable: callers classify `uncertified` before asking for a distance.
   throw new Error(
     `XpbdParticleSourceSimplexBarrierN: point--simplex result is uncertified (${result.reason}: ${result.detail})`
   );
 }
 
 function certifiedDistanceLowerBound(query: {
-  readonly projection: SourceSimplexProjectionN;
+  readonly projection: SourceSimplexProjectionN | null;
   readonly result: PointSimplexResult | null;
 }): number {
   const { result } = query;
-  if (result === null) return Math.sqrt(query.projection.squaredDistance);
+  if (result === null) return Math.sqrt(query.projection!.squaredDistance);
   if (result.status === 'zero') return 0;
   if (result.status === 'rank-deficient') {
     throw new Error(

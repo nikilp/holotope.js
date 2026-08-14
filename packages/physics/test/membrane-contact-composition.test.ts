@@ -148,6 +148,7 @@ function scene(id: string, accelerated: boolean): Scene {
     minimumDistance: 0.04,
     activationDistance: 1.2,
     stiffness: 3,
+    maximumDirectionError: 2 ** -12,
     ...(accelerated
       ? {
         candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({

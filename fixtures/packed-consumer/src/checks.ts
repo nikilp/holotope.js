@@ -1694,6 +1694,7 @@ export function physicsComposition(): void {
     id: 'packed-candidates', source: candidateSource
   });
   const candidateFamily = compileXpbdParticleSourceSimplexBarrierFamilyN({
+    maximumDirectionError: 2 ** -12,
     id: 'packed-finite-obstacle',
     binding: candidateBinding,
     obstacle: simplexSource,
@@ -1745,6 +1746,7 @@ export function physicsComposition(): void {
   });
   for (const bound of worldBinding.particles) bound.velocity.data[3] = -6;
   const worldFamily = compileXpbdParticleSourceSimplexBarrierFamilyN({
+    maximumDirectionError: 2 ** -12,
     id: 'packed-world-contact',
     binding: worldBinding,
     obstacle: simplexSource,
@@ -1848,6 +1850,7 @@ export function physicsComposition(): void {
     minimumDistance: 0.05,
     activationDistance: 0.8,
     stiffness: 1,
+    maximumDirectionError: 2 ** -12,
     candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({
       obstacle: simplexSource, simplexGroup, leafSize: 1
     })

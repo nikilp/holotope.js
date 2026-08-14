@@ -111,6 +111,12 @@ function scene(
     minimumDistance: 0.05,
     activationDistance: 0.8,
     stiffness: 1.7,
+    // This helper sweeps R2..R7, so the obstacle simplex dimension crosses
+    // the exact/legacy boundary. The direction policy is required on the
+    // exact 1..3 arm and rejected on the 4..17 fallback, so a
+    // dimension-generic caller must branch — the visible cost of the
+    // arm-dependent rule, and the reason the option is not silently ignored.
+    ...(group.dim <= 3 ? { maximumDirectionError: 2 ** -12 } : {}),
     ...(accelerated
       ? {
         candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({
@@ -587,6 +593,7 @@ describe('hierarchy-backed family — binding refusals', () => {
 
     // Structurally identical, different source: not interchangeable.
     expect(() => compileXpbdParticleSourceSimplexBarrierFamilyN({
+      maximumDirectionError: 2 ** -12,
       ...base,
       candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({
         obstacle: b.complex, simplexGroup: b.group
@@ -594,11 +601,13 @@ describe('hierarchy-backed family — binding refusals', () => {
     })).toThrow(/candidateHierarchy indexes a different obstacle/);
 
     expect(() => compileXpbdParticleSourceSimplexBarrierFamilyN({
+      maximumDirectionError: 2 ** -12,
       ...base, candidateHierarchy: {} as never
     })).toThrow(/must be an XpbdSourceSimplexAabbHierarchyN/);
 
     // And the matching one compiles.
     const family = compileXpbdParticleSourceSimplexBarrierFamilyN({
+      maximumDirectionError: 2 ** -12,
       ...base,
       candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({
         obstacle: a.complex, simplexGroup: a.group
@@ -612,6 +621,7 @@ describe('hierarchy-backed family — binding refusals', () => {
     const source = new CellComplex(4, Float64Array.from([0.2, 0.2, 0.2, 0.2]), []);
     const binding = compileXpbdParticleBindingN({ id: 'dynamic', source });
     const family = compileXpbdParticleSourceSimplexBarrierFamilyN({
+      maximumDirectionError: 2 ** -12,
       id: 'contact', binding, obstacle: complex, simplexGroup: group,
       minimumDistance: 0.05, activationDistance: 0.8, stiffness: 1,
       candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({

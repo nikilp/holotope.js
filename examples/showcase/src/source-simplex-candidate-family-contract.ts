@@ -49,7 +49,8 @@ export function sourceSimplexCandidateFamilyContractExample(): string {
     simplexGroup,
     minimumDistance: 0.05,
     activationDistance: 0.8,
-    stiffness: 1
+    stiffness: 1,
+    maximumDirectionError: 2 ** -12
   };
   const family = compileXpbdParticleSourceSimplexBarrierFamilyN(familyOptions);
 

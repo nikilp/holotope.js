@@ -65,6 +65,7 @@ function barrier(
   options: { minimumDistance?: number; activationDistance?: number } = {}
 ): XpbdParticleSourceSimplexBarrierN {
   return new XpbdParticleSourceSimplexBarrierN({
+    maximumDirectionError: 2 ** -12,
     id: 'simplex-barrier',
     particle: new XpbdParticleN({ id: 'point', position }),
     simplex: reference,
@@ -240,6 +241,7 @@ describe('RN particle--source-simplex conservative barrier', () => {
     const fixture = tetra4();
     const particle = new XpbdParticleN({ id: 'bad', position: [0, 0, 0] });
     expect(() => new XpbdParticleSourceSimplexBarrierN({
+      maximumDirectionError: 2 ** -12,
       id: 'bad', particle, simplex: fixture.reference,
       activationDistance: 1, stiffness: 1
     })).toThrow(/particle is R3.*R4/);
@@ -249,6 +251,7 @@ describe('RN particle--source-simplex conservative barrier', () => {
       simplex: fixture.reference,
       activationDistance: 1,
       stiffness: 1,
+      maximumDirectionError: 2 ** -12,
       typo: true
     } as never)).toThrow(/unknown option "typo"/);
     fixture.group.indices[0] = 1;

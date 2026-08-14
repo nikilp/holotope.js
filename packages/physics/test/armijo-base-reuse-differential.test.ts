@@ -344,6 +344,7 @@ function composedScene(id: string, accelerated: boolean) {
     id: `${id}-contact`, binding, obstacle: obstacle.complex,
     simplexGroup: obstacle.group, minimumDistance: 0.04,
     activationDistance: 1.2, stiffness: 3,
+    maximumDirectionError: 2 ** -12,
     ...(accelerated ? {
       candidateHierarchy: compileXpbdSourceSimplexAabbHierarchyN({
         obstacle: obstacle.complex, simplexGroup: obstacle.group, leafSize: 2
