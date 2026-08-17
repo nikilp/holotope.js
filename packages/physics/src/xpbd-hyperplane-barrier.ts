@@ -1,7 +1,8 @@
 import { VecN } from '@holotope/core';
 import {
-  evaluateClampedLogBarrier,
-  type ClampedLogBarrierEvaluation
+  evaluateClampedLogBarrierAtOrderN,
+  type ClampedLogBarrierCurvatureN,
+  type ClampedLogBarrierForceN
 } from './clamped-log-barrier.js';
 import { HyperplaneColliderN } from './hyperplane-collider.js';
 import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
@@ -16,9 +17,21 @@ import {
   type XpbdParticlePositionQueryN
 } from './xpbd-world.js';
 
-/** Open-domain refusal vocabulary of a particle–hyperplane barrier. */
+/**
+ * Open-domain refusal vocabulary of a particle–hyperplane barrier.
+ *
+ * `barrier-component-outside-float64` refuses a candidate at which a scalar
+ * component this provider's published result requires arrived unavailable;
+ * `assembled-product-outside-float64` refuses a candidate/direction pair
+ * whose Hessian-vector product left Float64 while every scalar component was
+ * representable — the assembled composition is this caller's own, outside
+ * the scalar guarantee. Both are candidate-dependent, so both are
+ * recoverable domain refusals rather than authored failures.
+ */
 export type XpbdParticleHyperplaneBarrierDomainReasonN =
-  'at-or-below-minimum-distance';
+  | 'at-or-below-minimum-distance'
+  | 'barrier-component-outside-float64'
+  | 'assembled-product-outside-float64';
 
 /** Construction options for one conservative RN particle–plane barrier. */
 export interface XpbdParticleHyperplaneBarrierNOptions {
@@ -45,17 +58,28 @@ export interface XpbdParticleHyperplaneBarrierEvaluationN
   readonly barrierCoordinate: number;
   /** `activationDistance - minimumDistance`. */
   readonly barrierActivation: number;
-  /** Scalar barrier value and derivatives before multiplication by the normal. */
-  readonly barrier: ClampedLogBarrierEvaluation;
+  /**
+   * The graded order-1 scalar evaluation this force was built from. Both
+   * required components were available (the provider refused otherwise), so
+   * a consumer may narrow them without re-checking.
+   */
+  readonly barrier: ClampedLogBarrierForceN;
   /** One force paired with the provider's one particle. */
   readonly forces: readonly [VecN];
+}
+
+/** The order-2 variant the Hessian-vector path republishes as its base. */
+export interface XpbdParticleHyperplaneBarrierCurvatureEvaluationN
+  extends XpbdParticleHyperplaneBarrierEvaluationN {
+  /** The graded order-2 scalar evaluation, all three components available. */
+  readonly barrier: ClampedLogBarrierCurvatureN;
 }
 
 /** Exact potential Hessian-vector evidence for one point–plane barrier. */
 export interface XpbdParticleHyperplaneBarrierHessianVectorEvaluationN
   extends XpbdConservativeHessianVectorEvaluationN {
   /** Scalar barrier and signed-distance evidence at the candidate point. */
-  readonly base: XpbdParticleHyperplaneBarrierEvaluationN;
+  readonly base: XpbdParticleHyperplaneBarrierCurvatureEvaluationN;
   /** `plane.normal dot direction`. */
   readonly normalDirection: number;
   /** One mathematical potential Hessian-vector product. */
@@ -148,14 +172,14 @@ implements XpbdConservativeHessianVectorProviderN {
     return this.evaluateAt((particle) => particle.position.clone());
   }
 
-  /**
-   * Evaluates from a caller-supplied candidate-position lookup without
-   * mutating that vector or the live particle.
-   */
-  evaluateAt(
-    positionOf: XpbdParticlePositionQueryN
-  ): XpbdParticleHyperplaneBarrierEvaluationN {
-    const caller = 'XpbdParticleHyperplaneBarrierN.evaluateAt';
+  /** Shared candidate geometry: validation, distances, and the open bound. */
+  private resolveGeometry(
+    positionOf: XpbdParticlePositionQueryN, caller: string
+  ): {
+      signedDistance: number;
+      barrierCoordinate: number;
+      barrierActivation: number;
+    } {
     if (typeof positionOf !== 'function') {
       throw new Error(`${caller}: positionOf must be a function`);
     }
@@ -185,22 +209,49 @@ implements XpbdConservativeHessianVectorProviderN {
         `${caller}: signed distance must be greater than minimumDistance`
       );
     }
-    const barrierActivation =
-      this.activationDistance - this.minimumDistance;
-    const barrier = evaluateClampedLogBarrier({
-      coordinate: barrierCoordinate,
-      activation: barrierActivation,
-      stiffness: this.stiffness
-    });
-    const force = this.plane.normal.clone().multiplyScalar(
-      -barrier.firstDerivative
-    );
-    return Object.freeze({
+    return {
       signedDistance,
       barrierCoordinate,
-      barrierActivation,
+      barrierActivation: this.activationDistance - this.minimumDistance
+    };
+  }
+
+  /**
+   * Evaluates from a caller-supplied candidate-position lookup without
+   * mutating that vector or the live particle.
+   */
+  evaluateAt(
+    positionOf: XpbdParticlePositionQueryN
+  ): XpbdParticleHyperplaneBarrierEvaluationN {
+    const caller = 'XpbdParticleHyperplaneBarrierN.evaluateAt';
+    const geometry = this.resolveGeometry(positionOf, caller);
+    // This provider publishes a potential energy and one force, so it
+    // requests order 1 — never a curvature it would not use.
+    const barrier = evaluateClampedLogBarrierAtOrderN({
+      coordinate: geometry.barrierCoordinate,
+      activation: geometry.barrierActivation,
+      stiffness: this.stiffness
+    }, 1);
+    if (!barrier.energy.available || !barrier.firstDerivative.available) {
+      const missing = !barrier.energy.available
+        ? 'energy' : 'first derivative';
+      throw new XpbdPotentialDomainErrorN<
+        XpbdParticleHyperplaneBarrierDomainReasonN
+      >(
+        this.id,
+        'barrier-component-outside-float64',
+        `${caller}: the barrier ${missing} is outside Float64 at this candidate`
+      );
+    }
+    const force = this.plane.normal.clone().multiplyScalar(
+      -barrier.firstDerivative.value
+    );
+    return Object.freeze({
+      signedDistance: geometry.signedDistance,
+      barrierCoordinate: geometry.barrierCoordinate,
+      barrierActivation: geometry.barrierActivation,
       barrier,
-      potentialEnergy: barrier.energy,
+      potentialEnergy: barrier.energy.value,
       forces: Object.freeze([force]) as readonly [VecN]
     });
   }
@@ -220,7 +271,37 @@ implements XpbdConservativeHessianVectorProviderN {
     if (typeof directionOf !== 'function') {
       throw new Error(`${caller}: directionOf must be a function`);
     }
-    const base = this.evaluateAt(positionOf);
+    // This method republishes its whole base evaluation AND consumes the
+    // curvature, so it is the one caller that requests order 2.
+    const geometry = this.resolveGeometry(positionOf, caller);
+    const barrier = evaluateClampedLogBarrierAtOrderN({
+      coordinate: geometry.barrierCoordinate,
+      activation: geometry.barrierActivation,
+      stiffness: this.stiffness
+    }, 2);
+    if (!barrier.energy.available || !barrier.firstDerivative.available
+      || !barrier.secondDerivative.available) {
+      throw new XpbdPotentialDomainErrorN<
+        XpbdParticleHyperplaneBarrierDomainReasonN
+      >(
+        this.id,
+        'barrier-component-outside-float64',
+        `${caller}: a required barrier component is outside Float64 at this`
+        + ' candidate'
+      );
+    }
+    const baseForce = this.plane.normal.clone().multiplyScalar(
+      -barrier.firstDerivative.value
+    );
+    const base: XpbdParticleHyperplaneBarrierCurvatureEvaluationN =
+      Object.freeze({
+        signedDistance: geometry.signedDistance,
+        barrierCoordinate: geometry.barrierCoordinate,
+        barrierActivation: geometry.barrierActivation,
+        barrier,
+        potentialEnergy: barrier.energy.value,
+        forces: Object.freeze([baseForce]) as readonly [VecN]
+      });
     const direction = directionOf(this.particle);
     if (!(direction instanceof VecN) || direction.dim !== this.dimension) {
       throw new Error(`${caller}: candidate direction must be R${this.dimension}`);
@@ -231,14 +312,30 @@ implements XpbdConservativeHessianVectorProviderN {
       }
     }
     const normalDirection = this.plane.normal.dot(direction);
-    const scale = base.barrier.secondDerivative * normalDirection;
+    // The product of an available curvature with the caller's direction is
+    // THIS provider's composition; the scalar guarantee does not cover it.
+    const scale = barrier.secondDerivative.value * normalDirection;
     if (!Number.isFinite(normalDirection) || !Number.isFinite(scale)) {
-      throw new Error(`${caller}: curvature is outside Float64`);
+      throw new XpbdPotentialDomainErrorN<
+        XpbdParticleHyperplaneBarrierDomainReasonN
+      >(
+        this.id,
+        'assembled-product-outside-float64',
+        `${caller}: the Hessian-vector product is outside Float64 at this`
+        + ' candidate/direction pair'
+      );
     }
     const product = this.plane.normal.clone().multiplyScalar(scale);
     for (const coordinate of product.data) {
       if (!Number.isFinite(coordinate)) {
-        throw new Error(`${caller}: product is outside Float64`);
+        throw new XpbdPotentialDomainErrorN<
+          XpbdParticleHyperplaneBarrierDomainReasonN
+        >(
+          this.id,
+          'assembled-product-outside-float64',
+          `${caller}: the Hessian-vector product is outside Float64 at this`
+          + ' candidate/direction pair'
+        );
       }
     }
     return Object.freeze({

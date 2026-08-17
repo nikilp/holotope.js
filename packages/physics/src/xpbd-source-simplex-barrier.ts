@@ -7,8 +7,8 @@ import {
   type SourceSimplexReferenceN
 } from '@holotope/core';
 import {
-  evaluateClampedLogBarrier,
-  type ClampedLogBarrierEvaluation
+  evaluateClampedLogBarrierAtOrderN,
+  type ClampedLogBarrierForceN
 } from './clamped-log-barrier.js';
 import {
   type XpbdIncrementalPotentialStepFilterContextN,
@@ -59,7 +59,8 @@ export type XpbdParticleSourceSimplexBarrierDomainReasonN =
   | 'at-or-below-minimum-distance'
   | 'minimum-distance-not-certified'
   | XpbdParticleSourceSimplexBarrierPublicationReasonN
-  | 'direction-error-exceeds-policy';
+  | 'direction-error-exceeds-policy'
+  | 'barrier-component-outside-float64';
 
 /**
  * One-to-one forwarding of every exact point--simplex publication reason.
@@ -156,8 +157,11 @@ export interface XpbdParticleSourceSimplexBarrierEvaluationN
   readonly barrierCoordinate: number;
   /** `activationDistance - minimumDistance`. */
   readonly barrierActivation: number;
-  /** Scalar barrier value and derivatives with respect to distance. */
-  readonly barrier: ClampedLogBarrierEvaluation;
+  /**
+   * The graded order-1 scalar evaluation this force was built from. Both
+   * required components were available (the provider refused otherwise).
+   */
+  readonly barrier: ClampedLogBarrierForceN;
   /** One force paired with the provider's one particle. */
   readonly forces: readonly [VecN];
 }
@@ -359,11 +363,23 @@ implements XpbdConservativeForceProviderN {
     }
     const barrierCoordinate = distance - this.minimumDistance;
     const barrierActivation = this.activationDistance - this.minimumDistance;
-    const barrier = evaluateClampedLogBarrier({
+    // This provider publishes a potential energy and one force, so it
+    // requests order 1 — never a curvature it would not use.
+    const barrier = evaluateClampedLogBarrierAtOrderN({
       coordinate: barrierCoordinate,
       activation: barrierActivation,
       stiffness: this.stiffness
-    });
+    }, 1);
+    if (!barrier.energy.available || !barrier.firstDerivative.available) {
+      throw new XpbdPotentialDomainErrorN<
+        XpbdParticleSourceSimplexBarrierDomainReasonN
+      >(
+        this.id,
+        'barrier-component-outside-float64',
+        `${caller}: a required barrier component is outside Float64 at this` +
+        ' candidate'
+      );
+    }
     if (pointSimplex !== null && pointSimplex.status !== 'projected') {
       // Genuinely unreachable: `zero` cannot survive the positive-distance
       // gates above, `uncertified` was classified before any arithmetic, and
@@ -387,7 +403,7 @@ implements XpbdConservativeForceProviderN {
       ? position.clone().sub(projection.point).multiplyScalar(1 / distance)
       : new VecN(pointSimplex.witness.direction);
     const force = separationNormal.clone().multiplyScalar(
-      -barrier.firstDerivative
+      -barrier.firstDerivative.value
     );
     return Object.freeze({
       projection,
@@ -397,7 +413,7 @@ implements XpbdConservativeForceProviderN {
       barrierCoordinate,
       barrierActivation,
       barrier,
-      potentialEnergy: barrier.energy,
+      potentialEnergy: barrier.energy.value,
       forces: Object.freeze([force]) as readonly [VecN]
     });
   }

@@ -4,8 +4,8 @@ import {
   type CellGroup
 } from '@holotope/core';
 import {
-  evaluateClampedLogBarrier,
-  type ClampedLogBarrierEvaluation
+  evaluateClampedLogBarrierAtOrderN,
+  type ClampedLogBarrierForceN
 } from './clamped-log-barrier.js';
 import { gjkDistance, type GjkResult } from './gjk.js';
 import { ConvexHullSupportShapeN } from './support-shape.js';
@@ -37,7 +37,8 @@ import {
  */
 export type XpbdParticleSourceConvexHullBarrierDomainReasonN =
   | 'at-or-below-minimum-distance'
-  | 'closest-point-indeterminate';
+  | 'closest-point-indeterminate'
+  | 'barrier-component-outside-float64';
 
 /** Construction options for one dynamic point--static-convex-hull family. */
 export interface CompileXpbdParticleSourceConvexHullBarrierFamilyNOptions {
@@ -95,8 +96,11 @@ export interface XpbdParticleSourceConvexHullActiveBarrierN {
   readonly distance: number;
   /** `distance - minimumDistance`. */
   readonly barrierCoordinate: number;
-  /** Scalar barrier value and derivatives with respect to distance. */
-  readonly barrier: ClampedLogBarrierEvaluation;
+  /**
+   * The graded order-1 scalar evaluation this force was built from. Both
+   * required components were available (the provider refused otherwise).
+   */
+  readonly barrier: ClampedLogBarrierForceN;
   /** Closest point, normal, and source vertices behind this answer. */
   readonly witness: XpbdSourceConvexHullWitnessN;
 }
@@ -373,14 +377,27 @@ implements XpbdConservativeForceProviderN {
       }
       // Exactly one barrier contribution per particle, and only inside the band.
       if (barrierCoordinate >= barrierActivation) continue;
-      const barrier = evaluateClampedLogBarrier({
+      // Each contribution publishes an energy share and one force, so the
+      // family requests order 1 — never a curvature it would not use.
+      const barrier = evaluateClampedLogBarrierAtOrderN({
         coordinate: barrierCoordinate,
         activation: barrierActivation,
         stiffness: this.stiffness
-      });
-      potentialEnergy += barrier.energy;
+      }, 1);
+      if (!barrier.energy.available || !barrier.firstDerivative.available) {
+        throw new XpbdPotentialDomainErrorN<
+          XpbdParticleSourceConvexHullBarrierDomainReasonN
+        >(
+          this.id,
+          'barrier-component-outside-float64',
+          `${caller}: a required barrier component is outside Float64 at` +
+          ` source vertex ${index}`
+        );
+      }
+      potentialEnergy += barrier.energy.value;
       forces[index]!.add(
-        witness.separationNormal.clone().multiplyScalar(-barrier.firstDerivative)
+        witness.separationNormal.clone()
+          .multiplyScalar(-barrier.firstDerivative.value)
       );
       activeBarriers.push(Object.freeze({
         id: `${this.id}/source-vertex/${index}`,

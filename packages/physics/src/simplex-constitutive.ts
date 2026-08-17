@@ -7,7 +7,8 @@ export type SimplexConstitutiveDomainReasonN =
   | 'collapsed'
   | 'inverted'
   | 'non-positive-measure'
-  | 'below-minimum-measure';
+  | 'below-minimum-measure'
+  | 'barrier-component-outside-float64';
 
 /** Typed material-chart refusal, distinct from malformed input or arithmetic failure. */
 export class SimplexConstitutiveDomainErrorN

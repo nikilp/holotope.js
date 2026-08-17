@@ -4,8 +4,8 @@ import {
   type SourceSimplexReferenceN
 } from '@holotope/core';
 import {
-  evaluateClampedLogBarrier,
-  type ClampedLogBarrierEvaluation
+  evaluateClampedLogBarrierAtOrderN,
+  type ClampedLogBarrierForceN
 } from './clamped-log-barrier.js';
 import {
   evaluateSourceSimplexPairDistanceN,
@@ -28,7 +28,8 @@ export type XpbdSourceSimplexPairBarrierDomainReasonN =
   | 'zero-or-intersecting'
   | 'at-or-below-minimum-distance'
   | 'tied-witness-no-unique-gradient'
-  | 'uncertified-distance';
+  | 'uncertified-distance'
+  | 'barrier-component-outside-float64';
 
 /** Construction options for one conservative RN feature-pair barrier. */
 export interface XpbdSourceSimplexPairBarrierNOptions {
@@ -73,8 +74,11 @@ export interface XpbdSourceSimplexPairBarrierEvaluationN
   readonly barrierCoordinate: number;
   /** `activationDistance - minimumDistance`. */
   readonly barrierActivation: number;
-  /** Scalar barrier value and derivatives with respect to distance. */
-  readonly barrier: ClampedLogBarrierEvaluation;
+  /**
+   * The graded order-1 scalar evaluation this force was built from. Both
+   * required components were available (the provider refused otherwise).
+   */
+  readonly barrier: ClampedLogBarrierForceN;
   /** One force per provider particle: side A slots first, then side B's. */
   readonly forces: readonly VecN[];
 }
@@ -277,23 +281,35 @@ implements XpbdConservativeForceProviderN {
       );
     }
     const barrierActivation = this.activationDistance - this.minimumDistance;
-    const barrier = evaluateClampedLogBarrier({
+    // This provider publishes a potential energy and per-vertex forces, so
+    // it requests order 1 — never a curvature it would not use.
+    const barrier = evaluateClampedLogBarrierAtOrderN({
       coordinate: barrierCoordinate,
       activation: barrierActivation,
       stiffness: this.stiffness
-    });
+    }, 1);
+    if (!barrier.energy.available || !barrier.firstDerivative.available) {
+      throw new XpbdPotentialDomainErrorN<
+        XpbdSourceSimplexPairBarrierDomainReasonN
+      >(
+        this.id,
+        'barrier-component-outside-float64',
+        `${caller}: a required barrier component is outside Float64 at this` +
+        ' candidate'
+      );
+    }
     const separationNormal = pair.direction.clone();
     const forces: VecN[] = [];
     const weightsA = pair.witness.coordinateA.weights;
     for (let slot = 0; slot < this.particlesA.length; slot++) {
       forces.push(separationNormal.clone()
-        .multiplyScalar(-barrier.firstDerivative * weightsA[slot]!));
+        .multiplyScalar(-barrier.firstDerivative.value * weightsA[slot]!));
     }
     if (this.particlesB !== undefined) {
       const weightsB = pair.witness.coordinateB.weights;
       for (let slot = 0; slot < this.particlesB.length; slot++) {
         forces.push(separationNormal.clone()
-          .multiplyScalar(barrier.firstDerivative * weightsB[slot]!));
+          .multiplyScalar(barrier.firstDerivative.value * weightsB[slot]!));
       }
     }
     return Object.freeze({
@@ -303,7 +319,7 @@ implements XpbdConservativeForceProviderN {
       barrierCoordinate,
       barrierActivation,
       barrier,
-      potentialEnergy: barrier.energy,
+      potentialEnergy: barrier.energy.value,
       forces: Object.freeze(forces)
     });
   }

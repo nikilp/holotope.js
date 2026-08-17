@@ -1,5 +1,5 @@
 import {
-  evaluateClampedLogBarrier,
+  evaluateClampedLogBarrierAtOrderN,
   type XpbdIncrementalPotentialDiagnosisConditionN,
   type XpbdIncrementalPotentialDiagnosisLeverN
 } from '@holotope/physics';
@@ -41,16 +41,24 @@ export function sampleBarrierCurve(options: SampleBarrierCurveOptions): readonly
   const curve: BarrierSample[] = [];
   for (let index = 0; index < samples; index++) {
     const distance = first + (maximumDistance - first) * (index / (samples - 1));
-    const evaluation = evaluateClampedLogBarrier({
+    // The plot needs the energy and the force, so it requests order 1.
+    const evaluation = evaluateClampedLogBarrierAtOrderN({
       coordinate: distance,
       activation: activationDistance,
       stiffness
-    });
+    }, 1);
+    if (!evaluation.energy.available ||
+      !evaluation.firstDerivative.available) {
+      throw new Error(
+        'nd-contact instruments: a barrier sample left Float64 on an ' +
+        'authored plotting grid'
+      );
+    }
     curve.push(
       Object.freeze({
         distance,
-        energy: evaluation.energy,
-        firstDerivative: evaluation.firstDerivative
+        energy: evaluation.energy.value,
+        firstDerivative: evaluation.firstDerivative.value
       })
     );
   }

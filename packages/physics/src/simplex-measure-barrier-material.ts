@@ -1,5 +1,5 @@
 import { MatN, VecN } from '@holotope/core';
-import { evaluateClampedLogBarrier } from './clamped-log-barrier.js';
+import { evaluateClampedLogBarrierAtOrderN } from './clamped-log-barrier.js';
 import {
   SimplexConstitutiveDomainErrorN,
   completeSimplexConstitutiveEvaluationN,
@@ -77,16 +77,32 @@ export function evaluateSimplexMeasureBarrierN(
   }
 
   const activationWidth = activationMeasureRatio - minimumMeasureRatio;
-  const scalarBarrier = evaluateClampedLogBarrier({
+  // This law publishes energy density, stress and tangent, so it requests
+  // order 2 and requires all three components.
+  const scalarBarrier = evaluateClampedLogBarrierAtOrderN({
     coordinate: measureRatio - minimumMeasureRatio,
     activation: activationWidth,
     stiffness
-  });
-  const normalizedGap = scalarBarrier.normalizedCoordinate;
+  }, 2);
+  if (!scalarBarrier.energy.available ||
+    !scalarBarrier.firstDerivative.available ||
+    !scalarBarrier.secondDerivative.available) {
+    throw new SimplexConstitutiveDomainErrorN(
+      SIMPLEX_MEASURE_BARRIER_LAW_ID,
+      'barrier-component-outside-float64',
+      `${caller}: a required barrier component is outside Float64 at this` +
+      ' measure ratio'
+    );
+  }
+  // The scalar contract publishes no ratio; the gap is rebuilt from the
+  // evaluation's own attached inputs.
+  const normalizedGap =
+    scalarBarrier.inputs.coordinate / scalarBarrier.inputs.activation;
   const active = scalarBarrier.active;
-  const energyDensity = scalarBarrier.energy;
-  const energyDerivativeByMeasureRatio = scalarBarrier.firstDerivative;
-  const energySecondDerivativeByMeasureRatio = scalarBarrier.secondDerivative;
+  const energyDensity = scalarBarrier.energy.value;
+  const energyDerivativeByMeasureRatio = scalarBarrier.firstDerivative.value;
+  const energySecondDerivativeByMeasureRatio =
+    scalarBarrier.secondDerivative.value;
   const secondPiolaStress = new MatN(deformation.simplexDimension);
 
   if (active) {

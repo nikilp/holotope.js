@@ -503,7 +503,15 @@ export class XpbdSourceSimplexPairFrictionN {
     // base — not a separately authored value, and not recomputed with another
     // tolerance. A Coulomb bound built from anything else is not Coulomb's law.
     const barrierEvaluation = this.barrier.evaluateAt(positionOf);
-    const laggedNormalForce = Math.abs(barrierEvaluation.barrier.firstDerivative);
+    // E' alone. A published pair-barrier evaluation carries an available
+    // first derivative by that provider's contract; a miss here is a lost
+    // internal invariant, not a caller-reachable state.
+    if (!barrierEvaluation.barrier.firstDerivative.available) {
+      throw new Error(`${caller}: internal invariant lost — a published ` +
+        'pair-barrier evaluation carries an available first derivative');
+    }
+    const laggedNormalForce =
+      Math.abs(barrierEvaluation.barrier.firstDerivative.value);
 
     const lag: XpbdSourceSimplexPairFrictionLagN = Object.freeze({
       dimension: this.dimension,
