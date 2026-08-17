@@ -1,0 +1,140 @@
+{
+  "gateFiles": [
+    "packages/physics/test/clamped-log-barrier.test.ts",
+    "packages/physics/test/clamped-log-barrier-referee.test.ts",
+    "packages/physics/test/clamped-log-barrier-terms.test.ts",
+    "packages/physics/test/clamped-log-barrier-negatives.test.ts"
+  ],
+  "results": [
+    {
+      "id": "1 chunked double rounding (revert applyExponent)",
+      "file": "src/clamped-log-barrier-core.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "2 per-term subnormal rounding (emit each term, then add)",
+      "file": "src/clamped-log-barrier-core.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 4
+    },
+    {
+      "id": "3 stale ratio-underflow refusal reinstated",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "4 all-or-nothing component refusal",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 5
+    },
+    {
+      "id": "5 replace unavailable with numeric zero",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 5
+    },
+    {
+      "id": "6 retain the mutable caller inputs",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "7 omit the attached inputs",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 3
+    },
+    {
+      "id": "8 leak internal state on the result",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "9 recompute the curvature with the textbook grouping",
+      "file": "src/clamped-log-barrier-core.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 3
+    },
+    {
+      "id": "10 normalize signed zero",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "11 construct an unrequested derivative",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "12 give order an implicit default",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "13 loosen the referee to the old allowance class",
+      "file": "test/support/clamped-log-barrier-referee.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    }
+  ]
+}

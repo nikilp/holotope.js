@@ -7,10 +7,22 @@ import {
   XpbdPotentialDomainErrorN,
   compileXpbdIncrementalPotentialProblemN,
   estimateXpbdIncrementalPotentialHessianVectorN,
-  evaluateClampedLogBarrier,
+  evaluateClampedLogBarrierAtOrderN,
+  type BarrierComponentN,
   type XpbdConservativeForceProviderN,
   type XpbdIncrementalPotentialProblemN
 } from '../src/index.js';
+
+
+/** Narrows a graded component the fixture knows is representable. */
+function availableValue(
+  component: BarrierComponentN
+): number {
+  if (!component.available) {
+    throw new Error('test fixture: component unexpectedly outside Float64');
+  }
+  return component.value;
+}
 
 function quadraticProvider(
   id: string,
@@ -189,14 +201,15 @@ describe('XPBD incremental-potential matrix-free curvature', () => {
     });
     const coordinates = normal.clone().multiplyScalar(0.7);
     const direction = new VecN([0.4, 0.1, -0.3, 0.8]);
-    const scalar = evaluateClampedLogBarrier({
+    const scalar = evaluateClampedLogBarrierAtOrderN({
       coordinate: 0.7 - minimumDistance,
       activation: activationDistance - minimumDistance,
       stiffness
-    });
+    }, 2);
     const expected = direction.clone().multiplyScalar(mass).add(
       normal.clone().multiplyScalar(
-        deltaTime ** 2 * scalar.secondDerivative * normal.dot(direction)
+        deltaTime ** 2 * availableValue(scalar.secondDerivative) *
+          normal.dot(direction)
       )
     );
     const result = estimateXpbdIncrementalPotentialHessianVectorN({

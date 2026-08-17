@@ -6,8 +6,20 @@ import {
   compileXpbdParticleBindingN,
   compileXpbdParticleSourceConvexHullBarrierFamilyN,
   compileXpbdParticleSourceSimplexBarrierFamilyN,
-  evaluateClampedLogBarrier
+  evaluateClampedLogBarrierAtOrderN,
+  type BarrierComponentN
 } from '../src/index.js';
+
+
+/** Narrows a graded component the fixture knows is representable. */
+function availableValue(
+  component: BarrierComponentN
+): number {
+  if (!component.available) {
+    throw new Error('test fixture: component unexpectedly outside Float64');
+  }
+  return component.value;
+}
 
 /**
  * Point-to-static-convex-hull contact.
@@ -84,13 +96,14 @@ function scene(dim: number, position: readonly number[], id: string) {
 
 /** Analytic normal force for a probe above a flat support's interior. */
 function analyticForce(dim: number, height: number): Float64Array {
-  const barrier = evaluateClampedLogBarrier({
+  const barrier = evaluateClampedLogBarrierAtOrderN({
     coordinate: height - BARRIER.minimumDistance,
     activation: BARRIER.activationDistance - BARRIER.minimumDistance,
     stiffness: BARRIER.stiffness
-  });
+  }, 1);
   const force = new Float64Array(dim);
-  force[dim - 1] = -barrier.firstDerivative * Math.sign(height);
+  force[dim - 1] =
+    -availableValue(barrier.firstDerivative) * Math.sign(height);
   return force;
 }
 

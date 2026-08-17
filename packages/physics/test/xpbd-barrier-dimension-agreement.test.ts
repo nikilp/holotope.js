@@ -5,8 +5,20 @@ import {
   XpbdParticleHyperplaneBarrierN,
   XpbdParticleHyperplaneBarrierStepFilterN,
   XpbdParticleN,
-  evaluateClampedLogBarrier
+  evaluateClampedLogBarrierAtOrderN,
+  type BarrierComponentN
 } from '../src/index.js';
+
+
+/** Narrows a graded component the fixture knows is representable. */
+function availableValue(
+  component: BarrierComponentN
+): number {
+  if (!component.available) {
+    throw new Error('test fixture: component unexpectedly outside Float64');
+  }
+  return component.value;
+}
 
 /**
  * Cross-dimension *agreement*, which is a different claim from per-dimension
@@ -62,9 +74,9 @@ describe('the barrier stack agrees across ambient dimensions', () => {
       // And the value is the scalar law's, so the vector wrapper adds nothing.
       const scalar = distance >= 0.1
         ? 0
-        : evaluateClampedLogBarrier({
+        : availableValue(evaluateClampedLogBarrierAtOrderN({
           coordinate: distance, activation: 0.1, stiffness: 3
-        }).energy;
+        }, 0).energy);
       expect(energies[0]).toBeCloseTo(scalar, 12);
     }
   });

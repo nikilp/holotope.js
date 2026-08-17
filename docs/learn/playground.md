@@ -92,7 +92,7 @@ there is improved here.
 | [`cuboidCellFacetN`](/api/core/geometry/functions/cuboidCellFacetN) | [open](https://nikilp.github.io/holotope.js/playground.html#cuboidCellFacetN) |
 | [`describeRepresentationHitN`](/api/core/representation/functions/describeRepresentationHitN) | [open](https://nikilp.github.io/holotope.js/playground.html#describeRepresentationHitN) |
 | [`estimateXpbdIncrementalPotentialHessianVectorN`](/api/physics/functions/estimateXpbdIncrementalPotentialHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#estimateXpbdIncrementalPotentialHessianVectorN) |
-| [`evaluateClampedLogBarrier`](/api/physics/functions/evaluateClampedLogBarrier) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateClampedLogBarrier) |
+| [`evaluateClampedLogBarrierAtOrderN`](/api/physics/functions/evaluateClampedLogBarrierAtOrderN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateClampedLogBarrierAtOrderN) |
 | [`evaluateSimplexHingeCosineN`](/api/physics/functions/evaluateSimplexHingeCosineN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexHingeCosineN) |
 | [`evaluateSimplexMeasureBarrierHessianVectorN`](/api/physics/functions/evaluateSimplexMeasureBarrierHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexMeasureBarrierHessianVectorN) |
 | [`evaluateSimplexStVenantKirchhoffHessianVectorN`](/api/physics/functions/evaluateSimplexStVenantKirchhoffHessianVectorN) | [open](https://nikilp.github.io/holotope.js/playground.html#evaluateSimplexStVenantKirchhoffHessianVectorN) |

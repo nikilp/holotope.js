@@ -6,7 +6,8 @@ import {
   XpbdParticleN,
   XpbdPotentialDomainErrorN,
   compileXpbdIncrementalPotentialProblemN,
-  evaluateClampedLogBarrier,
+  evaluateClampedLogBarrierAtOrderN,
+  type BarrierComponentN,
   searchXpbdIncrementalPotentialArmijoN,
   stepXpbdIncrementalPotentialN
 } from '../src/index.js';
@@ -22,13 +23,28 @@ function expectVector(
   }
 }
 
+
+/** Narrows a graded component the fixture knows is representable. */
+function availableValue(
+  component: BarrierComponentN
+): number {
+  if (!component.available) {
+    throw new Error('test fixture: component unexpectedly outside Float64');
+  }
+  return component.value;
+}
+
 describe('RN particle-hyperplane conservative barrier', () => {
   it('specializes the same scalar energy and normal force from R1 through R7', () => {
-    const expected = evaluateClampedLogBarrier({
+    const graded = evaluateClampedLogBarrierAtOrderN({
       coordinate: 0.4,
       activation: 0.8,
       stiffness: 2.3
-    });
+    }, 1);
+    const expected = {
+      energy: availableValue(graded.energy),
+      firstDerivative: availableValue(graded.firstDerivative)
+    };
     for (const dimension of [1, 2, 4, 7]) {
       const axis = dimension - 1;
       const position = new Float64Array(dimension);
@@ -54,7 +70,7 @@ describe('RN particle-hyperplane conservative barrier', () => {
       expect(evaluated.barrierCoordinate).toBeCloseTo(0.4, 14);
       expect(evaluated.barrierActivation).toBeCloseTo(0.8, 14);
       expect(evaluated.potentialEnergy).toBeCloseTo(expected.energy, 14);
-      expect(evaluated.barrier.firstDerivative)
+      expect(availableValue(evaluated.barrier.firstDerivative))
         .toBeCloseTo(expected.firstDerivative, 14);
       expect(evaluated.forces).toHaveLength(1);
       const force = new Float64Array(dimension);
@@ -212,13 +228,13 @@ describe('RN particle-hyperplane conservative barrier', () => {
   it('plugs into the transactional incremental-potential step', () => {
     const deltaTime = 0.1;
     const targetDistance = 0.5;
-    const scalar = evaluateClampedLogBarrier({
+    const scalar = evaluateClampedLogBarrierAtOrderN({
       coordinate: targetDistance - 0.1,
       activation: 0.9 - 0.1,
       stiffness: 1
-    });
-    const predictedDistance =
-      targetDistance + deltaTime ** 2 * scalar.firstDerivative;
+    }, 1);
+    const predictedDistance = targetDistance +
+      deltaTime ** 2 * availableValue(scalar.firstDerivative);
     const particle = new XpbdParticleN({
       id: 'step',
       position: [predictedDistance],

@@ -13,6 +13,16 @@ import {
   XpbdSourceSimplexPairBarrierStepFilterN
 } from '../src/index.js';
 
+/** Narrows a graded component the fixture knows is representable. */
+function availableComponentValue(
+  component: { readonly available: boolean } & { readonly value?: number }
+): number {
+  if (!component.available || component.value === undefined) {
+    throw new Error('test fixture: component unexpectedly outside Float64');
+  }
+  return component.value;
+}
+
 /**
  * P56 Part C gates for the feature-pair barrier and its paired filter: the
  * plan's conservation, derivative, covariance, refusal, and stability rows.
@@ -167,7 +177,8 @@ describe('the pair barrier: energy, forces, and conservation', () => {
     const net = new VecN(dim);
     for (const force of evaluation.forces) net.add(force);
     const expected = evaluation.separationNormal.clone()
-      .multiplyScalar(-evaluation.barrier.firstDerivative);
+      .multiplyScalar(
+        -availableComponentValue(evaluation.barrier.firstDerivative));
     for (let axis = 0; axis < dim; axis++) {
       expect(net.data[axis]!).toBeCloseTo(expected.data[axis]!, 10);
     }

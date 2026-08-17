@@ -729,7 +729,7 @@
       "EpaTraceEntry4": "/api/physics/interfaces/EpaTraceEntry4",
       "estimateXpbdIncrementalPotentialHessianVectorN": "/api/physics/functions/estimateXpbdIncrementalPotentialHessianVectorN",
       "EstimateXpbdIncrementalPotentialHessianVectorNOptions": "/api/physics/interfaces/EstimateXpbdIncrementalPotentialHessianVectorNOptions",
-      "evaluateClampedLogBarrier": "/api/physics/functions/evaluateClampedLogBarrier",
+      "evaluateClampedLogBarrierAtOrderN": "/api/physics/functions/evaluateClampedLogBarrierAtOrderN",
       "EvaluateClampedLogBarrierOptions": "/api/physics/interfaces/EvaluateClampedLogBarrierOptions",
       "evaluateDistanceConstraintN": "/api/physics/functions/evaluateDistanceConstraintN",
       "evaluateDistanceCoordinateN": "/api/physics/functions/evaluateDistanceCoordinateN",

@@ -16,6 +16,16 @@ import {
   type XpbdIncrementalPotentialProblemN
 } from '../src/index.js';
 
+/** Narrows a graded component the fixture knows is representable. */
+function availableComponentValue(
+  component: { readonly available: boolean } & { readonly value?: number }
+): number {
+  if (!component.available || component.value === undefined) {
+    throw new Error('test fixture: component unexpectedly outside Float64');
+  }
+  return component.value;
+}
+
 function analyticQuadraticProvider(
   id: string,
   particles: readonly XpbdParticleN[],
@@ -1163,7 +1173,8 @@ describe('XPBD incremental-potential analytic curvature', () => {
         () => direction.clone()
       );
       const expectedLocal = normal.clone().multiplyScalar(
-        local.base.barrier.secondDerivative * normal.dot(direction)
+        availableComponentValue(local.base.barrier.secondDerivative) *
+          normal.dot(direction)
       );
 
       expect(analytic.status).toBe('evaluated');

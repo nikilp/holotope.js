@@ -16,6 +16,16 @@ import {
   stepXpbdIncrementalPotentialWorldN
 } from '../src/index.js';
 
+/** Narrows a graded component the fixture knows is representable. */
+function availableComponentValue(
+  component: { readonly available: boolean } & { readonly value?: number }
+): number {
+  if (!component.available || component.value === undefined) {
+    throw new Error('test fixture: component unexpectedly outside Float64');
+  }
+  return component.value;
+}
+
 /**
  * P57 E2 — the prepared provider and its transaction lifecycle.
  *
@@ -82,7 +92,9 @@ describe('the prepared friction term', () => {
     expect(lag.normal.length()).toBeCloseTo(1, 12);
     // The lagged magnitude is the barrier's own force at this base.
     expect(lag.laggedNormalForce).toBeCloseTo(
-      Math.abs(barrier.evaluate().barrier.firstDerivative), 12
+      Math.abs(
+        availableComponentValue(barrier.evaluate().barrier.firstDerivative)
+      ), 12
     );
     // Weights are source-ordered and sum to one on both sides.
     expect(lag.coordinateA.weights.reduce((x, y) => x + y, 0)).toBeCloseTo(1, 12);

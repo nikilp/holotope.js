@@ -219,7 +219,8 @@ which to establish sufficient decrease.
 
 ## Scalar and particle–hyperplane barriers
 
-`evaluateClampedLogBarrier()` exposes the dimension-independent scalar law
+`evaluateClampedLogBarrierAtOrderN()` exposes the dimension-independent scalar
+law
 
 $$
 b(d;\widehat d)=
@@ -230,11 +231,53 @@ b(d;\widehat d)=
 \end{cases}
 $$
 
-together with its analytic first and second derivatives. The open boundary
-`d = 0` is deliberately outside the evaluator's domain. At and above the
-activation coordinate, value and both derivatives are exactly zero. The same
+to exactly the **requested derivative order** — `0` for the energy, `1`
+adding the first derivative, `2` adding the second. The order is a required
+argument: there is no default, so a caller cannot silently pay for (or come
+to depend on) a curvature it never asked for. The open boundary `d = 0` is
+deliberately outside the evaluator's domain and raises the typed permanent
+`ClampedLogBarrierInputErrorN`. At and above the activation coordinate, value
+and requested derivatives are exactly zero with `active: false`. The same
 scalar kernel supplies the simplex lower-measure barrier and contact-distance
 providers, so they share one curvature and boundary convention.
+
+Each requested component is **graded on its own account** as
+`{ available: true, value }` or
+`{ available: false, reason: 'outside-float64' }`, and availability is
+**non-monotone**: deep in the support the energy can round to zero while the
+curvature is a healthy number, and the curvature can overflow while the
+energy is representable. Neither direction implies the other, and no
+component is withheld because another was unavailable. Three consequences
+are worth reading twice:
+
+- **A correctly rounded zero is an answer.** When the barrier is active and
+  a component's exact value rounds to Float64 zero, the component is
+  published as `{ available: true, value: 0 }`, never refused. `active` is
+  what separates that underflow statement from the clamp's exact zero.
+- **Signed zero is preserved, not promised.** The correctly rounded signed
+  zero the arithmetic produces is passed through — an underflowed first
+  derivative arrives as `-0` because $b'$ is strictly negative on the active
+  domain — but semantics come from `active` plus the value; no caller may
+  use the sign bit as its only discriminator.
+- **Classification at the Infinity threshold carries a measured
+  accommodation.** Within the accuracy budget of the rounding threshold to
+  ±Infinity ($2^{1024}(1-2^{-54})$, relative width $16\cdot2^{-53}$), an
+  `available: false` may arrive one budget-width before exact classification
+  would demand it. This is a numerical accommodation the implementation
+  inherits, not a theorem.
+
+The **assembled directional product is outside the scalar guarantee**: the
+contract grades its own three outputs, and a dot product of delivered
+components with a caller's direction can underflow to zero while every
+component is finite and nonzero. The caller owns that composition and its
+diagnostic — the scalar result cannot see it.
+
+Measured cost (batched spans, never single-call timing): requesting order 0
+is roughly **4× cheaper** and order 1 roughly **1.4× cheaper** than the old
+all-orders evaluation, while order 2 costs about **1.3–1.4×** — an accepted,
+documented trade for correctly rounded subnormal behaviour and no-throw
+availability semantics; the exponent-tracked repair itself contributes
+roughly 9% of it. The inactive clamp performs no arithmetic at all.
 
 `XpbdParticleHyperplaneBarrierN` composes the scalar law with the affine signed
 distance from an RN point to an oriented hyperplane:

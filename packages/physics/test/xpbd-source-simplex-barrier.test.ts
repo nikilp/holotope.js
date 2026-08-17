@@ -16,9 +16,21 @@ import {
   compileXpbdIncrementalPotentialAnalyticHessianOperatorN,
   compileXpbdIncrementalPotentialProblemN,
   evaluateExactPointSimplexResult,
-  evaluateClampedLogBarrier,
+  evaluateClampedLogBarrierAtOrderN,
+  type BarrierComponentN,
   searchXpbdIncrementalPotentialArmijoN
 } from '../src/index.js';
+
+
+/** Narrows a graded component the fixture knows is representable. */
+function availableValue(
+  component: BarrierComponentN
+): number {
+  if (!component.available) {
+    throw new Error('test fixture: component unexpectedly outside Float64');
+  }
+  return component.value;
+}
 
 interface SimplexFixture {
   readonly complex: CellComplex;
@@ -96,11 +108,11 @@ describe('RN particle--source-simplex conservative barrier', () => {
     const { reference } = tetra4();
     const provider = barrier(reference, new VecN([0.2, 0.25, 0.15, 0.3]));
     const evaluated = provider.evaluate();
-    const scalar = evaluateClampedLogBarrier({
+    const scalar = evaluateClampedLogBarrierAtOrderN({
       coordinate: 0.25,
       activation: 0.75,
       stiffness: 1.7
-    });
+    }, 1);
 
     expect(evaluated.distance).toBeCloseTo(0.3, 13);
     expect(evaluated.pointSimplex.status).toBe('projected');
@@ -116,11 +128,12 @@ describe('RN particle--source-simplex conservative barrier', () => {
       new VecN([0.2, 0.25, 0.15, 0]),
       13
     );
-    expect(evaluated.potentialEnergy).toBeCloseTo(scalar.energy, 13);
+    expect(evaluated.potentialEnergy)
+      .toBeCloseTo(availableValue(scalar.energy), 13);
     expectVector(evaluated.separationNormal, new VecN([0, 0, 0, 1]), 13);
     expectVector(
       evaluated.forces[0],
-      new VecN([0, 0, 0, -scalar.firstDerivative]),
+      new VecN([0, 0, 0, -availableValue(scalar.firstDerivative)]),
       12
     );
   });
