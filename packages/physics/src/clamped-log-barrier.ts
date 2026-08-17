@@ -1,5 +1,27 @@
+import {
+  evaluateBarrierCore, type CoreOrder
+} from './clamped-log-barrier-core.js';
+
+/** Highest derivative order requested. Required: there is no default. */
+export type BarrierDerivativeOrder = CoreOrder;
+
+/** The one way a requested component can be missing. */
+export type BarrierComponentUnavailability = 'outside-float64';
+
+/**
+ * One scalar output, graded on its own account.
+ *
+ * An unavailable component carries NO `value` key: reading a number off it
+ * is a type error, not a NaN. An available zero IS a number — see the
+ * semantics of `active` below.
+ */
+export type BarrierComponentN =
+  | { readonly available: true; readonly value: number }
+  | { readonly available: false;
+    readonly reason: BarrierComponentUnavailability };
+
 /** Inputs to the C2-clamped logarithmic scalar barrier. */
-export interface EvaluateClampedLogBarrierOptions {
+export interface ClampedLogBarrierInputsN {
   /** Positive scalar distance from the open domain boundary. */
   readonly coordinate: number;
   /** Positive coordinate at and above which the barrier is exactly zero. */
@@ -8,129 +30,158 @@ export interface EvaluateClampedLogBarrierOptions {
   readonly stiffness: number;
 }
 
-/** Value and first two coordinate derivatives of one scalar barrier sample. */
-export interface ClampedLogBarrierEvaluation {
-  /** Validated positive coordinate. */
-  readonly coordinate: number;
-  /** Validated positive activation coordinate. */
-  readonly activation: number;
-  /** Validated positive energy scale. */
-  readonly stiffness: number;
-  /** `coordinate / activation`. */
-  readonly normalizedCoordinate: number;
-  /** Whether `0 < coordinate < activation`. */
+/**
+ * Order-0 result: the energy alone.
+ *
+ * `active && component.value === 0` means the exact value is nonzero and its
+ * correctly rounded Float64 is zero — an underflow statement, published as
+ * the number it is, never refused. `active: false` is the clamp: the barrier
+ * is outside its support and zero is exact.
+ */
+export interface ClampedLogBarrierValueN {
+  /** Compiler-owned frozen copy of the inputs. Never the caller's object. */
+  readonly inputs: ClampedLogBarrierInputsN;
+  /** `coordinate < activation`. False is the clamp, not a small number. */
   readonly active: boolean;
-  /** Barrier energy. */
-  readonly energy: number;
-  /** First derivative of `energy` with respect to `coordinate`. */
-  readonly firstDerivative: number;
-  /** Second derivative of `energy` with respect to `coordinate`. */
-  readonly secondDerivative: number;
+  readonly energy: BarrierComponentN;
 }
+/** Order-1 result: energy and first derivative, each graded independently. */
+export interface ClampedLogBarrierForceN extends ClampedLogBarrierValueN {
+  readonly firstDerivative: BarrierComponentN;
+}
+/** Order-2 result: all three components, each graded independently. */
+export interface ClampedLogBarrierCurvatureN extends ClampedLogBarrierForceN {
+  readonly secondDerivative: BarrierComponentN;
+}
+
+export type ClampedLogBarrierEvaluationForN<O extends BarrierDerivativeOrder> =
+  O extends 0 ? ClampedLogBarrierValueN
+    : O extends 1 ? ClampedLogBarrierForceN : ClampedLogBarrierCurvatureN;
+
+/**
+ * Thrown for an authored input outside the declared domain. Permanent: this
+ * is a configuration error, never a recoverable domain refusal, and no
+ * candidate retry can fix it.
+ */
+export class ClampedLogBarrierInputErrorN extends RangeError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClampedLogBarrierInputErrorN';
+  }
+}
+
+function validate(inputs: ClampedLogBarrierInputsN): void {
+  if (typeof inputs !== 'object' || inputs === null) {
+    throw new ClampedLogBarrierInputErrorN('inputs must be an object');
+  }
+  const { coordinate, activation, stiffness } = inputs;
+  if (!(coordinate > 0) || !Number.isFinite(coordinate)) {
+    throw new ClampedLogBarrierInputErrorN(
+      'coordinate must be finite and positive');
+  }
+  if (!(activation > 0) || !Number.isFinite(activation)) {
+    throw new ClampedLogBarrierInputErrorN(
+      'activation must be finite and positive');
+  }
+  if (!(stiffness > 0) || !Number.isFinite(stiffness)) {
+    throw new ClampedLogBarrierInputErrorN(
+      'stiffness must be finite and positive');
+  }
+}
+
+/**
+ * Component arms are frozen: every evaluator-owned object in a result is
+ * immutable, and an arm is the smallest one.
+ */
+const componentOf = (value: number | undefined): BarrierComponentN =>
+  value === undefined || !Number.isFinite(value)
+    ? Object.freeze(
+      { available: false as const, reason: 'outside-float64' as const })
+    : Object.freeze({ available: true as const, value });
 
 /**
  * Evaluates the compactly supported C2-clamped log barrier
  *
- * `-stiffness * (coordinate - activation)^2
- *   * log(coordinate / activation)`
+ *     E(x)  = -stiffness * (coordinate - activation)^2
+ *              * log(coordinate / activation)
  *
- * on its open positive domain. Value and derivatives are exactly zero at and
- * above activation. The caller owns the policy for an invalid candidate at or
- * below zero; this scalar kernel rejects it as an ordinary range error.
+ * on its open positive domain, to exactly the requested derivative order,
+ * grading every requested component independently.
  *
- * This is the dimension-independent scalar law used by IPC-style distance
- * barriers, independently implemented from the published formula.
+ * **`order` is required.** A caller must say whether it needs the energy,
+ * the force, or the curvature; there is no default and no way to receive a
+ * derivative that was not requested. Order 0 performs 2 core operations,
+ * order 1 performs 4, order 2 performs 7, and the inactive clamp performs 0.
+ *
+ * **Availability is per component and non-monotone.** An energy can round to
+ * zero while its curvature is a healthy number; a curvature can overflow
+ * while the energy is representable. Neither direction implies the other,
+ * and no component is withheld because another was unavailable. A component
+ * outside Float64 reports `{ available: false, reason: 'outside-float64' }`
+ * with no value key.
+ *
+ * **A correctly rounded zero is an answer.** When the barrier is active and
+ * a component's exact value rounds to Float64 zero, the component is
+ * `{ available: true, value: 0 }` — published, never refused. `active` is
+ * what separates that underflow statement from the clamp's exact zero.
  *
  * @example
- * The clamping is what makes the law usable: the energy is *exactly* zero
- * at and above `activation`, so a configuration that is not near contact is
- * not perturbed at all. An unclamped log barrier would pull on every
- * separation, however large:
+ * The clamping is what makes the law usable: the energy is *exactly* zero at
+ * and above `activation`, so a configuration that is not near contact is not
+ * perturbed at all:
  * ```ts
- * const near = evaluateClampedLogBarrier({ coordinate: 0.01, activation: 0.1, stiffness: 1 });
- * near.energy; // 1.865e-2 — resists closing the gap
+ * const near = evaluateClampedLogBarrierAtOrderN(
+ *   { coordinate: 0.01, activation: 0.1, stiffness: 1 }, 0);
+ * near.active;              // true
+ * near.energy;              // { available: true, value: 1.865e-2 }
  *
- * const clear = evaluateClampedLogBarrier({ coordinate: 0.2, activation: 0.1, stiffness: 1 });
- * clear.energy; // 0 — outside the support, and exactly zero, not merely small
- * clear.firstDerivative; // 0 — so it contributes no force either
+ * const clear = evaluateClampedLogBarrierAtOrderN(
+ *   { coordinate: 0.2, activation: 0.1, stiffness: 1 }, 1);
+ * clear.active;             // false — outside the support
+ * clear.energy;             // { available: true, value: 0 } — exactly zero
+ * clear.firstDerivative;    // { available: true, value: 0 } — no force either
  * ```
  *
  * @example
- * The domain is open at zero: contact itself has no finite energy, so it is
- * a range error rather than a large number. A search that proposes such a
- * candidate has to be refused rather than scored, which is what the step
- * filters and the typed potential refusals exist to do:
+ * The domain is open at zero: contact itself has no finite energy, so a
+ * non-positive coordinate is a permanent typed error rather than a large
+ * number. Deep in the support, components leave Float64 one at a time:
  * ```ts
- * evaluateClampedLogBarrier({ coordinate: 0.001, activation: 0.1, stiffness: 1 }).energy;
- * // 4.514e-2 — steep, but finite
+ * evaluateClampedLogBarrierAtOrderN(
+ *   { coordinate: 0, activation: 0.1, stiffness: 1 }, 0);
+ * // ClampedLogBarrierInputErrorN: coordinate must be finite and positive
  *
- * evaluateClampedLogBarrier({ coordinate: 0, activation: 0.1, stiffness: 1 });
- * // RangeError: coordinate must be finite and positive
+ * const graded = evaluateClampedLogBarrierAtOrderN(
+ *   { coordinate: 1e-320, activation: 1e-300, stiffness: 1e300 }, 2);
+ * graded.energy.available;           // true
+ * graded.firstDerivative.available;  // true
+ * graded.secondDerivative.available; // false — outside Float64, on its own
  * ```
  */
-export function evaluateClampedLogBarrier(
-  options: EvaluateClampedLogBarrierOptions
-): ClampedLogBarrierEvaluation {
-  const caller = 'evaluateClampedLogBarrier';
-  if (typeof options !== 'object' || options === null) {
-    throw new Error(`${caller}: options must be an object`);
-  }
-  const { coordinate, activation, stiffness } = options;
-  if (!(coordinate > 0) || !Number.isFinite(coordinate)) {
-    throw new RangeError(`${caller}: coordinate must be finite and positive`);
-  }
-  if (!(activation > 0) || !Number.isFinite(activation)) {
-    throw new Error(`${caller}: activation must be finite and positive`);
-  }
-  if (!(stiffness > 0) || !Number.isFinite(stiffness)) {
-    throw new Error(`${caller}: stiffness must be finite and positive`);
-  }
-
-  const normalizedCoordinate = coordinate / activation;
-  if (!(normalizedCoordinate > 0) || !Number.isFinite(normalizedCoordinate)) {
-    throw new Error(`${caller}: normalized coordinate is outside Float64`);
-  }
-  const active = coordinate < activation;
-  if (!active) {
-    return Object.freeze({
-      coordinate,
-      activation,
-      stiffness,
-      normalizedCoordinate,
-      active,
-      energy: 0,
-      firstDerivative: 0,
-      secondDerivative: 0
-    });
-  }
-
-  const difference = coordinate - activation;
-  const logRatio = Math.log(normalizedCoordinate);
-  const activationByCoordinate = activation / coordinate;
-  const energy = -stiffness * difference * difference * logRatio;
-  const firstDerivative = stiffness * (activation - coordinate) * (
-    2 * logRatio - activationByCoordinate + 1
-  );
-  const secondDerivative = stiffness * (
-    (activationByCoordinate + 2) * activationByCoordinate -
-    2 * logRatio -
-    3
-  );
-  if (!(energy >= 0) ||
-    !Number.isFinite(energy) ||
-    !Number.isFinite(firstDerivative) ||
-    !(secondDerivative >= 0) ||
-    !Number.isFinite(secondDerivative)) {
-    throw new Error(`${caller}: barrier differential is outside Float64`);
-  }
-  return Object.freeze({
-    coordinate,
-    activation,
-    stiffness,
-    normalizedCoordinate,
-    active,
-    energy,
-    firstDerivative,
-    secondDerivative
+export function evaluateClampedLogBarrierAtOrderN<
+  O extends BarrierDerivativeOrder
+>(
+  inputs: ClampedLogBarrierInputsN,
+  order: O
+): ClampedLogBarrierEvaluationForN<O> {
+  validate(inputs);
+  const core = evaluateBarrierCore(inputs, order);
+  // One frozen record, built once, shared by reference through the result.
+  // The caller's object is neither retained, frozen nor written.
+  const record: ClampedLogBarrierInputsN = Object.freeze({
+    coordinate: inputs.coordinate,
+    activation: inputs.activation,
+    stiffness: inputs.stiffness
   });
+  const value: ClampedLogBarrierValueN = Object.freeze({
+    inputs: record, active: core.active, energy: componentOf(core.energy)
+  });
+  if (order === 0) return value as ClampedLogBarrierEvaluationForN<O>;
+  const force: ClampedLogBarrierForceN = Object.freeze({
+    ...value, firstDerivative: componentOf(core.firstDerivative)
+  });
+  if (order === 1) return force as ClampedLogBarrierEvaluationForN<O>;
+  return Object.freeze({
+    ...force, secondDerivative: componentOf(core.secondDerivative)
+  }) as ClampedLogBarrierEvaluationForN<O>;
 }

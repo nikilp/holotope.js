@@ -237,9 +237,16 @@ export {
   XpbdPotentialDomainErrorN
 } from './xpbd-potential-domain.js';
 export {
-  evaluateClampedLogBarrier,
-  type ClampedLogBarrierEvaluation,
-  type EvaluateClampedLogBarrierOptions
+  evaluateClampedLogBarrierAtOrderN,
+  ClampedLogBarrierInputErrorN,
+  type BarrierDerivativeOrder,
+  type BarrierComponentUnavailability,
+  type BarrierComponentN,
+  type ClampedLogBarrierInputsN,
+  type ClampedLogBarrierValueN,
+  type ClampedLogBarrierForceN,
+  type ClampedLogBarrierCurvatureN,
+  type ClampedLogBarrierEvaluationForN
 } from './clamped-log-barrier.js';
 export {
   XpbdParticleHyperplaneBarrierN,
