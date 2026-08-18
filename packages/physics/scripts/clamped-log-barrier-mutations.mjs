@@ -93,14 +93,14 @@ const MUTATIONS = [
     id: '3 stale ratio-underflow refusal reinstated',
     file: SURFACE,
     find: `  validateOrder(order);
-  const core = evaluateBarrierCore(inputs, order);`,
+  const core = evaluateBarrierCore(record, order);`,
     replace: `  validateOrder(order);
   const staleRatio = inputs.coordinate / inputs.activation;
   if (!(staleRatio > 0) || !Number.isFinite(staleRatio)) {
     throw new ClampedLogBarrierInputErrorN(
       'normalized coordinate is outside Float64');
   }
-  const core = evaluateBarrierCore(inputs, order);`
+  const core = evaluateBarrierCore(record, order);`
   },
   {
     id: '4 all-or-nothing component refusal',
@@ -189,8 +189,8 @@ const MUTATIONS = [
   {
     id: '11 construct an unrequested derivative',
     file: SURFACE,
-    find: `  const core = evaluateBarrierCore(inputs, order);`,
-    replace: `  const core = evaluateBarrierCore(inputs, 2);`
+    find: `  const core = evaluateBarrierCore(record, order);`,
+    replace: `  const core = evaluateBarrierCore(record, 2);`
   },
   {
     id: '12 give order an implicit default',
@@ -207,6 +207,33 @@ const MUTATIONS = [
   inputs: ClampedLogBarrierInputsN,
   order: O = 2 as O
 ): ClampedLogBarrierEvaluationForN<O> {`
+  },
+  {
+    id: '15 evaluate the caller object instead of the snapshot',
+    file: SURFACE,
+    find: `  validate(record);
+  validateOrder(order);
+  const core = evaluateBarrierCore(record, order);`,
+    replace: `  validate(record);
+  validateOrder(order);
+  const core = evaluateBarrierCore(inputs, order);`,
+    expectedReason: 'snapshot'
+  },
+  {
+    id: '16 rebuild the published evidence from the caller object',
+    file: SURFACE,
+    find: `  const value: ClampedLogBarrierValueN = Object.freeze({
+    inputs: record, active: core.active, energy: componentOf(core.energy)
+  });`,
+    replace: `  const rebuilt: ClampedLogBarrierInputsN = Object.freeze({
+    coordinate: inputs.coordinate,
+    activation: inputs.activation,
+    stiffness: inputs.stiffness
+  });
+  const value: ClampedLogBarrierValueN = Object.freeze({
+    inputs: rebuilt, active: core.active, energy: componentOf(core.energy)
+  });`,
+    expectedReason: 'snapshot'
   },
   {
     id: '14 delete the runtime order guard',

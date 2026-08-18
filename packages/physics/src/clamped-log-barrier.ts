@@ -77,10 +77,13 @@ export class ClampedLogBarrierInputErrorN extends RangeError {
   }
 }
 
+/**
+ * Validates the SNAPSHOT, never the caller's object.
+ *
+ * The distinction is the whole point: the values checked here are the ones
+ * already captured, so nothing can change between the check and the use.
+ */
 function validate(inputs: ClampedLogBarrierInputsN): void {
-  if (typeof inputs !== 'object' || inputs === null) {
-    throw new ClampedLogBarrierInputErrorN('inputs must be an object');
-  }
   const { coordinate, activation, stiffness } = inputs;
   if (!(coordinate > 0) || !Number.isFinite(coordinate)) {
     throw new ClampedLogBarrierInputErrorN(
@@ -192,19 +195,37 @@ export function evaluateClampedLogBarrierAtOrderN<
   inputs: ClampedLogBarrierInputsN,
   order: O
 ): ClampedLogBarrierEvaluationForN<O> {
-  // Scalar inputs first (their precedence predates the order guard), then
-  // the order — both settled before any arithmetic runs or any result
-  // object exists.
-  validate(inputs);
-  validateOrder(order);
-  const core = evaluateBarrierCore(inputs, order);
-  // One frozen record, built once, shared by reference through the result.
-  // The caller's object is neither retained, frozen nor written.
+  if (typeof inputs !== 'object' || inputs === null) {
+    throw new ClampedLogBarrierInputErrorN('inputs must be an object');
+  }
+  /**
+   * ONE authoritative snapshot. Each scalar is read from the caller's object
+   * exactly once, and this record is then the only input that is validated,
+   * computed from, and published.
+   *
+   * Reading the caller's object more than once let the three answers
+   * disagree. With an accessor- or Proxy-backed input the released v0.0.18
+   * evaluator validated one value, computed from a second and published a
+   * third, so `result.inputs` could carry a coordinate its own validation
+   * forbids (P66E-PUB-S Part B). A getter is ordinary JavaScript, not an
+   * attack: it is how lazy configuration, units wrappers and observable
+   * models are written.
+   *
+   * A getter that THROWS is caller code, not a malformed number: that
+   * exception escapes from here unchanged, before any validation, any
+   * arithmetic, or any result object exists.
+   */
   const record: ClampedLogBarrierInputsN = Object.freeze({
     coordinate: inputs.coordinate,
     activation: inputs.activation,
     stiffness: inputs.stiffness
   });
+  // Scalar inputs first (their precedence predates the order guard), then
+  // the order — both settled on the snapshot before any arithmetic runs or
+  // any result object exists.
+  validate(record);
+  validateOrder(order);
+  const core = evaluateBarrierCore(record, order);
   const value: ClampedLogBarrierValueN = Object.freeze({
     inputs: record, active: core.active, energy: componentOf(core.energy)
   });

@@ -42,7 +42,7 @@ describe('clamped-log barrier: the standing mutation matrix', () => {
         + `applied=${row.applied} reached=${row.reached} `
         + `killed=${row.killed} restored=${row.restored} `
         + `(${row.testsFailed}/${row.testsRun})`).join('\n'));
-    expect(MATRIX.results.length).toBe(14);
+    expect(MATRIX.results.length).toBe(16);
   });
 
   it('every mutation was applied, reached, killed and restored', () => {
@@ -68,6 +68,25 @@ describe('clamped-log barrier: the standing mutation matrix', () => {
       ]) {
         expect(ids.some((id) => id.includes(required)),
           `missing mutation: ${required}`).toBe(true);
+      }
+    });
+
+  it('the snapshot mutations (15, 16) are killed by the snapshot fixture',
+    () => {
+      // P66E-PUB-S: reading the caller's object again — either to evaluate
+      // it or to rebuild the published evidence from it — reintroduces the
+      // three-way disagreement between validated, computed and published
+      // values. Both shapes must die, and die for that reason.
+      for (const id of ['15 evaluate the caller object',
+        '16 rebuild the published evidence']) {
+        const row = MATRIX.results.find((entry) => entry.id.startsWith(id));
+        expect(row, `missing mutation: ${id}`).toBeDefined();
+        if (row === undefined) continue;
+        expect(row.applied && row.reached && row.killed && row.restored)
+          .toBe(true);
+        expect(row.killedForIntendedReason).toBe(true);
+        expect(row.failedTests?.some((name) => name.includes('snapshot')))
+          .toBe(true);
       }
     });
 

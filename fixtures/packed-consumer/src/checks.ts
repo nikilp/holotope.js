@@ -2428,5 +2428,82 @@ export function barrierOrderGuard(): void {
     `valid orders returned arities ${arities.join('/')}`);
 }
 
+export function barrierInputSnapshot(): void {
+  /**
+   * P66E-PUB-S: the packed evaluator must read each scalar from the caller's
+   * object exactly once, and the value it validates, computes from and
+   * publishes must be that one snapshot. Driven here with an accessor-backed
+   * input, the ordinary JavaScript shape a lazy config or units wrapper has.
+   */
+  const scripted = (values: readonly number[]): {
+    inputs: { coordinate: number; activation: number; stiffness: number };
+    reads: { coordinate: number };
+  } => {
+    const reads = { coordinate: 0 };
+    const inputs = {
+      get coordinate(): number {
+        const value = values[Math.min(reads.coordinate, values.length - 1)]!;
+        reads.coordinate += 1;
+        return value;
+      },
+      get activation(): number { return 1; },
+      get stiffness(): number { return 1; }
+    };
+    return { inputs, reads };
+  };
+
+  // Three different valid values: one read, and the first is authoritative.
+  const drifting = scripted([0.5, 0.25, 0.125]);
+  const result = evaluateClampedLogBarrierAtOrderN(drifting.inputs, 2);
+  assert(drifting.reads.coordinate === 1,
+    `packed evaluator read coordinate ${drifting.reads.coordinate} times`);
+  assert(result.inputs.coordinate === 0.5,
+    `published coordinate was ${result.inputs.coordinate}, not the snapshot`);
+  // The published record replays to the identical result on plain data.
+  const replay = evaluateClampedLogBarrierAtOrderN(result.inputs, 2);
+  assert(result.secondDerivative.available === replay.secondDerivative.available,
+    'replay availability differs from the original');
+  if (result.secondDerivative.available && replay.secondDerivative.available) {
+    assert(Object.is(result.secondDerivative.value,
+      replay.secondDerivative.value), 'replay value differs from the original');
+  }
+
+  // Valid first, invalid later: the first snapshot is evaluated.
+  const later = scripted([0.5, -1]);
+  const evaluated = evaluateClampedLogBarrierAtOrderN(later.inputs, 0);
+  assert(evaluated.inputs.coordinate === 0.5
+    && evaluated.energy.available,
+  'a later invalid value reached the published result');
+
+  // Invalid first, valid later: the captured invalid snapshot is rejected.
+  const first = scripted([-1, 0.5]);
+  let rejected = 'returned';
+  try {
+    evaluateClampedLogBarrierAtOrderN(first.inputs, 0);
+  } catch (error) {
+    rejected = error instanceof ClampedLogBarrierInputErrorN
+      ? 'typed' : 'untyped';
+  }
+  assert(rejected === 'typed',
+    `an invalid captured snapshot was ${rejected}, not rejected`);
+
+  // A throwing caller getter escapes unchanged.
+  class ConsumerFault extends Error {}
+  const exploding = {
+    get coordinate(): number { throw new ConsumerFault('consumer getter'); },
+    get activation(): number { return 1; },
+    get stiffness(): number { return 1; }
+  };
+  let escaped = 'none';
+  try {
+    evaluateClampedLogBarrierAtOrderN(exploding, 0);
+  } catch (error) {
+    escaped = error instanceof ConsumerFault ? 'unchanged'
+      : error instanceof ClampedLogBarrierInputErrorN ? 'converted' : 'other';
+  }
+  assert(escaped === 'unchanged',
+    `a caller getter exception was ${escaped}`);
+}
+
 const describeFailures = (result: { readonly ok: boolean }): string =>
   JSON.stringify('failures' in result ? result.failures : null);

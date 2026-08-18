@@ -3,7 +3,9 @@ import {
   ClampedLogBarrierInputErrorN,
   evaluateClampedLogBarrierAtOrderN,
   type BarrierComponentN,
-  type ClampedLogBarrierInputsN
+  type ClampedLogBarrierForceN,
+  type ClampedLogBarrierInputsN,
+  type ClampedLogBarrierValueN
 } from '../src/index.js';
 import {
   takeCoreOperationCount
@@ -138,6 +140,102 @@ describe('clamped-log barrier: the graded scalar contract', () => {
     ]) {
       expect(call).toThrow(ClampedLogBarrierInputErrorN);
     }
+    expect(takeCoreOperationCount()).toBe(0);
+  });
+
+  it('snapshot: each scalar is read from the caller exactly once, and the'
+    + ' record validated, computed from and published is the same one', () => {
+    /**
+     * P66E-PUB-S: before the snapshot, an accessor- or Proxy-backed input
+     * was read three times per scalar, so the value validated, the value the
+     * core used and the value published could all differ — `result.inputs`
+     * could carry a coordinate the function's own validation forbids.
+     */
+    const counted = (values: readonly number[]) => {
+      const reads = { coordinate: 0, activation: 0, stiffness: 0 };
+      const inputs = {
+        get coordinate() {
+          const value = values[Math.min(reads.coordinate, values.length - 1)]!;
+          reads.coordinate += 1;
+          return value;
+        },
+        get activation() { reads.activation += 1; return 1; },
+        get stiffness() { reads.stiffness += 1; return 1; }
+      };
+      return { inputs: inputs as ClampedLogBarrierInputsN, reads };
+    };
+
+    // Three DIFFERENT valid values: one read each, and the first is the one
+    // that is validated, computed from and published.
+    for (const order of ORDERS) {
+      const { inputs, reads } = counted([0.5, 0.25, 0.125]);
+      const result = evaluateClampedLogBarrierAtOrderN(inputs, order);
+      expect(reads).toEqual({ coordinate: 1, activation: 1, stiffness: 1 });
+      expect(result.inputs.coordinate).toBe(0.5);
+      // Published evidence and computed value agree: replaying the published
+      // record on plain data reproduces the result bit for bit.
+      const replay = evaluateClampedLogBarrierAtOrderN(result.inputs, order);
+      expect(replay).toEqual(result);
+    }
+
+    // Valid first, invalid later: the FIRST snapshot is evaluated and
+    // published; the later value is never seen.
+    const later = counted([0.5, -1]);
+    const evaluated = evaluateClampedLogBarrierAtOrderN(later.inputs, 0);
+    expect(later.reads.coordinate).toBe(1);
+    expect(evaluated.inputs.coordinate).toBe(0.5);
+    expect(value(evaluated.energy)).toBeGreaterThan(0);
+
+    // Invalid first, valid later: the CAPTURED invalid snapshot is rejected;
+    // the later valid value cannot rescue it.
+    const first = counted([-1, 0.5]);
+    expect(() => evaluateClampedLogBarrierAtOrderN(first.inputs, 2))
+      .toThrow(ClampedLogBarrierInputErrorN);
+    expect(first.reads.coordinate).toBe(1);
+  });
+
+  it('snapshot: the published record is the identical object the core'
+    + ' consumed, and the caller object is untouched', () => {
+    takeCoreOperationCount();
+    const callerInputs = { coordinate: 0.5, activation: 1, stiffness: 2 };
+    const result = evaluateClampedLogBarrierAtOrderN(callerInputs, 2);
+    // Not the caller's object, and the same object at every order level.
+    expect(result.inputs).not.toBe(callerInputs);
+    expect(Object.isFrozen(result.inputs)).toBe(true);
+    const asForce: ClampedLogBarrierForceN = result;
+    const asValue: ClampedLogBarrierValueN = result;
+    expect(asForce.inputs).toBe(result.inputs);
+    expect(asValue.inputs).toBe(result.inputs);
+    // The caller's object stays writable, extensible and unfrozen.
+    expect(Object.isFrozen(callerInputs)).toBe(false);
+    expect(Object.isExtensible(callerInputs)).toBe(true);
+    (callerInputs as { coordinate: number }).coordinate = 99;
+    (callerInputs as { extra?: number }).extra = 1;
+    expect(result.inputs.coordinate).toBe(0.5);
+    expect(Object.keys(result.inputs))
+      .toEqual(['coordinate', 'activation', 'stiffness']);
+  });
+
+  it('snapshot: a throwing caller getter escapes unchanged, before any'
+    + ' arithmetic or result object', () => {
+    class CallerFault extends Error {}
+    takeCoreOperationCount();
+    const exploding = {
+      get coordinate(): number { throw new CallerFault('caller getter'); },
+      get activation(): number { return 1; },
+      get stiffness(): number { return 1; }
+    } as ClampedLogBarrierInputsN;
+    // Caller code, not a malformed number: it must NOT be converted into a
+    // ClampedLogBarrierInputErrorN, and must not be swallowed.
+    expect(() => evaluateClampedLogBarrierAtOrderN(exploding, 2))
+      .toThrow(CallerFault);
+    let caught: unknown;
+    try { evaluateClampedLogBarrierAtOrderN(exploding, 2); }
+    catch (error) { caught = error; }
+    expect(caught).toBeInstanceOf(CallerFault);
+    expect(caught).not.toBeInstanceOf(ClampedLogBarrierInputErrorN);
+    expect((caught as Error).message).toBe('caller getter');
+    // Nothing was computed on the way out.
     expect(takeCoreOperationCount()).toBe(0);
   });
 
