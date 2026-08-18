@@ -273,22 +273,33 @@ component is finite and nonzero. The caller owns that composition and its
 diagnostic — the scalar result cannot see it.
 
 **Measured cost.** On inputs where the previous evaluator and this one both
-return, the graded evaluator is **slower per call at every order** — roughly
-**5–10× at order 0 and order 1, and roughly 15–30× at order 2** on the
-measurements below. In absolute terms the previous evaluator costs on the
-order of **0.1 µs per call** and the graded one on the order of **0.5–2 µs**,
-depending on the requested order. Those are the figures to plan with; the
-ranges are wide because they are microbenchmarks, and they are given as
-ranges for that reason.
+return, the graded evaluator is **slower per call at every order**. That
+direction is solid: it holds in every run, at every order, under two
+independently built instruments, and it is the opposite of what an earlier
+version of this page claimed.
 
-That cost is at the *scalar* layer. Inside a provider it is diluted by the
-surrounding work: one `XpbdParticleHyperplaneBarrierN.evaluateAt` call —
-candidate-position query, vector validation, signed-distance geometry, the
-scalar barrier, and force-vector construction — measures around
-**1.3–1.4 µs**, of which the scalar evaluator is **most but not all**, in
-the region of two thirds to three quarters across runs. A composition
-that does more geometry per barrier will see a smaller proportional change
-than the scalar numbers suggest.
+How much slower is a local measurement, not a property of the library. On
+one development machine — Apple M4 Pro, Node 23.11 / V8 12.9, single
+process, no other load — the previous evaluator costs about **40 ns** per
+call and the graded one roughly **0.25 µs at order 0, 0.7 µs at order 1 and
+1.3 µs at order 2**. The cost climbs steeply with the requested order: order
+0 is a few times the old cost, order 2 more than an order of magnitude above
+it. Repeated cold runs agree closely with each other when the machine is
+otherwise quiet and diverge substantially when it is not, and a second,
+independently built instrument landed 10–20% away from the first, so **this
+page publishes no multiplier**. If the ratio matters to your budget,
+measure it on your hardware, runtime and workload — the shape (steeply
+order-dependent, scalar-dominated) is what transfers, not the number.
+
+That cost is at the *scalar* layer, and at provider level it is most of the
+work rather than a small part of it. Timing one
+`XpbdParticleHyperplaneBarrierN.evaluateAt` call — candidate-position query,
+vector validation, signed-distance geometry, the scalar barrier, and
+force-vector construction — against the scalar evaluator driven on **exactly
+the inputs that provider reaches**, the whole call costs about **1.1 µs**
+and the scalar part is around **four fifths** of it. So a composition does
+not dilute this cost much; only one doing substantially more geometry per
+barrier would.
 
 A second group of inputs admits **no ratio at all**. The previous evaluator
 *throws* on regimes this one evaluates — a ratio underflow, and the bands
@@ -304,14 +315,19 @@ per-component availability instead of an all-or-nothing refusal, and
 no-throw semantics on the open domain. The inactive clamp still performs no
 arithmetic at all.
 
-*Method and environment.* Batched spans, never single-call timing; setup and
-validation outside the timed region; results retained and consumed so neither
-implementation can be optimized away; no exception handling inside a timed
-span; both implementations warmed; several fixture orders and repeated runs,
-summarized by median with the observed spread. Measured with Node on a
-developer machine, not a controlled benchmark host — treat the ratios as
-indicative of direction and order of magnitude on this workload, not as a
-portable claim across hardware, runtimes or usage patterns.
+*Method and environment.* Batched spans, never single-call timing, with
+inner repetition calibrated so every timed sample lasts at least 20 ms —
+short spans are the trap here, since this machine's clock granularity and
+timer overhead are both about 40 ns, which is the entire cost of one call to
+the previous evaluator. Setup, validation and corpus construction sit
+outside the timed region; results are retained and consumed so neither
+implementation can be optimized away; no exception handling appears inside a
+timed span; both implementations are warmed first; execution order is
+alternated between runs; ratios are formed per run against that run's own
+baseline; and each run is a separate cold process. Measured on a developer
+machine, not a controlled benchmark host — read the figures as indicative of
+direction and scale on this workload, not as a portable claim across
+hardware, runtimes or usage patterns.
 
 `XpbdParticleHyperplaneBarrierN` composes the scalar law with the affine signed
 distance from an RN point to an oriented hyperplane:
