@@ -92,9 +92,9 @@ const MUTATIONS = [
   {
     id: '3 stale ratio-underflow refusal reinstated',
     file: SURFACE,
-    find: `  validate(inputs);
+    find: `  validateOrder(order);
   const core = evaluateBarrierCore(inputs, order);`,
-    replace: `  validate(inputs);
+    replace: `  validateOrder(order);
   const staleRatio = inputs.coordinate / inputs.activation;
   if (!(staleRatio > 0) || !Number.isFinite(staleRatio)) {
     throw new ClampedLogBarrierInputErrorN(
@@ -209,6 +209,18 @@ const MUTATIONS = [
 ): ClampedLogBarrierEvaluationForN<O> {`
   },
   {
+    id: '14 delete the runtime order guard',
+    file: SURFACE,
+    find: `function validateOrder(order: BarrierDerivativeOrder): void {
+  if (order === 0 || order === 1 || order === 2) return;
+  throw new ClampedLogBarrierInputErrorN('order must be exactly 0, 1 or 2');
+}`,
+    replace: `function validateOrder(order: BarrierDerivativeOrder): void {
+  void order;
+}`,
+    expectedReason: 'runtime order guard'
+  },
+  {
     id: '13 loosen the referee to the old allowance class',
     file: REFEREE,
     find: `  const magnitudeInUlps = Math.abs(toNumber(divide(absolute(exact), MIN_BF)));
@@ -223,6 +235,7 @@ function runGates() {
   let failed = 0;
   let total = 0;
   let ranFiles = [];
+  let failedTests = [];
   try {
     execFileSync('pnpm', ['exec', 'vitest', 'run',
       '--reporter=json', `--outputFile=${output}`, ...GATE_FILES],
@@ -234,9 +247,13 @@ function runGates() {
     failed = report.numFailedTests ?? 0;
     ranFiles = (report.testResults ?? []).map((entry) =>
       entry.name.split('/').pop());
+    failedTests = (report.testResults ?? []).flatMap((entry) =>
+      (entry.assertionResults ?? [])
+        .filter((assertion) => assertion.status === 'failed')
+        .map((assertion) => assertion.fullName));
   } catch { /* treated as zero tests run */ }
   try { execFileSync('rm', ['-f', output]); } catch { /* best effort */ }
-  return { total, failed, ranFiles };
+  return { total, failed, ranFiles, failedTests };
 }
 
 const results = [];
@@ -249,7 +266,8 @@ for (const mutation of MUTATIONS) {
   const applied = mutated !== original;
   let reached = false;
   let killed = false;
-  let gates = { total: 0, failed: 0, ranFiles: [] };
+  let killedForIntendedReason;
+  let gates = { total: 0, failed: 0, ranFiles: [], failedTests: [] };
 
   if (applied) {
     writeFileSync(path, mutated);
@@ -257,6 +275,10 @@ for (const mutation of MUTATIONS) {
       gates = runGates();
       reached = gates.total > 0 && gates.ranFiles.length > 0;
       killed = gates.failed > 0;
+      if (mutation.expectedReason !== undefined) {
+        killedForIntendedReason = gates.failedTests.some((name) =>
+          name.toLowerCase().includes(mutation.expectedReason.toLowerCase()));
+      }
     } finally {
       writeFileSync(path, original);
     }
@@ -268,6 +290,9 @@ for (const mutation of MUTATIONS) {
     applied,
     reached,
     killed,
+    ...(killedForIntendedReason === undefined ? {}
+      : { killedForIntendedReason,
+        failedTests: gates.failedTests.slice(0, 6) }),
     restored: sha256(path) === originalHash,
     testsRun: gates.total,
     testsFailed: gates.failed

@@ -52,6 +52,95 @@ describe('clamped-log barrier: the graded scalar contract', () => {
     expect(new ClampedLogBarrierInputErrorN('x')).toBeInstanceOf(RangeError);
   });
 
+  it('the runtime order guard: every invalid ERASED order value throws the'
+    + ' typed permanent error, and nothing escapes', () => {
+    // NC1 (P66E-PUB review): before the guard, all of these returned a full
+    // order-2 result from the packed tarball. The type system cannot stop a
+    // JavaScript caller or a JSON/config/adapter boundary, so the rejection
+    // is driven here with ERASED values, not TypeScript negatives.
+    const erased = evaluateClampedLogBarrierAtOrderN as unknown as (
+      inputs: ClampedLogBarrierInputsN, order?: unknown
+    ) => unknown;
+    const inputs = { coordinate: 0.5, activation: 1, stiffness: 1 };
+    const invalid: readonly [string, unknown][] = [
+      ['undefined', undefined], ['null', null], ['3', 3], ['"1"', '1'],
+      ['1.5', 1.5], ['-1', -1], ['NaN', Number.NaN],
+      // Order equality is LITERAL: coercible impostors are rejected too.
+      ['new Number(1)', new Number(1)], ['true', true], ['"2"', '2'],
+      ['[1]', [1]], ['{}', {}]
+    ];
+    for (const [label, order] of invalid) {
+      expect(() => erased(inputs, order),
+        `order ${label} must throw`).toThrow(ClampedLogBarrierInputErrorN);
+      expect(() => erased(inputs, order),
+        `order ${label} must name the order`).toThrow(
+        'order must be exactly 0, 1 or 2');
+    }
+    // The omitted argument — the exact packed-tarball reproduction shape.
+    expect(() => (erased as (i: ClampedLogBarrierInputsN) => unknown)(inputs))
+      .toThrow(ClampedLogBarrierInputErrorN);
+    // Permanence: the same call throws identically twice — nothing is
+    // memoized, half-built or recovered.
+    expect(() => erased(inputs, 3)).toThrow(ClampedLogBarrierInputErrorN);
+    expect(() => erased(inputs, 3)).toThrow(ClampedLogBarrierInputErrorN);
+    // No component escapes: the throw happens before any result object is
+    // created, so the only observable is the error itself.
+    let escaped: unknown = 'nothing';
+    try {
+      escaped = erased(inputs, 1.5);
+    } catch (error) {
+      expect(error).toBeInstanceOf(ClampedLogBarrierInputErrorN);
+      // The error carries its identity and nothing of a result's shape.
+      expect(Object.keys(error as object)).toEqual(['name']);
+      for (const key of ['inputs', 'active', 'energy', 'firstDerivative',
+        'secondDerivative']) {
+        expect(key in (error as object), `${key} escaped`).toBe(false);
+      }
+    }
+    expect(escaped).toBe('nothing');
+    // The caller's input object is untouched by a rejected call.
+    expect(Object.isFrozen(inputs)).toBe(false);
+    expect(inputs).toEqual({ coordinate: 0.5, activation: 1, stiffness: 1 });
+    // And valid orders, supplied as ERASED runtime numbers, retain their
+    // exact runtime keys.
+    const expectedKeys: Record<number, string[]> = {
+      0: ['inputs', 'active', 'energy'],
+      1: ['inputs', 'active', 'energy', 'firstDerivative'],
+      2: ['inputs', 'active', 'energy', 'firstDerivative', 'secondDerivative']
+    };
+    for (const order of [0, 1, 2]) {
+      const result = erased(inputs, JSON.parse(String(order))) as object;
+      expect(Object.keys(result)).toEqual(expectedKeys[order]);
+    }
+  });
+
+  it('validation precedence: malformed scalar inputs are named before a'
+    + ' malformed order, and both precede any arithmetic', () => {
+    const erased = evaluateClampedLogBarrierAtOrderN as unknown as (
+      inputs: unknown, order: unknown
+    ) => unknown;
+    // Both defects present: the scalar-input validation keeps its
+    // pre-existing precedence.
+    expect(() => erased(
+      { coordinate: -1, activation: 1, stiffness: 1 }, 7))
+      .toThrow('coordinate must be finite and positive');
+    expect(() => erased(null, 7)).toThrow('inputs must be an object');
+    // Order alone malformed, inputs valid: the order is named.
+    expect(() => erased(
+      { coordinate: 0.5, activation: 1, stiffness: 1 }, 7))
+      .toThrow('order must be exactly 0, 1 or 2');
+    // Both validations finish before the core runs: zero core operations
+    // on either rejection.
+    takeCoreOperationCount();
+    for (const call of [
+      () => erased({ coordinate: -1, activation: 1, stiffness: 1 }, 7),
+      () => erased({ coordinate: 0.5, activation: 1, stiffness: 1 }, 7)
+    ]) {
+      expect(call).toThrow(ClampedLogBarrierInputErrorN);
+    }
+    expect(takeCoreOperationCount()).toBe(0);
+  });
+
   it('the inactive clamp: every requested component available and +0, with'
     + ' zero core operations', () => {
     for (const order of ORDERS) {

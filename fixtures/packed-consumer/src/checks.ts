@@ -146,7 +146,9 @@ import {
   type XpbdParticleSourceConvexHullBarrierFamilyTermsN,
   type XpbdParticleSourceConvexHullQueryDiagnosticsN,
   type XpbdParticleSourceConvexHullSegmentCertificationN,
-  type XpbdSourceConvexHullWitnessN
+  type XpbdSourceConvexHullWitnessN,
+  evaluateClampedLogBarrierAtOrderN,
+  ClampedLogBarrierInputErrorN
 } from '@holotope/physics';
 import {
   compileExperimentDocumentV0,
@@ -2383,6 +2385,47 @@ export async function experimentProbe(): Promise<void> {
   );
 
   compilation.dispose();
+}
+
+export function barrierOrderGuard(): void {
+  /**
+   * NC1's permanent packed ownership: a JavaScript or erased consumer of the
+   * PACKED package must not be able to omit or malform `order` silently.
+   * Every call here goes through an erased alias, exactly the shape type
+   * erasure leaves behind.
+   */
+  const erased = evaluateClampedLogBarrierAtOrderN as unknown as (
+    inputs: { coordinate: number; activation: number; stiffness: number },
+    order?: unknown
+  ) => { readonly active: boolean };
+  const inputs = { coordinate: 0.5, activation: 1, stiffness: 1 };
+  const invalid: readonly unknown[] = [
+    undefined, null, 3, '1', 1.5, -1, Number.NaN, new Number(1), true
+  ];
+  for (const order of invalid) {
+    let outcome = 'returned';
+    try {
+      erased(inputs, order);
+    } catch (error) {
+      outcome = error instanceof ClampedLogBarrierInputErrorN
+        ? 'typed' : 'untyped';
+    }
+    assert(outcome === 'typed',
+      `order ${String(order)} was not rejected with the typed error`);
+  }
+  let omitted = 'returned';
+  try {
+    (erased as (i: typeof inputs) => unknown)(inputs);
+  } catch (error) {
+    omitted = error instanceof ClampedLogBarrierInputErrorN
+      ? 'typed' : 'untyped';
+  }
+  assert(omitted === 'typed', 'an omitted order was not rejected');
+  // Valid erased orders still return their exact promised arities.
+  const arities = [0, 1, 2].map((order) =>
+    Object.keys(erased(inputs, order)).length);
+  assert(arities.join('/') === '3/4/5',
+    `valid orders returned arities ${arities.join('/')}`);
 }
 
 const describeFailures = (result: { readonly ok: boolean }): string =>

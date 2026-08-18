@@ -10,6 +10,7 @@ import {
   laggedPairFriction,
   certifiedConvexQuery,
   convexHullContact,
+  barrierOrderGuard,
   exactPointSimplexQuery,
   dimensionGenericSection,
   experimentProbe,
@@ -25,6 +26,7 @@ import {
 
 const checks: readonly [name: string, run: () => void | Promise<void>][] = [
   ['certifiedConvexQuery', certifiedConvexQuery],
+  ['barrierOrderGuard', barrierOrderGuard],
   ['exactPointSimplexQuery', exactPointSimplexQuery],
   ['convexHullContact', convexHullContact],
   ['geometryComposition', geometryComposition],

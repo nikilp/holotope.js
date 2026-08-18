@@ -20,6 +20,8 @@ interface MutationResult {
   readonly applied: boolean;
   readonly reached: boolean;
   readonly killed: boolean;
+  readonly killedForIntendedReason?: boolean;
+  readonly failedTests?: readonly string[];
   readonly restored: boolean;
   readonly testsRun: number;
   readonly testsFailed: number;
@@ -40,7 +42,7 @@ describe('clamped-log barrier: the standing mutation matrix', () => {
         + `applied=${row.applied} reached=${row.reached} `
         + `killed=${row.killed} restored=${row.restored} `
         + `(${row.testsFailed}/${row.testsRun})`).join('\n'));
-    expect(MATRIX.results.length).toBe(13);
+    expect(MATRIX.results.length).toBe(14);
   });
 
   it('every mutation was applied, reached, killed and restored', () => {
@@ -68,4 +70,20 @@ describe('clamped-log barrier: the standing mutation matrix', () => {
           `missing mutation: ${required}`).toBe(true);
       }
     });
+
+  it('mutation 14 — deleting the runtime order guard — is killed for the'
+    + ' intended reason', () => {
+    // NC1's guard is code that EXISTS now, so the matrix can reach it: the
+    // deletion must be killed by the order-guard gates themselves, not by an
+    // incidental failure elsewhere.
+    const guard = MATRIX.results.find((row) =>
+      row.id.includes('delete the runtime order guard'));
+    expect(guard).toBeDefined();
+    if (guard === undefined) return;
+    expect(guard.applied && guard.reached && guard.killed && guard.restored)
+      .toBe(true);
+    expect(guard.killedForIntendedReason).toBe(true);
+    expect(guard.failedTests?.some((name) =>
+      name.includes('runtime order guard'))).toBe(true);
+  });
 });

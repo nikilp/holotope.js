@@ -97,6 +97,24 @@ function validate(inputs: ClampedLogBarrierInputsN): void {
 }
 
 /**
+ * The runtime order guard. The signature already rejects a wrong order at
+ * the type level, but types erase: a JavaScript caller, or any caller
+ * crossing a `JSON.parse`/config/adapter boundary, arrives here with
+ * whatever it has. Before this guard, every value that was neither 0 nor 1
+ * fell through to a full order-2 result — a runtime default of 2 on a
+ * function whose contract says there is no default (P66E-PUB review, NC1).
+ *
+ * Strict equality only: no coercion, no truthiness, no clamp, no fallback.
+ * `new Number(1)`, `true` and `"1"` are all rejected. The remedy is the
+ * same as for a malformed scalar input — fix the authored call — so the
+ * same permanent error class is thrown and the taxonomy does not grow.
+ */
+function validateOrder(order: BarrierDerivativeOrder): void {
+  if (order === 0 || order === 1 || order === 2) return;
+  throw new ClampedLogBarrierInputErrorN('order must be exactly 0, 1 or 2');
+}
+
+/**
  * Component arms are frozen: every evaluator-owned object in a result is
  * immutable, and an arm is the smallest one.
  */
@@ -117,7 +135,10 @@ const componentOf = (value: number | undefined): BarrierComponentN =>
  *
  * **`order` is required.** A caller must say whether it needs the energy,
  * the force, or the curvature; there is no default and no way to receive a
- * derivative that was not requested. Order 0 performs 2 core operations,
+ * derivative that was not requested. The requirement holds at runtime, not
+ * only in the types: any `order` that is not strictly `0`, `1` or `2` —
+ * including an omitted argument after type erasure — throws
+ * `ClampedLogBarrierInputErrorN`. Order 0 performs 2 core operations,
  * order 1 performs 4, order 2 performs 7, and the inactive clamp performs 0.
  *
  * **Availability is per component and non-monotone.** An energy can round to
@@ -171,7 +192,11 @@ export function evaluateClampedLogBarrierAtOrderN<
   inputs: ClampedLogBarrierInputsN,
   order: O
 ): ClampedLogBarrierEvaluationForN<O> {
+  // Scalar inputs first (their precedence predates the order guard), then
+  // the order — both settled before any arithmetic runs or any result
+  // object exists.
   validate(inputs);
+  validateOrder(order);
   const core = evaluateBarrierCore(inputs, order);
   // One frozen record, built once, shared by reference through the result.
   // The caller's object is neither retained, frozen nor written.

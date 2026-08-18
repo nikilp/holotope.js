@@ -13,7 +13,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 1
     },
     {
@@ -23,7 +23,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 4
     },
     {
@@ -33,7 +33,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 1
     },
     {
@@ -43,7 +43,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 5
     },
     {
@@ -53,7 +53,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 5
     },
     {
@@ -63,7 +63,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 1
     },
     {
@@ -73,8 +73,8 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 3
+      "testsRun": 26,
+      "testsFailed": 4
     },
     {
       "id": "8 leak internal state on the result",
@@ -83,8 +83,8 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 1
+      "testsRun": 26,
+      "testsFailed": 2
     },
     {
       "id": "9 recompute the curvature with the textbook grouping",
@@ -93,7 +93,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 3
     },
     {
@@ -103,7 +103,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 1
     },
     {
@@ -113,7 +113,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 1
     },
     {
@@ -123,8 +123,23 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 1
+      "testsRun": 26,
+      "testsFailed": 2
+    },
+    {
+      "id": "14 delete the runtime order guard",
+      "file": "src/clamped-log-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "killedForIntendedReason": true,
+      "failedTests": [
+        "clamped-log barrier: the graded scalar contract the runtime order guard: every invalid ERASED order value throws the typed permanent error, and nothing escapes",
+        "clamped-log barrier: the graded scalar contract validation precedence: malformed scalar inputs are named before a malformed order, and both precede any arithmetic"
+      ],
+      "restored": true,
+      "testsRun": 26,
+      "testsFailed": 2
     },
     {
       "id": "13 loosen the referee to the old allowance class",
@@ -133,7 +148,7 @@
       "reached": true,
       "killed": true,
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 26,
       "testsFailed": 1
     }
   ]
