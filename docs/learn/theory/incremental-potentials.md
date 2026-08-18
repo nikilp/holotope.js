@@ -272,12 +272,46 @@ components with a caller's direction can underflow to zero while every
 component is finite and nonzero. The caller owns that composition and its
 diagnostic — the scalar result cannot see it.
 
-Measured cost (batched spans, never single-call timing): requesting order 0
-is roughly **4× cheaper** and order 1 roughly **1.4× cheaper** than the old
-all-orders evaluation, while order 2 costs about **1.3–1.4×** — an accepted,
-documented trade for correctly rounded subnormal behaviour and no-throw
-availability semantics; the exponent-tracked repair itself contributes
-roughly 9% of it. The inactive clamp performs no arithmetic at all.
+**Measured cost.** On inputs where the previous evaluator and this one both
+return, the graded evaluator is **slower per call at every order** — roughly
+**5–10× at order 0 and order 1, and roughly 15–30× at order 2** on the
+measurements below. In absolute terms the previous evaluator costs on the
+order of **0.1 µs per call** and the graded one on the order of **0.5–2 µs**,
+depending on the requested order. Those are the figures to plan with; the
+ranges are wide because they are microbenchmarks, and they are given as
+ranges for that reason.
+
+That cost is at the *scalar* layer. Inside a provider it is diluted by the
+surrounding work: one `XpbdParticleHyperplaneBarrierN.evaluateAt` call —
+candidate-position query, vector validation, signed-distance geometry, the
+scalar barrier, and force-vector construction — measures around
+**1.3–1.4 µs**, of which the scalar evaluator is **most but not all**, in
+the region of two thirds to three quarters across runs. A composition
+that does more geometry per barrier will see a smaller proportional change
+than the scalar numbers suggest.
+
+A second group of inputs admits **no ratio at all**. The previous evaluator
+*throws* on regimes this one evaluates — a ratio underflow, and the bands
+where one or another component leaves Float64 — so on those rows there is
+nothing to compare a return against. They demonstrate **semantic coverage**,
+not speed: where the old evaluator refused outright, the graded one returns
+and grades each component on its own account. Timing a return against an
+exception is exactly the mistake that produced the earlier, opposite claim
+on this page.
+
+The extra cost is deliberate. It buys correctly rounded subnormal behaviour,
+per-component availability instead of an all-or-nothing refusal, and
+no-throw semantics on the open domain. The inactive clamp still performs no
+arithmetic at all.
+
+*Method and environment.* Batched spans, never single-call timing; setup and
+validation outside the timed region; results retained and consumed so neither
+implementation can be optimized away; no exception handling inside a timed
+span; both implementations warmed; several fixture orders and repeated runs,
+summarized by median with the observed spread. Measured with Node on a
+developer machine, not a controlled benchmark host — treat the ratios as
+indicative of direction and order of magnitude on this workload, not as a
+portable claim across hardware, runtimes or usage patterns.
 
 `XpbdParticleHyperplaneBarrierN` composes the scalar law with the affine signed
 distance from an RN point to an oriented hyperplane:
