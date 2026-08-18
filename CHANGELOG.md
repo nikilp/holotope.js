@@ -1,5 +1,85 @@
 # Changelog
 
+## v0.0.19
+
+All five packages are synchronized at `0.0.19`. The substantive change — a
+**breaking pre-1.0 contract change** — is in `@holotope/physics`; the other
+four packages are version-synchronized with no substantive behavioural
+change.
+
+### `@holotope/physics@0.0.19` — breaking
+
+- **Replaced the all-orders clamped-log barrier evaluator with a graded
+  evaluator at a required derivative order.** `evaluateClampedLogBarrier`,
+  which always computed the energy and both derivatives, is replaced by
+  `evaluateClampedLogBarrierAtOrderN(inputs, order)`. This is a breaking
+  pre-1.0 change: every caller must now say what it needs.
+- **Orders 0, 1 and 2 publish only their requested prefix.** Order 0 returns
+  the energy; order 1 adds the first derivative; order 2 adds the second.
+  There is no way to receive a derivative that was not requested, and no
+  cost is paid for one. Order 0 performs 2 core operations, order 1 performs
+  4, order 2 performs 7, and the inactive clamp performs none.
+- **Availability is per component, and non-monotone.** Each requested
+  component is graded on its own account as
+  `{ available: true, value }` or
+  `{ available: false, reason: 'outside-float64' }` — with no `value` key at
+  all when unavailable, so reading a number off it is a type error rather
+  than a `NaN`. An energy may round to zero while its curvature is healthy,
+  and a curvature may leave Float64 while the energy is representable;
+  neither direction implies the other, and no component is withheld because
+  another was unavailable.
+- **A correctly rounded zero is an answer, not a refusal.** When the barrier
+  is active and a component's exact value rounds to Float64 zero, it is
+  published as `{ available: true, value: 0 }`. The `active` flag is what
+  separates that underflow statement from the clamp's exact zero at and
+  above the activation coordinate.
+- **Runtime order validation, with no default and no fail-open path.** The
+  signature rejects a wrong order at the type level, but types erase: any
+  `order` that is not strictly `0`, `1` or `2` on arrival — including an
+  omitted argument, a boxed `new Number(1)`, `true` or `"1"` — throws
+  `ClampedLogBarrierInputErrorN`. There is no coercion, truthiness check,
+  clamp or fallback, and in particular no silent promotion to order 2.
+- **One captured scalar triple governs validation, computation and
+  evidence.** Each of `coordinate`, `activation` and `stiffness` is read from
+  the caller's object exactly once, into a frozen compiler-owned snapshot;
+  that snapshot is then the only input validated, computed from and
+  published as `result.inputs`. An accessor- or Proxy-backed input can no
+  longer make the three answers disagree, and the caller's own object is
+  never frozen. A getter that throws escapes unchanged, before any
+  validation, arithmetic or result object exists.
+- **All released callers were migrated to their own required order.** The
+  hyperplane, source-simplex, source-simplex-pair, convex-hull family,
+  simplex-measure material and pair-friction providers each request exactly
+  the order they consume.
+- **Difficult underflow, overflow and subnormal regimes are handled without
+  the old all-or-nothing refusal.** The core sums exponent-tracked terms at
+  a common scale with a single final rounding per output, so regimes where
+  the previous evaluator threw outright now return, with each component
+  graded independently.
+- **Assembled directional-product representability remains caller-owned.**
+  A scalar component may be finite and nonzero while its product with a
+  caller's direction underflows or overflows; the scalar result cannot
+  observe that composition, and the caller owns the diagnostic.
+- **The evaluator is materially slower per scalar call** than the one it
+  replaces, on inputs where both return. This was an accepted trade for
+  graded availability, correct subnormal rounding and no-throw semantics on
+  the open domain. The documentation reports per-call absolutes measured on
+  one local environment, with the CPU and runtime named, and deliberately
+  **claims no portable multiplier**: the ratio depends strongly on the
+  requested order, varies run to run on a single machine, and has not been
+  measured across hardware or runtimes.
+
+### Unchanged in this release
+
+- The exact point–simplex boundary and the source-simplex work introduced in
+  `v0.0.18` are intact and unmodified.
+- P66 surface-integral contact is **not** part of this release.
+
+### `@holotope/core@0.0.19`, `@holotope/experiment@0.0.19`, `@holotope/three@0.0.19`, `@holotope/experiment-physics@0.0.19`
+
+- Version-synchronized with `@holotope/physics`. No substantive behavioural
+  change.
+
 ## v0.0.18
 
 All five packages are synchronized at `0.0.18`; the substantive additions and
