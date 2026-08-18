@@ -2,7 +2,8 @@ import { VecN } from '@holotope/core';
 import {
   evaluateClampedLogBarrierAtOrderN,
   type ClampedLogBarrierCurvatureN,
-  type ClampedLogBarrierForceN
+  type ClampedLogBarrierForceN,
+  type ClampedLogBarrierInputsN
 } from './clamped-log-barrier.js';
 import { HyperplaneColliderN } from './hyperplane-collider.js';
 import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
@@ -227,11 +228,12 @@ implements XpbdConservativeHessianVectorProviderN {
     const geometry = this.resolveGeometry(positionOf, caller);
     // This provider publishes a potential energy and one force, so it
     // requests order 1 — never a curvature it would not use.
-    const barrier = evaluateClampedLogBarrierAtOrderN({
+    const scalarInputs: ClampedLogBarrierInputsN = {
       coordinate: geometry.barrierCoordinate,
       activation: geometry.barrierActivation,
       stiffness: this.stiffness
-    }, 1);
+    };
+    const barrier = evaluateClampedLogBarrierAtOrderN(scalarInputs, 1);
     if (!barrier.energy.available || !barrier.firstDerivative.available) {
       const missing = !barrier.energy.available
         ? 'energy' : 'first derivative';

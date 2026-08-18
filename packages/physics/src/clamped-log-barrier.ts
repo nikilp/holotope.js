@@ -1,9 +1,7 @@
-import {
-  evaluateBarrierCore, type CoreOrder
-} from './clamped-log-barrier-core.js';
+import { evaluateBarrierCore } from './clamped-log-barrier-core.js';
 
 /** Highest derivative order requested. Required: there is no default. */
-export type BarrierDerivativeOrder = CoreOrder;
+export type BarrierDerivativeOrder = 0 | 1 | 2;
 
 /** The one way a requested component can be missing. */
 export type BarrierComponentUnavailability = 'outside-float64';
@@ -43,17 +41,21 @@ export interface ClampedLogBarrierValueN {
   readonly inputs: ClampedLogBarrierInputsN;
   /** `coordinate < activation`. False is the clamp, not a small number. */
   readonly active: boolean;
+  /** Barrier energy, graded on its own account. */
   readonly energy: BarrierComponentN;
 }
 /** Order-1 result: energy and first derivative, each graded independently. */
 export interface ClampedLogBarrierForceN extends ClampedLogBarrierValueN {
+  /** First derivative of the energy with respect to `coordinate`. */
   readonly firstDerivative: BarrierComponentN;
 }
 /** Order-2 result: all three components, each graded independently. */
 export interface ClampedLogBarrierCurvatureN extends ClampedLogBarrierForceN {
+  /** Second derivative of the energy with respect to `coordinate`. */
   readonly secondDerivative: BarrierComponentN;
 }
 
+/** The exact result shape produced for each requested derivative order. */
 export type ClampedLogBarrierEvaluationForN<O extends BarrierDerivativeOrder> =
   O extends 0 ? ClampedLogBarrierValueN
     : O extends 1 ? ClampedLogBarrierForceN : ClampedLogBarrierCurvatureN;
@@ -64,6 +66,11 @@ export type ClampedLogBarrierEvaluationForN<O extends BarrierDerivativeOrder> =
  * candidate retry can fix it.
  */
 export class ClampedLogBarrierInputErrorN extends RangeError {
+  /**
+   * Names the violated domain constraint.
+   *
+   * @param message Which input violated the domain, and how.
+   */
   constructor(message: string) {
     super(message);
     this.name = 'ClampedLogBarrierInputErrorN';

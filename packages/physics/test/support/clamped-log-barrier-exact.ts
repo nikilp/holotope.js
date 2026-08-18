@@ -278,22 +278,12 @@ export function log(x: BigFloat): BigFloat {
  * Without this, every ill-conditioned row reads as an implementation defect
  * and a formulation comparison measures the problem instead of the code.
  */
-export interface OracleSensitivity {
-  readonly energy: number;
-  readonly firstDerivative: number;
-  readonly secondDerivative: number;
-}
-
 export interface OracleSample {
   /** `-k (x-a)^2 log(x/a)` */
   readonly energy: BigFloat;
   readonly firstDerivative: BigFloat;
   readonly secondDerivative: BigFloat;
-  /** `x / a`, exact to working precision — not the Float64 quotient. */
-  readonly normalizedCoordinate: BigFloat;
   readonly logRatio: BigFloat;
-  /** Error amplification a correct implementation cannot avoid. */
-  readonly sensitivity: OracleSensitivity;
 }
 
 /**
@@ -330,39 +320,11 @@ export function oracleAt(
     negate(add(multiply(fromNumber(2), aOverX), multiply(aOverX, aOverX)))
   )));
 
-  // --- conditioning -------------------------------------------------------
-  const ratioOf = (terms: readonly BigFloat[], result: BigFloat): number => {
-    if (result.mantissa === 0n) return Infinity;
-    let sum = ZERO;
-    for (const term of terms) sum = add(sum, absolute(term));
-    return Math.abs(toNumber(divide(sum, absolute(result))));
-  };
-  const logSensitivity = (derivative: BigFloat, result: BigFloat): number =>
-    result.mantissa === 0n ? Infinity
-      : Math.abs(toNumber(divide(absolute(derivative), absolute(result))));
-
-  const two = fromNumber(2);
-  const kGap = multiply(k, gap);
-  const sensitivity: OracleSensitivity = {
-    // One product, so no cancellation; the logarithm's absolute uncertainty
-    // is the whole story, and it is `1/|log r|` in relative terms.
-    energy: Math.max(1, logSensitivity(multiply(k, gapSquared), energy)),
-    firstDerivative: Math.max(
-      ratioOf([multiply(two, multiply(kGap, logRatio)),
-        divide(multiply(k, gapSquared), x)], firstDerivative),
-      logSensitivity(multiply(two, kGap), firstDerivative)
-    ),
-    secondDerivative: Math.max(
-      ratioOf([multiply(k, multiply(aOverX, aOverX)),
-        multiply(two, multiply(k, aOverX)),
-        multiply(two, multiply(k, logRatio)),
-        multiply(THREE, k)], secondDerivative),
-      logSensitivity(multiply(two, k), secondDerivative)
-    )
-  };
-
-  return { energy, firstDerivative, secondDerivative,
-    normalizedCoordinate: ratio, logRatio, sensitivity };
+  // The old sensitivity model is deliberately NOT ported: the referee's
+  // fixed 16-rounding budget replaced it, and an amplification factor nothing
+  // consumes is exactly how a 12% error once passed a "conditioning-aware"
+  // gate.
+  return { energy, firstDerivative, secondDerivative, logRatio };
 }
 
 /**

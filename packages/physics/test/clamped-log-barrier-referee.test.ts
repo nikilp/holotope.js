@@ -206,6 +206,10 @@ describe('clamped-log barrier: oracle and referee gates', () => {
         { coordinate: x, activation: 1e8, stiffness: 1e-300 }, 2);
       expect(graded.secondDerivative.available
         && Object.is(graded.secondDerivative.value, correct)).toBe(true);
+      // The referee's two independent logarithm routes agreed within the
+      // derived cross-check gate on this row — stated, not assumed.
+      expect(exact.logCrossCheck).toBeLessThanOrEqual(
+        2 ** -100 + 2 ** -105 / Math.abs(1.4901161193847656e-16));
     });
 
   it('off-grid boundary census: zero and overflow crossings behave, and the'
@@ -303,10 +307,13 @@ describe('clamped-log barrier: oracle and referee gates', () => {
     expect(refereeVerdict(twelvePercentOff, exact.secondDerivative).pass)
       .toBe(false);
 
-    // A 15,000-ULP subnormal error must fail.
+    // A 15,000-ULP subnormal error must fail, and the verdict's own
+    // measurement says how far out it is.
     const fifteenThousandUlps = correct + 15_000 * Number.MIN_VALUE;
-    expect(refereeVerdict(fifteenThousandUlps, exact.secondDerivative).pass)
-      .toBe(false);
+    const verdict = refereeVerdict(fifteenThousandUlps, exact.secondDerivative);
+    expect(verdict.pass).toBe(false);
+    expect(verdict.measured).toBeGreaterThan(14_999);
+    expect(verdict.measured).toBeGreaterThan(verdict.bound);
     expect(subnormalUlpError(fifteenThousandUlps, exact.secondDerivative))
       .toBeGreaterThan(14_999);
 

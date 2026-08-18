@@ -253,6 +253,7 @@ export {
   type XpbdParticleHyperplaneBarrierHessianVectorEvaluationN,
   type XpbdParticleHyperplaneBarrierDomainReasonN,
   type XpbdParticleHyperplaneBarrierEvaluationN,
+  type XpbdParticleHyperplaneBarrierCurvatureEvaluationN,
   type XpbdParticleHyperplaneBarrierNOptions
 } from './xpbd-hyperplane-barrier.js';
 export {

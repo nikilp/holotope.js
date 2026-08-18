@@ -1,3 +1,6 @@
+import type {
+  BarrierComponentN
+} from './clamped-log-barrier.js';
 import { VecN, inspectSourceSimplexReferenceN } from '@holotope/core';
 import type { SourceSimplexCoordinateN } from '@holotope/core';
 import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
@@ -506,12 +509,13 @@ export class XpbdSourceSimplexPairFrictionN {
     // E' alone. A published pair-barrier evaluation carries an available
     // first derivative by that provider's contract; a miss here is a lost
     // internal invariant, not a caller-reachable state.
-    if (!barrierEvaluation.barrier.firstDerivative.available) {
+    const firstDerivative: BarrierComponentN =
+      barrierEvaluation.barrier.firstDerivative;
+    if (!firstDerivative.available) {
       throw new Error(`${caller}: internal invariant lost — a published ` +
         'pair-barrier evaluation carries an available first derivative');
     }
-    const laggedNormalForce =
-      Math.abs(barrierEvaluation.barrier.firstDerivative.value);
+    const laggedNormalForce = Math.abs(firstDerivative.value);
 
     const lag: XpbdSourceSimplexPairFrictionLagN = Object.freeze({
       dimension: this.dimension,
