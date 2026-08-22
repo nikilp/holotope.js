@@ -19,6 +19,13 @@ export {
   type XpbdSourceSimplexPairSlipRegularizationN
 } from './xpbd-source-simplex-pair-friction.js';
 export {
+  compileXpbdSourceSimplexMeasureBarrierN,
+  type CompileXpbdSourceSimplexMeasureBarrierNOptions,
+  type XpbdSourceSimplexMeasureBarrierDomainReasonN,
+  type XpbdSourceSimplexMeasureBarrierPublicationReasonN,
+  type XpbdSourceSimplexMeasureBarrierTermsN
+} from './xpbd-source-simplex-measure-barrier.js';
+export {
   XpbdSourceSimplexPairBarrierFamilyN,
   compileXpbdSourceSimplexPairBarrierFamilyN,
   type CompileXpbdSourceSimplexPairBarrierFamilyNOptions
