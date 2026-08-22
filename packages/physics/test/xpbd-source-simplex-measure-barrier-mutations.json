@@ -1,0 +1,318 @@
+{
+  "gateFiles": [
+    "packages/physics/test/xpbd-source-simplex-measure-barrier.test.ts",
+    "packages/physics/test/xpbd-source-simplex-measure-barrier-surface.test.ts"
+  ],
+  "results": [
+    {
+      "id": "1 drop the reference-measure weight",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: energy, forces, and the reference weight weights by the REFERENCE measure: two rest cells differing only in size give energies in exactly that ratio at identical placements",
+        "the measure barrier: energy, forces, and the reference weight is invariant under refining the cell: one segment and the two halves covering it publish the same energy",
+        "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity",
+        "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 5
+    },
+    {
+      "id": "2 weight by the live measure, not the rest measure",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound",
+        "the measure barrier: energy, forces, and the reference weight weights by the REFERENCE measure: two rest cells differing only in size give energies in exactly that ratio at identical placements"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 2
+    },
+    {
+      "id": "3 square the measure weight",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: energy, forces, and the reference weight weights by the REFERENCE measure: two rest cells differing only in size give energies in exactly that ratio at identical placements",
+        "the measure barrier: energy, forces, and the reference weight is invariant under refining the cell: one segment and the two halves covering it publish the same energy",
+        "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone",
+        "the measure barrier: exact placement of its nodes places a hyperplanar cell's nodes exactly in its own hyperplane"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 4
+    },
+    {
+      "id": "4 collapse the rule to its centroid",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity",
+        "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone",
+        "the measure barrier: the rule itself certifies against the WORST node, not the average one"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 3
+    },
+    {
+      "id": "5 place every node at its own vertex",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound",
+        "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone",
+        "the measure barrier: the rule itself certifies against the WORST node, not the average one"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 3
+    },
+    {
+      "id": "6 raw weighted sum instead of the anchored affine form",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: exact placement of its nodes places a hyperplanar cell's nodes exactly in its own hyperplane"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "7 omit the obstacle reaction",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound",
+        "the measure barrier: energy, forces, and the reference weight sums to zero force when both sides are bound, because the energy depends only on the relative placement"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 2
+    },
+    {
+      "id": "8 flip the sign of the obstacle reaction",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound",
+        "the measure barrier: energy, forces, and the reference weight sums to zero force when both sides are bound, because the energy depends only on the relative placement"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 2
+    },
+    {
+      "id": "9 publish the gradient itself as the force",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound",
+        "the measure barrier: inside the released world registers as an ordinary force provider and its forces reach the particles",
+        "the measure barrier: inside the released world drives a complete incremental-potential world step with its own filter registered",
+        "the measure barrier: inside the released world keeps the filter honest inside the search: a step large enough to tunnel is not applied whole"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 4
+    },
+    {
+      "id": "10 use the barrier energy where its derivative belongs",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound",
+        "the measure barrier: inside the released world registers as an ordinary force provider and its forces reach the particles",
+        "the measure barrier: inside the released world drives a complete incremental-potential world step with its own filter registered",
+        "the measure barrier: inside the released world keeps the filter honest inside the search: a step large enough to tunnel is not applied whole"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 4
+    },
+    {
+      "id": "11 request a curvature the term does not use",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the shape of its public surface asks the barrier for one derivative order, once, and never asks for a curvature it would not use"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "12 drop the rule weight from the energy",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound",
+        "the measure barrier: inside the released world drives a complete incremental-potential world step with its own filter registered",
+        "the measure barrier: inside the released world keeps the filter honest inside the search: a step large enough to tunnel is not applied whole",
+        "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 5
+    },
+    {
+      "id": "13 drop the certified-distance gate",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "14 drop the direction-policy gate",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "15 check only the energy component, not the derivative",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "16 make a candidate-time rank deficiency permanent",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "17 accept an obstacle binding that is not kinematic",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: refusal and configuration semantics rejects authored configuration as a permanent error, never as a recoverable refusal"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "18 certify the whole segment from its two endpoints",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the paired step filter certifies a prefix of a segment whose two ends are clear and whose interior is not",
+        "the measure barrier: the rule itself certifies against the WORST node, not the average one"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 2
+    },
+    {
+      "id": "19 drop the conservative scale from the certified prefix",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the paired step filter certifies a prefix of a segment whose two ends are clear and whose interior is not",
+        "the measure barrier: the rule itself certifies against the WORST node, not the average one"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 2
+    },
+    {
+      "id": "20 certify against the largest node margin",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the rule itself certifies against the WORST node, not the average one"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "21 skip the unknown-option check",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: refusal and configuration semantics rejects authored configuration as a permanent error, never as a recoverable refusal"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    },
+    {
+      "id": "22 give the direction policy a default",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: refusal and configuration semantics rejects authored configuration as a permanent error, never as a recoverable refusal"
+      ],
+      "restored": true,
+      "testsRun": 24,
+      "testsFailed": 1
+    }
+  ]
+}

@@ -1,5 +1,51 @@
 # Changelog
 
+## Unreleased
+
+Additive. No released behaviour changes, and no version is bumped here.
+
+### `@holotope/physics` — added
+
+- **Measure-weighted normal contact.**
+  `compileXpbdSourceSimplexMeasureBarrierN` compiles one conservative force
+  provider and its paired step filter for the energy
+  `E(q) = mu0 * sum_j w_j * psi(d_j(q) - dmin)`, where `mu0` is the deforming
+  cell's reference k-measure, `w_j` is a fixed equal-weight rule over `k + 1`
+  distinct strictly interior nodes, `d_j` is the exact distance from node `j`
+  to the opposing source simplex, and `psi` is the released clamped
+  logarithmic barrier at order 1.
+- **A contact now resists by the size of the touching feature rather than by
+  the number of vertices describing it.** The released pair family's summed
+  energy is discretization-defined — four cells under one contact carry four
+  terms — and this law removes that dependence: a cell and the two cells that
+  subdivide it publish the same energy.
+- **The measure is the rest one, read once from the binding's validated
+  snapshot and frozen.** That is what makes the published forces the complete
+  gradient of the published energy; a current-measure weight would give the
+  energy a second path through the cell's own deformation. It also means only
+  the rest cell must be non-degenerate — a cell that degenerates at a
+  candidate is evaluated normally, because a node is a fixed affine
+  combination of its vertices either way.
+- **The quadrature is fixed and not authorable.** It is a reference measure,
+  not a quadrature with a truncation bound: the energy is the weighted node
+  sum, so a refined rule would be a different law rather than a closer
+  approximation of this one.
+- **`maximumDirectionError` is required, with no default**, following the
+  released point--simplex barrier: the exact query publishes a direction
+  enclosure and no universal radius is right for every scene.
+- **The paired step filter reads geometry only at the segment start.** The law
+  measures unsigned distance and has no notion of side, so a segment can begin
+  above the obstacle and end below it with both ends admissible; an endpoint
+  check would certify the tunnel. The two-sided Lipschitz bound is a lower
+  envelope over the whole segment, taken from one placement, and certifies
+  against the worst node.
+- **Eleven typed refusal reasons**, each raised as the released
+  `XpbdPotentialDomainErrorN` carrying the term's `id` as its `lawId`,
+  including one-to-one forwarding of every exact point--simplex publication
+  failure. Authored configuration — a rest-degenerate cell, a rank-deficient
+  static obstacle, an obstacle binding contributing a particle that is not
+  kinematic — stays a permanent `Error` and never enters that channel.
+
 ## v0.0.19
 
 All five packages are synchronized at `0.0.19`. The substantive change — a

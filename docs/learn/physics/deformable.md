@@ -720,6 +720,129 @@ interior cuts through it. Feature contact closes that gap by constraining
   placing four cells there, exactly 4×) — stated in the docs, like the
   bending family's stiffness, rather than averaged away.
 
+### Measure-weighted contact: resisting by size, not by vertex count
+
+The pair family above states its density honestly: the summed energy is
+**discretization-defined**, so a contact under an edge shared by two cells
+carries both cells' terms, and a refinement placing four cells there carries
+four. `compileXpbdSourceSimplexMeasureBarrierN` is the law that removes that
+dependence. Its energy is the cell's **reference** measure times the average of
+the barrier over a fixed set of interior nodes:
+
+```text
+E(q) = mu0 * sum_j w_j * psi(d_j(q) - dmin)
+```
+
+Subdividing a cell splits `mu0` between the halves, so the same contact
+publishes the same energy however finely it is meshed:
+
+```ts
+import {
+  CellComplex,
+  createSourceCellReferenceN,
+  createSourceSimplexReferenceN
+} from '@holotope/core';
+import {
+  compileXpbdParticleBindingN,
+  compileXpbdSourceSimplexMeasureBarrierN
+} from '@holotope/physics';
+
+const floor = new CellComplex(3, Float64Array.from([
+  -40, 0, -40, 60, 0, -40, -40, 0, 60
+]), [{
+  dim: 2, verticesPerCell: 3, kind: 'simplex',
+  indices: Uint32Array.from([0, 1, 2])
+}]);
+const obstacle = createSourceSimplexReferenceN(
+  createSourceCellReferenceN(floor, floor.groups[0]!, 0)
+);
+
+function energyOf(from: number, to: number): number {
+  const strip = new CellComplex(3, Float64Array.from([
+    from, 0.5, 0, to, 0.5, 0
+  ]), [{
+    dim: 1, verticesPerCell: 2, kind: 'simplex',
+    indices: Uint32Array.from([0, 1])
+  }]);
+  const { provider } = compileXpbdSourceSimplexMeasureBarrierN({
+    id: `contact-${from}`,
+    binding: compileXpbdParticleBindingN({ id: `strip-${from}`, source: strip }),
+    cell: createSourceSimplexReferenceN(
+      createSourceCellReferenceN(strip, strip.groups[0]!, 0)
+    ),
+    obstacle,
+    minimumDistance: 0.05,
+    activationDistance: 1,
+    stiffness: 2,
+    maximumDirectionError: 1e-6
+  });
+  return provider.evaluate().potentialEnergy;
+}
+
+// One cell, or the two that subdivide it: the same number.
+console.log(energyOf(0, 1), energyOf(0, 0.5) + energyOf(0.5, 1));
+```
+
+Four things about that call are deliberate.
+
+**The measure is the REST one.** It is read once, from the binding's validated
+snapshot of the source, and frozen. Weighting by the current measure would give
+the energy a second path through the cell's own deformation, and the published
+forces — which are the exact gradient of the published energy — would then be
+incomplete. It also means a cell that degenerates at a candidate is not this
+term's problem: a node is a fixed affine combination of the vertices whether or
+not they span anything. Only the *rest* cell must be non-degenerate, and that is
+a configuration error, raised once at compile time.
+
+**The quadrature is fixed and not authorable.** The `k + 1` nodes are the
+barycentric orbit of `(alpha, beta, ..., beta)` with `alpha = 2/(k+2)`: distinct,
+strictly interior, equally weighted, averaging to the centroid. It is a
+**reference measure**, not a quadrature with a truncation bound — the energy *is*
+the weighted node sum, so a refined rule would be a different law rather than a
+better approximation of this one. Every property stated here is a property of
+this rule, which is why there is no knob.
+
+**`maximumDirectionError` has no default.** The exact point–simplex query
+publishes a direction enclosure and no universal radius is right for every
+scene, so the policy is authored or the construction fails. A node whose
+published direction is less accurate than the policy admits refuses with
+`direction-error-exceeds-policy`, and the term refuses **as a whole**: a single
+node that cannot be evaluated leaves the sum undefined, so no partial energy is
+published.
+
+**The paired filter reads geometry only at the segment start**, and that is the
+safety argument rather than an optimization. The law measures unsigned distance
+and has no notion of side, so a segment can begin `0.5` above the obstacle and
+end `0.5` below it with *both ends admissible*; a filter that checked the two
+endpoints would certify the tunnel. The two-sided Lipschitz bound cannot,
+because it is a lower envelope over the whole segment taken from one placement,
+and it certifies against the worst node rather than the average one. Register it
+alongside the provider — the two are only sound together:
+
+```ts
+import { XpbdWorldN, stepXpbdIncrementalPotentialWorldN } from '@holotope/physics';
+import type { XpbdSourceSimplexMeasureBarrierTermsN } from '@holotope/physics';
+
+declare const terms: XpbdSourceSimplexMeasureBarrierTermsN;
+declare const world: XpbdWorldN;
+
+world.addForceProvider(terms.provider);
+const advance = stepXpbdIncrementalPotentialWorldN({
+  world,
+  deltaTime: 1 / 120,
+  stepFilters: [terms.stepFilter],
+  warmStart: 'feasible-inertial-prediction'
+});
+console.log(advance.step.status);
+```
+
+A moving obstacle is supported through `obstacleBinding`, and every particle it
+contributes must be kinematic (`inverseMass === 0`). The reaction on those
+vertices is still published, so the term stays a closed statement about the
+energy — but the energy weights the *cell's* measure alone, and letting the
+obstacle respond to a force derived from a measure that is not its own would not
+be a contact law anyone authored.
+
 ### Lagged friction inside the objective
 
 `XpbdSourceSimplexPairFrictionN` adds the first dissipative contact term that

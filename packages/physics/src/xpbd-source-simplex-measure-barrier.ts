@@ -643,18 +643,50 @@ const OPTION_KEYS: readonly string[] = Object.freeze([
  * been measured.
  *
  * @example
+ * A strip above a floor triangle, and the same strip subdivided: the contact
+ * publishes the same energy, because the reference measure is what it is
+ * weighted by and subdivision splits that measure rather than duplicating it.
  * ```ts
- * const binding = compileXpbdParticleBindingN({ id: 'sheet', source: sheet });
- * const { provider, stepFilter } = compileXpbdSourceSimplexMeasureBarrierN({
- *   id: 'contact',
- *   binding,
- *   cell: sourceSimplexReferenceN(sheet, triangles, 0),
- *   obstacle: sourceSimplexReferenceN(floor, floorTriangles, 0),
- *   activationDistance: 0.05,
- *   stiffness: 1,
- *   maximumDirectionError: 1e-6
+ * const floor = new CellComplex(3, Float64Array.from([
+ *   -40, 0, -40, 60, 0, -40, -40, 0, 60
+ * ]), [{ dim: 2, verticesPerCell: 3, kind: 'simplex',
+ *        indices: Uint32Array.from([0, 1, 2]) }]);
+ * const floorGroup = floor.groups[0];
+ * if (floorGroup === undefined) throw new Error('expected the floor group');
+ * const obstacle = createSourceSimplexReferenceN(
+ *   createSourceCellReferenceN(floor, floorGroup, 0)
+ * );
+ *
+ * const energies = [[0, 1], [0, 0.5], [0.5, 1]].map(([from, to]) => {
+ *   const strip = new CellComplex(3, Float64Array.from([
+ *     from, 0.5, 0, to, 0.5, 0
+ *   ]), [{ dim: 1, verticesPerCell: 2, kind: 'simplex',
+ *          indices: Uint32Array.from([0, 1]) }]);
+ *   const stripGroup = strip.groups[0];
+ *   if (stripGroup === undefined) throw new Error('expected the strip group');
+ *   const terms = compileXpbdSourceSimplexMeasureBarrierN({
+ *     id: `contact-${from}`,
+ *     binding: compileXpbdParticleBindingN({
+ *       id: `strip-${from}`, source: strip
+ *     }),
+ *     cell: createSourceSimplexReferenceN(
+ *       createSourceCellReferenceN(strip, stripGroup, 0)
+ *     ),
+ *     obstacle,
+ *     minimumDistance: 0.05,
+ *     activationDistance: 1,
+ *     stiffness: 2,
+ *     maximumDirectionError: 1e-6
+ *   });
+ *   return terms.provider.evaluate().potentialEnergy;
  * });
- * world.addForceProvider(provider);
+ * const [whole, left, right] = energies;
+ * if (whole === undefined || left === undefined || right === undefined) {
+ *   throw new Error('expected three energies');
+ * }
+ *
+ * log('one cell ', whole);
+ * log('two cells', left + right);  // the same number
  * ```
  *
  * @param options Term identity, geometry, and barrier policy.

@@ -79,6 +79,7 @@ there is improved here.
 | [`compileXpbdParticleSourceConvexHullBarrierFamilyN`](/api/physics/functions/compileXpbdParticleSourceConvexHullBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdParticleSourceConvexHullBarrierFamilyN) |
 | [`compileXpbdSourceSimplexAabbHierarchyN`](/api/physics/functions/compileXpbdSourceSimplexAabbHierarchyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexAabbHierarchyN) |
 | [`compileXpbdSourceSimplexCosineBendingFamilyN`](/api/physics/functions/compileXpbdSourceSimplexCosineBendingFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexCosineBendingFamilyN) |
+| [`compileXpbdSourceSimplexMeasureBarrierN`](/api/physics/functions/compileXpbdSourceSimplexMeasureBarrierN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexMeasureBarrierN) |
 | [`compileXpbdSourceSimplexPairBarrierFamilyN`](/api/physics/functions/compileXpbdSourceSimplexPairBarrierFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexPairBarrierFamilyN) |
 | [`compileXpbdSourceSimplexPairFrictionFamilyN`](/api/physics/functions/compileXpbdSourceSimplexPairFrictionFamilyN) | [open](https://nikilp.github.io/holotope.js/playground.html#compileXpbdSourceSimplexPairFrictionFamilyN) |
 | [`create24Cell`](/api/core/polytope/functions/create24Cell) | [open](https://nikilp.github.io/holotope.js/playground.html#create24Cell) |

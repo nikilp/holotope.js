@@ -13,6 +13,8 @@ import {
   XpbdWorldN,
   compileXpbdParticleBindingN,
   compileXpbdSourceSimplexMeasureBarrierN,
+  evaluateClampedLogBarrierAtOrderN,
+  evaluateSimplexSquaredMeasureN,
   stepXpbdIncrementalPotentialWorldN,
   type XpbdConservativeForceProviderN,
   type XpbdIncrementalPotentialStepFilterContextN,
@@ -691,5 +693,155 @@ describe('the measure barrier: inside the released world', () => {
     const settled = term.particles[0]!.position.data[1]!;
     expect(settled).toBeLessThan(0.15);
     expect(settled).toBeGreaterThan(0.05);
+  });
+});
+
+/**
+ * A TILTED cell over the obstacle plane, so the nodes sit at different
+ * distances and nothing can be confused with anything else: not the node
+ * placement with the centroid, not the smallest margin with the largest, not
+ * one node's weight with another's.
+ */
+const TILTED_HEIGHTS = [0.2, 0.45, 0.7] as const;
+
+function tiltedTerm(minimumDistance: number): TermFixture {
+  const cellSide = simplexComplex(3, [
+    0, TILTED_HEIGHTS[0], 0,
+    2, TILTED_HEIGHTS[1], 0,
+    0, TILTED_HEIGHTS[2], 3
+  ]);
+  const obstacleSide = simplexComplex(3, [
+    -40, 0, -40, 60, 0, -40, -40, 0, 60
+  ]);
+  const binding = compileXpbdParticleBindingN({
+    id: 'cell', source: cellSide.complex
+  });
+  const terms = compileXpbdSourceSimplexMeasureBarrierN({
+    id: 'measure-contact', binding, cell: cellSide.simplex,
+    obstacle: obstacleSide.simplex, minimumDistance,
+    activationDistance: 1, stiffness: 3, maximumDirectionError: 1e-6
+  });
+  return {
+    ...terms, binding, obstacleBinding: undefined,
+    particles: terms.provider.particles
+  };
+}
+
+/** Node heights of the tilted cell, from the rule's own anchored form. */
+function tiltedNodeHeights(): readonly number[] {
+  const beta = (1 - 2 / 4) / 2;
+  return TILTED_HEIGHTS.map((own, slot) => {
+    let height = own;
+    TILTED_HEIGHTS.forEach((other, index) => {
+      if (index !== slot) height += beta * (other - own);
+    });
+    return height;
+  });
+}
+
+describe('the measure barrier: the rule itself', () => {
+  it('is the measure-weighted average of the barrier at k+1 distinct nodes, '
+    + 'reproduced from the released measure and barrier alone', () => {
+    const minimumDistance = 0.05;
+    const term = tiltedTerm(minimumDistance);
+    const heights = tiltedNodeHeights();
+    // Three DISTINCT node distances, so a rule that sampled one point — the
+    // centroid, say — would have to answer differently.
+    expect(new Set(heights).size).toBe(3);
+    const measure = evaluateSimplexSquaredMeasureN(
+      term.binding.vertices.map((vertex) => vertex.sourcePosition)
+    ).measure;
+    const psi = (coordinate: number): number => {
+      const component = evaluateClampedLogBarrierAtOrderN({
+        coordinate: coordinate - minimumDistance,
+        activation: 1 - minimumDistance,
+        stiffness: 3
+      }, 1).energy;
+      if (!component.available) throw new Error('test fixture: unavailable');
+      return component.value;
+    };
+    const expected = measure * heights.reduce(
+      (total, height) => total + psi(height) / 3, 0
+    );
+    const published = term.provider.evaluate().potentialEnergy;
+    expect(Math.abs(published - expected) / expected).toBeLessThan(1e-14);
+    // ...and it is NOT the centroid sample, which the same primitives give.
+    const centroid = measure * psi(
+      TILTED_HEIGHTS.reduce((total, height) => total + height, 0) / 3
+    );
+    expect(Math.abs(published - centroid) / published).toBeGreaterThan(1e-3);
+  });
+
+  it('certifies against the WORST node, not the average one', () => {
+    const minimumDistance = 0.05;
+    const term = tiltedTerm(minimumDistance);
+    const heights = tiltedNodeHeights();
+    const smallest = Math.min(...heights);
+    expect(smallest).toBeLessThan(
+      heights.reduce((total, height) => total + height, 0) / heights.length
+    );
+    const drop = 0.5;
+    const at = (t: number) => (particle: XpbdParticleN): VecN => {
+      const position = particle.position.clone();
+      position.data[1] -= drop * t;
+      return position;
+    };
+    const certificate = term.stepFilter.evaluate(contextFor(1, at(0), at(1)));
+    expect(certificate.status).toBe('limited');
+    if (certificate.status !== 'limited') return;
+    expect(certificate.maximumStepLength)
+      .toBeCloseTo(0.9 * (smallest - minimumDistance) / drop, 9);
+    expect(admissibleThroughout(term, at, certificate.maximumStepLength))
+      .toBe(true);
+    // Had it certified against the largest node instead, the prefix would
+    // reach well past the boundary — and the sampling sees that too.
+    const largest = Math.max(...heights);
+    expect(admissibleThroughout(
+      term, at, 0.9 * (largest - minimumDistance) / drop
+    )).toBe(false);
+  });
+});
+
+describe('the measure barrier: exact placement of its nodes', () => {
+  /**
+   * A cell whose vertices all share one coordinate has nodes that share it
+   * EXACTLY, because each node is evaluated as its own vertex plus a weighted
+   * sum of differences, and every difference in that coordinate is zero.
+   *
+   * The distinction is not decorative. Written as a raw weighted sum the same
+   * node would land at `(sum of coefficients) * h`, and at `k = 3` that sum is
+   * one ulp short of one because `1/5` has no Float64 — so the node would drift
+   * off the plane its own cell lies in. Here the whole energy is reproducible
+   * bit for bit from the released measure and barrier, which it could not be if
+   * two of the four nodes sat at a different distance from the rest.
+   */
+  it('places a hyperplanar cell\'s nodes exactly in its own hyperplane', () => {
+    const height = 1;
+    const cellSide = simplexComplex(4, [
+      0, height, 0, 0, 1, height, 0, 0,
+      0, height, 1, 0, 0, height, 0, 1
+    ]);
+    const obstacleSide = simplexComplex(4, [
+      -1024, 0, -1024, -1024, 3072, 0, -1024, -1024,
+      -1024, 0, 3072, -1024, -1024, 0, -1024, 3072
+    ]);
+    const binding = compileXpbdParticleBindingN({
+      id: 'cell', source: cellSide.complex
+    });
+    const published = compileXpbdSourceSimplexMeasureBarrierN({
+      id: 'measure-contact', binding, cell: cellSide.simplex,
+      obstacle: obstacleSide.simplex, activationDistance: 2, stiffness: 3,
+      maximumDirectionError: 1e-6
+    }).provider.evaluate().potentialEnergy;
+
+    const component = evaluateClampedLogBarrierAtOrderN(
+      { coordinate: height, activation: 2, stiffness: 3 }, 1
+    ).energy;
+    if (!component.available) throw new Error('test fixture: unavailable');
+    let summed = 0;
+    for (let node = 0; node < 4; node++) summed += component.value / 4;
+    expect(published).toBe(evaluateSimplexSquaredMeasureN(
+      binding.vertices.map((vertex) => vertex.sourcePosition)
+    ).measure * summed);
   });
 });

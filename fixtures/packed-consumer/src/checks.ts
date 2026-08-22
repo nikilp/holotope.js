@@ -79,6 +79,11 @@ import {
   type PointSimplexZeroResult,
   type PointSimplexZeroWitness,
   evaluateSourceSimplexPairDistanceN,
+  compileXpbdSourceSimplexMeasureBarrierN,
+  type CompileXpbdSourceSimplexMeasureBarrierNOptions,
+  type XpbdSourceSimplexMeasureBarrierDomainReasonN,
+  type XpbdSourceSimplexMeasureBarrierPublicationReasonN,
+  type XpbdSourceSimplexMeasureBarrierTermsN,
   type CompileXpbdSourceSimplexPairBarrierFamilyNOptions,
   type SourceSimplexPairDistanceN,
   type SourceSimplexPairDistanceOptionsN,
@@ -2507,3 +2512,90 @@ export function barrierInputSnapshot(): void {
 
 const describeFailures = (result: { readonly ok: boolean }): string =>
   JSON.stringify('failures' in result ? result.failures : null);
+
+/**
+ * Measure-weighted normal contact, composed the way an outside caller must.
+ *
+ * The claim under test is the one that distinguishes this law from a
+ * per-vertex barrier: a contact resists by the SIZE of the touching feature,
+ * not by how many vertices happen to describe it, so subdividing a cell must
+ * not change the energy. Both the published types and the refusal channel are
+ * annotated explicitly, so the packed declarations must carry each of them.
+ */
+export function measureWeightedContact(): void {
+  const floor = new CellComplex(3, Float64Array.from([
+    -40, 0, -40, 60, 0, -40, -40, 0, 60
+  ]), [{
+    dim: 2, verticesPerCell: 3, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2])
+  }]);
+  const obstacle = createSourceSimplexReferenceN(
+    createSourceCellReferenceN(floor, floor.groups[0]!, 0)
+  );
+
+  /** One segment cell, parallel to the floor, as its own compiled term. */
+  const segment = (from: number, to: number): XpbdSourceSimplexMeasureBarrierTermsN => {
+    const complex = new CellComplex(3, Float64Array.from([
+      from, 0.5, 0, to, 0.5, 0
+    ]), [{
+      dim: 1, verticesPerCell: 2, kind: 'simplex',
+      indices: Uint32Array.from([0, 1])
+    }]);
+    const options: CompileXpbdSourceSimplexMeasureBarrierNOptions = {
+      id: `contact-${from}`,
+      binding: compileXpbdParticleBindingN({
+        id: `sheet-${from}`, source: complex
+      }),
+      cell: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(complex, complex.groups[0]!, 0)
+      ),
+      obstacle,
+      minimumDistance: 0.05,
+      activationDistance: 1,
+      stiffness: 2,
+      maximumDirectionError: 1e-6
+    };
+    return compileXpbdSourceSimplexMeasureBarrierN(options);
+  };
+
+  const whole = segment(0, 1);
+  const energy = (terms: XpbdSourceSimplexMeasureBarrierTermsN): number =>
+    terms.provider.evaluate().potentialEnergy;
+  const refined = energy(segment(0, 0.5)) + energy(segment(0.5, 1));
+  assert(energy(whole) > 0, 'contact within the activation distance must resist');
+  assert(Math.abs(refined - energy(whole)) / energy(whole) < 1e-12,
+    'subdividing a cell must not change a measure-weighted contact energy');
+
+  // The provider registers as an ordinary conservative world term, and the
+  // paired filter as an ordinary admissible-step policy.
+  const world = new XpbdWorldN({ dimension: 3, gravity: [0, -9.81, 0] });
+  for (const particle of whole.provider.particles) world.addParticle(particle);
+  world.addForceProvider(whole.provider);
+  const advance = stepXpbdIncrementalPotentialWorldN({
+    world, deltaTime: 1 / 120, stepFilters: [whole.stepFilter],
+    warmStart: 'feasible-inertial-prediction'
+  });
+  assert(advance.step.status === 'applied',
+    'a measure-weighted contact term must drive a complete world step');
+
+  // The refusal channel is the released one, and it names this law.
+  let refusal: XpbdSourceSimplexMeasureBarrierDomainReasonN | undefined;
+  try {
+    whole.provider.evaluateAt((particle) => {
+      const position = particle.position.clone();
+      position.data[1] = 0;
+      return position;
+    });
+  } catch (error) {
+    if (!(error instanceof XpbdPotentialDomainErrorN)) throw error;
+    assert(error.lawId === 'contact-0', 'a refusal must name the term it came from');
+    refusal = error.reason as XpbdSourceSimplexMeasureBarrierDomainReasonN;
+  }
+  assert(refusal === 'zero-or-intersecting',
+    'a cell in the obstacle\'s own plane has no separating direction');
+  // The publication sub-union is nameable on its own, as its release is.
+  const publication: XpbdSourceSimplexMeasureBarrierPublicationReasonN =
+    'point-simplex-value-underflow';
+  assert(publication.startsWith('point-simplex-'),
+    'publication reasons stay distinguishable from measured-distance ones');
+}
