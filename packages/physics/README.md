@@ -185,17 +185,29 @@ reference, with the single-cell estimate about 28% below it; that is a
 measurement on a named fixture, and **no truncation bound is proved or
 claimed**. No portable timing or performance multiplier is claimed either.
 
-The quadrature rule is not authorable and is not reachable at runtime: the
-compiled terms are frozen and hold every non-authorable value in closure, so
-there is no rule option to pass and no rule, reference measure, obstacle
-snapshot or conservative scale property to overwrite. Closure alone is not the
-whole boundary — a keyless value is still handed to a caller-replaceable
-function whenever it is the receiver of an inherited operation, so persistent
-state here is read by index with counts carried separately, the static snapshot
-is a frozen dense number list, and every value passed to released code is built
-fresh for one call. The claim is not that a hostile same-realm consumer can
-observe nothing; it is that nothing it can capture will change a later
-evaluation. The companion filter is
+The quadrature rule is not authorable through the public API: the compiled
+terms are frozen and hold every non-authorable value in closure, so there is no
+rule option to pass and no rule, reference measure, obstacle snapshot or
+conservative scale property to overwrite.
+
+That is a statement about the public surface, and not a concealment claim.
+Same-realm JavaScript metaprogramming can observe
+otherwise-private arrays — numeric accessors installed on `Array.prototype`
+before compilation retain the static-obstacle snapshot, the fixed rule and a
+private particle partition, and a replaced inherited operation receives
+whatever is used as its receiver. What the law guarantees is a consequence
+boundary rather than concealment: those retained arrays are **frozen**, so once
+the intrinsic is restored they cannot be modified to change a later evaluation,
+and the per-call geometry handed to released code is freshly allocated, so
+retaining or mutating it changes nothing later either. Persistent state is read
+by index with counts carried separately, precisely so that reading it does not
+hand it to a replaceable function.
+
+The provider's published `particles` are **excluded from that guarantee by
+design**: they are the caller's own live inputs, and moving them changes later
+evaluations, which is the point of a contact term that reads live state.
+
+The companion filter is
 **required, not optional** — the law measures unsigned distance and has no
 notion of side, so without the filter a step can leap clean through the
 obstacle with both endpoints admissible. This is normal contact only; friction

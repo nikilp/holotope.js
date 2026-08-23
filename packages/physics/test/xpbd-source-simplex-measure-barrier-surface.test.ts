@@ -573,3 +573,118 @@ describe('the measure barrier: inherited-operation receivers', () => {
     expect(compiled.provider.evaluate().potentialEnergy).toBe(TILTED_CONTROL);
   });
 });
+
+/**
+ * The four public sites that state the runtime-reachability boundary.
+ *
+ * SCOPE: this gate is bound to these four files and to this one claim. It is
+ * deliberately NOT a repository-wide vocabulary detector — the refinement gate
+ * above already scans passages, and a second broad scanner would fire on
+ * unrelated prose and teach everyone to route around it. Adding a fifth claim
+ * site means adding it to this list.
+ *
+ * The claim these sites got wrong was absolute: that the rule or the law's
+ * non-authorable state is "not reachable at runtime". It is reachable.
+ * Installing semantics-preserving numeric accessors on `Array.prototype`
+ * before compilation retains the static-obstacle snapshot, the fixed rule and
+ * a private particle partition, because dense containers are built by indexed
+ * assignment into a fresh `Array(n)`. What is true is narrower and is what
+ * these sites must now say: none of it is a public property, option or API;
+ * the arrays a consumer can retain that way are frozen, so restoring the
+ * intrinsic and writing to them cannot change a later evaluation; and the
+ * published `particles` are excluded from that guarantee on purpose, because
+ * they are the caller's own live inputs.
+ */
+describe('the measure barrier: the runtime-reachability claim', () => {
+  const REACHABILITY_SITES: readonly string[] = [
+    'CHANGELOG.md',
+    'packages/physics/README.md',
+    'docs/learn/physics/deformable.md',
+    'packages/physics/src/xpbd-source-simplex-measure-barrier.ts'
+  ];
+
+  /** Wording that denies reachability outright, or over-generalises. */
+  const DENIALS: readonly [RegExp, string][] = [
+    [/not reachable at runtime/iu, 'denies runtime reachability outright'],
+    [/not reachable from a consumer/iu, 'denies reachability outright'],
+    [/no outward route/iu, 'denies that any route exists'],
+    [/no consumer can observe/iu, 'denies observability'],
+    [/cannot be observed/iu, 'denies observability'],
+    [/unobservable/iu, 'denies observability'],
+    [/observe nothing/iu, 'denies observability']
+  ];
+
+  /** The shorthand that is only true once the public particles are excluded. */
+  const SHORTHAND =
+    /nothing (?:it|a consumer|the consumer)[^.]{0,80}captur[^.]{0,120}later evaluation/iu;
+  const PARTICLE_EXCLUSION =
+    /particles[\s\S]{0,200}excluded|excluded[\s\S]{0,200}particles/iu;
+
+  /** Statements each site must carry for the boundary to be legible. */
+  const REQUIRED: readonly [RegExp, string][] = [
+    [/no (?:public )?(?:rule )?(?:property|option)|not authorable through the public api/iu,
+      'the no-public-property/option/API statement'],
+    [/frozen/iu, 'the frozen retained-reference consequence'],
+    [PARTICLE_EXCLUSION, 'the published-particle exclusion']
+  ];
+
+  /** Everything a passage says that it must not. Pure, so it calibrates. */
+  const violations = (text: string): string[] => {
+    const found: string[] = [];
+    for (const [pattern, why] of DENIALS) {
+      const hit = pattern.exec(text);
+      if (hit !== null) found.push(`"${hit[0]}" ${why}`);
+    }
+    const shorthand = SHORTHAND.exec(text);
+    if (shorthand !== null && !PARTICLE_EXCLUSION.test(text)) {
+      found.push(`"${shorthand[0]}" is unqualified: the published particles`
+        + ' are caller-owned live inputs and moving them does change later'
+        + ' evaluations');
+    }
+    return found;
+  };
+
+  it('CALIBRATION: rejects the absolute denials and accepts the scoped '
+    + 'statement', () => {
+    const corpus: readonly [string, string, boolean][] = [
+      ['absolute runtime denial',
+        'The quadrature rule is fixed and not reachable at runtime.', false],
+      ['observability denial',
+        'No consumer can observe private state.', false],
+      ['unqualified consequence shorthand',
+        'The claim is that nothing a consumer captures can change a later'
+        + ' evaluation.', false],
+      ['the intended scoped statement',
+        'The rule is not authorable through the public API. Same-realm'
+        + ' metaprogramming can observe otherwise-private arrays; they are'
+        + ' frozen, so after the intrinsic is restored they cannot be modified'
+        + ' to change a later evaluation. The published particles are'
+        + ' excluded from that guarantee by design.', true],
+      ['non-authorability alone',
+        'The rule is not authorable through the public API: no rule option is'
+        + ' accepted.', true],
+      ['the shorthand WITH its exclusion',
+        'Nothing a consumer captures can change a later evaluation, except the'
+        + ' published particles, which are excluded by design.', true]
+    ];
+    console.log('\nmeasure-barrier reachability-claim calibration');
+    for (const [label, passage, accepted] of corpus) {
+      const found = violations(passage);
+      console.log(`  ${found.length === 0 ? 'ACCEPT ' : 'REJECT '} ${label}`
+        + (found.length === 0 ? '' : `  <- ${found[0]!.slice(0, 72)}`));
+      expect(found.length === 0, label).toBe(accepted);
+    }
+  });
+
+  it('every site states the boundary and none of them denies reachability',
+    () => {
+    const repository = resolve(HERE, '../../..');
+    for (const site of REACHABILITY_SITES) {
+      const text = readFileSync(resolve(repository, site), 'utf8');
+      expect(violations(text), site).toEqual([]);
+      for (const [pattern, what] of REQUIRED) {
+        expect(pattern.test(text), `${site} is missing ${what}`).toBe(true);
+      }
+    }
+  });
+});

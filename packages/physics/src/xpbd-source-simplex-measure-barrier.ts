@@ -325,10 +325,32 @@ type FilterRefusalReasonN =
  * - the static snapshot is a FROZEN dense number list, so even a future route
  *   that reached it could not write to it.
  *
- * What is claimed is therefore not that hostile same-realm metaprogramming can
- * observe nothing. It can observe the ephemeral per-call geometry, and the
- * tests observe it deliberately. What is claimed is that **no object it can
- * capture will change a later evaluation**.
+ * ## What is and is not claimed
+ *
+ * Not concealment. Same-realm JavaScript metaprogramming CAN observe
+ * otherwise-private state, and two routes are known and measured: numeric
+ * accessors installed on `Array.prototype` before compilation retain the
+ * static-obstacle snapshot, the fixed rule and a private particle partition,
+ * because dense containers are built by indexed assignment into a fresh
+ * `Array(n)`; and a replaced inherited operation receives whatever is used as
+ * its receiver, which is how the ephemeral per-call geometry is seen. The
+ * tests exercise both deliberately.
+ *
+ * What IS claimed is a consequence boundary:
+ *
+ * - none of that state is exposed as a public property, option or API;
+ * - the otherwise-private arrays a consumer can retain this way are **frozen**,
+ *   so once the intrinsic is restored they cannot be modified to change a
+ *   later evaluation;
+ * - the per-call geometry is freshly allocated, so retaining or mutating it
+ *   cannot affect a later evaluation either.
+ *
+ * The provider's published `particles` are **excluded from that boundary by
+ * design**. They are the caller's own live inputs, deliberately public, and
+ * moving them changes later evaluations — which is precisely what a contact
+ * term reading live state is for. Any shorthand of the form "nothing a
+ * consumer captures can change a later evaluation" is false without that
+ * exclusion, and is not used.
  *
  * ## The law
  *
@@ -782,8 +804,13 @@ const OPTION_KEYS: readonly string[] = Object.freeze([
  * that the forces are its exact gradient, that the filter's Lipschitz bound
  * covers every node, that the term refuses as a whole — is a property of THIS
  * rule. Offering a knob would offer those guarantees on rules that have not
- * been measured. It is also not reachable at runtime: no rule is accepted and
- * no rule property exists to overwrite.
+ * been measured. It is **not authorable through the public API** either: no
+ * rule option is accepted and no rule property exists to overwrite.
+ *
+ * That is a statement about the public surface, not about observability. See
+ * the note on the assembled term below: same-realm metaprogramming can observe
+ * otherwise-private arrays, including the rule itself. They are frozen, so the
+ * guarantee is a consequence boundary rather than concealment.
  *
  * A successful evaluation carries exactly `potentialEnergy` and `forces`.
  * There is no inspection surface, and the companion `stepFilter` is required

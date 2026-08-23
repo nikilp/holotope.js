@@ -45,16 +45,24 @@ Additive. No released behaviour changes, and no version is bumped here.
 - **`maximumDirectionError` is required, with no default**, following the
   released point--simplex barrier: the exact query publishes a direction
   enclosure and no universal radius is right for every scene.
-- **The law's non-authorable state is not reachable from a consumer.** The
-  compiled terms are frozen objects carrying exactly the members the released
-  provider and filter interfaces require; everything else lives in closure.
-  Closure alone is not the whole boundary, because a keyless value is still
-  delivered to a caller-replaceable function whenever it is the receiver of an
-  inherited operation — so persistent state is read by index with counts
-  carried separately, the static obstacle snapshot is a frozen dense number
-  list, and every value handed to released code is built fresh for one call.
-  The claim is not that a hostile same-realm consumer can observe nothing; it
-  is that nothing it captures can change a later evaluation.
+- **The law's non-authorable state is exposed as no public property, option or
+  API.** The compiled terms are frozen objects carrying exactly the members the
+  released provider and filter interfaces require; everything else lives in
+  closure. There is no rule option to pass and no rule, reference measure,
+  obstacle snapshot or conservative scale property to overwrite.
+- **That is a statement about the public surface, not about observability.**
+  Same-realm JavaScript metaprogramming — numeric accessors installed on
+  `Array.prototype` before compilation, or a replaced inherited operation —
+  can observe otherwise-private arrays, including the static-obstacle snapshot,
+  the fixed rule and a private particle partition. Those arrays are frozen, so
+  once the intrinsic is restored they cannot be modified to change a later
+  evaluation. Ephemeral per-call geometry can be observed too, and retaining or
+  mutating it cannot affect later evaluations either. The guarantee is about
+  consequence, not concealment.
+- **The provider's published `particles` are excluded from that guarantee, by
+  design.** They are the caller's own live inputs, deliberately public, and
+  moving them changes later evaluations — that is what a contact term reading
+  live state is for.
 - **The paired step filter reads geometry only at the segment start.** The law
   measures unsigned distance and has no notion of side, so a segment can begin
   above the obstacle and end below it with both ends admissible; an endpoint
