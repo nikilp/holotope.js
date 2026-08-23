@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +8,12 @@ import {
   compileXpbdParticleBindingN,
   compileXpbdSourceSimplexMeasureBarrierN
 } from '../src/index.js';
+import {
+  checkReviewedBlock,
+  checkReviewedOrder,
+  findReviewedBlock,
+  type ReviewedClaimBlock
+} from './support/reviewed-claim-blocks.js';
 
 /**
  * What the measure-weighted contact term is allowed to BE, as opposed to what
@@ -575,116 +582,217 @@ describe('the measure barrier: inherited-operation receivers', () => {
 });
 
 /**
- * The four public sites that state the runtime-reachability boundary.
+ * The four independently reviewed privacy claims, preserved as text.
  *
- * SCOPE: this gate is bound to these four files and to this one claim. It is
- * deliberately NOT a repository-wide vocabulary detector — the refinement gate
- * above already scans passages, and a second broad scanner would fire on
- * unrelated prose and teach everyone to route around it. Adding a fifth claim
- * site means adding it to this list.
+ * ## Scope, stated plainly
  *
- * The claim these sites got wrong was absolute: that the rule or the law's
- * non-authorable state is "not reachable at runtime". It is reachable.
- * Installing semantics-preserving numeric accessors on `Array.prototype`
- * before compilation retains the static-obstacle snapshot, the fixed rule and
- * a private particle partition, because dense containers are built by indexed
- * assignment into a fresh `Array(n)`. What is true is narrower and is what
- * these sites must now say: none of it is a public property, option or API;
- * the arrays a consumer can retain that way are frozen, so restoring the
- * intrinsic and writing to them cannot change a later evaluation; and the
- * published `particles` are excluded from that guarantee on purpose, because
- * they are the caller's own live inputs.
+ * This gate preserves **four passages an independent reviewer read and
+ * accepted**. It does not infer the truth of English prose, here or anywhere
+ * else in the repository; it claims no synonym completeness, and it makes no
+ * statement about wording outside these blocks.
+ *
+ * Its predecessor tried to police vocabulary and failed in both directions at
+ * once. Measured against the real gate before it was replaced: nine of nine
+ * false synonyms passed ("unreachable at runtime", "invisible to a consumer",
+ * "structurally inaccessible", …); four of four TRUE scoped sentences failed,
+ * including "a closure variable has no descriptor, so it cannot be observed by
+ * `Reflect.ownKeys`"; the README's required exclusion clause was satisfied by
+ * an unrelated pre-existing sentence about a convergence residual, so deleting
+ * the real paragraph left the gate green; and the single semantic rule it
+ * carried was suppressed by matching anywhere in the same file, so the false
+ * shorthand could be injected into all four sites unnoticed.
+ *
+ * A regular expression cannot be taught the difference between a false claim
+ * and a true one. A hash can be taught the difference between reviewed text
+ * and something else. So a failure here means **"this differs from what was
+ * reviewed"** — never "this is false". Changing a reviewed claim is legitimate;
+ * it just has to go past a reviewer and re-pin, which is the point.
  */
-describe('the measure barrier: the runtime-reachability claim', () => {
-  const REACHABILITY_SITES: readonly string[] = [
-    'CHANGELOG.md',
-    'packages/physics/README.md',
-    'docs/learn/physics/deformable.md',
-    'packages/physics/src/xpbd-source-simplex-measure-barrier.ts'
-  ];
+describe('the measure barrier: the reviewed privacy claims', () => {
+  const PIN = JSON.parse(readFileSync(
+    resolve(HERE, 'fixtures/measure-barrier-reviewed-claims.json'), 'utf8')
+  ) as { readonly blocks: readonly ReviewedClaimBlock[] };
+  const REPOSITORY = resolve(HERE, '../../..');
+  const digest = (text: string): string =>
+    createHash('sha256').update(text).digest('hex');
+  const documentOf = (file: string): string =>
+    readFileSync(resolve(REPOSITORY, file), 'utf8');
+  const check = (
+    block: ReviewedClaimBlock, document: string
+  ): string | null => checkReviewedBlock(block, document, digest);
+  /** Content, and then the reviewed order among that file's blocks. */
+  const checkFile = (
+    block: ReviewedClaimBlock, document: string
+  ): string | null => check(block, document) ?? checkReviewedOrder(
+    PIN.blocks.filter((entry) => entry.file === block.file), document
+  );
 
-  /** Wording that denies reachability outright, or over-generalises. */
-  const DENIALS: readonly [RegExp, string][] = [
-    [/not reachable at runtime/iu, 'denies runtime reachability outright'],
-    [/not reachable from a consumer/iu, 'denies reachability outright'],
-    [/no outward route/iu, 'denies that any route exists'],
-    [/no consumer can observe/iu, 'denies observability'],
-    [/cannot be observed/iu, 'denies observability'],
-    [/unobservable/iu, 'denies observability'],
-    [/observe nothing/iu, 'denies observability']
-  ];
-
-  /** The shorthand that is only true once the public particles are excluded. */
-  const SHORTHAND =
-    /nothing (?:it|a consumer|the consumer)[^.]{0,80}captur[^.]{0,120}later evaluation/iu;
-  const PARTICLE_EXCLUSION =
-    /particles[\s\S]{0,200}excluded|excluded[\s\S]{0,200}particles/iu;
-
-  /** Statements each site must carry for the boundary to be legible. */
-  const REQUIRED: readonly [RegExp, string][] = [
-    [/no (?:public )?(?:rule )?(?:property|option)|not authorable through the public api/iu,
-      'the no-public-property/option/API statement'],
-    [/frozen/iu, 'the frozen retained-reference consequence'],
-    [PARTICLE_EXCLUSION, 'the published-particle exclusion']
-  ];
-
-  /** Everything a passage says that it must not. Pure, so it calibrates. */
-  const violations = (text: string): string[] => {
-    const found: string[] = [];
-    for (const [pattern, why] of DENIALS) {
-      const hit = pattern.exec(text);
-      if (hit !== null) found.push(`"${hit[0]}" ${why}`);
+  it('still carries every reviewed block, unchanged', () => {
+    console.log('\nmeasure-barrier reviewed claim blocks');
+    const failures: string[] = [];
+    for (const block of PIN.blocks) {
+      const failure = checkFile(block, documentOf(block.file));
+      console.log(`  ${failure === null ? 'intact ' : 'FAILED '}`
+        + `${block.id.padEnd(38)} ${block.kind.padEnd(18)}`
+        + `${block.sha256.slice(0, 12)}`);
+      if (failure !== null) failures.push(failure);
     }
-    const shorthand = SHORTHAND.exec(text);
-    if (shorthand !== null && !PARTICLE_EXCLUSION.test(text)) {
-      found.push(`"${shorthand[0]}" is unqualified: the published particles`
-        + ' are caller-owned live inputs and moving them does change later'
-        + ' evaluations');
-    }
-    return found;
-  };
-
-  it('CALIBRATION: rejects the absolute denials and accepts the scoped '
-    + 'statement', () => {
-    const corpus: readonly [string, string, boolean][] = [
-      ['absolute runtime denial',
-        'The quadrature rule is fixed and not reachable at runtime.', false],
-      ['observability denial',
-        'No consumer can observe private state.', false],
-      ['unqualified consequence shorthand',
-        'The claim is that nothing a consumer captures can change a later'
-        + ' evaluation.', false],
-      ['the intended scoped statement',
-        'The rule is not authorable through the public API. Same-realm'
-        + ' metaprogramming can observe otherwise-private arrays; they are'
-        + ' frozen, so after the intrinsic is restored they cannot be modified'
-        + ' to change a later evaluation. The published particles are'
-        + ' excluded from that guarantee by design.', true],
-      ['non-authorability alone',
-        'The rule is not authorable through the public API: no rule option is'
-        + ' accepted.', true],
-      ['the shorthand WITH its exclusion',
-        'Nothing a consumer captures can change a later evaluation, except the'
-        + ' published particles, which are excluded by design.', true]
-    ];
-    console.log('\nmeasure-barrier reachability-claim calibration');
-    for (const [label, passage, accepted] of corpus) {
-      const found = violations(passage);
-      console.log(`  ${found.length === 0 ? 'ACCEPT ' : 'REJECT '} ${label}`
-        + (found.length === 0 ? '' : `  <- ${found[0]!.slice(0, 72)}`));
-      expect(found.length === 0, label).toBe(accepted);
-    }
+    expect(failures).toEqual([]);
+    // Ten blocks: three statements at each of the three documents, and the
+    // exported JSDoc, which carries all three itself so the packed
+    // declaration does too.
+    expect(PIN.blocks).toHaveLength(10);
+    expect(new Set(PIN.blocks.map((block) => block.file)).size).toBe(4);
   });
 
-  it('every site states the boundary and none of them denies reachability',
-    () => {
-    const repository = resolve(HERE, '../../..');
-    for (const site of REACHABILITY_SITES) {
-      const text = readFileSync(resolve(repository, site), 'utf8');
-      expect(violations(text), site).toEqual([]);
-      for (const [pattern, what] of REQUIRED) {
-        expect(pattern.test(text), `${site} is missing ${what}`).toBe(true);
-      }
+  it('the exported JSDoc carries all three statements itself, so the packed '
+    + 'declaration does too', () => {
+    const block = PIN.blocks.find((entry) => entry.kind === 'jsdoc')!;
+    // Stated in the reviewed text rather than delegated to an internal note:
+    // a declaration file does not carry the documentation of a function it
+    // does not declare, so a pointer would ship as a pointer to nothing.
+    expect(block.text).toMatch(/not authorable through the public API/u);
+    expect(block.text).toMatch(
+      /cannot be modified after the intrinsic is restored/u);
+    expect(block.text).toMatch(/particles[^.]{0,160}excluded/u);
+    expect(block.text).not.toMatch(/note on the assembled term/u);
+    // And no direction word to get wrong, because nothing is pointed at.
+    expect(block.text).not.toMatch(/see the note[^.]*\b(?:above|below)\b/iu);
+  });
+
+  /**
+   * CALIBRATION.
+   *
+   * Every edit below is applied to an in-memory copy, so nothing on disk is
+   * touched. Each asserts only that the gate distinguishes reviewed text from
+   * something else — **not** that the edited prose is false. Several of the
+   * rejected passages are perfectly true sentences in the wrong place, and
+   * that is the intended behaviour of a preservation gate.
+   */
+  it('CALIBRATION: any change inside a reviewed block fails and names it, '
+    + 'while prose outside them does not', () => {
+    const byId = (id: string) =>
+      PIN.blocks.find((block) => block.id === id)!;
+    /** The block exactly as it appears on disk, wrapping and all. */
+    const raw = (block: ReviewedClaimBlock): string =>
+      findReviewedBlock(block.kind, documentOf(block.file), block.key)!.raw;
+    const rejected: [string, ReviewedClaimBlock, (text: string) => string][] = [
+      ...PIN.blocks.map((block) => [
+        `delete the block: ${block.id}`, block,
+        (text: string) => text.replace(raw(block), '')
+      ] as [string, ReviewedClaimBlock, (text: string) => string]),
+      ['delete only the README particle exclusion',
+        byId('readme/particle-exclusion'),
+        (text) => text.replace(raw(byId('readme/particle-exclusion')), '')],
+      ...(['changelog', 'readme', 'guide'] as const).map((site) => [
+        `insert the former false shorthand into ${site}`,
+        byId(`${site}/observation-and-consequence`),
+        (text: string) => text.replace(
+          raw(byId(`${site}/observation-and-consequence`)),
+          `${raw(byId(`${site}/observation-and-consequence`))} The claim is`
+          + ' that nothing a consumer captures can change a later evaluation.'
+        )
+      ] as [string, ReviewedClaimBlock, (text: string) => string]),
+      ['insert the former false shorthand into the exported JSDoc',
+        byId('jsdoc/compile-function'),
+        (text) => text.replace(
+          ' * A successful evaluation carries exactly `potentialEnergy`',
+          ' * The claim is that nothing a consumer captures can change a later'
+          + '\n * evaluation.\n *\n'
+          + ' * A successful evaluation carries exactly `potentialEnergy`'
+        )],
+      // A SENTENCE lifted out of a block and re-homed elsewhere in the same
+      // file. The block is mutilated where it stands, which is the thing that
+      // matters; the sentence still being present somewhere does not repair
+      // it. See the bound noted after this table about relocating a block
+      // whole.
+      ['move a required sentence elsewhere in the same file',
+        byId('readme/particle-exclusion'),
+        (text) => {
+          const block = raw(byId('readme/particle-exclusion'));
+          const sentence = 'they are the caller\'s own live inputs, and'
+            + ' moving them changes later\nevaluations, which is the point of'
+            + ' a contact term that reads live state.';
+          if (!block.includes(sentence)) {
+            throw new Error('calibration: the moved sentence is not in the block');
+          }
+          return `${text.replace(block, block.replace(sentence, ''))}`
+            + `\n\n${sentence}\n`;
+        }],
+      ['swap two claim blocks', byId('guide/no-public-surface'),
+        (text) => {
+          const first = raw(byId('guide/no-public-surface'));
+          const second = raw(byId('guide/particle-exclusion'));
+          return text.replace(first, '@@SWAP@@').replace(second, first)
+            .replace('@@SWAP@@', second);
+        }],
+      ['alter one material word', byId('readme/observation-and-consequence'),
+        (text) => text.replace('are **frozen**', 'are **mutable**')]
+    ];
+    console.log('\nreviewed-claim-block calibration');
+    for (const [label, block, edit] of rejected) {
+      const edited = edit(documentOf(block.file));
+      expect(edited, `${label}: the edit did not apply`)
+        .not.toBe(documentOf(block.file));
+      const failure = checkFile(block, edited);
+      console.log(`  FAIL   ${label.slice(0, 62).padEnd(62)}`
+        + ` ${failure === null ? '(NOT CAUGHT)'
+          : failure.split(' :: ')[2] ?? ''}`);
+      expect(failure, label).not.toBeNull();
+      // The report leads with the file and a block, not just "something
+      // changed". A content failure names the block that was edited; an ORDER
+      // failure names the block that now sits out of sequence, which for a
+      // swap is its partner — either way the reviewer is pointed at the right
+      // file and at a block by name.
+      expect(failure!, label).toContain(block.file);
+      expect(
+        PIN.blocks.filter((entry) => entry.file === block.file)
+          .map((entry) => entry.id)
+          .some((id) => failure!.includes(id)), label
+      ).toBe(true);
+    }
+
+    const accepted: [string, (text: string) => string][] = [
+      ['retain the approved true `Reflect.ownKeys` sentence', (text) => text],
+      ['add unrelated true prose after every reviewed block',
+        (text) => `${text}\n\nA closure variable has no descriptor, so it`
+          + ' cannot be observed by `Reflect.ownKeys`. The rule is'
+          + ' unobservable through property reflection alone.\n'],
+      ['re-wrap a reviewed block without changing a word',
+        (text) => text.replace(/\n/gu, '\n')]
+    ];
+    for (const [label, edit] of accepted) {
+      const failures = PIN.blocks.filter((block) =>
+        checkFile(block, edit(documentOf(block.file))) !== null);
+      console.log(`  ACCEPT ${label.slice(0, 62).padEnd(62)}`
+        + ` ${failures.length} block(s) disturbed`);
+      expect(failures.map((block) => block.id), label).toEqual([]);
+    }
+    // The sentence the predecessor rejected is true, is in the source, and is
+    // outside every reviewed block — so it survives, which it must.
+    const law = documentOf(
+      'packages/physics/src/xpbd-source-simplex-measure-barrier.ts');
+    expect(law).toMatch(/`Reflect\.ownKeys`[\s\S]{0,80}cannot see it/u);
+
+    // Relocating a reviewed block INTACT is caught by order, not by content.
+    const readme = documentOf('packages/physics/README.md');
+    const exclusion = raw(byId('readme/particle-exclusion'));
+    const relocated = `${exclusion}\n\n${readme.replace(exclusion, '')}`;
+    expect(checkFile(byId('readme/particle-exclusion'), relocated))
+      .not.toBeNull();
+
+    // A STATED BOUND. Order is checked RELATIVE to the other reviewed blocks,
+    // never as an absolute ordinal, so adding an unrelated sibling above them
+    // — an ordinary changelog bullet, an ordinary table row — does not fail.
+    const changelog = documentOf('CHANGELOG.md');
+    const withSibling = changelog.replace(
+      raw(byId('changelog/no-public-surface')),
+      `- **An unrelated new bullet.** Added above the reviewed run.\n${
+        raw(byId('changelog/no-public-surface'))}`
+    );
+    expect(withSibling).not.toBe(changelog);
+    for (const block of PIN.blocks.filter((b) => b.file === 'CHANGELOG.md')) {
+      expect(checkFile(block, withSibling), block.id).toBeNull();
     }
   });
 });

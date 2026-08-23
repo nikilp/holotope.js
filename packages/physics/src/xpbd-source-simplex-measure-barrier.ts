@@ -807,10 +807,28 @@ const OPTION_KEYS: readonly string[] = Object.freeze([
  * been measured. It is **not authorable through the public API** either: no
  * rule option is accepted and no rule property exists to overwrite.
  *
- * That is a statement about the public surface, not about observability. See
- * the note on the assembled term below: same-realm metaprogramming can observe
- * otherwise-private arrays, including the rule itself. They are frozen, so the
- * guarantee is a consequence boundary rather than concealment.
+ * ## The privacy boundary, stated here in full
+ *
+ * These three statements travel with this declaration — into the emitted
+ * JavaScript and into the packed `.d.ts` — rather than pointing at a note on
+ * an internal function, which a declaration file does not carry.
+ *
+ * 1. **No private rule, snapshot or numerical policy is exposed as a public
+ *    property, option or API.** There is no rule option to pass, and no rule,
+ *    reference measure, obstacle snapshot or conservative scale property to
+ *    overwrite.
+ * 2. **Same-realm metaprogramming may observe frozen otherwise-private objects
+ *    and ephemeral per-call objects** — numeric accessors installed on
+ *    `Array.prototype` before compilation retain the static-obstacle snapshot,
+ *    the fixed rule and a private particle partition, and a replaced inherited
+ *    operation receives whatever is used as its receiver. A retained
+ *    otherwise-private object **cannot be modified after the intrinsic is
+ *    restored to affect a later clean evaluation**: those arrays are frozen,
+ *    and the per-call geometry is freshly allocated. This is a consequence
+ *    boundary, not concealment.
+ * 3. **The published `particles` are intentionally public, caller-owned live
+ *    inputs and are excluded from that guarantee.** Moving them changes later
+ *    evaluations, which is what a contact term reading live state is for.
  *
  * A successful evaluation carries exactly `potentialEnergy` and `forces`.
  * There is no inspection surface, and the companion `stepFilter` is required

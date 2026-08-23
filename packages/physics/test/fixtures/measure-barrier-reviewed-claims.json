@@ -1,0 +1,85 @@
+{
+  "reviewedAt": "f5b303f + C4 Part B",
+  "blocks": [
+    {
+      "id": "changelog/no-public-surface",
+      "file": "CHANGELOG.md",
+      "kind": "changelog-bullet",
+      "key": "The law's non-authorable state is exposed as no public property, option or API.",
+      "sha256": "0a652735c9d12c9ea110c732c261654237b106f58f292610d257b0bb834191fa",
+      "text": "- **The law's non-authorable state is exposed as no public property, option or API.** The compiled terms are frozen objects carrying exactly the members the released provider and filter interfaces require; everything else lives in closure. There is no rule option to pass and no rule, reference measure, obstacle snapshot or conservative scale property to overwrite."
+    },
+    {
+      "id": "changelog/observation-and-consequence",
+      "file": "CHANGELOG.md",
+      "kind": "changelog-bullet",
+      "key": "That is a statement about the public surface, not about observability.",
+      "sha256": "e866cf1613d61bbcb1382df232d4e55ea2e4cfdaf164a1d1195cc6e7f8f2b594",
+      "text": "- **That is a statement about the public surface, not about observability.** Same-realm JavaScript metaprogramming — numeric accessors installed on `Array.prototype` before compilation, or a replaced inherited operation — can observe otherwise-private arrays, including the static-obstacle snapshot, the fixed rule and a private particle partition. Those arrays are frozen, so once the intrinsic is restored they cannot be modified to change a later evaluation. Ephemeral per-call geometry can be observed too, and retaining or mutating it cannot affect later evaluations either. The guarantee is about consequence, not concealment."
+    },
+    {
+      "id": "changelog/particle-exclusion",
+      "file": "CHANGELOG.md",
+      "kind": "changelog-bullet",
+      "key": "The provider's published `particles` are excluded from that guarantee, by design.",
+      "sha256": "34cdafc1c302ff827b5a28c873c2b4760ab66c2233bc5fa2a627e33657d61e33",
+      "text": "- **The provider's published `particles` are excluded from that guarantee, by design.** They are the caller's own live inputs, deliberately public, and moving them changes later evaluations — that is what a contact term reading live state is for."
+    },
+    {
+      "id": "readme/no-public-surface",
+      "file": "packages/physics/README.md",
+      "kind": "readme-paragraph",
+      "key": "The quadrature rule is not authorable through the public API:",
+      "sha256": "fc132e8d036cebd780871391f1ede89624d6e85218b50e23c022a305065f7f2b",
+      "text": "The quadrature rule is not authorable through the public API: the compiled terms are frozen and hold every non-authorable value in closure, so there is no rule option to pass and no rule, reference measure, obstacle snapshot or conservative scale property to overwrite."
+    },
+    {
+      "id": "readme/observation-and-consequence",
+      "file": "packages/physics/README.md",
+      "kind": "readme-paragraph",
+      "key": "That is a statement about the public surface, and not a concealment claim.",
+      "sha256": "86f7ec1540942b54e62f54b2ce18a0c5062f802ffcbe45005cbb919dbf2f9195",
+      "text": "That is a statement about the public surface, and not a concealment claim. Same-realm JavaScript metaprogramming can observe otherwise-private arrays — numeric accessors installed on `Array.prototype` before compilation retain the static-obstacle snapshot, the fixed rule and a private particle partition, and a replaced inherited operation receives whatever is used as its receiver. What the law guarantees is a consequence boundary rather than concealment: those retained arrays are **frozen**, so once the intrinsic is restored they cannot be modified to change a later evaluation, and the per-call geometry handed to released code is freshly allocated, so retaining or mutating it changes nothing later either. Persistent state is read by index with counts carried separately, precisely so that reading it does not hand it to a replaceable function."
+    },
+    {
+      "id": "readme/particle-exclusion",
+      "file": "packages/physics/README.md",
+      "kind": "readme-paragraph",
+      "key": "The provider's published `particles` are **excluded from that guarantee by design**:",
+      "sha256": "b64ea8ad87e3b62ae8b371ba5fab44db89980ae162b25492fc3f9ae87f9136ec",
+      "text": "The provider's published `particles` are **excluded from that guarantee by design**: they are the caller's own live inputs, and moving them changes later evaluations, which is the point of a contact term that reads live state."
+    },
+    {
+      "id": "guide/no-public-surface",
+      "file": "docs/learn/physics/deformable.md",
+      "kind": "guide-table-row",
+      "key": "the quadrature",
+      "sha256": "1e3d9482b31c999d4789250d51c92d8a2d8d15853e5d2c1e75cf5c967d14b3d5",
+      "text": "| the quadrature | fixed, and **not authorable through the public API** — the compiled terms are frozen and hold every non-authorable value in closure, so there is no rule option and no rule property |"
+    },
+    {
+      "id": "guide/observation-and-consequence",
+      "file": "docs/learn/physics/deformable.md",
+      "kind": "guide-table-row",
+      "key": "runtime privacy",
+      "sha256": "161090fc7623fe906f7a654795ac65470161261ea4d37fb1e5a4ef14808daf7b",
+      "text": "| runtime privacy | a public-surface statement, not a concealment claim. Same-realm metaprogramming *can* observe otherwise-private arrays — the static-obstacle snapshot, the fixed rule, a private particle partition — during construction or through inherited dispatch. Those arrays are **frozen**, so after the intrinsic is restored they cannot be modified to change a later evaluation; ephemeral per-call geometry can be observed too, and retaining or mutating it changes nothing later |"
+    },
+    {
+      "id": "guide/particle-exclusion",
+      "file": "docs/learn/physics/deformable.md",
+      "kind": "guide-table-row",
+      "key": "the published `particles`",
+      "sha256": "57057567dd616bf8396a5ba8149f757645ebf76f6718c2a576869d75865b4bdf",
+      "text": "| the published `particles` | **excluded from that guarantee by design** — they are the caller's own live inputs, and moving them changes later evaluations, which is what a contact term reading live state is for |"
+    },
+    {
+      "id": "jsdoc/compile-function",
+      "file": "packages/physics/src/xpbd-source-simplex-measure-barrier.ts",
+      "kind": "jsdoc",
+      "key": "compileXpbdSourceSimplexMeasureBarrierN",
+      "sha256": "2e35af8206ad76697af1ff282b4e22061aa7c5f71d81d3ee6ae0197cb7c394a5",
+      "text": "Compiles one measure-weighted normal-contact term for the released world. The energy is the cell's reference k-measure times the fixed-rule average of a clamped logarithmic barrier on each node's exact distance to the obstacle. It is a **measure-consistent fixed quadrature**: what it buys over a per-vertex barrier is that the contact resists by the SIZE of the touching feature rather than by the number of vertices describing it, so splitting a cell in two does not answer twice. ## What that does and does not mean under subdivision Removing direct cell-count multiplication is not the same as being invariant under subdivision, and the two must not be conflated: - **Constant integrand** — when the barrier is constant over the cell, as it is for a cell parallel to a flat obstacle, subdivision is exactly additive up to Float64 reduction. - **General nonconstant integrand** — subdivision moves the sample locations, so a fixed finite rule normally returns a different estimate. Measured on two legal refinements of the same source region: a tilted cell split in half changes by about 27%, and an uneven split of a curved arrangement by about 44%. - **Convergence** — the refinement sequence approaches the continuum integral. Measured against an independent composite Gauss--Legendre reference built from the released query and barrier, the error falls at second order in the cell size on that fixture, with the single-cell estimate about 28% below the continuum value. That is a measurement on a named fixture; **no truncation bound is proved and none is claimed**. Supported source dimensions are `k = 1, 2, 3`, the range over which the exact point--simplex query publishes a direction enclosure. The quadrature is fixed and not authorable. A caller-supplied rule would make the energy a function of the rule, and every stated property here — that the forces are its exact gradient, that the filter's Lipschitz bound covers every node, that the term refuses as a whole — is a property of THIS rule. Offering a knob would offer those guarantees on rules that have not been measured. It is **not authorable through the public API** either: no rule option is accepted and no rule property exists to overwrite. ## The privacy boundary, stated here in full These three statements travel with this declaration — into the emitted JavaScript and into the packed `.d.ts` — rather than pointing at a note on an internal function, which a declaration file does not carry. 1. **No private rule, snapshot or numerical policy is exposed as a public property, option or API.** There is no rule option to pass, and no rule, reference measure, obstacle snapshot or conservative scale property to overwrite. 2. **Same-realm metaprogramming may observe frozen otherwise-private objects and ephemeral per-call objects** — numeric accessors installed on `Array.prototype` before compilation retain the static-obstacle snapshot, the fixed rule and a private particle partition, and a replaced inherited operation receives whatever is used as its receiver. A retained otherwise-private object **cannot be modified after the intrinsic is restored to affect a later clean evaluation**: those arrays are frozen, and the per-call geometry is freshly allocated. This is a consequence boundary, not concealment. 3. **The published `particles` are intentionally public, caller-owned live inputs and are excluded from that guarantee.** Moving them changes later evaluations, which is what a contact term reading live state is for. A successful evaluation carries exactly `potentialEnergy` and `forces`. There is no inspection surface, and the companion `stepFilter` is required rather than optional — without it, nothing prevents a step from leaping through the obstacle, because the law measures unsigned distance and has no notion of side. @example A strip above a floor triangle at CONSTANT distance, and the same strip subdivided. Here — and only because the sampled barrier is constant along the cell — subdivision is exactly additive. Tilt the strip and the two answers differ, because a fixed finite rule samples different places. ```ts const floor = new CellComplex(3, Float64Array.from([ -40, 0, -40, 60, 0, -40, -40, 0, 60 ]), [{ dim: 2, verticesPerCell: 3, kind: 'simplex', indices: Uint32Array.from([0, 1, 2]) }]); const floorGroup = floor.groups[0]; if (floorGroup === undefined) throw new Error('expected the floor group'); const obstacle = createSourceSimplexReferenceN( createSourceCellReferenceN(floor, floorGroup, 0) ); const energies = [[0, 1], [0, 0.5], [0.5, 1]].map(([from, to]) => { const strip = new CellComplex(3, Float64Array.from([ from, 0.5, 0, to, 0.5, 0 ]), [{ dim: 1, verticesPerCell: 2, kind: 'simplex', indices: Uint32Array.from([0, 1]) }]); const stripGroup = strip.groups[0]; if (stripGroup === undefined) throw new Error('expected the strip group'); const terms = compileXpbdSourceSimplexMeasureBarrierN({ id: `contact-${from}`, binding: compileXpbdParticleBindingN({ id: `strip-${from}`, source: strip }), cell: createSourceSimplexReferenceN( createSourceCellReferenceN(strip, stripGroup, 0) ), obstacle, minimumDistance: 0.05, activationDistance: 1, stiffness: 2, maximumDirectionError: 1e-6 }); return terms.provider.evaluate().potentialEnergy; }); const [whole, left, right] = energies; if (whole === undefined || left === undefined || right === undefined) { throw new Error('expected three energies'); } log('one cell ', whole); log('two cells', left + right); // the same number, for a CONSTANT barrier ``` @param options Term identity, geometry, and barrier policy. @returns The provider and the step filter that are only sound together. @throws Error For any authored input outside the declared domain — including a rest-degenerate cell, a rank-deficient static obstacle, and an obstacle binding contributing a particle that is not kinematic. These are configuration errors and no candidate retry can fix them."
+    }
+  ]
+}
