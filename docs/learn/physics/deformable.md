@@ -733,8 +733,10 @@ the barrier over a fixed set of interior nodes:
 E(q) = mu0 * sum_j w_j * psi(d_j(q) - dmin)
 ```
 
-Subdividing a cell splits `mu0` between the halves, so the same contact
-publishes the same energy however finely it is meshed:
+Splitting a cell splits `mu0` between the halves, so two cells do not answer
+twice for one contact. When the sampled barrier is **constant** along the cell
+— as it is for a strip parallel to a flat obstacle — subdivision is exactly
+additive:
 
 ```ts
 import {
@@ -779,9 +781,33 @@ function energyOf(from: number, to: number): number {
   return provider.evaluate().potentialEnergy;
 }
 
-// One cell, or the two that subdivide it: the same number.
+// One cell, or the two that subdivide it: the same number — for this
+// constant-distance arrangement, and because of it.
 console.log(energyOf(0, 1), energyOf(0, 0.5) + energyOf(0.5, 1));
 ```
+
+### Subdivision is not invariance
+
+That calibration is easy to over-read, so state the boundary plainly. The
+integrand is a nonlinear barrier of a distance field, integrated by a **fixed
+finite quadrature**. Subdivision moves the sample locations, so it normally
+changes the estimate. Three separate facts:
+
+| | |
+|---|---|
+| **Constant integrand** | subdivision is exactly additive, up to Float64 reduction — the case above |
+| **General nonconstant integrand** | subdivision changes the estimate: a tilted cell split into two equal subcells moves by **≈27%**, an uneven split of a curved arrangement by **≈44%** |
+| **Convergence** | the refinement sequence approaches the continuum integral — measured at **second order** in the cell size against an independent composite Gauss–Legendre reference, with the single-cell estimate ≈28% *below* the continuum value |
+
+The third row is a **measurement on a named fixture**, not a bound. No
+truncation estimate is proved for this rule and none is claimed. If a scene
+needs a converged contact integral rather than a consistent one, refine the
+source mesh and measure — the sequence is what tells you where you are.
+
+What reference-measure weighting *does* remove is direct cell-count
+multiplication: the released pair family carries one term per source cell, so
+four cells under one contact carry four terms, while this law carries the
+measure once. Neither statement implies exact invariance under remeshing.
 
 Four things about that call are deliberate.
 
@@ -835,6 +861,20 @@ const advance = stepXpbdIncrementalPotentialWorldN({
 });
 console.log(advance.step.status);
 ```
+
+### What this term claims, and what it does not
+
+| | |
+|---|---|
+| supported source dimensions | `k = 1, 2, 3` — the range over which the exact point–simplex query publishes a direction enclosure |
+| successful evaluation | exactly `potentialEnergy` and `forces`; no inspection surface and no Layer-2 record exists |
+| the quadrature | fixed, not authorable, and not reachable at runtime — the compiled terms are frozen and hold every non-authorable value in closure |
+| truncation | none proved and none claimed; convergence is a measurement on a named fixture |
+| subdivision | generally changes the sampling and may change the energy |
+| the companion filter | **required**, not optional — see the unsigned-distance argument above |
+| `newton-cg` | this term supplies the first-derivative seam only, so a Newton-CG search without a fallback terminates as `direction-refused`; the default first-order path and an authored fallback both drive it |
+| scope | **normal contact only** — friction is the separate lagged pair-friction term |
+| performance | no portable timing or performance multiplier is claimed |
 
 A moving obstacle is supported through `obstacleBinding`, and every particle it
 contributes must be kinematic (`inverseMass === 0`). The reaction on those

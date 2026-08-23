@@ -46,7 +46,7 @@ describe('the measure barrier: the standing mutation matrix', () => {
         + `applied=${row.applied} reached=${row.reached} `
         + `killed=${row.killed} restored=${row.restored} `
         + `(${row.testsFailed}/${row.testsRun})`).join('\n'));
-    expect(MATRIX.results.length).toBe(22);
+    expect(MATRIX.results.length).toBe(30);
     expect(MATRIX.gateFiles).toEqual([
       'packages/physics/test/xpbd-source-simplex-measure-barrier.test.ts',
       'packages/physics/test/xpbd-source-simplex-measure-barrier-surface.test.ts'
@@ -60,7 +60,11 @@ describe('the measure barrier: the standing mutation matrix', () => {
       expect(row.killed, `${row.id}: SURVIVED`).toBe(true);
       expect(row.restored, `${row.id}: not byte-identical after`).toBe(true);
       expect(row.testsFailed, row.id).toBeGreaterThan(0);
-      expect(row.file).toBe('src/xpbd-source-simplex-measure-barrier.ts');
+      expect([
+        'src/xpbd-source-simplex-measure-barrier.ts',
+        '../../docs/learn/physics/deformable.md',
+        '../../fixtures/packed-consumer/src/checks.ts'
+      ], row.id).toContain(row.file);
     }
   });
 
@@ -85,7 +89,20 @@ describe('the measure barrier: the standing mutation matrix', () => {
       'two endpoints',
       'conservative scale',
       'largest node margin',
-      'unknown-option check'
+      'unknown-option check',
+      // The runtime-privacy and claim-language shapes. An earlier matrix was
+      // 22 of 22 green and missed every one of these, which is why a matrix
+      // is only ever evidence about the defects it contains: the packed
+      // objects were fully mutable, and the documentation asserted an
+      // invariance the law does not have.
+      'expose the fixed rule',
+      'expose the reference measure',
+      'expose the static-obstacle',
+      'expose the conservative scale',
+      'expose the provider through the filter',
+      'stop freezing',
+      'restore the general refinement-invariance wording',
+      'restore the packed-consumer general-invariance assertion'
     ]) {
       expect(ids.some((id) => id.includes(required)),
         `missing mutation: ${required}`).toBe(true);

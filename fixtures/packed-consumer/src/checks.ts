@@ -2518,9 +2518,13 @@ const describeFailures = (result: { readonly ok: boolean }): string =>
  *
  * The claim under test is the one that distinguishes this law from a
  * per-vertex barrier: a contact resists by the SIZE of the touching feature,
- * not by how many vertices happen to describe it, so subdividing a cell must
- * not change the energy. Both the published types and the refusal channel are
- * annotated explicitly, so the packed declarations must carry each of them.
+ * not by how many vertices happen to describe it, so splitting a cell does not
+ * answer twice. The fixture below is at CONSTANT distance, which is the case
+ * where subdivision is exactly additive — for a nonconstant integrand a fixed
+ * finite quadrature samples different places and the estimate moves, and this
+ * check asserts that too rather than implying the opposite. Both the published
+ * types and the refusal channel are annotated explicitly, so the packed
+ * declarations must carry each of them.
  */
 export function measureWeightedContact(): void {
   const floor = new CellComplex(3, Float64Array.from([
@@ -2564,7 +2568,31 @@ export function measureWeightedContact(): void {
   const refined = energy(segment(0, 0.5)) + energy(segment(0.5, 1));
   assert(energy(whole) > 0, 'contact within the activation distance must resist');
   assert(Math.abs(refined - energy(whole)) / energy(whole) < 1e-12,
-    'subdividing a cell must not change a measure-weighted contact energy');
+    'a CONSTANT-distance cell must be exactly additive under subdivision');
+
+  // ...and the general case, so this check cannot be read as invariance. A
+  // tilted cell samples different distances once it is split, and the fixed
+  // rule returns a materially different estimate.
+  const tilted = (from: readonly number[], to: readonly number[]): number => {
+    const complex = new CellComplex(3, Float64Array.from([...from, ...to]), [{
+      dim: 1, verticesPerCell: 2, kind: 'simplex',
+      indices: Uint32Array.from([0, 1])
+    }]);
+    const id = `tilted-${from[0]}-${from[1]}`;
+    return compileXpbdSourceSimplexMeasureBarrierN({
+      id, binding: compileXpbdParticleBindingN({ id, source: complex }),
+      cell: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(complex, complex.groups[0]!, 0)
+      ),
+      obstacle, minimumDistance: 0.05, activationDistance: 1, stiffness: 2,
+      maximumDirectionError: 1e-6
+    }).provider.evaluate().potentialEnergy;
+  };
+  const oneCell = tilted([0, 0.2, 0], [1, 0.8, 0]);
+  const twoCells = tilted([0, 0.2, 0], [0.5, 0.5, 0])
+    + tilted([0.5, 0.5, 0], [1, 0.8, 0]);
+  assert(Math.abs((twoCells - oneCell) / oneCell - 0.27005799281125603) < 1e-12,
+    'the tilted refinement must move the estimate by the measured 27.0%');
 
   // The provider registers as an ordinary conservative world term, and the
   // paired filter as an ordinary admissible-step policy.
@@ -2598,4 +2626,198 @@ export function measureWeightedContact(): void {
     'point-simplex-value-underflow';
   assert(publication.startsWith('point-simplex-'),
     'publication reasons stay distinguishable from measured-distance ones');
+}
+
+/**
+ * Runtime privacy of the measure-weighted contact term, in erased JavaScript.
+ *
+ * This is the check the declaration lane structurally cannot make. TypeScript
+ * `private` is an annotation: it erases, and against the first implementation's
+ * packed artifacts an ordinary consumer could replace the non-authorable rule
+ * (energy −16.4%), obtain and mutate the internal static-obstacle snapshot
+ * (energy +88.2%), and set `filter.conservativeScale = 1.2` — moving the
+ * certificate from `0.405` to `0.54` and covering a placement the law itself
+ * refuses. The last one is a safety defect, not an encapsulation preference,
+ * which is why this runs here, against the tarballs, and not only in a test.
+ *
+ * Closure captures are not claimed to be inspectable. What is established is
+ * the absence of any outward route: no key, no symbol, no descriptor, no
+ * getter, no prototype member, and nothing recoverable by copying.
+ */
+export function measureContactRuntimePrivacy(): void {
+  const floor = new CellComplex(3, Float64Array.from([
+    -40, 0, -40, 60, 0, -40, -40, 0, 60
+  ]), [{
+    dim: 2, verticesPerCell: 3, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2])
+  }]);
+  const obstacle = createSourceSimplexReferenceN(
+    createSourceCellReferenceN(floor, floor.groups[0]!, 0)
+  );
+  let serial = 0;
+  const build = (
+    from: readonly number[], to: readonly number[]
+  ): XpbdSourceSimplexMeasureBarrierTermsN => {
+    const complex = new CellComplex(3, Float64Array.from([...from, ...to]), [{
+      dim: 1, verticesPerCell: 2, kind: 'simplex',
+      indices: Uint32Array.from([0, 1])
+    }]);
+    const id = `privacy-${serial++}`;
+    return compileXpbdSourceSimplexMeasureBarrierN({
+      id, binding: compileXpbdParticleBindingN({ id, source: complex }),
+      cell: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(complex, complex.groups[0]!, 0)
+      ),
+      obstacle, minimumDistance: 0.05, activationDistance: 1, stiffness: 2,
+      maximumDirectionError: 1e-6
+    });
+  };
+  // The tilted fixture the review used, whose energy the attacks moved.
+  const TILTED_A = [0, 0.2, 0];
+  const TILTED_B = [1, 0.8, 0];
+  const control = build(TILTED_A, TILTED_B).provider.evaluate().potentialEnergy;
+
+  // --- what is reachable at all -------------------------------------------
+  const { provider, stepFilter } = build(TILTED_A, TILTED_B);
+  const providerKeys = Reflect.ownKeys(provider).map(String).sort().join(',');
+  const filterKeys = Reflect.ownKeys(stepFilter).map(String).sort().join(',');
+  assert(providerKeys === 'dimension,evaluate,evaluateAt,id,particles',
+    `provider exposes exactly the released members, got: ${providerKeys}`);
+  assert(filterKeys === 'dimension,evaluate,id,particles',
+    `filter exposes exactly the released members, got: ${filterKeys}`);
+  for (const exposed of [provider, stepFilter] as unknown as object[]) {
+    assert(Object.isFrozen(exposed), 'exposed instances must be frozen');
+    assert(!Object.isExtensible(exposed), 'exposed instances must be sealed');
+    assert(Object.getPrototypeOf(exposed) === Object.prototype,
+      'exposed instances must carry no class prototype');
+    assert(Object.getOwnPropertySymbols(exposed).length === 0,
+      'exposed instances must carry no symbol keys');
+    for (const key of Reflect.ownKeys(exposed)) {
+      const descriptor = Object.getOwnPropertyDescriptor(exposed, key)!;
+      assert(descriptor.writable === false,
+        `${String(key)} must be non-writable`);
+      assert(descriptor.configurable === false,
+        `${String(key)} must be non-configurable`);
+      assert(descriptor.get === undefined,
+        `${String(key)} must not be a getter`);
+    }
+    const copied = Object.keys({ ...exposed }).sort().join(',');
+    assert(copied === Object.keys(exposed).sort().join(','),
+      'a spread copy must not recover more than the original');
+    const serialized = JSON.stringify(exposed) ?? '';
+    for (const secret of ['rule', 'referenceMeasure', 'staticObstacle',
+      'conservativeScale', 'provider', 'cellParticles', 'stiffness']) {
+      assert(!(secret in (exposed as Record<string, unknown>)),
+        `${secret} must not be reachable on an exposed instance`);
+      assert(!serialized.includes(`"${secret}"`),
+        `${secret} must not survive serialization`);
+    }
+  }
+  assert(Object.isFrozen(provider.particles),
+    'the exposed particle container must be frozen');
+
+  // --- the eight named attacks --------------------------------------------
+  const attacks: readonly [string, (t: XpbdSourceSimplexMeasureBarrierTermsN)
+    => void][] = [
+    ['provider.rule', (t) => {
+      (t.provider as unknown as Record<string, unknown>).rule =
+        [{ ownSlot: 0, coefficients: [0.5, 0.5], weight: 1 }];
+    }],
+    ['provider.referenceMeasure', (t) => {
+      (t.provider as unknown as Record<string, unknown>).referenceMeasure = 1e9;
+    }],
+    ['provider.staticObstacle', (t) => {
+      (t.provider as unknown as Record<string, unknown>).staticObstacle =
+        new Float64Array(9);
+    }],
+    ['filter.conservativeScale', (t) => {
+      (t.stepFilter as unknown as Record<string, unknown>)
+        .conservativeScale = 1.2;
+    }],
+    ['filter.provider', (t) => {
+      (t.stepFilter as unknown as Record<string, unknown>).provider =
+        { evaluateAt: () => { throw new Error('attacker'); } };
+    }],
+    ['provider.id', (t) => {
+      (t.provider as unknown as Record<string, unknown>).id = 'changed';
+    }],
+    ['provider.dimension', (t) => {
+      (t.provider as unknown as Record<string, unknown>).dimension = 999;
+    }],
+    ['provider.particles', (t) => {
+      (t.provider as unknown as Record<string, unknown>).particles = [];
+    }]
+  ];
+  for (const [name, attack] of attacks) {
+    const target = build(TILTED_A, TILTED_B);
+    const keysBefore = Reflect.ownKeys(target.provider).length
+      + Reflect.ownKeys(target.stepFilter).length;
+    let threw = false;
+    try { attack(target); } catch { threw = true; }
+    assert(threw, `${name}: the assignment must throw`);
+    assert(Reflect.ownKeys(target.provider).length
+      + Reflect.ownKeys(target.stepFilter).length === keysBefore,
+      `${name}: no new own property may appear`);
+    assert(target.provider.evaluate().potentialEnergy === control,
+      `${name}: the energy must remain bit-identical to the clean control`);
+  }
+
+  // --- the safety consequence, separately ---------------------------------
+  // The endpoint-clear / interior-breach sweep: both ends admissible, the
+  // middle not. The honest certificate stops short of the breach, and an
+  // outside consumer cannot widen it.
+  const sweep = build([0, 0.5, 0], [1, 0.5, 0]);
+  const placedAt = (t: number) => (particle: XpbdParticleN): VecN => {
+    const position = particle.position.clone();
+    position.data[1] = 0.5 - t;
+    return position;
+  };
+  const certify = (): number => {
+    const evaluation = sweep.stepFilter.evaluate({
+      dimension: 3, requestedStepLength: 1,
+      positionBefore: placedAt(0), positionAfter: placedAt(1)
+    });
+    assert(evaluation.status === 'limited',
+      'the sweep must be certified as a strict prefix');
+    return evaluation.status === 'limited' ? evaluation.maximumStepLength : 0;
+  };
+  const honest = certify();
+  let inflated = false;
+  try {
+    (sweep.stepFilter as unknown as Record<string, unknown>)
+      .conservativeScale = 1.2;
+    inflated = true;
+  } catch { /* the frozen instance refuses, which is the point */ }
+  assert(!inflated, 'the conservative scale must not be assignable');
+  assert(certify() === honest,
+    'the certificate must be unchanged by the attempt');
+  // The breach the inflated certificate used to cover is still outside it.
+  const breaches = (limit: number): boolean => {
+    for (let sample = 0; sample <= 400; sample++) {
+      try { sweep.provider.evaluateAt(placedAt(limit * sample / 400)); }
+      catch (error) {
+        if (error instanceof XpbdPotentialDomainErrorN) return true;
+        throw error;
+      }
+    }
+    return false;
+  };
+  assert(!breaches(honest),
+    'the honest certified prefix must contain no refused placement');
+  assert(breaches(honest * (1.2 / 0.9)),
+    'the calibration must show the inflated prefix really did breach');
+
+  // --- the caller's own inputs stay the caller's --------------------------
+  // Mutating the source complex after compilation is harmless, which is what
+  // makes the internal snapshot worth protecting in the first place.
+  const stable = build(TILTED_A, TILTED_B);
+  const beforeMutation = stable.provider.evaluate().potentialEnergy;
+  for (let axis = 1; axis < floor.positions.length; axis += 3) {
+    floor.positions[axis] = 0.1;
+  }
+  assert(stable.provider.evaluate().potentialEnergy === beforeMutation,
+    'a post-compilation edit of the caller complex must not reach the term');
+  for (let axis = 1; axis < floor.positions.length; axis += 3) {
+    floor.positions[axis] = 0;
+  }
 }

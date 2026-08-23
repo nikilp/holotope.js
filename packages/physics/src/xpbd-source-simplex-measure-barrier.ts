@@ -263,7 +263,38 @@ function certifiedDistanceLowerBound(
   return nextDownNonnegative(Math.sqrt(lowerSquared));
 }
 
+/** The two ways the paired filter declines to certify a segment at all. */
+type FilterRefusalReasonN =
+  | 'initial-domain-violation'
+  | 'initial-uncertified-distance';
+
 /**
+ * Assembles one compiled term, holding every non-authorable value in this
+ * function's scope and nowhere else.
+ *
+ * ## Why a closure rather than a class
+ *
+ * TypeScript `private` is a compile-time annotation. It erases, and in the
+ * packed JavaScript a consumer actually runs, an erased private field is an
+ * ordinary writable enumerable property. That is not a hypothetical: against
+ * the built artifacts of the first implementation, `provider.rule = ...`
+ * changed the energy by 16.4%, mutating the obtained `provider.staticObstacle`
+ * changed it by 88.2%, and `filter.conservativeScale = 1.2` moved the
+ * certificate from `0.405` to `0.54` — covering a placement the law itself
+ * refuses. The last one is a safety failure, not an encapsulation preference.
+ *
+ * A closure variable is not a property. It has no descriptor, no key, no
+ * symbol, and no getter; `Object.keys`, `Reflect.ownKeys`, spread, and
+ * serialization cannot see it, and nothing can assign to it from outside. The
+ * exposed objects below carry exactly the members the released provider and
+ * filter interfaces require, and both are frozen, so even those cannot be
+ * reassigned.
+ *
+ * The rule stays non-authorable in the same move: there is no rule option to
+ * pass and no rule property to overwrite.
+ *
+ * ## The law
+ *
  * `E(q) = mu0 * sum_j w_j * psi(d_j(q) - dmin)`.
  *
  * `mu0` is the cell's reference k-measure, frozen at construction; `w_j` and
@@ -293,235 +324,8 @@ function certifiedDistanceLowerBound(
  * they span anything, and the query it feeds is point-versus-obstacle. Only
  * the REST cell must be non-degenerate, and that is settled once, at
  * construction, as a configuration error.
- */
-class SourceSimplexMeasureBarrierProviderN
-implements XpbdConservativeForceProviderN {
-  readonly particles: readonly XpbdParticleN[];
-
-  constructor(
-    readonly id: string,
-    readonly dimension: number,
-    readonly cellParticles: readonly XpbdParticleN[],
-    readonly obstacleParticles: readonly XpbdParticleN[] | undefined,
-    private readonly staticObstacle: Float64Array | undefined,
-    private readonly rule: readonly QuadratureNodeN[],
-    private readonly referenceMeasure: number,
-    readonly minimumDistance: number,
-    private readonly activationDistance: number,
-    private readonly stiffness: number,
-    private readonly maximumDirectionError: number
-  ) {
-    this.particles = Object.freeze([
-      ...cellParticles, ...(obstacleParticles ?? [])
-    ]);
-  }
-
-  /** Evaluates from the particles' current live positions without mutation. */
-  evaluate(): XpbdConservativeForceProviderEvaluationN {
-    return this.evaluateAt((particle) => particle.position.clone());
-  }
-
-  evaluateAt(
-    positionOf: XpbdParticlePositionQueryN
-  ): XpbdConservativeForceProviderEvaluationN {
-    const caller = 'XpbdSourceSimplexMeasureBarrierN.evaluateAt';
-    if (typeof positionOf !== 'function') {
-      throw new Error(`${caller}: positionOf must be a function`);
-    }
-    const cell = this.packSide(this.cellParticles, positionOf, caller, 'cell');
-    const obstacle = this.packObstacle(positionOf, caller);
-    const ledger = new ContributionLedgerN(
-      this.rule.length, this.particles.length, this.dimension
-    );
-    const barrierActivation = this.activationDistance - this.minimumDistance;
-    for (let node = 0; node < this.rule.length; node++) {
-      const rule = this.rule[node]!;
-      const point = this.nodePosition(cell, rule);
-      const result = evaluateExactPointSimplexResult(
-        point, obstacle, this.dimension
-      );
-      const projected = this.requireProjection(result, node, caller);
-      const distance = projected.witness.distance;
-      if (!Number.isFinite(distance)) {
-        throw new Error(`${caller}: node ${node} distance is outside Float64`);
-      }
-      if (!(distance > this.minimumDistance)) {
-        throw this.refuse('at-or-below-minimum-distance',
-          `${caller}: node ${node} distance must be greater than minimumDistance`);
-      }
-      if (!(certifiedDistanceLowerBound(
-        projected.witness.squaredDistance,
-        projected.error.squaredDistanceErrorBound
-      ) > this.minimumDistance)) {
-        throw this.refuse('minimum-distance-not-certified',
-          `${caller}: node ${node}'s distance error bound reaches minimumDistance`);
-      }
-      if (projected.error.directionErrorBound > this.maximumDirectionError) {
-        throw this.refuse('direction-error-exceeds-policy',
-          `${caller}: node ${node} published direction error ` +
-          `${projected.error.directionErrorBound} exceeds the authored ` +
-          `maximumDirectionError ${this.maximumDirectionError}`);
-      }
-      // Order 1 and only order 1: this term publishes an energy and forces,
-      // never a curvature it would not use.
-      const barrier = evaluateClampedLogBarrierAtOrderN({
-        coordinate: distance - this.minimumDistance,
-        activation: barrierActivation,
-        stiffness: this.stiffness
-      }, 1);
-      if (!barrier.energy.available || !barrier.firstDerivative.available) {
-        throw this.refuse('barrier-component-outside-float64',
-          `${caller}: a required barrier component is outside Float64 at ` +
-          `node ${node}`);
-      }
-      const direction = projected.witness.direction;
-      const share = rule.weight * barrier.firstDerivative.value;
-      ledger.recordEnergy(node, rule.weight * barrier.energy.value);
-      for (let slot = 0; slot < this.cellParticles.length; slot++) {
-        ledger.accumulate(slot, share * rule.coefficients[slot]!, direction);
-      }
-      if (this.obstacleParticles !== undefined) {
-        const offset = this.cellParticles.length;
-        for (let slot = 0; slot < this.obstacleParticles.length; slot++) {
-          ledger.accumulate(
-            offset + slot, -share * projected.witness.weights[slot]!, direction
-          );
-        }
-      }
-    }
-    const reduced = ledger.reduce(this.referenceMeasure);
-    if (!Number.isFinite(reduced.potentialEnergy) ||
-      reduced.forces.some((force) =>
-        force.data.some((value) => !Number.isFinite(value)))) {
-      throw this.refuse('accumulated-value-outside-float64',
-        `${caller}: the measure-weighted sum left Float64 at this candidate`);
-    }
-    return Object.freeze({
-      potentialEnergy: reduced.potentialEnergy,
-      forces: Object.freeze(reduced.forces)
-    });
-  }
-
-  /**
-   * The smallest CERTIFIED node margin over the open boundary at a placement,
-   * or the reason no such number exists. Shared with the paired filter, so the
-   * filter certifies against the same geometry the energy refuses on.
-   */
-  startMarginAt(
-    positionOf: XpbdParticlePositionQueryN,
-    caller: string
-  ): { readonly margin: number } | { readonly reason: FilterRefusalReasonN } {
-    const cell = this.packSide(this.cellParticles, positionOf, caller, 'cell');
-    const obstacle = this.packObstacle(positionOf, caller);
-    let smallest = Number.POSITIVE_INFINITY;
-    for (const rule of this.rule) {
-      const result = evaluateExactPointSimplexResult(
-        this.nodePosition(cell, rule), obstacle, this.dimension
-      );
-      if (result.status === 'uncertified' || result.status === 'rank-deficient') {
-        return { reason: 'initial-uncertified-distance' };
-      }
-      if (result.status === 'zero') return { reason: 'initial-domain-violation' };
-      smallest = Math.min(smallest, certifiedDistanceLowerBound(
-        result.witness.squaredDistance, result.error.squaredDistanceErrorBound
-      ));
-    }
-    const margin = smallest - this.minimumDistance;
-    if (!(margin > 0)) return { reason: 'initial-domain-violation' };
-    return { margin };
-  }
-
-  private requireProjection(
-    result: PointSimplexResult, node: number, caller: string
-  ): Extract<PointSimplexResult, { status: 'projected' }> {
-    if (result.status === 'rank-deficient') {
-      // Reachable only with a bound obstacle: a static one is packed once and
-      // its rank settled at construction, as a configuration error.
-      throw this.refuse('obstacle-rank-deficient',
-        `${caller}: the obstacle simplex is exactly rank-deficient ` +
-        `(rank ${result.exactRank}) at this candidate`);
-    }
-    if (result.status === 'uncertified') {
-      throw this.refuse(PUBLICATION_REASON[result.reason],
-        `${caller}: node ${node}'s exact point--simplex decision could not be ` +
-        `published (${result.reason}: ${result.detail})`);
-    }
-    if (result.status === 'zero') {
-      throw this.refuse('zero-or-intersecting',
-        `${caller}: node ${node} is at certified zero distance from the ` +
-        'obstacle; no direction exists');
-    }
-    return result;
-  }
-
-  private refuse(
-    reason: XpbdSourceSimplexMeasureBarrierDomainReasonN, message: string
-  ): XpbdPotentialDomainErrorN<XpbdSourceSimplexMeasureBarrierDomainReasonN> {
-    return new XpbdPotentialDomainErrorN<
-      XpbdSourceSimplexMeasureBarrierDomainReasonN
-    >(this.id, reason, message);
-  }
-
-  /** `q_own + beta * sum_{v != own} (q_v - q_own)`, an affine combination. */
-  private nodePosition(
-    cell: Float64Array, rule: QuadratureNodeN
-  ): Float64Array {
-    const point = new Float64Array(this.dimension);
-    const anchor = rule.ownSlot * this.dimension;
-    for (let axis = 0; axis < this.dimension; axis++) {
-      let value = cell[anchor + axis]!;
-      for (let slot = 0; slot < rule.coefficients.length; slot++) {
-        if (slot === rule.ownSlot) continue;
-        value += rule.coefficients[slot]! *
-          (cell[slot * this.dimension + axis]! - cell[anchor + axis]!);
-      }
-      point[axis] = value;
-    }
-    return point;
-  }
-
-  private packObstacle(
-    positionOf: XpbdParticlePositionQueryN, caller: string
-  ): Float64Array {
-    if (this.staticObstacle !== undefined) return this.staticObstacle;
-    return this.packSide(
-      this.obstacleParticles!, positionOf, caller, 'obstacle'
-    );
-  }
-
-  private packSide(
-    particles: readonly XpbdParticleN[],
-    positionOf: XpbdParticlePositionQueryN,
-    caller: string,
-    label: string
-  ): Float64Array {
-    const packed = new Float64Array(particles.length * this.dimension);
-    particles.forEach((particle, slot) => {
-      const position = positionOf(particle);
-      if (!(position instanceof VecN) || position.dim !== this.dimension) {
-        throw new Error(
-          `${caller}: ${label}[${slot}] position must be R${this.dimension}`
-        );
-      }
-      for (let axis = 0; axis < this.dimension; axis++) {
-        const value = position.data[axis]!;
-        if (!Number.isFinite(value)) {
-          throw new Error(`${caller}: ${label}[${slot}] position must be finite`);
-        }
-        packed[slot * this.dimension + axis] = value;
-      }
-    });
-    return packed;
-  }
-}
-
-/** The two ways the paired filter declines to certify a segment at all. */
-type FilterRefusalReasonN =
-  | 'initial-domain-violation'
-  | 'initial-uncertified-distance';
-
-/**
- * Start-only conservative step filter for one measure-weighted contact term.
+ *
+ * ## The paired filter
  *
  * The proof is a two-sided Lipschitz bound taken entirely from the SEGMENT
  * START. Each quadrature node is a convex combination of the cell's vertices,
@@ -549,32 +353,236 @@ type FilterRefusalReasonN =
  * The certified prefix is a fraction, never a collision time. This filter does
  * not solve the piecewise closest-feature crossing and does not claim to.
  */
-class SourceSimplexMeasureBarrierStepFilterN
-implements XpbdIncrementalPotentialStepFilterN {
+function assembleTerms(assembled: {
   readonly id: string;
   readonly dimension: number;
-  readonly particles: readonly XpbdParticleN[];
+  readonly cellParticles: readonly XpbdParticleN[];
+  readonly obstacleParticles: readonly XpbdParticleN[] | undefined;
+  readonly staticObstacle: Float64Array | undefined;
+  readonly rule: readonly QuadratureNodeN[];
+  readonly referenceMeasure: number;
+  readonly minimumDistance: number;
+  readonly activationDistance: number;
+  readonly stiffness: number;
+  readonly maximumDirectionError: number;
+  readonly conservativeScale: number;
+}): XpbdSourceSimplexMeasureBarrierTermsN {
+  // Destructured into this scope ONCE. Nothing below reads `assembled` again,
+  // and no exposed object holds a reference to it.
+  const {
+    id, dimension, cellParticles, obstacleParticles, staticObstacle, rule,
+    referenceMeasure, minimumDistance, activationDistance, stiffness,
+    maximumDirectionError, conservativeScale
+  } = assembled;
+  const particles: readonly XpbdParticleN[] = Object.freeze([
+    ...cellParticles, ...(obstacleParticles ?? [])
+  ]);
 
-  constructor(
-    id: string,
-    private readonly provider: SourceSimplexMeasureBarrierProviderN,
-    private readonly conservativeScale: number
-  ) {
-    this.id = id;
-    this.dimension = provider.dimension;
-    this.particles = provider.particles;
-  }
+  const refuse = (
+    reason: XpbdSourceSimplexMeasureBarrierDomainReasonN, message: string
+  ): XpbdPotentialDomainErrorN<XpbdSourceSimplexMeasureBarrierDomainReasonN> =>
+    new XpbdPotentialDomainErrorN<
+      XpbdSourceSimplexMeasureBarrierDomainReasonN
+    >(id, reason, message);
 
-  evaluate(
+  const requireProjection = (
+    result: PointSimplexResult, node: number, caller: string
+  ): Extract<PointSimplexResult, { status: 'projected' }> => {
+    if (result.status === 'rank-deficient') {
+      // Reachable only with a bound obstacle: a static one is packed once and
+      // its rank settled at construction, as a configuration error.
+      throw refuse('obstacle-rank-deficient',
+        `${caller}: the obstacle simplex is exactly rank-deficient ` +
+        `(rank ${result.exactRank}) at this candidate`);
+    }
+    if (result.status === 'uncertified') {
+      throw refuse(PUBLICATION_REASON[result.reason],
+        `${caller}: node ${node}'s exact point--simplex decision could not be ` +
+        `published (${result.reason}: ${result.detail})`);
+    }
+    if (result.status === 'zero') {
+      throw refuse('zero-or-intersecting',
+        `${caller}: node ${node} is at certified zero distance from the ` +
+        'obstacle; no direction exists');
+    }
+    return result;
+  };
+
+  /** `q_own + beta * sum_{v != own} (q_v - q_own)`, an affine combination. */
+  const nodePosition = (
+    cell: Float64Array, node: QuadratureNodeN
+  ): Float64Array => {
+    const point = new Float64Array(dimension);
+    const anchor = node.ownSlot * dimension;
+    for (let axis = 0; axis < dimension; axis++) {
+      let value = cell[anchor + axis]!;
+      for (let slot = 0; slot < node.coefficients.length; slot++) {
+        if (slot === node.ownSlot) continue;
+        value += node.coefficients[slot]! *
+          (cell[slot * dimension + axis]! - cell[anchor + axis]!);
+      }
+      point[axis] = value;
+    }
+    return point;
+  };
+
+  const packSide = (
+    side: readonly XpbdParticleN[],
+    positionOf: XpbdParticlePositionQueryN,
+    caller: string,
+    label: string
+  ): Float64Array => {
+    const packed = new Float64Array(side.length * dimension);
+    side.forEach((particle, slot) => {
+      const position = positionOf(particle);
+      if (!(position instanceof VecN) || position.dim !== dimension) {
+        throw new Error(
+          `${caller}: ${label}[${slot}] position must be R${dimension}`
+        );
+      }
+      for (let axis = 0; axis < dimension; axis++) {
+        const value = position.data[axis]!;
+        if (!Number.isFinite(value)) {
+          throw new Error(`${caller}: ${label}[${slot}] position must be finite`);
+        }
+        packed[slot * dimension + axis] = value;
+      }
+    });
+    return packed;
+  };
+
+  const packObstacle = (
+    positionOf: XpbdParticlePositionQueryN, caller: string
+  ): Float64Array => {
+    if (staticObstacle !== undefined) return staticObstacle;
+    return packSide(
+      obstacleParticles!, positionOf, caller, 'obstacle'
+    );
+  };
+
+  const evaluateAt = (
+    positionOf: XpbdParticlePositionQueryN
+  ): XpbdConservativeForceProviderEvaluationN => {
+    const caller = 'XpbdSourceSimplexMeasureBarrierN.evaluateAt';
+    if (typeof positionOf !== 'function') {
+      throw new Error(`${caller}: positionOf must be a function`);
+    }
+    const cell = packSide(cellParticles, positionOf, caller, 'cell');
+    const obstacle = packObstacle(positionOf, caller);
+    const ledger = new ContributionLedgerN(
+      rule.length, particles.length, dimension
+    );
+    const barrierActivation = activationDistance - minimumDistance;
+    for (let node = 0; node < rule.length; node++) {
+      const quadrature = rule[node]!;
+      const point = nodePosition(cell, quadrature);
+      const result = evaluateExactPointSimplexResult(
+        point, obstacle, dimension
+      );
+      const projected = requireProjection(result, node, caller);
+      const distance = projected.witness.distance;
+      if (!Number.isFinite(distance)) {
+        throw new Error(`${caller}: node ${node} distance is outside Float64`);
+      }
+      if (!(distance > minimumDistance)) {
+        throw refuse('at-or-below-minimum-distance',
+          `${caller}: node ${node} distance must be greater than minimumDistance`);
+      }
+      if (!(certifiedDistanceLowerBound(
+        projected.witness.squaredDistance,
+        projected.error.squaredDistanceErrorBound
+      ) > minimumDistance)) {
+        throw refuse('minimum-distance-not-certified',
+          `${caller}: node ${node}'s distance error bound reaches minimumDistance`);
+      }
+      if (projected.error.directionErrorBound > maximumDirectionError) {
+        throw refuse('direction-error-exceeds-policy',
+          `${caller}: node ${node} published direction error ` +
+          `${projected.error.directionErrorBound} exceeds the authored ` +
+          `maximumDirectionError ${maximumDirectionError}`);
+      }
+      // Order 1 and only order 1: this term publishes an energy and forces,
+      // never a curvature it would not use.
+      const barrier = evaluateClampedLogBarrierAtOrderN({
+        coordinate: distance - minimumDistance,
+        activation: barrierActivation,
+        stiffness
+      }, 1);
+      if (!barrier.energy.available || !barrier.firstDerivative.available) {
+        throw refuse('barrier-component-outside-float64',
+          `${caller}: a required barrier component is outside Float64 at ` +
+          `node ${node}`);
+      }
+      const direction = projected.witness.direction;
+      const share = quadrature.weight * barrier.firstDerivative.value;
+      ledger.recordEnergy(node, quadrature.weight * barrier.energy.value);
+      for (let slot = 0; slot < cellParticles.length; slot++) {
+        ledger.accumulate(
+          slot, share * quadrature.coefficients[slot]!, direction
+        );
+      }
+      if (obstacleParticles !== undefined) {
+        const offset = cellParticles.length;
+        for (let slot = 0; slot < obstacleParticles.length; slot++) {
+          ledger.accumulate(
+            offset + slot, -share * projected.witness.weights[slot]!, direction
+          );
+        }
+      }
+    }
+    const reduced = ledger.reduce(referenceMeasure);
+    if (!Number.isFinite(reduced.potentialEnergy) ||
+      reduced.forces.some((force) =>
+        force.data.some((value) => !Number.isFinite(value)))) {
+      throw refuse('accumulated-value-outside-float64',
+        `${caller}: the measure-weighted sum left Float64 at this candidate`);
+    }
+    return Object.freeze({
+      potentialEnergy: reduced.potentialEnergy,
+      forces: Object.freeze(reduced.forces)
+    });
+  };
+
+  /**
+   * The smallest CERTIFIED node margin over the open boundary at a placement,
+   * or the reason no such number exists. Shared with the paired filter, so the
+   * filter certifies against the same geometry the energy refuses on — and it
+   * is shared as a closure, not as a reachable property of either object.
+   */
+  const startMarginAt = (
+    positionOf: XpbdParticlePositionQueryN,
+    caller: string
+  ): { readonly margin: number } | { readonly reason: FilterRefusalReasonN } => {
+    const cell = packSide(cellParticles, positionOf, caller, 'cell');
+    const obstacle = packObstacle(positionOf, caller);
+    let smallest = Number.POSITIVE_INFINITY;
+    for (const quadrature of rule) {
+      const result = evaluateExactPointSimplexResult(
+        nodePosition(cell, quadrature), obstacle, dimension
+      );
+      if (result.status === 'uncertified' || result.status === 'rank-deficient') {
+        return { reason: 'initial-uncertified-distance' };
+      }
+      if (result.status === 'zero') return { reason: 'initial-domain-violation' };
+      smallest = Math.min(smallest, certifiedDistanceLowerBound(
+        result.witness.squaredDistance, result.error.squaredDistanceErrorBound
+      ));
+    }
+    const margin = smallest - minimumDistance;
+    if (!(margin > 0)) return { reason: 'initial-domain-violation' };
+    return { margin };
+  };
+
+  const filterEvaluate = (
     context: XpbdIncrementalPotentialStepFilterContextN
-  ): XpbdIncrementalPotentialStepFilterEvaluationN {
+  ): XpbdIncrementalPotentialStepFilterEvaluationN => {
     const caller = 'XpbdSourceSimplexMeasureBarrierStepFilterN.evaluate';
     if (typeof context !== 'object' || context === null) {
       throw new Error(`${caller}: context must be an object`);
     }
-    if (context.dimension !== this.dimension) {
+    if (context.dimension !== dimension) {
       throw new Error(
-        `${caller}: context is R${context.dimension}, expected R${this.dimension}`
+        `${caller}: context is R${context.dimension}, expected R${dimension}`
       );
     }
     if (!Number.isFinite(context.requestedStepLength) ||
@@ -586,7 +594,7 @@ implements XpbdIncrementalPotentialStepFilterN {
       throw new Error(`${caller}: position lookups must be functions`);
     }
 
-    const start = this.provider.startMarginAt(
+    const start = startMarginAt(
       (particle) => context.positionBefore(particle), caller
     );
     if ('reason' in start) {
@@ -603,21 +611,41 @@ implements XpbdIncrementalPotentialStepFilterN {
       }
       return largest;
     };
-    const total = displacement(this.provider.cellParticles) +
-      displacement(this.provider.obstacleParticles);
+    const total = displacement(cellParticles) +
+      displacement(obstacleParticles);
     if (total === 0 || total < start.margin) {
       return Object.freeze({
         status: 'safe', maximumStepLength: context.requestedStepLength
       });
     }
     const maximumStepLength = context.requestedStepLength *
-      (this.conservativeScale * start.margin / total);
+      (conservativeScale * start.margin / total);
     if (!Number.isFinite(maximumStepLength) || maximumStepLength < 0 ||
       !(maximumStepLength < context.requestedStepLength)) {
       throw new Error(`${caller}: certified prefix is outside Float64`);
     }
     return Object.freeze({ status: 'limited', maximumStepLength });
-  }
+  };
+
+  // Frozen, so even the released members cannot be reassigned, and no key can
+  // be added. Every other value the law depends on is a `const` above: not a
+  // property, so it has no descriptor, no key and no getter to reach it by.
+  const provider: XpbdConservativeForceProviderN = Object.freeze({
+    id,
+    dimension,
+    particles,
+    /** Evaluates from the particles' live positions without mutation. */
+    evaluate: (): XpbdConservativeForceProviderEvaluationN =>
+      evaluateAt((particle) => particle.position.clone()),
+    evaluateAt
+  });
+  const stepFilter: XpbdIncrementalPotentialStepFilterN = Object.freeze({
+    id: `${id}-filter`,
+    dimension,
+    particles,
+    evaluate: filterEvaluate
+  });
+  return Object.freeze({ provider, stepFilter });
 }
 
 const OPTION_KEYS: readonly string[] = Object.freeze([
@@ -630,22 +658,53 @@ const OPTION_KEYS: readonly string[] = Object.freeze([
  *
  * The energy is the cell's reference k-measure times the fixed-rule average of
  * a clamped logarithmic barrier on each node's exact distance to the obstacle.
- * What that buys over a per-vertex barrier is that the contact resists by AREA
- * rather than by vertex count: refining a mesh multiplies the vertices but not
- * the measure, so the same contact does not silently stiffen as the mesh gets
- * finer.
+ * It is a **measure-consistent fixed quadrature**: what it buys over a
+ * per-vertex barrier is that the contact resists by the SIZE of the touching
+ * feature rather than by the number of vertices describing it, so splitting a
+ * cell in two does not answer twice.
+ *
+ * ## What that does and does not mean under subdivision
+ *
+ * Removing direct cell-count multiplication is not the same as being invariant
+ * under subdivision, and the two must not be conflated:
+ *
+ * - **Constant integrand** — when the barrier is constant over the cell, as it
+ *   is for a cell parallel to a flat obstacle, subdivision is exactly additive
+ *   up to Float64 reduction.
+ * - **General nonconstant integrand** — subdivision moves the sample
+ *   locations, so a fixed finite rule normally returns a different estimate.
+ *   Measured on two legal refinements of the same source region: a tilted cell
+ *   split in half changes by about 27%, and an uneven split of a curved
+ *   arrangement by about 44%.
+ * - **Convergence** — the refinement sequence approaches the continuum
+ *   integral. Measured against an independent composite Gauss--Legendre
+ *   reference built from the released query and barrier, the error falls at
+ *   second order in the cell size on that fixture, with the single-cell
+ *   estimate about 28% below the continuum value. That is a measurement on a
+ *   named fixture; **no truncation bound is proved and none is claimed**.
+ *
+ * Supported source dimensions are `k = 1, 2, 3`, the range over which the
+ * exact point--simplex query publishes a direction enclosure.
  *
  * The quadrature is fixed and not authorable. A caller-supplied rule would
  * make the energy a function of the rule, and every stated property here —
  * that the forces are its exact gradient, that the filter's Lipschitz bound
  * covers every node, that the term refuses as a whole — is a property of THIS
  * rule. Offering a knob would offer those guarantees on rules that have not
- * been measured.
+ * been measured. It is also not reachable at runtime: no rule is accepted and
+ * no rule property exists to overwrite.
+ *
+ * A successful evaluation carries exactly `potentialEnergy` and `forces`.
+ * There is no inspection surface, and the companion `stepFilter` is required
+ * rather than optional — without it, nothing prevents a step from leaping
+ * through the obstacle, because the law measures unsigned distance and has no
+ * notion of side.
  *
  * @example
- * A strip above a floor triangle, and the same strip subdivided: the contact
- * publishes the same energy, because the reference measure is what it is
- * weighted by and subdivision splits that measure rather than duplicating it.
+ * A strip above a floor triangle at CONSTANT distance, and the same strip
+ * subdivided. Here — and only because the sampled barrier is constant along
+ * the cell — subdivision is exactly additive. Tilt the strip and the two
+ * answers differ, because a fixed finite rule samples different places.
  * ```ts
  * const floor = new CellComplex(3, Float64Array.from([
  *   -40, 0, -40, 60, 0, -40, -40, 0, 60
@@ -686,7 +745,7 @@ const OPTION_KEYS: readonly string[] = Object.freeze([
  * }
  *
  * log('one cell ', whole);
- * log('two cells', left + right);  // the same number
+ * log('two cells', left + right);  // the same number, for a CONSTANT barrier
  * ```
  *
  * @param options Term identity, geometry, and barrier policy.
@@ -888,16 +947,18 @@ export function compileXpbdSourceSimplexMeasureBarrierN(
     }
   }
 
-  const provider = new SourceSimplexMeasureBarrierProviderN(
-    options.id, dimension, cellParticles, obstacleParticles,
-    staticObstacle, fixedRule(options.cell.intrinsicDim), referenceMeasure,
-    minimumDistance, options.activationDistance, options.stiffness,
-    options.maximumDirectionError
-  );
-  return Object.freeze({
-    provider,
-    stepFilter: new SourceSimplexMeasureBarrierStepFilterN(
-      `${options.id}-filter`, provider, conservativeScale
-    )
+  return assembleTerms({
+    id: options.id,
+    dimension,
+    cellParticles,
+    obstacleParticles,
+    staticObstacle,
+    rule: fixedRule(options.cell.intrinsicDim),
+    referenceMeasure,
+    minimumDistance,
+    activationDistance: options.activationDistance,
+    stiffness: options.stiffness,
+    maximumDirectionError: options.maximumDirectionError,
+    conservativeScale
   });
 }

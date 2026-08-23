@@ -14,6 +14,7 @@ import {
   compileXpbdParticleBindingN,
   compileXpbdSourceSimplexMeasureBarrierN,
   evaluateClampedLogBarrierAtOrderN,
+  evaluateExactPointSimplexResult,
   evaluateSimplexSquaredMeasureN,
   stepXpbdIncrementalPotentialWorldN,
   type XpbdConservativeForceProviderN,
@@ -25,10 +26,17 @@ import {
 /**
  * The public contract of the measure-weighted normal-contact law: that the
  * published forces are the exact gradient of the published energy, that the
- * energy is weighted by the cell's REFERENCE measure and is therefore
- * invariant under refining the mesh, that every reachable refusal is typed and
- * carries the term's identity, and that the paired filter's certificate is a
- * bound on the whole segment rather than a check of its ends.
+ * energy is weighted by the cell's REFERENCE measure, that every reachable
+ * refusal is typed and carries the term's identity, that the paired filter's
+ * certificate is a bound on the whole segment rather than a check of its ends,
+ * and that none of the law's non-authorable state is reachable at runtime.
+ *
+ * On subdivision the suite keeps three facts apart, because an earlier version
+ * of it conflated them and published the first as though it were the second:
+ * a CONSTANT integrand is exactly additive under subdivision; a general
+ * nonconstant one is not; and the sequence of refinements converges to the
+ * continuum integral, which is a measurement against an independent reference
+ * rather than a bound.
  */
 
 /** One simplex per complex, so the static obstacle is read from its own rest. */
@@ -148,6 +156,30 @@ function energyDerivative(
   return (measure(step) - measure(-step)) / (2 * step);
 }
 
+/** The obstacle every refinement fixture measures against. */
+const FLOOR_VALUES: readonly number[] = [-40, 0, -40, 60, 0, -40, -40, 0, 60];
+
+let refinementSerial = 0;
+
+/** One k=1 cell between two authored endpoints, as its own compiled term. */
+function segmentEnergy(
+  from: readonly number[], to: readonly number[], minimumDistance = 0.05
+): number {
+  const cellSide = simplexComplex(3, [...from, ...to]);
+  const obstacleSide = simplexComplex(3, FLOOR_VALUES);
+  const id = `refine-${refinementSerial++}`;
+  return compileXpbdSourceSimplexMeasureBarrierN({
+    id, binding: compileXpbdParticleBindingN({ id, source: cellSide.complex }),
+    cell: cellSide.simplex, obstacle: obstacleSide.simplex,
+    minimumDistance, activationDistance: 1, stiffness: 2,
+    maximumDirectionError: 1e-6
+  }).provider.evaluate().potentialEnergy;
+}
+
+/** The constant-distance calibration fixture: parallel to the obstacle. */
+const parallelSegmentEnergy = (from: number, to: number): number =>
+  segmentEnergy([from, 0.5, 0], [to, 0.5, 0], 0);
+
 describe('the measure barrier: energy, forces, and the reference weight', () => {
   it('publishes forces that are the exact gradient of the published energy, '
     + 'for every supported cell dimension, static and bound', () => {
@@ -195,33 +227,21 @@ describe('the measure barrier: energy, forces, and the reference weight', () => 
     expect(at(large) / at(small)).toBeCloseTo(9, 9);
   });
 
-  it('is invariant under refining the cell: one segment and the two halves '
-    + 'covering it publish the same energy', () => {
-    const dimension = 3;
-    const obstacle = simplexComplex(dimension, embed(dimension, 3, [
-      -40, 0, -40, 60, 0, -40, -40, 0, 60
-    ]));
-    const segment = (from: number, to: number): number => {
-      const side = simplexComplex(dimension, embed(dimension, 3, [
-        from, 0.5, 0, to, 0.5, 0
-      ]));
-      const binding = compileXpbdParticleBindingN({
-        id: `seg-${from}`, source: side.complex
-      });
-      return compileXpbdSourceSimplexMeasureBarrierN({
-        id: `seg-${from}`, binding, cell: side.simplex,
-        obstacle: obstacle.simplex, activationDistance: 1, stiffness: 2,
-        maximumDirectionError: 1e-6
-      }).provider.evaluate().potentialEnergy;
-    };
+  it('CONSTANT-INTEGRAND CALIBRATION: a cell at constant distance is exactly '
+    + 'additive under subdivision', () => {
     // The segment is parallel to the obstacle, so every node sits at the same
-    // distance and the barrier is constant along it: the energy is exactly
-    // `length * psi(d)` and refinement cannot change it. A per-vertex law
-    // would answer 2*psi against 3*psi for the same contact.
-    const whole = segment(0, 1);
-    const halves = segment(0, 0.5) + segment(0.5, 1);
+    // distance and the barrier is CONSTANT along it. Only then is the energy
+    // exactly `length * psi(d)`, and only then is subdivision exactly
+    // additive. This fixture is a calibration of that special case; it is not
+    // evidence of any general refinement property, and it was published as
+    // though it were. A per-vertex law would answer 2*psi against 3*psi here.
+    const whole = parallelSegmentEnergy(0, 1);
+    const halves = parallelSegmentEnergy(0, 0.5) + parallelSegmentEnergy(0.5, 1);
     expect(whole).toBeGreaterThan(0);
     expect(Math.abs(halves - whole) / whole).toBeLessThan(1e-15);
+    // What measure weighting does buy, in this case and in general, is the
+    // absence of raw cell-count multiplication: two cells do not answer twice.
+    expect(halves / whole).toBeLessThan(1.5);
   });
 
   it('is exactly zero, with exactly zero forces, beyond the activation '
@@ -843,5 +863,294 @@ describe('the measure barrier: exact placement of its nodes', () => {
     expect(published).toBe(evaluateSimplexSquaredMeasureN(
       binding.vertices.map((vertex) => vertex.sourcePosition)
     ).measure * summed);
+  });
+});
+
+/**
+ * What subdivision actually does to a fixed finite quadrature.
+ *
+ * Reference-measure weighting removes direct cell-count multiplication. It
+ * does NOT make a fixed finite rule invariant under arbitrary subdivision: the
+ * integrand here is a nonlinear barrier of a distance field, subdivision moves
+ * the sample locations, and the estimate moves with them. Both fixtures below
+ * are legal refinements of the same source region and both change the answer
+ * materially.
+ *
+ * The percentages are properties of THESE fixtures, not constants of the law.
+ * They are pinned so that a change in the rule, the node placement or the
+ * measure has to move a number somebody chose, and each is also asserted
+ * against a decisive floor so the test states the phenomenon and not only the
+ * digits.
+ */
+describe('the measure barrier: subdivision changes a nonconstant estimate',
+  () => {
+  const TILTED_A = [0, 0.2, 0];
+  const TILTED_B = [1, 0.8, 0];
+
+  it('a linearly tilted cell, split into two equal subcells, changes the '
+    + 'estimate by about 27%', () => {
+    const whole = segmentEnergy(TILTED_A, TILTED_B);
+    const halves = segmentEnergy(TILTED_A, [0.5, 0.5, 0])
+      + segmentEnergy([0.5, 0.5, 0], TILTED_B);
+    const change = (halves - whole) / whole;
+    expect(whole).toBeCloseTo(0.5211907392559832, 15);
+    expect(halves).toBeCloseTo(0.6619424641712688, 15);
+    expect(change).toBeCloseTo(0.27005799281125603, 12);
+    // Decisive, not marginal: nothing here is Float64 residue.
+    expect(change).toBeGreaterThan(0.2);
+  });
+
+  it('an uneven split of a curved arrangement changes it by about 44%', () => {
+    const from = [0, 0.24, 0];
+    const to = [1, 0.74, 0];
+    const split = [0.3, 0.32, 0];
+    const whole = segmentEnergy(from, to);
+    const uneven = segmentEnergy(from, split) + segmentEnergy(split, to);
+    const change = (uneven - whole) / whole;
+    expect(whole).toBeCloseTo(0.5069465471168626, 15);
+    expect(uneven).toBeCloseTo(0.7293954684794158, 15);
+    expect(change).toBeCloseTo(0.43880153169535985, 12);
+    expect(change).toBeGreaterThan(0.35);
+  });
+});
+
+/**
+ * The refinement sequence, against an independently defined reference.
+ *
+ * The reference is a composite 20-point Gauss--Legendre integral of the same
+ * physical quantity, built from the released authorities alone — the exact
+ * point--simplex query for the distance and the released clamped-log barrier
+ * for the integrand. It uses none of this law's rule, ledger or reduction, and
+ * its own self-agreement is checked here so it is not merely another coarse
+ * estimate.
+ *
+ * The measured sequence converges at second order on this fixture. That is a
+ * MEASUREMENT on a named fixture, not a truncation bound: no error estimate is
+ * proved anywhere and none is claimed.
+ */
+describe('the measure barrier: measured convergence to a continuum reference',
+  () => {
+  const A = [0, 0.2, 0];
+  const B = [1, 0.8, 0];
+  const MINIMUM = 0.05;
+  const ACTIVATION = 1;
+  const STIFFNESS = 2;
+  const at = (t: number): number[] =>
+    [A[0]! + (B[0]! - A[0]!) * t, A[1]! + (B[1]! - A[1]!) * t, 0];
+
+  /** 20-point Gauss--Legendre abscissae and weights on [-1, 1]. */
+  const gauss = (() => {
+    const count = 20;
+    const abscissae: number[] = [];
+    const weights: number[] = [];
+    const legendre = (z: number): { value: number; derivative: number } => {
+      let previous = 1;
+      let older = 0;
+      for (let degree = 0; degree < count; degree++) {
+        const kept = older;
+        older = previous;
+        previous = ((2 * degree + 1) * z * older - degree * kept) / (degree + 1);
+      }
+      return {
+        value: previous,
+        derivative: count * (z * previous - older) / (z * z - 1)
+      };
+    };
+    for (let index = 1; index <= count; index++) {
+      let z = Math.cos(Math.PI * (index - 0.25) / (count + 0.5));
+      for (let step = 0; step < 100; step++) {
+        const { value, derivative } = legendre(z);
+        const shift = value / derivative;
+        z -= shift;
+        if (Math.abs(shift) < 1e-16) break;
+      }
+      const { derivative } = legendre(z);
+      abscissae.push(z);
+      weights.push(2 / ((1 - z * z) * derivative * derivative));
+    }
+    return { abscissae, weights };
+  })();
+
+  /** `psi(d(t))`, from the released query and the released barrier only. */
+  const integrand = (t: number): number => {
+    const obstacle = Float64Array.from(FLOOR_VALUES);
+    const result = evaluateExactPointSimplexResult(at(t), obstacle, 3);
+    if (result.status !== 'projected') {
+      throw new Error(`test fixture: unexpected ${result.status}`);
+    }
+    const component = evaluateClampedLogBarrierAtOrderN({
+      coordinate: result.witness.distance - MINIMUM,
+      activation: ACTIVATION - MINIMUM,
+      stiffness: STIFFNESS
+    }, 1).energy;
+    if (!component.available) throw new Error('test fixture: unavailable');
+    return component.value;
+  };
+
+  const length = Math.hypot(B[0]! - A[0]!, B[1]! - A[1]!, B[2]! - A[2]!);
+  const reference = (panels: number): number => {
+    let total = 0;
+    for (let panel = 0; panel < panels; panel++) {
+      const half = 1 / (2 * panels);
+      const middle = (2 * panel + 1) / (2 * panels);
+      for (let node = 0; node < gauss.abscissae.length; node++) {
+        total += gauss.weights[node]! * half
+          * integrand(middle + half * gauss.abscissae[node]!);
+      }
+    }
+    return total * length;
+  };
+  const refined = (cells: number): number => {
+    let total = 0;
+    for (let cell = 0; cell < cells; cell++) {
+      total += segmentEnergy(at(cell / cells), at((cell + 1) / cells), MINIMUM);
+    }
+    return total;
+  };
+
+  it('converges to the continuum integral at second order, and the coarse '
+    + 'single-cell estimate is the one furthest from it', () => {
+    const coarse = reference(100);
+    const truth = reference(200);
+    // The reference is a reference: doubling its panels moves it by nothing.
+    expect(Math.abs(truth - coarse) / truth).toBeLessThan(1e-13);
+
+    const errors = [1, 2, 4, 8, 16, 32].map((cells) =>
+      Math.abs(refined(cells) - truth) / truth);
+    // Every level is strictly better than the one before it.
+    for (let level = 1; level < errors.length; level++) {
+      expect(errors[level]!, `level ${level}`).toBeLessThan(errors[level - 1]!);
+    }
+    // ...and the ratios approach 4, which is second order in the cell size.
+    const ratios = errors.slice(1).map((error, index) => errors[index]! / error);
+    expect(ratios[ratios.length - 1]!).toBeGreaterThan(3.9);
+    expect(ratios[ratios.length - 1]!).toBeLessThan(4.1);
+    // The published single-cell answer was 27.9% BELOW the continuum value.
+    // The false claim did not merely overreach: it presented the coarsest
+    // estimate in the sequence as the invariant one.
+    expect(errors[0]!).toBeCloseTo(0.27888, 4);
+    expect(refined(1)).toBeLessThan(truth);
+  });
+});
+
+/**
+ * Two different failure modes that must not be confused with each other.
+ *
+ * An INVALID AUTHORED OPTION is caught at construction and is a permanent
+ * configuration error: the caller asked for something the law does not offer.
+ * POST-CONSTRUCTION TAMPERING is a caller reaching into a compiled term and
+ * changing a value it never authored. The first is a rejection; the second
+ * must be impossible, because a validated option that can be overwritten
+ * afterwards was never really validated.
+ *
+ * The conservative scale is where the distinction has teeth: authored above
+ * one it is refused, and assigned above one after the fact it used to produce
+ * a certificate covering a placement the law itself refuses.
+ */
+describe('the measure barrier: authored options versus tampering', () => {
+  it('refuses an inflated conservative scale at construction, permanently',
+    () => {
+    const cellSide = simplexComplex(3, [0, 0.5, 0, 1, 0.5, 0]);
+    const obstacleSide = simplexComplex(3, FLOOR_VALUES);
+    const binding = compileXpbdParticleBindingN({
+      id: 'cell', source: cellSide.complex
+    });
+    let thrown: unknown;
+    try {
+      compileXpbdSourceSimplexMeasureBarrierN({
+        id: 'measure-contact', binding, cell: cellSide.simplex,
+        obstacle: obstacleSide.simplex, activationDistance: 1, stiffness: 2,
+        maximumDirectionError: 1e-6, conservativeScale: 1.2
+      });
+    } catch (error) { thrown = error; }
+    expect(thrown).toBeInstanceOf(Error);
+    expect(thrown).not.toBeInstanceOf(XpbdPotentialDomainErrorN);
+    expect((thrown as Error).message).toMatch(/conservativeScale/u);
+    // The whole open interval is authorable, and one is the honest maximum.
+    expect(() => compileXpbdSourceSimplexMeasureBarrierN({
+      id: 'unscaled', binding, cell: cellSide.simplex,
+      obstacle: obstacleSide.simplex, activationDistance: 1, stiffness: 2,
+      maximumDirectionError: 1e-6, conservativeScale: 1
+    })).not.toThrow();
+  });
+
+  it('SAFETY CALIBRATION: the certified prefix is sound, and a scale of 1.2 '
+    + 'applied internally still breaches', () => {
+    const { term, at } = sweepFixture();
+    const certificate = term.stepFilter.evaluate(contextFor(1, at(0), at(1)));
+    expect(certificate.status).toBe('limited');
+    if (certificate.status !== 'limited') return;
+    expect(certificate.maximumStepLength).toBeCloseTo(0.405, 12);
+    expect(admissibleThroughout(term, at, certificate.maximumStepLength))
+      .toBe(true);
+    // The exploit the review demonstrated, applied here from inside the test
+    // rather than through the object: 0.9 -> 1.2 moves 0.405 to 0.54, which
+    // reaches past the boundary at 0.45. The assertion above is therefore
+    // live — it is not passing because the sampling could never fail.
+    const inflated = certificate.maximumStepLength * (1.2 / 0.9);
+    expect(inflated).toBeCloseTo(0.54, 12);
+    expect(admissibleThroughout(term, at, inflated)).toBe(false);
+    // What changed is that no caller can apply that factor to the term.
+    expect(() => {
+      (term.stepFilter as unknown as Record<string, unknown>)
+        .conservativeScale = 1.2;
+    }).toThrow(TypeError);
+    expect(term.stepFilter.evaluate(contextFor(1, at(0), at(1))))
+      .toEqual(certificate);
+  });
+
+  it('accepts no rule, so there is no caller rule to mutate', () => {
+    const cellSide = simplexComplex(3, [0, 0.4, 0, 1, 0.4, 0, 0, 0.4, 1]);
+    const obstacleSide = simplexComplex(3, FLOOR_VALUES);
+    const binding = compileXpbdParticleBindingN({
+      id: 'cell', source: cellSide.complex
+    });
+    const authored = {
+      id: 'measure-contact', binding, cell: cellSide.simplex,
+      obstacle: obstacleSide.simplex, activationDistance: 1, stiffness: 2,
+      maximumDirectionError: 1e-6
+    };
+    for (const rejected of ['rule', 'quadrature', 'nodes', 'referenceMeasure']) {
+      expect(() => compileXpbdSourceSimplexMeasureBarrierN(
+        { ...authored, [rejected]: {} } as never
+      ), rejected).toThrow(new RegExp(`unknown option "${rejected}"`, 'u'));
+    }
+  });
+
+  it('snapshots a static obstacle and reads a bound one live', () => {
+    // Static: the term took its own copy at construction, so editing the
+    // caller's complex afterwards cannot reach it.
+    const cellSide = simplexComplex(3, [0, 0.4, 0, 1, 0.4, 0, 0, 0.4, 1]);
+    const obstacleSide = simplexComplex(3, FLOOR_VALUES);
+    const binding = compileXpbdParticleBindingN({
+      id: 'cell', source: cellSide.complex
+    });
+    const { provider } = compileXpbdSourceSimplexMeasureBarrierN({
+      id: 'static-contact', binding, cell: cellSide.simplex,
+      obstacle: obstacleSide.simplex, activationDistance: 1, stiffness: 2,
+      maximumDirectionError: 1e-6
+    });
+    const before = provider.evaluate().potentialEnergy;
+    for (let axis = 1; axis < obstacleSide.complex.positions.length; axis += 3) {
+      obstacleSide.complex.positions[axis] = 0.2;
+    }
+    expect(provider.evaluate().potentialEnergy).toBe(before);
+
+    // Bound: the obstacle is kinematic but genuinely live, read through the
+    // binding on every evaluation.
+    const bound = fixture({
+      dimension: 3, cellDimension: 2, boundObstacle: true
+    });
+    const restEnergy = bound.provider.evaluate().potentialEnergy;
+    const lifted = new Map(bound.obstacleBinding!.particles.map((particle) => {
+      const moved = particle.position.clone();
+      moved.data[1] += 0.15;
+      return [particle, moved] as const;
+    }));
+    const movedEnergy = bound.provider.evaluateAt(
+      (particle) => lifted.get(particle) ?? particle.position.clone()
+    ).potentialEnergy;
+    expect(movedEnergy).not.toBe(restEnergy);
+    expect(movedEnergy).toBeGreaterThan(restEnergy);
   });
 });

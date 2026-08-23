@@ -17,8 +17,20 @@ Additive. No released behaviour changes, and no version is bumped here.
 - **A contact now resists by the size of the touching feature rather than by
   the number of vertices describing it.** The released pair family's summed
   energy is discretization-defined — four cells under one contact carry four
-  terms — and this law removes that dependence: a cell and the two cells that
-  subdivide it publish the same energy.
+  terms — and this law carries the measure once instead, so splitting a cell
+  does not answer twice.
+- **That is measure consistency, not invariance under subdivision.** The
+  integrand is a nonlinear barrier of a distance field and the rule is a fixed
+  finite quadrature, so subdivision moves the sample locations and normally
+  changes the estimate. Subdivision is exactly additive only when the sampled
+  barrier is constant over the cell. Measured on two legal refinements of one
+  source region: a tilted cell split in half changes by about 27%, and an
+  uneven split of a curved arrangement by about 44%.
+- **The refinement sequence converges to the continuum integral**, measured at
+  second order in the cell size against an independent composite
+  Gauss--Legendre reference built from the released exact query and barrier,
+  with the single-cell estimate about 28% below the continuum value. That is a
+  measurement on a named fixture; no truncation bound is proved or claimed.
 - **The measure is the rest one, read once from the binding's validated
   snapshot and frozen.** That is what makes the published forces the complete
   gradient of the published energy; a current-measure weight would give the

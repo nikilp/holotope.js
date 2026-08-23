@@ -32,6 +32,9 @@ const GATE_FILES = [
 ];
 
 const LAW = 'src/xpbd-source-simplex-measure-barrier.ts';
+/** Claim sites outside the law's own module, relative to the repository. */
+const GUIDE = '../../docs/learn/physics/deformable.md';
+const CONSUMER = '../../fixtures/packed-consumer/src/checks.ts';
 
 const sha256 = (path) =>
   createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -39,24 +42,24 @@ const sha256 = (path) =>
 const MUTATIONS = [
   {
     id: '1 drop the reference-measure weight',
-    find: 'const reduced = ledger.reduce(this.referenceMeasure);',
+    find: 'const reduced = ledger.reduce(referenceMeasure);',
     replace: 'const reduced = ledger.reduce(1);'
   },
   {
     id: '2 weight by the live measure, not the rest measure',
-    find: 'const reduced = ledger.reduce(this.referenceMeasure);',
+    find: 'const reduced = ledger.reduce(referenceMeasure);',
     replace: `const reduced = ledger.reduce(evaluateSimplexSquaredMeasureN(
-      this.cellParticles.map((_, slot) => new VecN(Array.from(
-        { length: this.dimension },
-        (__, axis) => cell[slot * this.dimension + axis]
+      cellParticles.map((_, slot) => new VecN(Array.from(
+        { length: dimension },
+        (__, axis) => cell[slot * dimension + axis]
       )))
     ).measure);`
   },
   {
     id: '3 square the measure weight',
-    find: 'const reduced = ledger.reduce(this.referenceMeasure);',
+    find: 'const reduced = ledger.reduce(referenceMeasure);',
     replace:
-      'const reduced = ledger.reduce(this.referenceMeasure * this.referenceMeasure);'
+      'const reduced = ledger.reduce(referenceMeasure * referenceMeasure);'
   },
   {
     id: '4 collapse the rule to its centroid',
@@ -77,35 +80,35 @@ const MUTATIONS = [
   },
   {
     id: '5 place every node at its own vertex',
-    find: `        value += rule.coefficients[slot]! *
-          (cell[slot * this.dimension + axis]! - cell[anchor + axis]!);`,
+    find: `        value += node.coefficients[slot]! *
+          (cell[slot * dimension + axis]! - cell[anchor + axis]!);`,
     replace: '        value += 0;'
   },
   {
     id: '6 raw weighted sum instead of the anchored affine form',
-    find: `    const anchor = rule.ownSlot * this.dimension;
-    for (let axis = 0; axis < this.dimension; axis++) {
+    find: `    const anchor = node.ownSlot * dimension;
+    for (let axis = 0; axis < dimension; axis++) {
       let value = cell[anchor + axis]!;
-      for (let slot = 0; slot < rule.coefficients.length; slot++) {
-        if (slot === rule.ownSlot) continue;
-        value += rule.coefficients[slot]! *
-          (cell[slot * this.dimension + axis]! - cell[anchor + axis]!);
+      for (let slot = 0; slot < node.coefficients.length; slot++) {
+        if (slot === node.ownSlot) continue;
+        value += node.coefficients[slot]! *
+          (cell[slot * dimension + axis]! - cell[anchor + axis]!);
       }
       point[axis] = value;
     }`,
-    replace: `    for (let axis = 0; axis < this.dimension; axis++) {
+    replace: `    for (let axis = 0; axis < dimension; axis++) {
       let value = 0;
-      for (let slot = 0; slot < rule.coefficients.length; slot++) {
-        value += rule.coefficients[slot]! * cell[slot * this.dimension + axis]!;
+      for (let slot = 0; slot < node.coefficients.length; slot++) {
+        value += node.coefficients[slot]! * cell[slot * dimension + axis]!;
       }
       point[axis] = value;
     }`
   },
   {
     id: '7 omit the obstacle reaction',
-    find: `      if (this.obstacleParticles !== undefined) {
-        const offset = this.cellParticles.length;
-        for (let slot = 0; slot < this.obstacleParticles.length; slot++) {
+    find: `      if (obstacleParticles !== undefined) {
+        const offset = cellParticles.length;
+        for (let slot = 0; slot < obstacleParticles.length; slot++) {
           ledger.accumulate(
             offset + slot, -share * projected.witness.weights[slot]!, direction
           );
@@ -125,19 +128,19 @@ const MUTATIONS = [
   },
   {
     id: '10 use the barrier energy where its derivative belongs',
-    find: '      const share = rule.weight * barrier.firstDerivative.value;',
-    replace: '      const share = rule.weight * barrier.energy.value;'
+    find: '      const share = quadrature.weight * barrier.firstDerivative.value;',
+    replace: '      const share = quadrature.weight * barrier.energy.value;'
   },
   {
     id: '11 request a curvature the term does not use',
-    find: `        stiffness: this.stiffness
+    find: `        stiffness
       }, 1);`,
-    replace: `        stiffness: this.stiffness
+    replace: `        stiffness
       }, 2);`
   },
   {
     id: '12 drop the rule weight from the energy',
-    find: '      ledger.recordEnergy(node, rule.weight * barrier.energy.value);',
+    find: '      ledger.recordEnergy(node, quadrature.weight * barrier.energy.value);',
     replace: '      ledger.recordEnergy(node, barrier.energy.value);'
   },
   {
@@ -145,18 +148,18 @@ const MUTATIONS = [
     find: `      if (!(certifiedDistanceLowerBound(
         projected.witness.squaredDistance,
         projected.error.squaredDistanceErrorBound
-      ) > this.minimumDistance)) {
-        throw this.refuse('minimum-distance-not-certified',
+      ) > minimumDistance)) {
+        throw refuse('minimum-distance-not-certified',
           \`\${caller}: node \${node}'s distance error bound reaches minimumDistance\`);
       }`,
     replace: ''
   },
   {
     id: '14 drop the direction-policy gate',
-    find: `      if (projected.error.directionErrorBound > this.maximumDirectionError) {
-        throw this.refuse('direction-error-exceeds-policy',`,
-    replace: `      if (false && projected.error.directionErrorBound > this.maximumDirectionError) {
-        throw this.refuse('direction-error-exceeds-policy',`
+    find: `      if (projected.error.directionErrorBound > maximumDirectionError) {
+        throw refuse('direction-error-exceeds-policy',`,
+    replace: `      if (false && projected.error.directionErrorBound > maximumDirectionError) {
+        throw refuse('direction-error-exceeds-policy',`
   },
   {
     id: '15 check only the energy component, not the derivative',
@@ -165,7 +168,7 @@ const MUTATIONS = [
   },
   {
     id: '16 make a candidate-time rank deficiency permanent',
-    find: `      throw this.refuse('obstacle-rank-deficient',
+    find: `      throw refuse('obstacle-rank-deficient',
         \`\${caller}: the obstacle simplex is exactly rank-deficient \` +
         \`(rank \${result.exactRank}) at this candidate\`);`,
     replace: `      throw new Error(
@@ -190,7 +193,7 @@ const MUTATIONS = [
   },
   {
     id: '19 drop the conservative scale from the certified prefix',
-    find: '      (this.conservativeScale * start.margin / total);',
+    find: '      (conservativeScale * start.margin / total);',
     replace: '      (start.margin / total);'
   },
   {
@@ -224,6 +227,83 @@ const MUTATIONS = [
     replace: `  if (options.maximumDirectionError === undefined) {
     options = { ...options, maximumDirectionError: 1e-6 };
   }`
+  },
+  {
+    id: '23 expose the fixed rule as a writable property',
+    find: `  const provider: XpbdConservativeForceProviderN = Object.freeze({
+    id,
+    dimension,
+    particles,`,
+    replace: `  const provider = Object.freeze({
+    id,
+    dimension,
+    particles,
+    rule,`
+  },
+  {
+    id: '24 expose the reference measure',
+    find: `  const provider: XpbdConservativeForceProviderN = Object.freeze({
+    id,
+    dimension,
+    particles,`,
+    replace: `  const provider = Object.freeze({
+    id,
+    dimension,
+    particles,
+    referenceMeasure,`
+  },
+  {
+    id: '25 expose the static-obstacle typed buffer',
+    find: `  const provider: XpbdConservativeForceProviderN = Object.freeze({
+    id,
+    dimension,
+    particles,`,
+    replace: `  const provider = Object.freeze({
+    id,
+    dimension,
+    particles,
+    staticObstacle,`
+  },
+  {
+    id: '26 expose the conservative scale',
+    find: `  const stepFilter: XpbdIncrementalPotentialStepFilterN = Object.freeze({
+    id: \`\${id}-filter\`,`,
+    replace: `  const stepFilter = Object.freeze({
+    conservativeScale,
+    id: \`\${id}-filter\`,`
+  },
+  {
+    id: '27 expose the provider through the filter',
+    find: `  const stepFilter: XpbdIncrementalPotentialStepFilterN = Object.freeze({
+    id: \`\${id}-filter\`,`,
+    replace: `  const stepFilter = Object.freeze({
+    provider,
+    id: \`\${id}-filter\`,`
+  },
+  {
+    id: '28 stop freezing the exposed instances',
+    find: `  const provider: XpbdConservativeForceProviderN = Object.freeze({`,
+    replace: `  const provider: XpbdConservativeForceProviderN = ({`,
+    also: {
+      find: `    evaluateAt
+  });`,
+      replace: `    evaluateAt
+  } as XpbdConservativeForceProviderN);`
+    }
+  },
+  {
+    id: '29 restore the general refinement-invariance wording',
+    file: GUIDE,
+    find: `Splitting a cell splits \`mu0\` between the halves, so two cells do not answer
+twice for one contact.`,
+    replace: `Subdividing a cell splits \`mu0\` between the halves, so the same contact
+publishes the same energy however finely it is meshed.`
+  },
+  {
+    id: '30 restore the packed-consumer general-invariance assertion',
+    file: CONSUMER,
+    find: `    'a CONSTANT-distance cell must be exactly additive under subdivision');`,
+    replace: `    'subdividing a cell must not change a measure-weighted contact energy');`
   }
 ];
 
@@ -253,9 +333,10 @@ function runGates() {
   return { total, failed, ranFiles, failedTests };
 }
 
-const path = resolve(PHYSICS, LAW);
 const results = [];
 for (const mutation of MUTATIONS) {
+  const file = mutation.file ?? LAW;
+  const path = resolve(PHYSICS, file);
   const original = readFileSync(path, 'utf8');
   const originalHash = sha256(path);
 
@@ -283,7 +364,7 @@ for (const mutation of MUTATIONS) {
 
   results.push({
     id: mutation.id,
-    file: LAW,
+    file,
     applied,
     reached,
     killed,

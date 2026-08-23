@@ -641,6 +641,18 @@ cosine-fold stiffness, not a continuum shell**; see
 [the deformable page](../physics/deformable.md#extrinsic-stiffness-discrete-cosine-fold-bending)
 for the coordinate and its measured non-convergence.
 
+`compileXpbdSourceSimplexMeasureBarrierN()` sits at the same boundary and
+carries the same two facts. It supplies the **first-derivative seam only** — no
+Hessian-vector product — so a minimization configured with
+`directionPolicy: 'newton-cg'` and no fallback terminates as
+`direction-refused` with named unsupported-provider evidence rather than
+returning a direction that ignores the contact. The default first-order path
+and an authored fallback both drive it normally. Its paired
+`stepFilter` must travel with it too, and for a sharper reason than
+convenience: the law measures **unsigned** distance and has no notion of side,
+so a segment can begin above the obstacle and end below it with both endpoints
+admissible. Without the filter, nothing in the objective refuses that step.
+
 Two facts matter at this boundary. It implements the first-derivative seam
 only, so a mixture containing it makes `'newton-cg'` refuse with named
 unsupported-provider evidence rather than dropping the bending block and

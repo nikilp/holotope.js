@@ -12,13 +12,13 @@
       "killed": true,
       "failedTests": [
         "the measure barrier: energy, forces, and the reference weight weights by the REFERENCE measure: two rest cells differing only in size give energies in exactly that ratio at identical placements",
-        "the measure barrier: energy, forces, and the reference weight is invariant under refining the cell: one segment and the two halves covering it publish the same energy",
+        "the measure barrier: energy, forces, and the reference weight CONSTANT-INTEGRAND CALIBRATION: a cell at constant distance is exactly additive under subdivision",
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity",
         "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone"
       ],
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 5
+      "testsRun": 36,
+      "testsFailed": 8
     },
     {
       "id": "2 weight by the live measure, not the rest measure",
@@ -31,7 +31,7 @@
         "the measure barrier: energy, forces, and the reference weight weights by the REFERENCE measure: two rest cells differing only in size give energies in exactly that ratio at identical placements"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 2
     },
     {
@@ -42,13 +42,13 @@
       "killed": true,
       "failedTests": [
         "the measure barrier: energy, forces, and the reference weight weights by the REFERENCE measure: two rest cells differing only in size give energies in exactly that ratio at identical placements",
-        "the measure barrier: energy, forces, and the reference weight is invariant under refining the cell: one segment and the two halves covering it publish the same energy",
+        "the measure barrier: energy, forces, and the reference weight CONSTANT-INTEGRAND CALIBRATION: a cell at constant distance is exactly additive under subdivision",
         "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone",
         "the measure barrier: exact placement of its nodes places a hyperplanar cell's nodes exactly in its own hyperplane"
       ],
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 4
+      "testsRun": 36,
+      "testsFailed": 7
     },
     {
       "id": "4 collapse the rule to its centroid",
@@ -59,11 +59,12 @@
       "failedTests": [
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity",
         "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone",
-        "the measure barrier: the rule itself certifies against the WORST node, not the average one"
+        "the measure barrier: the rule itself certifies against the WORST node, not the average one",
+        "the measure barrier: subdivision changes a nonconstant estimate a linearly tilted cell, split into two equal subcells, changes the estimate by about 27%"
       ],
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 3
+      "testsRun": 36,
+      "testsFailed": 6
     },
     {
       "id": "5 place every node at its own vertex",
@@ -74,11 +75,12 @@
       "failedTests": [
         "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound",
         "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone",
-        "the measure barrier: the rule itself certifies against the WORST node, not the average one"
+        "the measure barrier: the rule itself certifies against the WORST node, not the average one",
+        "the measure barrier: subdivision changes a nonconstant estimate a linearly tilted cell, split into two equal subcells, changes the estimate by about 27%"
       ],
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 3
+      "testsRun": 36,
+      "testsFailed": 6
     },
     {
       "id": "6 raw weighted sum instead of the anchored affine form",
@@ -90,7 +92,7 @@
         "the measure barrier: exact placement of its nodes places a hyperplanar cell's nodes exactly in its own hyperplane"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 1
     },
     {
@@ -104,7 +106,7 @@
         "the measure barrier: energy, forces, and the reference weight sums to zero force when both sides are bound, because the energy depends only on the relative placement"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 2
     },
     {
@@ -118,7 +120,7 @@
         "the measure barrier: energy, forces, and the reference weight sums to zero force when both sides are bound, because the energy depends only on the relative placement"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 2
     },
     {
@@ -134,7 +136,7 @@
         "the measure barrier: inside the released world keeps the filter honest inside the search: a step large enough to tunnel is not applied whole"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 4
     },
     {
@@ -150,7 +152,7 @@
         "the measure barrier: inside the released world keeps the filter honest inside the search: a step large enough to tunnel is not applied whole"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 4
     },
     {
@@ -163,7 +165,7 @@
         "the measure barrier: the shape of its public surface asks the barrier for one derivative order, once, and never asks for a curvature it would not use"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 1
     },
     {
@@ -179,8 +181,8 @@
         "the measure barrier: the rule itself is the measure-weighted average of the barrier at k+1 distinct nodes, reproduced from the released measure and barrier alone"
       ],
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 5
+      "testsRun": 36,
+      "testsFailed": 8
     },
     {
       "id": "13 drop the certified-distance gate",
@@ -192,7 +194,7 @@
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 1
     },
     {
@@ -205,7 +207,7 @@
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 1
     },
     {
@@ -218,7 +220,7 @@
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 1
     },
     {
@@ -231,7 +233,7 @@
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 1
     },
     {
@@ -244,7 +246,7 @@
         "the measure barrier: refusal and configuration semantics rejects authored configuration as a permanent error, never as a recoverable refusal"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 1
     },
     {
@@ -255,11 +257,12 @@
       "killed": true,
       "failedTests": [
         "the measure barrier: the paired step filter certifies a prefix of a segment whose two ends are clear and whose interior is not",
-        "the measure barrier: the rule itself certifies against the WORST node, not the average one"
+        "the measure barrier: the rule itself certifies against the WORST node, not the average one",
+        "the measure barrier: authored options versus tampering SAFETY CALIBRATION: the certified prefix is sound, and a scale of 1.2 applied internally still breaches"
       ],
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 2
+      "testsRun": 36,
+      "testsFailed": 3
     },
     {
       "id": "19 drop the conservative scale from the certified prefix",
@@ -269,11 +272,12 @@
       "killed": true,
       "failedTests": [
         "the measure barrier: the paired step filter certifies a prefix of a segment whose two ends are clear and whose interior is not",
-        "the measure barrier: the rule itself certifies against the WORST node, not the average one"
+        "the measure barrier: the rule itself certifies against the WORST node, not the average one",
+        "the measure barrier: authored options versus tampering SAFETY CALIBRATION: the certified prefix is sound, and a scale of 1.2 applied internally still breaches"
       ],
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 2
+      "testsRun": 36,
+      "testsFailed": 3
     },
     {
       "id": "20 certify against the largest node margin",
@@ -285,7 +289,7 @@
         "the measure barrier: the rule itself certifies against the WORST node, not the average one"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
       "testsFailed": 1
     },
     {
@@ -295,11 +299,12 @@
       "reached": true,
       "killed": true,
       "failedTests": [
-        "the measure barrier: refusal and configuration semantics rejects authored configuration as a permanent error, never as a recoverable refusal"
+        "the measure barrier: refusal and configuration semantics rejects authored configuration as a permanent error, never as a recoverable refusal",
+        "the measure barrier: authored options versus tampering accepts no rule, so there is no caller rule to mutate"
       ],
       "restored": true,
-      "testsRun": 24,
-      "testsFailed": 1
+      "testsRun": 36,
+      "testsFailed": 2
     },
     {
       "id": "22 give the direction policy a default",
@@ -311,7 +316,122 @@
         "the measure barrier: refusal and configuration semantics rejects authored configuration as a permanent error, never as a recoverable refusal"
       ],
       "restored": true,
-      "testsRun": 24,
+      "testsRun": 36,
+      "testsFailed": 1
+    },
+    {
+      "id": "23 expose the fixed rule as a writable property",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the shape of its public surface publishes objects carrying no inspection surface",
+        "the measure barrier: runtime privacy of non-authorable state exposes exactly the released interface members, all of them frozen",
+        "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
+      ],
+      "restored": true,
+      "testsRun": 36,
+      "testsFailed": 3
+    },
+    {
+      "id": "24 expose the reference measure",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the shape of its public surface publishes objects carrying no inspection surface",
+        "the measure barrier: runtime privacy of non-authorable state exposes exactly the released interface members, all of them frozen",
+        "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
+      ],
+      "restored": true,
+      "testsRun": 36,
+      "testsFailed": 3
+    },
+    {
+      "id": "25 expose the static-obstacle typed buffer",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the shape of its public surface publishes objects carrying no inspection surface",
+        "the measure barrier: runtime privacy of non-authorable state exposes exactly the released interface members, all of them frozen",
+        "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
+      ],
+      "restored": true,
+      "testsRun": 36,
+      "testsFailed": 3
+    },
+    {
+      "id": "26 expose the conservative scale",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the shape of its public surface publishes objects carrying no inspection surface",
+        "the measure barrier: runtime privacy of non-authorable state exposes exactly the released interface members, all of them frozen",
+        "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
+      ],
+      "restored": true,
+      "testsRun": 36,
+      "testsFailed": 3
+    },
+    {
+      "id": "27 expose the provider through the filter",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the shape of its public surface publishes objects carrying no inspection surface",
+        "the measure barrier: runtime privacy of non-authorable state exposes exactly the released interface members, all of them frozen",
+        "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
+      ],
+      "restored": true,
+      "testsRun": 36,
+      "testsFailed": 3
+    },
+    {
+      "id": "28 stop freezing the exposed instances",
+      "file": "src/xpbd-source-simplex-measure-barrier.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: runtime privacy of non-authorable state exposes exactly the released interface members, all of them frozen",
+        "the measure barrier: runtime privacy of non-authorable state cannot be tampered with: every property attack throws and changes nothing"
+      ],
+      "restored": true,
+      "testsRun": 36,
+      "testsFailed": 2
+    },
+    {
+      "id": "29 restore the general refinement-invariance wording",
+      "file": "../../docs/learn/physics/deformable.md",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the language of its public claims states no general refinement invariance anywhere it makes a claim"
+      ],
+      "restored": true,
+      "testsRun": 36,
+      "testsFailed": 1
+    },
+    {
+      "id": "30 restore the packed-consumer general-invariance assertion",
+      "file": "../../fixtures/packed-consumer/src/checks.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "the measure barrier: the language of its public claims states no general refinement invariance anywhere it makes a claim"
+      ],
+      "restored": true,
+      "testsRun": 36,
       "testsFailed": 1
     }
   ]

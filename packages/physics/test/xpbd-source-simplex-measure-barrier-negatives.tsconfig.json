@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": false,
+    "rootDir": "..",
+    "types": []
+  },
+  "include": ["./xpbd-source-simplex-measure-barrier-negatives.ts"]
+}

@@ -163,6 +163,37 @@ instead of averaging away. This closes the P53d boundary: a sheet triangle
 can now be held off an obstacle that pierces its interior while every vertex
 is legally separated. It is not self-contact or mesh–mesh CCD.
 
+`compileXpbdSourceSimplexMeasureBarrierN` offers the other weighting of the
+same contact. Where the pair family carries one term per source cell — so a
+shared edge carries both adjacent cells' terms — this law carries the cell's
+**reference** k-measure once and averages a clamped-log barrier over `k + 1`
+fixed interior nodes, so splitting a cell does not answer twice. It compiles
+one conservative provider and one paired step filter, for `k = 1, 2, 3` (the
+range over which the exact point–simplex query publishes a direction
+enclosure), and a successful evaluation carries exactly `potentialEnergy` and
+`forces` — there is no inspection surface and no Layer-2 record.
+
+Measure consistency is not invariance under subdivision, and the two are kept
+apart deliberately. The integrand is a nonlinear barrier of a distance field
+and the rule is a **fixed finite quadrature**: subdivision is exactly additive
+only when the sampled barrier is constant over the cell, and otherwise it moves
+the sample locations and changes the estimate — measured at about 27% for a
+tilted cell split in half and about 44% for an uneven split of a curved
+arrangement. The refinement sequence does converge to the continuum integral,
+measured at second order against an independent composite Gauss–Legendre
+reference, with the single-cell estimate about 28% below it; that is a
+measurement on a named fixture, and **no truncation bound is proved or
+claimed**. No portable timing or performance multiplier is claimed either.
+
+The quadrature rule is not authorable and is not reachable at runtime: the
+compiled terms are frozen and hold every non-authorable value in closure, so
+there is no rule option to pass and no rule, reference measure, obstacle
+snapshot or conservative scale property to overwrite. The companion filter is
+**required, not optional** — the law measures unsigned distance and has no
+notion of side, so without the filter a step can leap clean through the
+obstacle with both endpoints admissible. This is normal contact only; friction
+is the separate lagged pair-friction term.
+
 The generic pair query is still an experimental surface. A later scale audit
 found that its Float64 rank, zero, and optimality bands can change a result
 under exact similarity transforms. Do not use its 0-simplex specialization as
