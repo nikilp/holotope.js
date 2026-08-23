@@ -2821,3 +2821,209 @@ export function measureContactRuntimePrivacy(): void {
     floor.positions[axis] = 0;
   }
 }
+
+/**
+ * Inherited-operation receivers, in erased JavaScript against the tarballs.
+ *
+ * Own-property privacy is not the whole boundary. A closure variable has no
+ * key and no descriptor, but the moment it is handed to an INHERITED operation
+ * — a typed array's `length` accessor, an array's `forEach` or its
+ * `Symbol.iterator` — the value arrives at a caller-replaceable function as
+ * `this`. Against the previous implementation that was a permanent handle on
+ * the law: a consumer could receive the persistent static-obstacle buffer,
+ * restore the intrinsic, mutate the retained reference afterwards, and move a
+ * later clean evaluation from `0.5211907392559832` to `1.7968655070577886`.
+ *
+ * What is asserted here is not that hostile same-realm metaprogramming can
+ * observe nothing — it can, and the ephemeral per-call geometry below is
+ * observed on purpose. It is that **no captured object can change a future
+ * evaluation**: everything reachable this way is either immutable or freshly
+ * built for one call and never read again.
+ *
+ * Caching the intrinsics at module load would not be a fix; a consumer can
+ * replace them before this package is initialized. Nothing is cached. The
+ * implementation reads persistent state only by index, and carries its counts
+ * as plain numbers, because an Array's `length` is an own property while a
+ * typed array's is inherited.
+ */
+export function measureContactInheritedReceiverPrivacy(): void {
+  const buildFloor = (): CellComplex => new CellComplex(3, Float64Array.from([
+    -40, 0, -40, 60, 0, -40, -40, 0, 60
+  ]), [{
+    dim: 2, verticesPerCell: 3, kind: 'simplex',
+    indices: Uint32Array.from([0, 1, 2])
+  }]);
+  let serial = 0;
+  const build = (
+    from: readonly number[], to: readonly number[]
+  ): XpbdSourceSimplexMeasureBarrierTermsN => {
+    const floor = buildFloor();
+    const complex = new CellComplex(3, Float64Array.from([...from, ...to]), [{
+      dim: 1, verticesPerCell: 2, kind: 'simplex',
+      indices: Uint32Array.from([0, 1])
+    }]);
+    const id = `receiver-${serial++}`;
+    return compileXpbdSourceSimplexMeasureBarrierN({
+      id, binding: compileXpbdParticleBindingN({ id, source: complex }),
+      cell: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(complex, complex.groups[0]!, 0)
+      ),
+      obstacle: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(floor, floor.groups[0]!, 0)
+      ),
+      minimumDistance: 0.05, activationDistance: 1, stiffness: 2,
+      maximumDirectionError: 1e-6
+    });
+  };
+  const TILTED_A = [0, 0.2, 0];
+  const TILTED_B = [1, 0.8, 0];
+  const CONTROL = 0.5211907392559832;
+  const typedArrayPrototype = Object.getPrototypeOf(
+    Float64Array.prototype
+  ) as object;
+  const OBSTACLE_BYTES = 9 * 8;
+
+  assert(build(TILTED_A, TILTED_B).provider.evaluate().potentialEnergy
+    === CONTROL, 'the tilted control energy must be the documented one');
+
+  /** Mutates every retained buffer the way the review's exploit did. */
+  const raiseObstacle = (buffers: readonly Float64Array[]): void => {
+    for (const buffer of buffers) {
+      for (let entry = 1; entry < 9; entry += 3) buffer[entry] = 0.2;
+    }
+  };
+
+  // --- 1. construction-time typed-array method interception ---------------
+  {
+    const seen = new Set<Float64Array>();
+    const original = Float64Array.prototype.subarray;
+    let terms: XpbdSourceSimplexMeasureBarrierTermsN;
+    try {
+      // eslint-disable-next-line func-names
+      Float64Array.prototype.subarray = function (
+        this: Float64Array, ...rest: readonly number[]
+      ): Float64Array {
+        if (this.byteLength === OBSTACLE_BYTES) seen.add(this);
+        return original.apply(this, rest as unknown as [number, number]);
+      };
+      terms = build(TILTED_A, TILTED_B);
+    } finally {
+      Float64Array.prototype.subarray = original;
+    }
+    assert(Float64Array.prototype.subarray === original,
+      'the intrinsic must be restored before the consequence is measured');
+    assert(seen.size === 0,
+      `construction must take no subarray of obstacle geometry, saw ${seen.size}`);
+    raiseObstacle([...seen]);
+    assert(terms.provider.evaluate().potentialEnergy === CONTROL,
+      'construction-time interception must not reach a later evaluation');
+  }
+
+  // --- 2. evaluation-time typed-array getter interception -----------------
+  //     and 6. restore, mutate, re-evaluate cleanly
+  //     and 7. repeated evaluations prove the capture is per-call
+  {
+    const terms = build(TILTED_A, TILTED_B);
+    const descriptor = Object.getOwnPropertyDescriptor(
+      typedArrayPrototype, 'length'
+    )!;
+    const capture = (): Float64Array[] => {
+      const seen = new Set<Float64Array>();
+      try {
+        Object.defineProperty(typedArrayPrototype, 'length', {
+          configurable: true,
+          get(this: Float64Array): number {
+            if (this instanceof Float64Array
+              && this.byteLength === OBSTACLE_BYTES) seen.add(this);
+            return (descriptor.get as () => number).call(this);
+          }
+        });
+        terms.provider.evaluate();
+      } finally {
+        Object.defineProperty(typedArrayPrototype, 'length', descriptor);
+      }
+      return [...seen];
+    };
+    const first = capture();
+    const second = capture();
+    assert(Object.getOwnPropertyDescriptor(typedArrayPrototype, 'length')!.get
+      === descriptor.get, 'the inherited accessor must be restored');
+    // Captured — deliberately, and reported rather than denied.
+    assert(first.length > 0,
+      'the query does read its geometry through the inherited accessor');
+    // EPHEMERAL: no captured object survives from one call to the next.
+    const shared = first.filter((buffer) => second.includes(buffer));
+    assert(shared.length === 0,
+      `captured geometry must be per-call, ${shared.length} survived`);
+    // Mutable in itself, which is why identity is what matters.
+    const probe = first[0]!;
+    const held = probe[1]!;
+    probe[1] = 99;
+    assert(probe[1] === 99, 'the ephemeral copy is an ordinary buffer');
+    probe[1] = held;
+    // The decisive consequence test: mutate everything retained, then run a
+    // clean evaluation under genuine intrinsics.
+    raiseObstacle([...first, ...second]);
+    assert(terms.provider.evaluate().potentialEnergy === CONTROL,
+      'mutating retained geometry must not change a later clean evaluation');
+    assert(terms.provider.evaluate().potentialEnergy === CONTROL,
+      'and must not change any evaluation after that either');
+  }
+
+  // --- 3, 4, 5. array forEach and iterator interception -------------------
+  {
+    const terms = build(TILTED_A, TILTED_B);
+    const sweep = build([0, 0.5, 0], [1, 0.5, 0]);
+    const captured: unknown[] = [];
+    const originalForEach = Array.prototype.forEach;
+    const originalIterator = Array.prototype[Symbol.iterator];
+    try {
+      // eslint-disable-next-line func-names
+      Array.prototype.forEach = function (
+        this: unknown[], ...rest: readonly unknown[]
+      ): void {
+        captured.push(this);
+        return originalForEach.apply(
+          this, rest as unknown as [(value: unknown) => void]
+        );
+      };
+      Array.prototype[Symbol.iterator] = function (
+        this: unknown[]
+      ): IterableIterator<unknown> {
+        captured.push(this);
+        return originalIterator.call(this);
+      };
+      terms.provider.evaluate();
+      sweep.stepFilter.evaluate({
+        dimension: 3, requestedStepLength: 1,
+        positionBefore: (particle) => particle.position.clone(),
+        positionAfter: (particle) => particle.position.clone()
+      });
+    } finally {
+      Array.prototype.forEach = originalForEach;
+      Array.prototype[Symbol.iterator] = originalIterator;
+    }
+    assert(Array.prototype.forEach === originalForEach
+      && Array.prototype[Symbol.iterator] === originalIterator,
+      'both array intrinsics must be restored');
+    const arrays = captured.filter((value): value is unknown[] =>
+      Array.isArray(value) && value.length > 0);
+    const isRecord = (value: unknown): value is Record<string, unknown> =>
+      typeof value === 'object' && value !== null;
+    // No private partition array is a receiver. The PUBLIC particle list is
+    // allowed to be one — it is published API, and no privacy claim covers it.
+    const partitions = arrays.filter((value) =>
+      isRecord(value[0]) && 'inverseMass' in value[0]
+      && value !== terms.provider.particles
+      && value !== sweep.provider.particles);
+    assert(partitions.length === 0,
+      `no private partition array may be a receiver, saw ${partitions.length}`);
+    // The fixed rule is never a receiver at all.
+    const rules = arrays.filter((value) =>
+      isRecord(value[0]) && 'ownSlot' in value[0]);
+    assert(rules.length === 0,
+      `the fixed rule must never be a receiver, saw ${rules.length}`);
+    assert(terms.provider.evaluate().potentialEnergy === CONTROL,
+      'the law is unchanged after the array intrinsics are restored');
+  }
+}

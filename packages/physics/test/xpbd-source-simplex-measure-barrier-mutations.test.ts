@@ -46,7 +46,7 @@ describe('the measure barrier: the standing mutation matrix', () => {
         + `applied=${row.applied} reached=${row.reached} `
         + `killed=${row.killed} restored=${row.restored} `
         + `(${row.testsFailed}/${row.testsRun})`).join('\n'));
-    expect(MATRIX.results.length).toBe(30);
+    expect(MATRIX.results.length).toBe(34);
     expect(MATRIX.gateFiles).toEqual([
       'packages/physics/test/xpbd-source-simplex-measure-barrier.test.ts',
       'packages/physics/test/xpbd-source-simplex-measure-barrier-surface.test.ts'
@@ -102,7 +102,15 @@ describe('the measure barrier: the standing mutation matrix', () => {
       'expose the provider through the filter',
       'stop freezing',
       'restore the general refinement-invariance wording',
-      'restore the packed-consumer general-invariance assertion'
+      'restore the packed-consumer general-invariance assertion',
+      // The inherited-receiver shapes. Own-property privacy was already
+      // green when every one of these was open: a closure variable has no
+      // key, but handing it to an inherited operation delivers it to a
+      // caller-replaceable function as `this`.
+      'persistent typed obstacle',
+      'inherited subarray',
+      'inherited forEach',
+      'inherited iterator'
     ]) {
       expect(ids.some((id) => id.includes(required)),
         `missing mutation: ${required}`).toBe(true);

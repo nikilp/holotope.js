@@ -869,6 +869,7 @@ console.log(advance.step.status);
 | supported source dimensions | `k = 1, 2, 3` — the range over which the exact point–simplex query publishes a direction enclosure |
 | successful evaluation | exactly `potentialEnergy` and `forces`; no inspection surface and no Layer-2 record exists |
 | the quadrature | fixed, not authorable, and not reachable at runtime — the compiled terms are frozen and hold every non-authorable value in closure |
+| runtime privacy | persistent state is read by index and never used as the receiver of an inherited operation; everything handed to released code is built fresh per call. The claim is not that a hostile same-realm consumer can observe nothing, but that nothing it captures can change a later evaluation |
 | truncation | none proved and none claimed; convergence is a measurement on a named fixture |
 | subdivision | generally changes the sampling and may change the energy |
 | the companion filter | **required**, not optional — see the unsigned-distance argument above |

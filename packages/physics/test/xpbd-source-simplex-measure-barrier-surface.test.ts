@@ -54,6 +54,20 @@ const EXCLUDED_MEMBERS: readonly string[] = [
 const PROVIDER_KEYS = ['dimension', 'evaluate', 'evaluateAt', 'id', 'particles'];
 const FILTER_KEYS = ['dimension', 'evaluate', 'id', 'particles'];
 
+/** The constant-distance sweep fixture the filter tests drive. */
+function sweep(): ReturnType<typeof terms> {
+  const cellSide = simplex([0, 0.5, 0, 1, 0.5, 0]);
+  const obstacleSide = simplex([-40, 0, -40, 60, 0, -40, -40, 0, 60]);
+  const binding = compileXpbdParticleBindingN({
+    id: 'sweep-cell', source: cellSide.complex
+  });
+  return compileXpbdSourceSimplexMeasureBarrierN({
+    id: 'sweep-contact', binding, cell: cellSide.simplex,
+    obstacle: obstacleSide.simplex, minimumDistance: 0.05,
+    activationDistance: 1, stiffness: 2, maximumDirectionError: 1e-6
+  });
+}
+
 function terms() {
   const cellSide = simplex([0, 0.4, 0, 1, 0.4, 0, 0, 0.4, 1]);
   const obstacleSide = simplex([-40, 0, -40, 60, 0, -40, -40, 0, 60]);
@@ -396,5 +410,166 @@ describe('the measure barrier: the language of its public claims', () => {
       expect(/no truncation bound|not a bound|never a bound/iu.test(text),
         `${site}: truncation disclaimer`).toBe(true);
     }
+  });
+});
+
+/**
+ * Inherited operations, and what they are allowed to receive.
+ *
+ * Own-property privacy is only half the boundary. A closure variable has no
+ * key and no descriptor — but hand it to an inherited operation and it arrives
+ * at a caller-replaceable function as `this`. Against the previous
+ * implementation that was a permanent handle on the law: intercept
+ * `Float64Array.prototype.subarray` at construction or the inherited
+ * `%TypedArray%.prototype.length` accessor during evaluation, receive the
+ * persistent static-obstacle buffer, restore the intrinsic, then mutate the
+ * retained reference — and a later clean evaluation moved from
+ * `0.5211907392559832` to `1.7968655070577886`.
+ *
+ * The contract asserted here is not that nothing can be observed. The
+ * ephemeral per-call geometry below IS observed, deliberately. It is that no
+ * captured object can change a future evaluation.
+ *
+ * The same battery runs against freshly packed tarballs in the packed
+ * consumer. This copy is the fast one, and neither replaces the other.
+ */
+describe('the measure barrier: inherited-operation receivers', () => {
+  const TILTED_CONTROL = 0.5211907392559832;
+  const OBSTACLE_BYTES = 9 * 8;
+  const typedArrayPrototype = Object.getPrototypeOf(
+    Float64Array.prototype
+  ) as object;
+
+  /** The review's tilted fixture, as its own compiled term. */
+  let serial = 0;
+  const tilted = (): ReturnType<typeof terms> => {
+    const cellSide = simplex([0, 0.2, 0, 1, 0.8, 0]);
+    const obstacleSide = simplex([-40, 0, -40, 60, 0, -40, -40, 0, 60]);
+    const id = `receiver-${serial++}`;
+    return compileXpbdSourceSimplexMeasureBarrierN({
+      id, binding: compileXpbdParticleBindingN({ id, source: cellSide.complex }),
+      cell: cellSide.simplex, obstacle: obstacleSide.simplex,
+      minimumDistance: 0.05, activationDistance: 1, stiffness: 2,
+      maximumDirectionError: 1e-6
+    });
+  };
+  const raiseObstacle = (buffers: readonly Float64Array[]): void => {
+    for (const buffer of buffers) {
+      for (let entry = 1; entry < 9; entry += 3) buffer[entry] = 0.2;
+    }
+  };
+
+  it('takes no inherited typed-array method on obstacle geometry while '
+    + 'compiling', () => {
+    const seen = new Set<Float64Array>();
+    const original = Float64Array.prototype.subarray;
+    let compiled: ReturnType<typeof terms>;
+    try {
+      Float64Array.prototype.subarray = function (
+        this: Float64Array, ...rest: number[]
+      ): Float64Array {
+        if (this.byteLength === OBSTACLE_BYTES) seen.add(this);
+        return original.apply(this, rest as [number, number]);
+      };
+      compiled = tilted();
+    } finally {
+      Float64Array.prototype.subarray = original;
+    }
+    expect(Float64Array.prototype.subarray).toBe(original);
+    expect([...seen]).toHaveLength(0);
+    raiseObstacle([...seen]);
+    expect(compiled.provider.evaluate().potentialEnergy).toBe(TILTED_CONTROL);
+  });
+
+  it('hands the query fresh geometry every call, so nothing retained through '
+    + 'the inherited length accessor can change a later evaluation', () => {
+    const compiled = tilted();
+    expect(compiled.provider.evaluate().potentialEnergy).toBe(TILTED_CONTROL);
+    const descriptor = Object.getOwnPropertyDescriptor(
+      typedArrayPrototype, 'length'
+    )!;
+    const capture = (): Float64Array[] => {
+      const seen = new Set<Float64Array>();
+      try {
+        Object.defineProperty(typedArrayPrototype, 'length', {
+          configurable: true,
+          get(this: Float64Array): number {
+            if (this instanceof Float64Array
+              && this.byteLength === OBSTACLE_BYTES) seen.add(this);
+            return (descriptor.get as () => number).call(this);
+          }
+        });
+        compiled.provider.evaluate();
+      } finally {
+        Object.defineProperty(typedArrayPrototype, 'length', descriptor);
+      }
+      return [...seen];
+    };
+    const first = capture();
+    const second = capture();
+    expect(Object.getOwnPropertyDescriptor(typedArrayPrototype, 'length')!.get)
+      .toBe(descriptor.get);
+    // Observed on purpose: the released query does measure its argument.
+    expect(first.length).toBeGreaterThan(0);
+    // EPHEMERAL — no captured buffer survives into the next call.
+    expect(first.filter((buffer) => second.includes(buffer))).toHaveLength(0);
+    // Mutable in itself, which is exactly why identity is what matters.
+    const probe = first[0]!;
+    probe[1] = 99;
+    expect(probe[1]).toBe(99);
+    // The consequence, measured under restored intrinsics.
+    raiseObstacle([...first, ...second]);
+    expect(compiled.provider.evaluate().potentialEnergy).toBe(TILTED_CONTROL);
+    expect(compiled.provider.evaluate().potentialEnergy).toBe(TILTED_CONTROL);
+  });
+
+  it('never supplies a private partition or the fixed rule to an inherited '
+    + 'array operation', () => {
+    const compiled = tilted();
+    const sweepTerm = sweep();
+    const captured: unknown[] = [];
+    const originalForEach = Array.prototype.forEach;
+    const originalIterator = Array.prototype[Symbol.iterator];
+    try {
+      Array.prototype.forEach = function (
+        this: unknown[], ...rest: unknown[]
+      ): void {
+        captured.push(this);
+        return originalForEach.apply(
+          this, rest as [(value: unknown) => void]
+        );
+      };
+      Array.prototype[Symbol.iterator] = function (
+        this: unknown[]
+      ): IterableIterator<unknown> {
+        captured.push(this);
+        return originalIterator.call(this);
+      };
+      compiled.provider.evaluate();
+      sweepTerm.stepFilter.evaluate({
+        dimension: 3, requestedStepLength: 1,
+        positionBefore: (particle) => particle.position.clone(),
+        positionAfter: (particle) => particle.position.clone()
+      });
+    } finally {
+      Array.prototype.forEach = originalForEach;
+      Array.prototype[Symbol.iterator] = originalIterator;
+    }
+    expect(Array.prototype.forEach).toBe(originalForEach);
+    expect(Array.prototype[Symbol.iterator]).toBe(originalIterator);
+    const arrays = captured.filter((value): value is unknown[] =>
+      Array.isArray(value) && value.length > 0);
+    const record = (value: unknown): value is Record<string, unknown> =>
+      typeof value === 'object' && value !== null;
+    // The PUBLIC particle list may be a receiver: it is published API.
+    const partitions = arrays.filter((value) =>
+      record(value[0]) && 'inverseMass' in value[0]
+      && value !== compiled.provider.particles
+      && value !== sweepTerm.provider.particles);
+    expect(partitions).toHaveLength(0);
+    const rules = arrays.filter((value) =>
+      record(value[0]) && 'ownSlot' in value[0]);
+    expect(rules).toHaveLength(0);
+    expect(compiled.provider.evaluate().potentialEnergy).toBe(TILTED_CONTROL);
   });
 });

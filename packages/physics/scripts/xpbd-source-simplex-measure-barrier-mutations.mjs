@@ -63,19 +63,21 @@ const MUTATIONS = [
   },
   {
     id: '4 collapse the rule to its centroid',
-    find: `  return Object.freeze(Array.from({ length: slots }, (_, ownSlot) =>
-    Object.freeze({
-      ownSlot,
-      coefficients: Object.freeze(Array.from(
-        { length: slots }, (__, slot) => slot === ownSlot ? own : beta
-      )),
-      weight
-    })
-  ));`,
-    replace: `  return Object.freeze([Object.freeze({
-    ownSlot: 0,
-    coefficients: Object.freeze(Array.from({ length: slots }, () => weight)),
-    weight: 1
+    find: `  const nodes = new Array<QuadratureNodeN>(slots);
+  for (let ownSlot = 0; ownSlot < slots; ownSlot++) {
+    const coefficients = new Array<number>(slots);
+    for (let slot = 0; slot < slots; slot++) {
+      coefficients[slot] = slot === ownSlot ? own : beta;
+    }
+    nodes[ownSlot] = Object.freeze({
+      ownSlot, coefficients: Object.freeze(coefficients), slots, weight
+    });
+  }
+  return Object.freeze(nodes);`,
+    replace: `  const centroid = new Array<number>(slots);
+  for (let slot = 0; slot < slots; slot++) centroid[slot] = weight;
+  return Object.freeze([Object.freeze({
+    ownSlot: 0, coefficients: Object.freeze(centroid), slots, weight: 1
   })]);`
   },
   {
@@ -89,7 +91,7 @@ const MUTATIONS = [
     find: `    const anchor = node.ownSlot * dimension;
     for (let axis = 0; axis < dimension; axis++) {
       let value = cell[anchor + axis]!;
-      for (let slot = 0; slot < node.coefficients.length; slot++) {
+      for (let slot = 0; slot < node.slots; slot++) {
         if (slot === node.ownSlot) continue;
         value += node.coefficients[slot]! *
           (cell[slot * dimension + axis]! - cell[anchor + axis]!);
@@ -98,7 +100,7 @@ const MUTATIONS = [
     }`,
     replace: `    for (let axis = 0; axis < dimension; axis++) {
       let value = 0;
-      for (let slot = 0; slot < node.coefficients.length; slot++) {
+      for (let slot = 0; slot < node.slots; slot++) {
         value += node.coefficients[slot]! * cell[slot * dimension + axis]!;
       }
       point[axis] = value;
@@ -304,6 +306,60 @@ publishes the same energy however finely it is meshed.`
     file: CONSUMER,
     find: `    'a CONSTANT-distance cell must be exactly additive under subdivision');`,
     replace: `    'subdividing a cell must not change a measure-weighted contact energy');`
+  },
+  {
+    id: '31 keep a persistent typed obstacle and hand it to the query',
+    find: `    if (staticObstacle !== undefined) {
+      const total = obstacleVertexCount * dimension;
+      const packed = new Float64Array(total);
+      for (let entry = 0; entry < total; entry++) {
+        packed[entry] = staticObstacle[entry]!;
+      }
+      return packed;
+    }`,
+    replace: `    if (staticObstacle !== undefined) {
+      if (persistentObstacle === undefined) {
+        const total = obstacleVertexCount * dimension;
+        persistentObstacle = new Float64Array(total);
+        for (let entry = 0; entry < total; entry++) {
+          persistentObstacle[entry] = staticObstacle[entry]!;
+        }
+      }
+      return persistentObstacle;
+    }`,
+    also: {
+      find: `  const cellCount = cellParticles.length;`,
+      replace: `  let persistentObstacle: Float64Array | undefined;
+  const cellCount = cellParticles.length;`
+    }
+  },
+  {
+    id: '32 take an inherited subarray of obstacle geometry while compiling',
+    find: `    const probePoint = new Float64Array(dimension);
+    for (let axis = 0; axis < dimension; axis++) {
+      probePoint[axis] = staticObstacle[axis]!;
+    }`,
+    replace: `    const probePoint = Float64Array.from(staticObstacle).subarray(0, dimension);`
+  },
+  {
+    id: '33 pack a private partition array through inherited forEach',
+    find: `    for (let slot = 0; slot < count; slot++) {
+      const position = positionOf(side[slot]!);`,
+    replace: `    const slots = [];
+    side.forEach((_, index) => slots.push(index));
+    for (const slot of slots) {
+      const position = positionOf(side[slot]!);`
+  },
+  {
+    id: '34 iterate the fixed rule through its inherited iterator',
+    find: `    for (let node = 0; node < nodeCount; node++) {
+      const result = evaluateExactPointSimplexResult(
+        nodePosition(cell, rule[node]!), obstacle, dimension
+      );`,
+    replace: `    for (const quadrature of rule) {
+      const result = evaluateExactPointSimplexResult(
+        nodePosition(cell, quadrature), obstacle, dimension
+      );`
   }
 ];
 

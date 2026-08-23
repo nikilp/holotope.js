@@ -188,7 +188,14 @@ claimed**. No portable timing or performance multiplier is claimed either.
 The quadrature rule is not authorable and is not reachable at runtime: the
 compiled terms are frozen and hold every non-authorable value in closure, so
 there is no rule option to pass and no rule, reference measure, obstacle
-snapshot or conservative scale property to overwrite. The companion filter is
+snapshot or conservative scale property to overwrite. Closure alone is not the
+whole boundary — a keyless value is still handed to a caller-replaceable
+function whenever it is the receiver of an inherited operation, so persistent
+state here is read by index with counts carried separately, the static snapshot
+is a frozen dense number list, and every value passed to released code is built
+fresh for one call. The claim is not that a hostile same-realm consumer can
+observe nothing; it is that nothing it can capture will change a later
+evaluation. The companion filter is
 **required, not optional** — the law measures unsigned distance and has no
 notion of side, so without the filter a step can leap clean through the
 obstacle with both endpoints admissible. This is normal contact only; friction

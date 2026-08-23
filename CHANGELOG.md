@@ -45,6 +45,16 @@ Additive. No released behaviour changes, and no version is bumped here.
 - **`maximumDirectionError` is required, with no default**, following the
   released point--simplex barrier: the exact query publishes a direction
   enclosure and no universal radius is right for every scene.
+- **The law's non-authorable state is not reachable from a consumer.** The
+  compiled terms are frozen objects carrying exactly the members the released
+  provider and filter interfaces require; everything else lives in closure.
+  Closure alone is not the whole boundary, because a keyless value is still
+  delivered to a caller-replaceable function whenever it is the receiver of an
+  inherited operation — so persistent state is read by index with counts
+  carried separately, the static obstacle snapshot is a frozen dense number
+  list, and every value handed to released code is built fresh for one call.
+  The claim is not that a hostile same-realm consumer can observe nothing; it
+  is that nothing it captures can change a later evaluation.
 - **The paired step filter reads geometry only at the segment start.** The law
   measures unsigned distance and has no notion of side, so a segment can begin
   above the obstacle and end below it with both ends admissible; an endpoint

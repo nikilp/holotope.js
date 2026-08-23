@@ -134,6 +134,8 @@ interface QuadratureNodeN {
   readonly ownSlot: number;
   /** `d p / d q_v`, in vertex-slot order. Shared by position and gradient. */
   readonly coefficients: readonly number[];
+  /** Coefficient count, carried so nothing has to measure the array. */
+  readonly slots: number;
   /** Rule weight; equal across nodes. */
   readonly weight: number;
 }
@@ -171,15 +173,17 @@ function fixedRule(cellDimension: number): readonly QuadratureNodeN[] {
     );
   }
   const weight = 1 / slots;
-  return Object.freeze(Array.from({ length: slots }, (_, ownSlot) =>
-    Object.freeze({
-      ownSlot,
-      coefficients: Object.freeze(Array.from(
-        { length: slots }, (__, slot) => slot === ownSlot ? own : beta
-      )),
-      weight
-    })
-  ));
+  const nodes = new Array<QuadratureNodeN>(slots);
+  for (let ownSlot = 0; ownSlot < slots; ownSlot++) {
+    const coefficients = new Array<number>(slots);
+    for (let slot = 0; slot < slots; slot++) {
+      coefficients[slot] = slot === ownSlot ? own : beta;
+    }
+    nodes[ownSlot] = Object.freeze({
+      ownSlot, coefficients: Object.freeze(coefficients), slots, weight
+    });
+  }
+  return Object.freeze(nodes);
 }
 
 /**
@@ -228,14 +232,14 @@ class ContributionLedgerN {
       summed += this.energies[node]!;
     }
     const potentialEnergy = referenceMeasure * summed;
-    const forces: VecN[] = [];
+    const forces = new Array<VecN>(this.particleCount);
     for (let particle = 0; particle < this.particleCount; particle++) {
       const force = new VecN(this.dimension);
       const base = particle * this.dimension;
       for (let axis = 0; axis < this.dimension; axis++) {
         force.data[axis] = -referenceMeasure * this.gradient[base + axis]!;
       }
-      forces.push(force);
+      forces[particle] = force;
     }
     return { potentialEnergy, forces };
   }
@@ -292,6 +296,39 @@ type FilterRefusalReasonN =
  *
  * The rule stays non-authorable in the same move: there is no rule option to
  * pass and no rule property to overwrite.
+ *
+ * ## Closure is not the whole boundary
+ *
+ * A value with no key is still delivered to a caller-replaceable function the
+ * moment it is used as the RECEIVER of an inherited operation. A typed array's
+ * `length` is an accessor on `%TypedArray%.prototype`; an array's `forEach`
+ * and `Symbol.iterator` live on `Array.prototype`. Any consumer may replace
+ * them — including before this module is initialized, which is why caching
+ * them at load time would not be a fix and none are cached.
+ *
+ * The first closure version still handed the persistent static-obstacle buffer
+ * to the released query, whose `simplex.length` read is inherited, and took
+ * `subarray` of it while compiling. A consumer could receive the buffer,
+ * restore the intrinsic, mutate the retained reference afterwards, and move a
+ * later clean evaluation from `0.5211907392559832` to `1.7968655070577886`.
+ * Ownership of the snapshot is a public contract, so that was a safety defect,
+ * not a matter of taste.
+ *
+ * The rules this module follows as a result:
+ *
+ * - persistent private state is read by INDEX only, never by a method call;
+ * - counts are carried as plain numbers, because an Array's `length` is an own
+ *   property while a typed array's is inherited;
+ * - anything handed to released code — the node point, the cell pack, the
+ *   obstacle geometry — is built fresh for that one call, so retaining it
+ *   confers nothing;
+ * - the static snapshot is a FROZEN dense number list, so even a future route
+ *   that reached it could not write to it.
+ *
+ * What is claimed is therefore not that hostile same-realm metaprogramming can
+ * observe nothing. It can observe the ephemeral per-call geometry, and the
+ * tests observe it deliberately. What is claimed is that **no object it can
+ * capture will change a later evaluation**.
  *
  * ## The law
  *
@@ -358,7 +395,10 @@ function assembleTerms(assembled: {
   readonly dimension: number;
   readonly cellParticles: readonly XpbdParticleN[];
   readonly obstacleParticles: readonly XpbdParticleN[] | undefined;
-  readonly staticObstacle: Float64Array | undefined;
+  /** Frozen dense snapshot, read only by index; never a receiver. */
+  readonly staticObstacle: readonly number[] | undefined;
+  /** Retained separately: a typed array's `length` is an INHERITED accessor. */
+  readonly obstacleVertexCount: number;
   readonly rule: readonly QuadratureNodeN[];
   readonly referenceMeasure: number;
   readonly minimumDistance: number;
@@ -371,12 +411,35 @@ function assembleTerms(assembled: {
   // and no exposed object holds a reference to it.
   const {
     id, dimension, cellParticles, obstacleParticles, staticObstacle, rule,
-    referenceMeasure, minimumDistance, activationDistance, stiffness,
-    maximumDirectionError, conservativeScale
+    obstacleVertexCount, referenceMeasure, minimumDistance, activationDistance,
+    stiffness, maximumDirectionError, conservativeScale
   } = assembled;
-  const particles: readonly XpbdParticleN[] = Object.freeze([
-    ...cellParticles, ...(obstacleParticles ?? [])
-  ]);
+
+  /**
+   * Counts retained as plain numbers.
+   *
+   * An Array's `length` is an OWN data property, so reading it never consults
+   * `Array.prototype`. A typed array's `length` is an ACCESSOR on
+   * `%TypedArray%.prototype`, so reading it hands the array to whatever
+   * function currently sits there. Persistent private state is therefore
+   * measured from these numbers, never from `.length`.
+   */
+  const cellCount = cellParticles.length;
+  const obstacleCount = obstacleParticles === undefined
+    ? 0 : obstacleParticles.length;
+  const nodeCount = rule.length;
+
+  // Built by index rather than by spread: spreading a private partition array
+  // invokes its INHERITED iterator, which hands the private array to a
+  // caller-replaceable function as `this`.
+  const collected = new Array<XpbdParticleN>(cellCount + obstacleCount);
+  for (let slot = 0; slot < cellCount; slot++) {
+    collected[slot] = cellParticles[slot]!;
+  }
+  for (let slot = 0; slot < obstacleCount; slot++) {
+    collected[cellCount + slot] = obstacleParticles![slot]!;
+  }
+  const particles: readonly XpbdParticleN[] = Object.freeze(collected);
 
   const refuse = (
     reason: XpbdSourceSimplexMeasureBarrierDomainReasonN, message: string
@@ -416,7 +479,7 @@ function assembleTerms(assembled: {
     const anchor = node.ownSlot * dimension;
     for (let axis = 0; axis < dimension; axis++) {
       let value = cell[anchor + axis]!;
-      for (let slot = 0; slot < node.coefficients.length; slot++) {
+      for (let slot = 0; slot < node.slots; slot++) {
         if (slot === node.ownSlot) continue;
         value += node.coefficients[slot]! *
           (cell[slot * dimension + axis]! - cell[anchor + axis]!);
@@ -428,13 +491,14 @@ function assembleTerms(assembled: {
 
   const packSide = (
     side: readonly XpbdParticleN[],
+    count: number,
     positionOf: XpbdParticlePositionQueryN,
     caller: string,
     label: string
   ): Float64Array => {
-    const packed = new Float64Array(side.length * dimension);
-    side.forEach((particle, slot) => {
-      const position = positionOf(particle);
+    const packed = new Float64Array(count * dimension);
+    for (let slot = 0; slot < count; slot++) {
+      const position = positionOf(side[slot]!);
       if (!(position instanceof VecN) || position.dim !== dimension) {
         throw new Error(
           `${caller}: ${label}[${slot}] position must be R${dimension}`
@@ -447,16 +511,37 @@ function assembleTerms(assembled: {
         }
         packed[slot * dimension + axis] = value;
       }
-    });
+    }
     return packed;
   };
 
+  /**
+   * The obstacle geometry for ONE call, freshly allocated every time.
+   *
+   * The released exact query reads its `simplex` argument's `length`, and a
+   * typed array's `length` is inherited — so whatever is passed here is
+   * handed to a caller-replaceable accessor as `this`. Passing the persistent
+   * snapshot made that accessor a permanent handle on the law: a consumer
+   * could receive the buffer, restore the accessor, and mutate the retained
+   * reference afterwards, moving a later clean evaluation from
+   * `0.5211907392559832` to `1.7968655070577886`.
+   *
+   * A fresh copy per call cannot carry that authority. Retaining one is
+   * harmless because nothing reads it again.
+   */
   const packObstacle = (
     positionOf: XpbdParticlePositionQueryN, caller: string
   ): Float64Array => {
-    if (staticObstacle !== undefined) return staticObstacle;
+    if (staticObstacle !== undefined) {
+      const total = obstacleVertexCount * dimension;
+      const packed = new Float64Array(total);
+      for (let entry = 0; entry < total; entry++) {
+        packed[entry] = staticObstacle[entry]!;
+      }
+      return packed;
+    }
     return packSide(
-      obstacleParticles!, positionOf, caller, 'obstacle'
+      obstacleParticles!, obstacleCount, positionOf, caller, 'obstacle'
     );
   };
 
@@ -467,7 +552,7 @@ function assembleTerms(assembled: {
     if (typeof positionOf !== 'function') {
       throw new Error(`${caller}: positionOf must be a function`);
     }
-    const cell = packSide(cellParticles, positionOf, caller, 'cell');
+    const cell = packSide(cellParticles, cellCount, positionOf, caller, 'cell');
     const obstacle = packObstacle(positionOf, caller);
     const ledger = new ContributionLedgerN(
       rule.length, particles.length, dimension
@@ -531,9 +616,14 @@ function assembleTerms(assembled: {
       }
     }
     const reduced = ledger.reduce(referenceMeasure);
-    if (!Number.isFinite(reduced.potentialEnergy) ||
-      reduced.forces.some((force) =>
-        force.data.some((value) => !Number.isFinite(value)))) {
+    let finite = Number.isFinite(reduced.potentialEnergy);
+    for (let slot = 0; finite && slot < particles.length; slot++) {
+      const data = reduced.forces[slot]!.data;
+      for (let axis = 0; axis < dimension; axis++) {
+        if (!Number.isFinite(data[axis]!)) { finite = false; break; }
+      }
+    }
+    if (!finite) {
       throw refuse('accumulated-value-outside-float64',
         `${caller}: the measure-weighted sum left Float64 at this candidate`);
     }
@@ -553,12 +643,12 @@ function assembleTerms(assembled: {
     positionOf: XpbdParticlePositionQueryN,
     caller: string
   ): { readonly margin: number } | { readonly reason: FilterRefusalReasonN } => {
-    const cell = packSide(cellParticles, positionOf, caller, 'cell');
+    const cell = packSide(cellParticles, cellCount, positionOf, caller, 'cell');
     const obstacle = packObstacle(positionOf, caller);
     let smallest = Number.POSITIVE_INFINITY;
-    for (const quadrature of rule) {
+    for (let node = 0; node < nodeCount; node++) {
       const result = evaluateExactPointSimplexResult(
-        nodePosition(cell, quadrature), obstacle, dimension
+        nodePosition(cell, rule[node]!), obstacle, dimension
       );
       if (result.status === 'uncertified' || result.status === 'rank-deficient') {
         return { reason: 'initial-uncertified-distance' };
@@ -601,18 +691,19 @@ function assembleTerms(assembled: {
       return Object.freeze({ status: 'indeterminate', reason: start.reason });
     }
     const displacement = (
-      particles: readonly XpbdParticleN[] | undefined
+      side: readonly XpbdParticleN[] | undefined, count: number
     ): number => {
-      if (particles === undefined) return 0;
+      if (side === undefined) return 0;
       let largest = 0;
-      for (const particle of particles) {
+      for (let slot = 0; slot < count; slot++) {
+        const particle = side[slot]!;
         largest = Math.max(largest, context.positionAfter(particle)
           .clone().sub(context.positionBefore(particle)).length());
       }
       return largest;
     };
-    const total = displacement(cellParticles) +
-      displacement(obstacleParticles);
+    const total = displacement(cellParticles, cellCount) +
+      displacement(obstacleParticles, obstacleCount);
     if (total === 0 || total < start.margin) {
       return Object.freeze({
         status: 'safe', maximumStepLength: context.requestedStepLength
@@ -852,24 +943,38 @@ export function compileXpbdSourceSimplexMeasureBarrierN(
     );
   }
 
-  const cellParticles = Object.freeze(options.cell.vertexIndices.map(
-    (vertexIndex) => options.binding.particleForSourceVertex(vertexIndex)
-  ));
-  for (const particle of cellParticles) {
+  // Assembled by index rather than by `map` and `for...of`. Both of those
+  // dispatch through `Array.prototype`, and these two arrays become permanent
+  // private state: the array a replaced `map` returns is one a caller can
+  // keep, and iterating a private array hands it over as `this`.
+  const cellVertexCount = options.cell.vertexIndices.length;
+  const cellSlots = new Array<XpbdParticleN>(cellVertexCount);
+  for (let slot = 0; slot < cellVertexCount; slot++) {
+    const particle = options.binding.particleForSourceVertex(
+      options.cell.vertexIndices[slot]!
+    );
     if (particle.dimension !== dimension) {
       throw new Error(
         `${caller}: a cell particle is R${particle.dimension}, the cell is in ` +
         `R${dimension}`
       );
     }
+    cellSlots[slot] = particle;
   }
+  const cellParticles: readonly XpbdParticleN[] = Object.freeze(cellSlots);
 
   // The reference measure is read from the binding's validated snapshot of the
   // source, never from live particle state: it is the constant that makes the
   // published gradient the complete gradient, so it must not depend on where
   // the solver happens to be standing when the term is compiled.
-  const restPositions = options.cell.vertexIndices.map((vertexIndex) =>
-    options.binding.vertices[vertexIndex]!.sourcePosition.clone());
+  //
+  // `restPositions` is handed to a released evaluator, so it is built fresh
+  // and discarded here; nothing retains it and no later evaluation reads it.
+  const restPositions = new Array<VecN>(cellVertexCount);
+  for (let slot = 0; slot < cellVertexCount; slot++) {
+    restPositions[slot] = options.binding
+      .vertices[options.cell.vertexIndices[slot]!]!.sourcePosition.clone();
+  }
   const referenceMeasure = evaluateSimplexSquaredMeasureN(restPositions).measure;
   if (!Number.isFinite(referenceMeasure) || !(referenceMeasure > 0)) {
     throw new Error(
@@ -879,7 +984,8 @@ export function compileXpbdSourceSimplexMeasureBarrierN(
   }
 
   let obstacleParticles: readonly XpbdParticleN[] | undefined;
-  let staticObstacle: Float64Array | undefined;
+  let staticObstacle: readonly number[] | undefined;
+  const obstacleVertexCount = options.obstacle.vertexIndices.length;
   if (options.obstacleBinding !== undefined) {
     if (!(options.obstacleBinding instanceof XpbdParticleBindingN)) {
       throw new Error(
@@ -891,16 +997,19 @@ export function compileXpbdSourceSimplexMeasureBarrierN(
         `${caller}: obstacle must belong to obstacleBinding's source complex`
       );
     }
-    obstacleParticles = Object.freeze(options.obstacle.vertexIndices.map(
-      (vertexIndex) =>
-        options.obstacleBinding!.particleForSourceVertex(vertexIndex)
-    ));
+    const obstacleSlots = new Array<XpbdParticleN>(obstacleVertexCount);
+    for (let slot = 0; slot < obstacleVertexCount; slot++) {
+      obstacleSlots[slot] = options.obstacleBinding.particleForSourceVertex(
+        options.obstacle.vertexIndices[slot]!
+      );
+    }
+    obstacleParticles = Object.freeze(obstacleSlots);
     // A bound obstacle must be kinematic. The energy weights the CELL's
     // reference measure alone, so the law is deliberately one-sided; letting
     // the obstacle respond to it would integrate a force derived from a
     // measure that is not the obstacle's, which is not a contact law anyone
     // authored. Reporting the reaction is honest, applying it would not be.
-    options.obstacle.vertexIndices.forEach((_, slot) => {
+    for (let slot = 0; slot < obstacleVertexCount; slot++) {
       const particle = obstacleParticles![slot]!;
       if (particle.inverseMass !== 0) {
         throw new Error(
@@ -915,12 +1024,17 @@ export function compileXpbdSourceSimplexMeasureBarrierN(
           `the obstacle is in R${dimension}`
         );
       }
-    });
+    }
   } else {
-    staticObstacle = new Float64Array(
-      options.obstacle.vertexIndices.length * dimension
-    );
-    options.obstacle.vertexIndices.forEach((vertexIndex, slot) => {
+    // The snapshot is a frozen dense number list, never a typed array. A
+    // typed array's `length` is an inherited accessor, so any code that
+    // measures one hands it to whatever function currently sits on
+    // `%TypedArray%.prototype`; a frozen plain array has an OWN `length` and
+    // cannot be written even if some future route did reach it. Nothing below
+    // ever calls a method on it — it is read by index and nothing else.
+    const snapshot = new Array<number>(obstacleVertexCount * dimension);
+    for (let slot = 0; slot < obstacleVertexCount; slot++) {
+      const vertexIndex = options.obstacle.vertexIndices[slot]!;
       for (let axis = 0; axis < dimension; axis++) {
         const value =
           options.obstacle.complex.positions[vertexIndex * dimension + axis]!;
@@ -929,15 +1043,28 @@ export function compileXpbdSourceSimplexMeasureBarrierN(
             `${caller}: obstacle vertex ${slot} has a non-finite coordinate`
           );
         }
-        staticObstacle![slot * dimension + axis] = value;
+        snapshot[slot * dimension + axis] = value;
       }
-    });
+    }
+    staticObstacle = Object.freeze(snapshot);
     // Settle the static obstacle's rank ONCE, here, as a configuration error.
     // The query decides rank before it publishes anything, so any probe point
     // exposes it; the obstacle's own first vertex is the cheapest and is
     // deterministic. Every other status proves the rank is full.
+    //
+    // Both arguments are built fresh for this one call. The predecessor
+    // passed the persistent buffer and additionally took `subarray` of it,
+    // which handed it to two replaceable inherited operations at compile time.
+    const probePoint = new Float64Array(dimension);
+    for (let axis = 0; axis < dimension; axis++) {
+      probePoint[axis] = staticObstacle[axis]!;
+    }
+    const probeSimplex = new Float64Array(obstacleVertexCount * dimension);
+    for (let entry = 0; entry < obstacleVertexCount * dimension; entry++) {
+      probeSimplex[entry] = staticObstacle[entry]!;
+    }
     const probe = evaluateExactPointSimplexResult(
-      staticObstacle.subarray(0, dimension), staticObstacle, dimension
+      probePoint, probeSimplex, dimension
     );
     if (probe.status === 'rank-deficient') {
       throw new Error(
@@ -953,6 +1080,7 @@ export function compileXpbdSourceSimplexMeasureBarrierN(
     cellParticles,
     obstacleParticles,
     staticObstacle,
+    obstacleVertexCount,
     rule: fixedRule(options.cell.intrinsicDim),
     referenceMeasure,
     minimumDistance,
