@@ -1,10 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.0.20
 
-Additive. No released behaviour changes, and no version is bumped here.
+All five packages are synchronized at `0.0.20`. The substantive change is
+**purely additive** and is in `@holotope/physics`; the other four packages are
+version-synchronized with no substantive behavioural change. Nothing released
+at `0.0.19` changed behaviour.
 
-### `@holotope/physics` — added
+### `@holotope/physics@0.0.20` — added
 
 - **Measure-weighted normal contact.**
   `compileXpbdSourceSimplexMeasureBarrierN` compiles one conservative force
