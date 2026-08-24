@@ -1247,6 +1247,7 @@
       "XpbdIncrementalPotentialStepRefusedN": "/api/physics/type-aliases/XpbdIncrementalPotentialStepRefusedN",
       "XpbdIncrementalPotentialStepResultN": "/api/physics/type-aliases/XpbdIncrementalPotentialStepResultN",
       "XpbdIncrementalPotentialVelocityUpdateN": "/api/physics/type-aliases/XpbdIncrementalPotentialVelocityUpdateN",
+      "XpbdIncrementalPotentialWarmStartCertificationN": "/api/physics/interfaces/XpbdIncrementalPotentialWarmStartCertificationN",
       "XpbdIncrementalPotentialWorldSelectionN": "/api/physics/interfaces/XpbdIncrementalPotentialWorldSelectionN",
       "XpbdIncrementalPotentialWorldStepN": "/api/physics/interfaces/XpbdIncrementalPotentialWorldStepN",
       "XpbdInertialPredictionN": "/api/physics/interfaces/XpbdInertialPredictionN",

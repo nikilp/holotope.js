@@ -1,5 +1,56 @@
 # Changelog
 
+## Unreleased
+
+### `@holotope/physics` — fixed
+
+- **An automatically selected warm-start base is now certified by the
+  registered step filters before it is installed.** The released composition
+  installed the minimizer base without consulting any filter: an unsigned
+  contact law calls a far-side placement feasible with energy exactly zero, so
+  `feasible-inertial-prediction` — and the default `inertial-prediction` —
+  could begin the solve on the other side of an obstacle, the minimizer
+  converged at that base with no line-search segment for the filters to
+  certify, and the world applied the full crossing while the paired filter,
+  asked independently about the same movement, answered `limited`.
+- **The rule is generic composition, not a law-specific patch.** The
+  anchor-to-prediction displacement is submitted to every registered filter as
+  one segment: `safe` installs the exact prediction — the installed base
+  coordinates are bit-identical to the previous behaviour — `limited` installs
+  the certified prefix (the filter's published maximum step LENGTH, converted
+  through the requested length exactly once), and `indeterminate` installs the
+  authored anchor, so an uncertifiable automatic movement does not happen. The
+  `feasible-inertial-prediction` chord search then runs within the certified
+  movement, and may settle shorter still; a prefix of a certified prefix is
+  certified.
+- **Filter authors: your filter is now consulted once more per step, at a new
+  scale.** The certification calls every registered filter's `evaluate` once
+  before the base is installed, with `requestedStepLength` equal to the packed
+  Euclidean norm of the anchor-to-prediction displacement — not the Armijo
+  line-search parameter (historically the default `1`). The contract was
+  always parametric in the caller's scale; a filter that hardcoded a constant
+  for a `safe` echo instead of returning `context.requestedStepLength` now
+  fails loudly (`a safe evaluation must preserve requestedStepLength`) with
+  full state rollback, instead of silently passing at one caller's scale.
+- **An inadmissible authored state no longer self-recovers through an
+  automatic warm start.** Filters refuse to certify any segment from a start
+  inside their open boundary, so a scene whose previous positions violate a
+  registered law's domain now refuses every automatic warm start —
+  including a retreat away from the obstacle — where the previous behaviour
+  jumped to any endpoint-feasible prediction through the same uncertified
+  mechanism that tunnelled. Repair such a state explicitly with
+  `initialPositions`, the documented uncertified bypass.
+- **Point feasibility and segment admissibility stay separate evidence.** The
+  new `warmStartCertification` field on the step result carries the per-filter
+  records, the outcome, and the requested and certified lengths, alongside the
+  existing `feasibleBaseRecovery` point evidence, and the step diagnosis
+  surfaces both.
+- **Unchanged by design:** explicit `initialPositions` remain the
+  authoritative, uncertified bypass; `previous-positions` moves nothing and
+  certifies nothing; with no filter registered, behaviour is identical — the
+  guarantee is scoped to the filters actually registered and driven, never a
+  universal continuous-collision claim.
+
 ## v0.0.20
 
 All five packages are synchronized at `0.0.20`. The substantive change is

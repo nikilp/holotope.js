@@ -209,7 +209,12 @@ describe('stepXpbdIncrementalPotentialWorldN — manual differential', () => {
       normalize(digest(scopedResult.step, scoped.world.particles), 'scoped')
     ).toBe(normalize(digest(manualResult, manual.world.particles), 'manual'));
     expect(scopedResult.step.status).toBe('applied');
-    expect(scopedResult.step.feasibleBaseRecovery?.status).toBe('recovered');
+    // The warm-start movement is certified before any base is installed, so
+    // the inadmissible prediction never reaches the recovery: the filter
+    // limits the chord to an admissible prefix, and its endpoint is feasible.
+    expect(scopedResult.step.warmStartCertification?.outcome).toBe('limited');
+    expect(scopedResult.step.feasibleBaseRecovery?.status)
+      .toBe('target-feasible');
   });
 
   it('agrees on a shared-coordinate fixture from R1 through R7', () => {
@@ -372,22 +377,37 @@ describe('stepXpbdIncrementalPotentialWorldN — retained evidence', () => {
       minimization: { directionPolicy: 'steepest-descent' }
     });
 
+    // The registered filter certifies the anchor-to-prediction movement
+    // before anything is installed. The prediction is inadmissible here, so
+    // the certification is limited — and the recovery then searches only the
+    // certified chord, whose endpoint the objective accepts.
+    const certification = advance.step.warmStartCertification;
+    expect(certification).toBeDefined();
+    if (certification === undefined || certification.outcome !== 'limited') {
+      throw new Error(`expected a limited certification, got ${certification?.outcome}`);
+    }
+    expect(certification.certifiedStepLength).toBeGreaterThan(0);
+    expect(certification.certifiedStepLength)
+      .toBeLessThan(certification.requestedStepLength);
+    expect(certification.limitingFilter?.filterId)
+      .toBe(scene.family.stepFilter.id);
+
     const recovery = advance.step.feasibleBaseRecovery;
     expect(recovery).toBeDefined();
-    if (recovery === undefined || recovery.status !== 'recovered') {
-      throw new Error(`expected a recovered base, got ${recovery?.status}`);
+    if (recovery === undefined || recovery.status !== 'target-feasible') {
+      throw new Error(`expected a target-feasible base, got ${recovery?.status}`);
     }
-    // A strict interior fraction: the anchor was feasible and the target was
-    // not, so neither endpoint could have been the answer.
-    expect(recovery.fraction).toBeGreaterThan(0);
-    expect(recovery.fraction).toBeLessThan(1);
-    // Every sampled chord point is retained, not just the accepted one.
-    expect(recovery.trials.length).toBeGreaterThan(1);
+    expect(recovery.trials.length).toBe(1);
 
-    // The diagnosis is computed from that same result, once.
+    // The diagnosis is computed from that same result, once, and retains the
+    // certification evidence alongside the recovery evidence.
     expect(advance.diagnosis.condition).toBe('progressed');
     expect(advance.diagnosis.facts['acceptedIterations'])
       .toBe(advance.step.progress.acceptedIterations);
+    expect(advance.diagnosis.facts['warmStartCertificationOutcome'])
+      .toBe('limited');
+    expect(advance.diagnosis.facts['warmStartCertificationLimitingFilter'])
+      .toBe(scene.family.stepFilter.id);
   });
 
   it('preserves supplied filter order without reordering', () => {
@@ -396,7 +416,14 @@ describe('stepXpbdIncrementalPotentialWorldN — retained evidence', () => {
       id: 'inert',
       dimension: 4,
       particles: scene.world.particles,
-      evaluate: () => ({ status: 'safe', maximumStepLength: 1 })
+      // A safe evaluation must echo the requested length — the warm-start
+      // certification consults filters with the packed displacement length,
+      // so a hardcoded 1 (which only ever matched Armijo's default initial
+      // step) now violates the contract it always claimed to satisfy.
+      evaluate: (context) => ({
+        status: 'safe',
+        maximumStepLength: context.requestedStepLength
+      })
     };
     const advance = stepXpbdIncrementalPotentialWorldN({
       world: scene.world,

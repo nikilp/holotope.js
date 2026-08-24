@@ -842,8 +842,24 @@ and has no notion of side, so a segment can begin `0.5` above the obstacle and
 end `0.5` below it with *both ends admissible*; a filter that checked the two
 endpoints would certify the tunnel. The two-sided Lipschitz bound cannot,
 because it is a lower envelope over the whole segment taken from one placement,
-and it certifies against the worst node rather than the average one. Register it
-alongside the provider — the two are only sound together:
+and it certifies against the worst node rather than the average one.
+
+Register the filter alongside the provider — the two are only sound together,
+and registering it is what makes the warm start safe as well. The integrated
+step certifies every **automatically selected** warm-start movement with the
+registered filters before installing it: "feasible" alone means only that the
+objective is *defined* at a coordinate, and for an unsigned law a placement on
+the far side of the obstacle is feasible with energy zero, so an uncertified
+warm start could begin the solve on the wrong side and no later line-search
+segment would ever cross back for the filters to see. A `limited` verdict
+shortens the installed movement to the certified prefix — under the feasible
+mode the chord search then samples *within* that movement, so the installed
+base may be shorter still — and an `indeterminate` verdict installs the
+authored anchor instead. Explicit `initialPositions` bypass this
+certification — they are the caller's own uncertified decision — and **with no
+filter registered there is no certification at all**: the protection is exactly
+the filters actually registered and driven, not a universal
+continuous-collision guarantee.
 
 ```ts
 import { XpbdWorldN, stepXpbdIncrementalPotentialWorldN } from '@holotope/physics';

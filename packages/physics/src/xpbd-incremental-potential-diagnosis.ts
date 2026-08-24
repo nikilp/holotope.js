@@ -170,6 +170,29 @@ export function diagnoseXpbdIncrementalPotentialStepN(
           ...(result.feasibleBaseRecovery.status === 'anchor-refused'
             ? {}
             : { feasibleBaseRecoveryFraction: result.feasibleBaseRecovery.fraction })
+        }),
+    ...(result.warmStartCertification === undefined
+      ? {}
+      : {
+          warmStartCertificationOutcome: result.warmStartCertification.outcome,
+          warmStartCertificationRequestedStepLength:
+            result.warmStartCertification.requestedStepLength,
+          warmStartCertificationCertifiedStepLength:
+            result.warmStartCertification.certifiedStepLength,
+          warmStartCertificationFilters:
+            result.warmStartCertification.stepFilters.length,
+          ...(result.warmStartCertification.blockingFilter === undefined
+            ? {}
+            : {
+                warmStartCertificationBlockingFilter:
+                  result.warmStartCertification.blockingFilter.filterId
+              }),
+          ...(result.warmStartCertification.limitingFilter === undefined
+            ? {}
+            : {
+                warmStartCertificationLimitingFilter:
+                  result.warmStartCertification.limitingFilter.filterId
+              })
         })
   };
 

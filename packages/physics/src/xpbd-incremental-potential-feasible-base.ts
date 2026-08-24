@@ -99,9 +99,15 @@ export type XpbdIncrementalPotentialFeasibleBaseResultN =
  *
  * This is a minimizer-initialization query, not depenetration or collision
  * response. It makes no nearest-point, global-feasibility, or segment-safety
- * claim; step filters still certify every later Armijo segment. In a
- * non-convex domain, feasible fractions may exist between the geometric
- * samples this bounded search does not visit.
+ * claim: feasibility of a COORDINATE says the complete objective is defined
+ * there, never that the movement to it is admissible. The integrated step
+ * certifies every automatically selected warm-start movement with the
+ * registered step filters before installing a base and passes this search a
+ * target already inside the certified movement; a direct caller of this
+ * function receives no such certification and must consult the filters
+ * itself if the chord's admissibility matters. In a non-convex domain,
+ * feasible fractions may exist between the geometric samples this bounded
+ * search does not visit.
  *
  * Evaluation order is fixed: target once, anchor once after a typed target
  * refusal, then `contractionFactor^k` for `k = 1..maximumTrials`. Ordinary

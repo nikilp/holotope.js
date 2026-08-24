@@ -304,17 +304,85 @@ describe('integrated XPBD incremental-potential step', () => {
   });
 
   it('recovers an inadmissible inertial prediction from a valid barrier state', () => {
+    // No filter registered: the chord recovery is the only machinery between
+    // the anchor and the inadmissible prediction, exactly as before the
+    // warm-start certification existed.
     const run = (
-      warmStart: 'inertial-prediction' | 'previous-positions' | 'feasible-inertial-prediction'
+      warmStart: 'inertial-prediction' | 'previous-positions' | 'feasible-inertial-prediction',
+      withFilter: boolean
     ) => {
       const particle = new XpbdParticleN({
-        id: warmStart,
+        id: `${warmStart}/${withFilter}`,
         position: [0.2],
         velocity: [-1.5],
         inverseMass: 1
       });
       const barrier = new XpbdParticleHyperplaneBarrierN({
-        id: `floor/${warmStart}`,
+        id: `floor/${warmStart}/${withFilter}`,
+        particle,
+        plane: new HyperplaneColliderN([1], 0),
+        minimumDistance: 0.1,
+        activationDistance: 0.8,
+        stiffness: 1
+      });
+      return {
+        particle,
+        result: stepXpbdIncrementalPotentialN({
+          dimension: 1,
+          particles: [particle],
+          providers: [barrier],
+          ...(withFilter
+            ? {
+                stepFilters: [new XpbdParticleHyperplaneBarrierStepFilterN({
+                  id: `floor-filter/${warmStart}/${withFilter}`,
+                  barrier
+                })]
+              }
+            : {}),
+          deltaTime: 0.1,
+          warmStart
+        })
+      };
+    };
+
+    const inertial = run('inertial-prediction', false);
+    expect(inertial.result).toMatchObject({
+      status: 'refused',
+      minimization: { status: 'initial-state-refused' }
+    });
+    expect(inertial.particle.position.data[0]).toBe(0.2);
+
+    const previous = run('previous-positions', false);
+    const recovered = run('feasible-inertial-prediction', false);
+    expect(previous.result.status).toBe('applied');
+    expect(recovered.result.status).toBe('applied');
+    expect('warmStartCertification' in recovered.result).toBe(false);
+    expect(recovered.result.feasibleBaseRecovery).toMatchObject({
+      status: 'recovered',
+      fraction: 0.5
+    });
+    expect(recovered.result.feasibleBaseRecovery?.trials.map((trial) =>
+      trial.status
+    )).toEqual(['domain-refused', 'feasible', 'feasible']);
+    expect(recovered.particle.position.data[0]).toBeCloseTo(
+      previous.particle.position.data[0]!,
+      8
+    );
+  });
+
+  it('certifies an automatic warm start before installing it, so a filtered '
+    + 'step never begins at an uncertified base', () => {
+    const run = (
+      warmStart: 'inertial-prediction' | 'feasible-inertial-prediction'
+    ) => {
+      const particle = new XpbdParticleN({
+        id: `certified/${warmStart}`,
+        position: [0.2],
+        velocity: [-1.5],
+        inverseMass: 1
+      });
+      const barrier = new XpbdParticleHyperplaneBarrierN({
+        id: `floor/certified/${warmStart}`,
         particle,
         plane: new HyperplaneColliderN([1], 0),
         minimumDistance: 0.1,
@@ -328,7 +396,7 @@ describe('integrated XPBD incremental-potential step', () => {
           particles: [particle],
           providers: [barrier],
           stepFilters: [new XpbdParticleHyperplaneBarrierStepFilterN({
-            id: `floor-filter/${warmStart}`,
+            id: `floor-filter/certified/${warmStart}`,
             barrier
           })],
           deltaTime: 0.1,
@@ -337,26 +405,36 @@ describe('integrated XPBD incremental-potential step', () => {
       };
     };
 
+    // Anchor 0.2, prediction 0.05, open boundary 0.1: the prediction is
+    // endpoint-inadmissible, and the filter limits the 0.15 displacement to
+    // 0.9 * (0.2 - 0.1) = 0.09, placing the base at 0.11 — admissible. The
+    // default warm start therefore no longer refuses at an uncertified
+    // inadmissible base; it proceeds from the certified one.
     const inertial = run('inertial-prediction');
-    expect(inertial.result).toMatchObject({
-      status: 'refused',
-      minimization: { status: 'initial-state-refused' }
-    });
-    expect(inertial.particle.position.data[0]).toBe(0.2);
+    expect(inertial.result.status).toBe('applied');
+    const certification = inertial.result.warmStartCertification;
+    expect(certification?.outcome).toBe('limited');
+    expect(certification?.requestedStepLength).toBeCloseTo(0.15, 12);
+    expect(certification?.certifiedStepLength).toBeCloseTo(0.09, 12);
+    expect(
+      inertial.result.minimization.status === 'converged'
+        ? inertial.result.minimization.initial.coordinates[0]
+        : Number.NaN
+    ).toBeCloseTo(0.11, 12);
 
-    const previous = run('previous-positions');
-    const recovered = run('feasible-inertial-prediction');
-    expect(previous.result.status).toBe('applied');
-    expect(recovered.result.status).toBe('applied');
-    expect(recovered.result.feasibleBaseRecovery).toMatchObject({
-      status: 'recovered',
-      fraction: 0.5
+    // The feasible mode searches the CERTIFIED chord: its endpoint at 0.11 is
+    // feasible, so the recovery accepts it as the target in one trial.
+    const feasible = run('feasible-inertial-prediction');
+    expect(feasible.result.status).toBe('applied');
+    expect(feasible.result.warmStartCertification?.outcome).toBe('limited');
+    expect(feasible.result.feasibleBaseRecovery).toMatchObject({
+      status: 'target-feasible',
+      fraction: 1
     });
-    expect(recovered.result.feasibleBaseRecovery?.trials.map((trial) =>
-      trial.status
-    )).toEqual(['domain-refused', 'feasible', 'feasible']);
-    expect(recovered.particle.position.data[0]).toBeCloseTo(
-      previous.particle.position.data[0]!,
+
+    // Both modes converge to the same minimum of the same objective.
+    expect(feasible.particle.position.data[0]).toBeCloseTo(
+      inertial.particle.position.data[0]!,
       8
     );
   });

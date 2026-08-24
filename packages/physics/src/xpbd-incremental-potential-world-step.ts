@@ -59,8 +59,12 @@ export interface StepXpbdIncrementalPotentialWorldNOptions {
   /**
    * Explicit minimizer base in the world's particle order.
    *
-   * Takes precedence over `warmStart` and bypasses feasible-base recovery
-   * entirely, so a step given one returns no `feasibleBaseRecovery` evidence.
+   * Takes precedence over `warmStart` and bypasses both feasible-base
+   * recovery and the warm-start segment certification entirely, so a step
+   * given one returns no `feasibleBaseRecovery` and no
+   * `warmStartCertification` evidence. The coordinates are the caller's own
+   * uncertified decision: no registered filter is consulted about the
+   * movement to them.
    */
   readonly initialPositions?: readonly VecN[];
   /** Minimizer base when `initialPositions` is absent; see the lower step. */

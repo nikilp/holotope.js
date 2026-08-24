@@ -61,9 +61,11 @@ caller need not construct a policy around the internally compiled problem.
 
 ## The admissible warm start
 
-The inertial prediction remains the default minimizer base for backward
-compatibility. Near an open contact barrier that prediction can already be
-inadmissible. Such a base now returns the typed
+The inertial prediction remains the default minimizer base. Near an open
+contact barrier that prediction can already be inadmissible. With the demo's
+step filters registered, the automatic movement toward it is certified first
+and `limited` to the admissible prefix, so the step proceeds from a certified
+base; with no filter registered, an inadmissible base returns the typed
 `initial-state-refused` terminal rather than throwing through the integrated
 step.
 

@@ -130,16 +130,20 @@ describe('the incremental-potential step across dimensions', () => {
 
   /**
    * The one-call entry point defaults the minimizer base to the inertial
-   * prediction, which for a particle already resting near a barrier lands
-   * outside the barrier's open domain. Armijo recovers a domain refusal at a
-   * *trial* point; one at the base point is now a typed terminal rather than a
-   * thrown expected state.
+   * prediction. With filters registered, that automatic movement is now
+   * certified before it is installed: a prediction that would land outside a
+   * barrier's open domain is limited to the certified prefix instead of being
+   * installed uncertified and refusing at the base. The run that previously
+   * stopped at a typed base refusal around step 41 therefore completes.
    */
-  it('returns typed refusal when the inertial prediction leaves the admissible domain', () => {
+  it('certifies the default warm start, so a filtered run no longer refuses '
+    + 'at an uncertified inadmissible prediction', () => {
     for (const dimension of [2, 3, 4]) {
       const result = run(dimension, 60, { fromCurrentState: false });
-      expect(result.refusal).toBe('at-or-below-minimum-distance');
-      expect(result.completed).toBeLessThan(60);
+      expect(result.refusal).toBeNull();
+      expect(result.completed).toBe(60);
+      // Resting above the floor rather than through it.
+      for (const height of result.heights) expect(height).toBeGreaterThan(0);
     }
   }, 60_000);
 

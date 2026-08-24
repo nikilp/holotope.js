@@ -388,6 +388,7 @@ export {
   type XpbdArmijoTrialN,
   type XpbdArmijoTrialStatusN,
   type XpbdIncrementalPotentialParticleStateN,
+  type XpbdIncrementalPotentialWarmStartCertificationN,
   type XpbdPackedIncrementalPotentialEvaluationN
 } from './xpbd-incremental-potential-problem.js';
 export {

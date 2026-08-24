@@ -61,19 +61,34 @@ it never retries a step, changes a tolerance, or selects a policy.
 
 ## Choose the minimizer base deliberately
 
-The default `warmStart` is `inertial-prediction`, preserving the original
-numerics. It is a good base when the predicted state lies inside every potential
-law's domain.
+The default `warmStart` is `inertial-prediction`: the base is the prediction.
+Every automatically selected base movement is first certified by the registered
+step filters as one segment from the previous positions to the prediction, so
+with a filter registered — as in every snippet on this page — the base can never
+be installed past what the filters certify.
 
 For an open barrier, the prediction may cross the boundary before minimization
-begins. That returns `initial-state-refused`. Select
-`warmStart: 'previous-positions'` to begin at the last admissible live state
-while retaining the inertial prediction as the objective's target.
+begins. What happens depends on what is registered. With the barrier's paired
+filter registered, the movement is `limited` to the certified prefix and the
+step proceeds from that admissible base — the certification evidence is in
+`result.warmStartCertification`. With **no** filter registered nothing certifies
+the movement: an endpoint-inadmissible prediction is installed as the base and
+returns `initial-state-refused`, and an endpoint-*feasible* far-side prediction
+is installed uncertified — which is why the paired filter is required, not
+optional. `warmStart: 'previous-positions'` begins at the last admissible live
+state while retaining the inertial prediction as the objective's target.
+
+If the previous positions are themselves inside a barrier's open boundary, the
+filters cannot certify any movement from them (`indeterminate`), so no
+automatic warm start moves — every step refuses until the state is repaired.
+Repair it explicitly: pass `initialPositions`, the authoritative uncertified
+bypass, or re-author the offending state.
 
 When retaining some of the inertial prediction matters, select the opt-in
-`feasible-inertial-prediction` policy. It evaluates the prediction, validates
-the previous positions as an anchor, and samples geometrically decreasing
-fractions of the chord between them until the complete objective accepts one:
+`feasible-inertial-prediction` policy. It evaluates the certified target,
+validates the previous positions as an anchor, and samples geometrically
+decreasing fractions of the certified chord until the complete objective
+accepts one:
 
 ```ts
 const recovered = stepXpbdIncrementalPotentialN({
@@ -98,10 +113,14 @@ console.log(recovered.feasibleBaseRecovery?.trials);
 ```
 
 The retained trials distinguish a feasible target, a recovered fraction, an
-anchor-only result, and refusal of both target and anchor. This is a bounded
-initialization search, not depenetration, collision response, a nearest-point
-projection, or proof that the unsampled chord is feasible. Step filters still
-certify every later Armijo segment.
+anchor-only result, and refusal of both target and anchor. With a filter
+registered and a `limited` certification, the common evidence shape is
+`target-feasible` in one trial — the chord's target is already the certified,
+admissible prefix point; interior fractions appear when another law refuses
+that point. This is a bounded initialization search, not depenetration,
+collision response, a nearest-point projection, or proof that the unsampled
+chord is feasible. Step filters certify the warm-start movement and every
+later Armijo segment.
 
 Repository measurements found genuine but contextual value: recovery rescued
 one first-order open-domain solve that exhausted its budget from the previous
@@ -109,8 +128,10 @@ positions, while adding work to a simpler isolated barrier and to the same
 scene under Newton-CG. Choose it when preserving an admissible part of the
 prediction is useful; do not assume it is faster than `previous-positions`.
 
-An explicit `initialPositions` array always wins over `warmStart`. It is suitable
-for a caller with a more informed feasible initial guess, and for exact fixtures.
+An explicit `initialPositions` array always wins over `warmStart`, and no
+certification runs for it: the coordinates are the caller's own uncertified
+decision. It is suitable for a caller with a more informed feasible initial
+guess, for repairing an inadmissible authored state, and for exact fixtures.
 
 ## Read progress before changing policy
 

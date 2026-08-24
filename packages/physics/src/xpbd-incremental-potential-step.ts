@@ -26,8 +26,11 @@ import {
   type XpbdIncrementalPotentialDirectionPolicyNameN
 } from './xpbd-incremental-potential-direction.js';
 import {
+  certifyXpbdIncrementalPotentialWarmStartN,
   compileXpbdIncrementalPotentialProblemN,
-  type XpbdIncrementalPotentialProblemN
+  type XpbdCertifiedWarmStartBaseN,
+  type XpbdIncrementalPotentialProblemN,
+  type XpbdIncrementalPotentialWarmStartCertificationN
 } from './xpbd-incremental-potential-problem.js';
 import {
   type XpbdIncrementalPotentialStepFilterN
@@ -132,11 +135,25 @@ export interface StepXpbdIncrementalPotentialNOptions {
   /**
    * Selects the minimizer base when `initialPositions` is absent.
    *
-   * `inertial-prediction` preserves the historical default.
+   * `inertial-prediction` is the default: the base is the inertial prediction.
    * `previous-positions` keeps the base at the last admissible live state while
    * the inertial prediction still defines the objective's inertia term.
-   * `feasible-inertial-prediction` explicitly searches the chord from those
-   * previous positions toward the prediction and retains every sampled result.
+   * `feasible-inertial-prediction` searches the chord from those previous
+   * positions toward the prediction for a point the complete objective accepts,
+   * and retains every sampled result.
+   *
+   * Every AUTOMATICALLY selected base movement is certified by the registered
+   * step filters before it is installed: the anchor-to-prediction displacement
+   * is submitted to every filter as one segment, a `limited` verdict shortens
+   * the installed movement to the certified prefix, and an `indeterminate`
+   * verdict installs the anchor instead — an uncertifiable automatic movement
+   * does not happen. Point feasibility of a coordinate never certifies the
+   * path to it: an unsigned contact law accepts a far-side placement, so
+   * without this certification a warm start could install a base on the other
+   * side of an obstacle and the filters, which certify only Armijo segments,
+   * would never see the crossing. Explicit `initialPositions` remain the
+   * authoritative, uncertified bypass. With no filter registered, behaviour is
+   * unchanged.
    */
   readonly warmStart?:
     | 'inertial-prediction'
@@ -177,6 +194,18 @@ interface XpbdIncrementalPotentialStepBaseN<
    * Absent for unchanged warm starts and when explicit positions bypass it.
    */
   readonly feasibleBaseRecovery?: XpbdIncrementalPotentialFeasibleBaseResultN;
+  /**
+   * Admissible-step certification of the automatic warm-start displacement.
+   *
+   * Present whenever registered step filters were consulted before an
+   * automatically selected base was installed — that is, for the
+   * `inertial-prediction` and `feasible-inertial-prediction` policies with at
+   * least one filter registered and a nonzero anchor-to-prediction
+   * displacement. Absent for `previous-positions` (zero displacement), for
+   * explicit `initialPositions` (the documented authoritative bypass), and
+   * when no filter is registered.
+   */
+  readonly warmStartCertification?: XpbdIncrementalPotentialWarmStartCertificationN;
 }
 
 export interface XpbdIncrementalPotentialStepAppliedN
@@ -293,38 +322,67 @@ export function stepXpbdIncrementalPotentialN(
         : { stepFilters: options.stepFilters })
     });
     let feasibleBaseRecovery: XpbdIncrementalPotentialFeasibleBaseResultN | undefined;
+    let warmStartCertification:
+      XpbdIncrementalPotentialWarmStartCertificationN | undefined;
     let initialCoordinates: Float64Array;
     if (options.initialPositions !== undefined) {
       // Explicit coordinates remain authoritative and bypass automatic
-      // recovery even when the feasible policy was also named.
+      // recovery and certification even when the feasible policy was named.
       initialCoordinates = problem.packPositions(options.initialPositions);
-    } else if (options.warmStart === 'feasible-inertial-prediction') {
+    } else if (options.warmStart === 'previous-positions') {
+      // The base is the anchor itself: zero automatic displacement, so there
+      // is no movement for the filters to certify.
+      initialCoordinates = problem.packPositions(
+        rollback.map((snapshot) => new VecN(snapshot.positionCoordinates))
+      );
+    } else {
+      // Both remaining policies move the base automatically from the authored
+      // anchor toward the inertial prediction. That movement is certified by
+      // every registered filter BEFORE anything is installed: point
+      // feasibility of the prediction says the objective is defined there,
+      // never that the path from the anchor is admissible.
       const anchorCoordinates = problem.packPositions(
         rollback.map((snapshot) => new VecN(snapshot.positionCoordinates))
       );
       const targetCoordinates = problem.packPositions(prediction.positions);
-      const recoveryOptions: RecoverXpbdIncrementalPotentialFeasibleBaseNOptions = {
-        problem,
-        anchorCoordinates,
-        targetCoordinates,
-        ...(options.feasibleWarmStart?.contractionFactor === undefined
-          ? {}
-          : { contractionFactor: options.feasibleWarmStart.contractionFactor }),
-        ...(options.feasibleWarmStart?.maximumTrials === undefined
-          ? {}
-          : { maximumTrials: options.feasibleWarmStart.maximumTrials })
-      };
-      feasibleBaseRecovery = recoverXpbdIncrementalPotentialFeasibleBaseN(
-        recoveryOptions
-      );
-      initialCoordinates = feasibleBaseRecovery.status === 'anchor-refused'
-        ? anchorCoordinates
-        : feasibleBaseRecovery.evaluation.coordinates.slice();
-    } else {
-      const warmStartPositions = options.warmStart === 'previous-positions'
-        ? rollback.map((snapshot) => new VecN(snapshot.positionCoordinates))
-        : prediction.positions;
-      initialCoordinates = problem.packPositions(warmStartPositions);
+      // `undefined` is the no-filter case, and only that case: a scene with
+      // nothing registered to certify segments keeps its pre-certification
+      // base exactly. Every other verdict arrives as a certification.
+      const certified: XpbdCertifiedWarmStartBaseN | undefined =
+        certifyXpbdIncrementalPotentialWarmStartN(
+          problem,
+          anchorCoordinates,
+          targetCoordinates,
+          caller
+        );
+      warmStartCertification = certified?.certification;
+      const effectiveTarget = certified === undefined
+        ? targetCoordinates
+        : certified.baseCoordinates;
+      if (options.warmStart === 'feasible-inertial-prediction') {
+        // The chord search runs within the certified movement: every sampled
+        // fraction lies on the anchor-to-effective-target segment, and a
+        // prefix of a certified prefix is certified.
+        const recoveryOptions: RecoverXpbdIncrementalPotentialFeasibleBaseNOptions = {
+          problem,
+          anchorCoordinates,
+          targetCoordinates: effectiveTarget,
+          ...(options.feasibleWarmStart?.contractionFactor === undefined
+            ? {}
+            : { contractionFactor: options.feasibleWarmStart.contractionFactor }),
+          ...(options.feasibleWarmStart?.maximumTrials === undefined
+            ? {}
+            : { maximumTrials: options.feasibleWarmStart.maximumTrials })
+        };
+        feasibleBaseRecovery = recoverXpbdIncrementalPotentialFeasibleBaseN(
+          recoveryOptions
+        );
+        initialCoordinates = feasibleBaseRecovery.status === 'anchor-refused'
+          ? anchorCoordinates
+          : feasibleBaseRecovery.evaluation.coordinates.slice();
+      } else {
+        initialCoordinates = effectiveTarget;
+      }
     }
     const policy = options.minimization;
     const directionPolicy = resolveXpbdIncrementalPotentialStepDirectionN(
@@ -365,7 +423,10 @@ export function stepXpbdIncrementalPotentialN(
       progress,
       ...(feasibleBaseRecovery === undefined
         ? {}
-        : { feasibleBaseRecovery })
+        : { feasibleBaseRecovery }),
+      ...(warmStartCertification === undefined
+        ? {}
+        : { warmStartCertification })
     } as const;
 
     if (minimization.status !== 'converged') {

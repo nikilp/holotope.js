@@ -2,11 +2,26 @@ import { VecN } from '@holotope/core';
 import { XpbdParticleHyperplaneBarrierN } from './xpbd-hyperplane-barrier.js';
 import { XpbdParticleN } from './xpbd-world.js';
 
-/** Particle-space segment supplied to one incremental-potential step filter. */
+/**
+ * Particle-space segment supplied to one incremental-potential step filter.
+ *
+ * Two consumers build this context, and a filter must serve both. The Armijo
+ * search certifies its initial line-search segment, with `requestedStepLength`
+ * equal to the search's initial step (default one, multiplying an unnormalized
+ * packed direction). The warm-start certification certifies the automatic
+ * movement from the authored anchor to the inertial prediction, with
+ * `requestedStepLength` equal to that displacement's packed Euclidean norm.
+ * The parameter's SCALE is therefore the caller's, never a constant: a filter
+ * must derive its answer from the positions the context supplies and express
+ * it in the context's own `requestedStepLength` units — a `safe` evaluation
+ * echoes `requestedStepLength` exactly, and a hardcoded constant that happened
+ * to match one caller's scale is a contract violation the step surfaces
+ * loudly.
+ */
 export interface XpbdIncrementalPotentialStepFilterContextN {
   /** Ambient Euclidean dimension. */
   readonly dimension: number;
-  /** Positive line-search parameter represented by the segment endpoint. */
+  /** Positive parameter naming the complete segment in the caller's scale. */
   readonly requestedStepLength: number;
   /** Returns a defensive copy of a particle's position at step zero. */
   readonly positionBefore: (particle: XpbdParticleN) => VecN;

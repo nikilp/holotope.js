@@ -66,7 +66,10 @@ export class XpbdIncrementalPotentialProblemN {
   readonly predictedPositions: readonly VecN[];
   readonly deltaTime: number;
   readonly providers: readonly XpbdConservativeForceProviderN[];
-  /** Ordered particle-space filters evaluated before Armijo trials. */
+  /**
+   * Ordered particle-space filters, consulted for every automatic warm-start
+   * movement and before Armijo trials.
+   */
   readonly stepFilters: readonly XpbdIncrementalPotentialStepFilterN[];
   readonly freeParticleIndices: readonly number[];
   readonly variableCount: number;
@@ -605,14 +608,15 @@ function armijoSearchFromBaseN(
     initialStep,
     caller
   );
-  const indeterminate = stepFilterResults.find(
-    (result) => result.evaluation.status === 'indeterminate'
+  const resolution = resolveMostRestrictiveStepFilterN(
+    stepFilterResults,
+    initialStep
   );
-  if (indeterminate !== undefined) {
+  if (resolution.firstIndeterminate !== undefined) {
     return Object.freeze({
       status: 'step-filter-refused',
       reason: 'indeterminate',
-      blockingFilter: indeterminate,
+      blockingFilter: resolution.firstIndeterminate,
       base,
       directionalDerivative,
       trials: EMPTY_ARMIJO_TRIALS,
@@ -621,24 +625,15 @@ function armijoSearchFromBaseN(
   }
 
   const trials: XpbdArmijoTrialN[] = [];
-  let stepLength = initialStep;
-  let limitingFilter: XpbdIncrementalPotentialStepFilterResultN | undefined;
-  for (const result of stepFilterResults) {
-    const evaluation = result.evaluation;
-    if (evaluation.status === 'indeterminate') continue;
-    if (evaluation.maximumStepLength < stepLength) {
-      stepLength = evaluation.maximumStepLength;
-      limitingFilter = result;
-    }
-  }
+  let stepLength = resolution.maximumStepLength;
   if (!(stepLength > 0)) {
-    if (limitingFilter === undefined) {
+    if (resolution.limitingFilter === undefined) {
       throw new Error(`${caller}: no-positive-step has no limiting filter`);
     }
     return Object.freeze({
       status: 'step-filter-refused',
       reason: 'no-positive-step',
-      blockingFilter: limitingFilter,
+      blockingFilter: resolution.limitingFilter,
       base,
       directionalDerivative,
       trials: EMPTY_ARMIJO_TRIALS,
@@ -743,8 +738,32 @@ function evaluateStepFilters(
     requestedStepLength,
     `${caller}: step-filter endpoint`
   );
-  const before = base.positions;
-  const after = problem.unpackPositions(endpointCoordinates);
+  return evaluateStepFiltersOverSegment(
+    problem,
+    base.positions,
+    problem.unpackPositions(endpointCoordinates),
+    requestedStepLength,
+    caller
+  );
+}
+
+/**
+ * The one place a filter context is built and every filter consulted.
+ *
+ * Both consumers of the filter contract go through here: the Armijo search
+ * certifying its initial line-search segment, and the warm-start certification
+ * of an automatically selected minimizer base. Keeping one authority is what
+ * prevents the two from drifting into different filter semantics — the
+ * composition defect this closes existed precisely because the warm start had
+ * NO consumer of the contract at all.
+ */
+function evaluateStepFiltersOverSegment(
+  problem: XpbdIncrementalPotentialProblemN,
+  before: readonly VecN[],
+  after: readonly VecN[],
+  requestedStepLength: number,
+  caller: string
+): readonly XpbdIncrementalPotentialStepFilterResultN[] {
   const indices = new Map<XpbdParticleN, number>();
   for (let index = 0; index < problem.particles.length; index++) {
     indices.set(problem.particles[index]!, index);
@@ -821,6 +840,208 @@ function normalizeStepFilterEvaluation(
     );
   }
   return Object.freeze({ ...value });
+}
+
+/**
+ * The most restrictive admissible-step resolution across ordered results.
+ *
+ * The selection rule is the filter contract's composition rule and it is
+ * stated once: the first `indeterminate` refuses certification outright, and
+ * otherwise the certified prefix is the minimum `maximumStepLength` over every
+ * filter, never more than the requested length. Both the Armijo search and the
+ * warm-start certification apply this exact resolution.
+ */
+interface XpbdStepFilterResolutionN {
+  /** First filter refusing certification, in registration order. */
+  readonly firstIndeterminate?: XpbdIncrementalPotentialStepFilterResultN;
+  /** The requested length, or the smallest certified prefix below it. */
+  readonly maximumStepLength: number;
+  /** The filter whose limit is the resolved prefix, when one lowered it. */
+  readonly limitingFilter?: XpbdIncrementalPotentialStepFilterResultN;
+}
+
+function resolveMostRestrictiveStepFilterN(
+  results: readonly XpbdIncrementalPotentialStepFilterResultN[],
+  requestedStepLength: number
+): XpbdStepFilterResolutionN {
+  const firstIndeterminate = results.find(
+    (result) => result.evaluation.status === 'indeterminate'
+  );
+  if (firstIndeterminate !== undefined) {
+    return { firstIndeterminate, maximumStepLength: 0 };
+  }
+  let maximumStepLength = requestedStepLength;
+  let limitingFilter: XpbdIncrementalPotentialStepFilterResultN | undefined;
+  for (const result of results) {
+    const evaluation = result.evaluation;
+    if (evaluation.status === 'indeterminate') continue;
+    if (evaluation.maximumStepLength < maximumStepLength) {
+      maximumStepLength = evaluation.maximumStepLength;
+      limitingFilter = result;
+    }
+  }
+  return {
+    maximumStepLength,
+    ...(limitingFilter === undefined ? {} : { limitingFilter })
+  };
+}
+
+/**
+ * Admissible-step certification of one automatic warm-start displacement.
+ *
+ * Retained on the integrated step result whenever registered filters were
+ * consulted before an automatically selected minimizer base was installed.
+ * This is SEGMENT evidence and deliberately separate from the feasible-base
+ * recovery's POINT evidence: the recovery answers "is the objective defined at
+ * this coordinate", while this answers "does every registered filter certify
+ * the movement from the authored anchor to it". The released defect was
+ * exactly the conflation — an endpoint-feasible far-side target installed as
+ * the base with no filter consulted.
+ *
+ * `requestedStepLength` is the packed Euclidean length of the complete
+ * anchor-to-target displacement, so `certifiedStepLength` is a length in the
+ * same units, exactly as the filter contract publishes it — never a unitless
+ * fraction.
+ */
+export interface XpbdIncrementalPotentialWarmStartCertificationN {
+  /** Packed Euclidean length of the automatic anchor-to-target displacement. */
+  readonly requestedStepLength: number;
+  /** Ordered per-filter certifications of the complete displacement. */
+  readonly stepFilters: readonly XpbdIncrementalPotentialStepFilterResultN[];
+  /** Most restrictive verdict across every registered filter. */
+  readonly outcome: 'safe' | 'limited' | 'indeterminate';
+  /**
+   * Certified length of the anchor-to-target displacement.
+   *
+   * This is the FILTERS' verdict, not a report of the installed base. It
+   * equals `requestedStepLength` when the outcome is `safe`, zero when the
+   * outcome is `indeterminate`, and the certified prefix when `limited`.
+   * Under `feasible-inertial-prediction` the chord search then samples within
+   * that certified movement, so the installed base may sit strictly closer to
+   * the anchor than this length. The authoritative record of where the solve
+   * actually began is `minimization.initial`.
+   */
+  readonly certifiedStepLength: number;
+  /** First filter that refused certification, when the outcome refused. */
+  readonly blockingFilter?: XpbdIncrementalPotentialStepFilterResultN;
+  /** Filter whose certified prefix is the installed movement, when limited. */
+  readonly limitingFilter?: XpbdIncrementalPotentialStepFilterResultN;
+}
+
+/** One certified warm-start base with its complete filter evidence. */
+export interface XpbdCertifiedWarmStartBaseN {
+  /** Evidence retained on the integrated step result. */
+  readonly certification: XpbdIncrementalPotentialWarmStartCertificationN;
+  /** Packed coordinates of the certified base to install. */
+  readonly baseCoordinates: Float64Array;
+}
+
+/**
+ * Certifies the movement from the authored anchor to an automatic target.
+ *
+ * Returns `undefined` when there is nothing to certify: no registered filter,
+ * or zero displacement. A `safe` resolution installs the exact target
+ * coordinates, so a fully certified warm start is bitwise identical to the
+ * uncertified one. A `limited` resolution installs the certified prefix
+ * `anchor + (certified / requested) · (target − anchor)`, rounded per
+ * coordinate exactly as an Armijo trial rounds a point on its own certified
+ * segment. An `indeterminate` resolution installs the anchor: an uncertifiable
+ * automatic movement does not happen, and all subsequent movement goes through
+ * the Armijo search, whose every segment the filters certify.
+ *
+ * Point feasibility of the installed base is deliberately NOT decided here —
+ * that remains the recovery's and the minimizer's job, on the exact channels
+ * they already own.
+ *
+ * @internal
+ */
+export function certifyXpbdIncrementalPotentialWarmStartN(
+  problem: XpbdIncrementalPotentialProblemN,
+  anchorCoordinates: Float64Array,
+  targetCoordinates: Float64Array,
+  caller: string
+): XpbdCertifiedWarmStartBaseN | undefined {
+  if (problem.stepFilters.length === 0) return undefined;
+  let requestedStepLength = 0;
+  for (let index = 0; index < anchorCoordinates.length; index++) {
+    requestedStepLength = Math.hypot(
+      requestedStepLength,
+      targetCoordinates[index]! - anchorCoordinates[index]!
+    );
+  }
+  if (requestedStepLength === 0) return undefined;
+  if (!Number.isFinite(requestedStepLength)) {
+    throw new Error(
+      `${caller}: warm-start displacement length is outside Float64`
+    );
+  }
+  const stepFilters = evaluateStepFiltersOverSegment(
+    problem,
+    problem.unpackPositions(anchorCoordinates),
+    problem.unpackPositions(targetCoordinates),
+    requestedStepLength,
+    `${caller}: warm-start certification`
+  );
+  const resolution = resolveMostRestrictiveStepFilterN(
+    stepFilters,
+    requestedStepLength
+  );
+  if (resolution.firstIndeterminate !== undefined) {
+    return {
+      certification: Object.freeze({
+        requestedStepLength,
+        stepFilters,
+        outcome: 'indeterminate',
+        certifiedStepLength: 0,
+        blockingFilter: resolution.firstIndeterminate
+      }),
+      baseCoordinates: anchorCoordinates.slice()
+    };
+  }
+  if (resolution.limitingFilter === undefined) {
+    // Every filter certified the complete displacement: the exact target
+    // coordinates are installed, so this path is bitwise identical to the
+    // uncertified warm start.
+    return {
+      certification: Object.freeze({
+        requestedStepLength,
+        stepFilters,
+        outcome: 'safe',
+        certifiedStepLength: requestedStepLength
+      }),
+      baseCoordinates: targetCoordinates.slice()
+    };
+  }
+  const certifiedStepLength = resolution.maximumStepLength;
+  const baseCoordinates = new Float64Array(anchorCoordinates.length);
+  if (certifiedStepLength > 0) {
+    // The length-to-parameter conversion happens exactly once, here: the
+    // filter published a LENGTH in requested-step-length units, and the
+    // installed point lies at that length along the anchor-to-target chord.
+    const fraction = certifiedStepLength / requestedStepLength;
+    for (let index = 0; index < baseCoordinates.length; index++) {
+      const coordinate = anchorCoordinates[index]! +
+        fraction * (targetCoordinates[index]! - anchorCoordinates[index]!);
+      if (!Number.isFinite(coordinate)) {
+        throw new Error(
+          `${caller}: certified warm-start coordinate is outside Float64`
+        );
+      }
+      baseCoordinates[index] = coordinate;
+    }
+  } else {
+    baseCoordinates.set(anchorCoordinates);
+  }
+  return {
+    certification: Object.freeze({
+      requestedStepLength,
+      stepFilters,
+      outcome: 'limited',
+      certifiedStepLength,
+      limitingFilter: resolution.limitingFilter
+    }),
+    baseCoordinates
+  };
 }
 
 function coordinatesAtStep(

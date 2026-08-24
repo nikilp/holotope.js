@@ -115,8 +115,10 @@ import {
   evaluateSimplexHingeCosineN,
   minimizeXpbdIncrementalPotentialN,
   recoverXpbdIncrementalPotentialFeasibleBaseN,
+  stepXpbdIncrementalPotentialN,
   stepXpbdIncrementalPotentialWorldN,
   type XpbdConservativeForceProviderN,
+  type XpbdIncrementalPotentialStepFilterN,
   type XpbdIncrementalPotentialConvergenceContractN,
   type XpbdIncrementalPotentialConvergenceEvidenceN,
   type XpbdIncrementalPotentialConvergenceKindN,
@@ -1938,11 +1940,22 @@ export function physicsComposition(): void {
     advance.step.status === 'applied' && worldDiagnosis.condition === 'progressed',
     `the packed world-scoped step reported ${advance.step.status}`
   );
+  // The inadmissible prediction never reaches the recovery uncertified: the
+  // registered filter limits the warm-start movement to its certified prefix,
+  // and the recovery then accepts that certified endpoint in one trial.
+  const worldCertification = advance.step.warmStartCertification;
+  assert(
+    worldCertification !== undefined &&
+      worldCertification.outcome === 'limited' &&
+      worldCertification.certifiedStepLength > 0 &&
+      worldCertification.certifiedStepLength <
+        worldCertification.requestedStepLength,
+    'the packed world-scoped step lost its warm-start certification evidence'
+  );
   const worldRecovery = advance.step.feasibleBaseRecovery;
   assert(
     worldRecovery !== undefined &&
-      worldRecovery.status === 'recovered' &&
-      worldRecovery.fraction === 0.125,
+      worldRecovery.status === 'target-feasible',
     'the packed world-scoped step lost its feasible-base evidence'
   );
 
@@ -3026,4 +3039,106 @@ export function measureContactInheritedReceiverPrivacy(): void {
     assert(terms.provider.evaluate().potentialEnergy === CONTROL,
       'the law is unchanged after the array intrinsics are restored');
   }
+}
+
+/**
+ * Warm-start segment certification, composed the way an outside caller must.
+ *
+ * The released `v0.0.20` composition installed an automatically selected
+ * minimizer base without consulting any registered step filter, so an
+ * unsigned contact law — which calls a far-side placement feasible with
+ * energy exactly zero — let the warm start begin the solve on the other side
+ * of the obstacle and the world applied the full crossing. The paired filter,
+ * asked independently about the same movement, answered `limited` at 0.315.
+ *
+ * This drives that exact scene through the packed artifacts: the movement is
+ * now certified, the 0.315 prefix is what gets installed, no crossing occurs,
+ * and the uncertified paths (no filter registered; explicit
+ * `initialPositions`) keep their measured behavior.
+ */
+export function warmStartSegmentCertification(): void {
+  const scene = (velocityY: number): {
+    readonly particles: readonly XpbdParticleN[];
+    readonly provider: XpbdConservativeForceProviderN;
+    readonly stepFilter: XpbdIncrementalPotentialStepFilterN;
+  } => {
+    const complex = new CellComplex(3,
+      Float64Array.from([0, 0.4, 0, 1, 0.4, 0]),
+      [{ dim: 1, verticesPerCell: 2, kind: 'simplex',
+         indices: Uint32Array.from([0, 1]) }]);
+    const binding = compileXpbdParticleBindingN({
+      id: 'warm-cell', source: complex, velocity: () => [0, velocityY, 0]
+    });
+    const floor = new CellComplex(3,
+      Float64Array.from([-40, 0, -40, 60, 0, -40, -40, 0, 60]),
+      [{ dim: 2, verticesPerCell: 3, kind: 'simplex',
+         indices: Uint32Array.from([0, 1, 2]) }]);
+    const terms = compileXpbdSourceSimplexMeasureBarrierN({
+      id: 'warm-contact',
+      binding,
+      cell: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(complex, complex.groups[0]!, 0)),
+      obstacle: createSourceSimplexReferenceN(
+        createSourceCellReferenceN(floor, floor.groups[0]!, 0)),
+      minimumDistance: 0.05,
+      activationDistance: 0.5,
+      stiffness: 2,
+      maximumDirectionError: 1e-6
+    });
+    return {
+      particles: binding.particles,
+      provider: terms.provider,
+      stepFilter: terms.stepFilter
+    };
+  };
+  const yOf = (particles: readonly XpbdParticleN[]): number =>
+    particles[0]!.position.data[1]!;
+
+  // The N1 counterexample: certified, limited to 0.315, never through.
+  const certified = scene(-1);
+  const result = stepXpbdIncrementalPotentialN({
+    dimension: 3,
+    particles: certified.particles,
+    providers: [certified.provider],
+    stepFilters: [certified.stepFilter],
+    deltaTime: 1,
+    warmStart: 'feasible-inertial-prediction'
+  });
+  const certification = result.warmStartCertification;
+  assert(certification !== undefined,
+    'the automatic warm start must carry certification evidence');
+  assert(certification.outcome === 'limited',
+    'the far-side movement must be limited, not accepted');
+  assert(Math.abs(certification.certifiedStepLength /
+    certification.requestedStepLength - 0.315) < 1e-12,
+    'the certified prefix must be the filter\'s published 0.315');
+  assert(yOf(certified.particles) > 0.05,
+    'the cell must never cross the obstacle with the filter registered');
+
+  // The uncertified paths keep their measured behavior.
+  const unfiltered = scene(-1);
+  const crossed = stepXpbdIncrementalPotentialN({
+    dimension: 3,
+    particles: unfiltered.particles,
+    providers: [unfiltered.provider],
+    deltaTime: 1,
+    warmStart: 'feasible-inertial-prediction'
+  });
+  assert(crossed.status === 'applied'
+    && !('warmStartCertification' in crossed)
+    && Math.abs(yOf(unfiltered.particles) - -0.6) < 1e-12,
+    'with no filter registered there is no certification and no protection');
+
+  const safe = scene(-0.05);
+  const preserved = stepXpbdIncrementalPotentialN({
+    dimension: 3,
+    particles: safe.particles,
+    providers: [safe.provider],
+    stepFilters: [safe.stepFilter],
+    deltaTime: 1,
+    warmStart: 'feasible-inertial-prediction'
+  });
+  assert(preserved.status === 'applied'
+    && preserved.warmStartCertification?.outcome === 'safe',
+    'a fully certified movement must remain a safe, applied step');
 }

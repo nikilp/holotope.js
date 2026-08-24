@@ -1,0 +1,119 @@
+{
+  "gateFiles": [
+    "packages/physics/test/xpbd-incremental-potential-warm-start.test.ts"
+  ],
+  "subjects": {
+    "src/xpbd-incremental-potential-step.ts": "77b96e5cd0ee8554374b7b6a4130ef456ae7f61135c83c22080a636a28fa6b9b",
+    "src/xpbd-incremental-potential-problem.ts": "661da41579c05beb327e0f7d11adf0b60117b0e808a975b2a5dca5f2666ae1b5",
+    "test/xpbd-incremental-potential-warm-start.test.ts": "5bcbd40871f077dee74c250d3a0c346c629c60d83d7af83200be2f51a0a4090f"
+  },
+  "results": [
+    {
+      "id": "1 accept an endpoint-feasible target without consulting filters",
+      "file": "src/xpbd-incremental-potential-step.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "warm-start segment certification: the reproduced counterexamples no longer crosses the obstacle, for both unsigned laws and both automatic warm-start policies",
+        "warm-start segment certification: the reproduced counterexamples reaches the reported 0.315 limit and installs exactly that prefix as the base",
+        "warm-start segment certification: the reproduced counterexamples never installs an endpoint-feasible but path-unsafe target unchanged",
+        "warm-start segment certification: the reproduced counterexamples preserves a fully certified warm start bitwise: a safe outcome installs the exact prediction coordinates"
+      ],
+      "restored": true,
+      "testsRun": 15,
+      "testsFailed": 12
+    },
+    {
+      "id": "2 consult filters but ignore maximumStepLength",
+      "file": "src/xpbd-incremental-potential-problem.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "warm-start segment certification: the reproduced counterexamples no longer crosses the obstacle, for both unsigned laws and both automatic warm-start policies",
+        "warm-start segment certification: the reproduced counterexamples reaches the reported 0.315 limit and installs exactly that prefix as the base",
+        "warm-start segment certification: the reproduced counterexamples never installs an endpoint-feasible but path-unsafe target unchanged",
+        "warm-start segment certification: the reproduced counterexamples resolves several filters to the most restrictive certified prefix"
+      ],
+      "restored": true,
+      "testsRun": 15,
+      "testsFailed": 6
+    },
+    {
+      "id": "3 treat the certified maximum length as a unitless fraction",
+      "file": "src/xpbd-incremental-potential-problem.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "warm-start segment certification: the reproduced counterexamples no longer crosses the obstacle, for both unsigned laws and both automatic warm-start policies",
+        "warm-start segment certification: the reproduced counterexamples reaches the reported 0.315 limit and installs exactly that prefix as the base",
+        "warm-start segment certification: the reproduced counterexamples never installs an endpoint-feasible but path-unsafe target unchanged",
+        "warm-start segment certification: the reproduced counterexamples resolves several filters to the most restrictive certified prefix"
+      ],
+      "restored": true,
+      "testsRun": 15,
+      "testsFailed": 5
+    },
+    {
+      "id": "4 consult only the first registered filter",
+      "file": "src/xpbd-incremental-potential-problem.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "warm-start segment certification: the reproduced counterexamples resolves several filters to the most restrictive certified prefix",
+        "warm-start segment certification: the reproduced counterexamples installs the anchor when the certified prefix is a zero length, and still calls that a limit rather than a refusal",
+        "warm-start segment certification: the reproduced counterexamples fails closed on indeterminate: the base is the anchor, and nothing is applied partially"
+      ],
+      "restored": true,
+      "testsRun": 15,
+      "testsFailed": 3
+    },
+    {
+      "id": "5 certify only the final endpoint",
+      "file": "src/xpbd-incremental-potential-problem.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "warm-start segment certification: the reproduced counterexamples no longer crosses the obstacle, for both unsigned laws and both automatic warm-start policies",
+        "warm-start segment certification: the reproduced counterexamples reaches the reported 0.315 limit and installs exactly that prefix as the base",
+        "warm-start segment certification: the reproduced counterexamples never installs an endpoint-feasible but path-unsafe target unchanged",
+        "warm-start segment certification: the reproduced counterexamples carries bound kinematic obstacle particles through the same generic mapping"
+      ],
+      "restored": true,
+      "testsRun": 15,
+      "testsFailed": 7
+    },
+    {
+      "id": "6 omit bound-obstacle particles from the certified geometry",
+      "file": "src/xpbd-incremental-potential-problem.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "warm-start segment certification: the reproduced counterexamples carries bound kinematic obstacle particles through the same generic mapping"
+      ],
+      "restored": true,
+      "testsRun": 15,
+      "testsFailed": 1
+    },
+    {
+      "id": "7 advance the base despite an indeterminate certification",
+      "file": "src/xpbd-incremental-potential-problem.ts",
+      "applied": true,
+      "reached": true,
+      "killed": true,
+      "failedTests": [
+        "warm-start segment certification: the reproduced counterexamples fails closed on indeterminate: the base is the anchor, and nothing is applied partially",
+        "warm-start segment certification: the reproduced counterexamples certifies from an inadmissible anchor as indeterminate rather than escaping through the obstacle",
+        "warm-start segment certification: the reproduced counterexamples refuses even a retreating automatic movement from an inadmissible anchor, and the documented repair is explicit initialPositions"
+      ],
+      "restored": true,
+      "testsRun": 15,
+      "testsFailed": 3
+    }
+  ]
+}

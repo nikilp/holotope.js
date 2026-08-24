@@ -1543,8 +1543,26 @@ explicit: `previous-positions` uses the last live state, while
 bounded geometric chord toward the prediction. The latter retains every
 objective evaluation in `feasibleBaseRecovery`; it is initialization evidence,
 not a collision response or a claim that the chord is globally feasible.
-Application defaults remain `backward-euler` velocity reconstruction and force
-clearing.
+
+Two predicates stay distinct in that machinery, because conflating them was a
+released defect. **Point feasibility** — the recovery's subject — means the
+complete objective is *defined* at a coordinate; an unsigned contact law
+defines its energy on both sides of an obstacle, so a far-side placement
+beyond activation is feasible with energy exactly zero. **Segment
+admissibility** — the registered step filters' subject — certifies the path
+from the authored anchor to a coordinate. Every automatically selected
+warm-start movement (`inertial-prediction`, the default, and
+`feasible-inertial-prediction`) is therefore certified by every registered
+filter before its base is installed, as one segment from the anchor to the
+prediction: a `limited` verdict shortens the installed movement to the
+certified prefix, an `indeterminate` verdict installs the anchor, and the
+feasible mode then samples its chord *within* the certified movement. The
+evidence is retained separately in `warmStartCertification`. Explicit
+`initialPositions` bypass certification, `previous-positions` moves nothing
+and needs none, and with no filter registered nothing changes — the guarantee
+is scoped to the filters actually registered, never a universal
+continuous-collision claim. Application defaults remain `backward-euler`
+velocity reconstruction and force clearing.
 
 This is a transaction over the complete authored particle state. A typed
 minimization or application refusal restores the state from before prediction.
