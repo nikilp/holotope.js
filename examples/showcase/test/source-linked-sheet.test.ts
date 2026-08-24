@@ -222,7 +222,7 @@ describe('source-linked sheet — withheld from the built gallery', () => {
     expect(built).toEqual([
       'akn.html', 'ammann-beenker.html', 'bicomplex-julia.html', 'compute.html',
       'dimension-bridge.html', 'duoprisms.html', 'e8.html', 'elser-sloane.html',
-      'gpu.html', 'hopf.html', 'index.html', 'knots.html',
+      'flatland.html', 'gpu.html', 'hopf.html', 'index.html', 'knots.html',
       'mechanics-workbench.html', 'nd-contact.html', 'penrose.html',
       'physics-browser.html', 'platonic-brots.html', 'playground.html',
       'polychora.html', 'polytope-browser.html', 'product-browser.html',
@@ -230,6 +230,14 @@ describe('source-linked sheet — withheld from the built gallery', () => {
       'scene.html', 'tesseract.html', 'wythoff.html'
     ]);
     expect(built).not.toContain('source-linked-sheet.html');
+
+    // Two different reasons a page can be built and unlinked, and this list
+    // must keep them apart. `flatland.html` is an experimental route whose
+    // taste gate is still open, so it is built and deliberately not promoted.
+    // `source-linked-sheet.html` is withheld from the build entirely, because
+    // its surface passes through its own support; see the note above `input:`
+    // in vite.config.ts. Neither is a gallery card, and only one is buildable.
+    expect(built).toContain('flatland.html');
 
     // Every page the gallery links must be a page the build emits, and the
     // withdrawn one must be linked from nowhere.

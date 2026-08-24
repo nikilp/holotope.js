@@ -39,6 +39,10 @@ export default defineConfig({
       // to constrain it. It is still served by `vite dev` for that work.
       input: {
         index: local('./index.html'),
+        // Scene 3 of the guided ladder, built as an experimental route while its
+        // taste gate is open. Deliberately absent from the gallery in
+        // `index.html` until that review says it belongs there.
+        flatland: local('./flatland.html'),
         polytopeBrowser: local('./polytope-browser.html'),
         productBrowser: local('./product-browser.html'),
         provenanceBrowser: local('./provenance-browser.html'),
