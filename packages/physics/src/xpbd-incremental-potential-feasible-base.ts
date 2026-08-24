@@ -8,9 +8,20 @@ import { XpbdPotentialDomainErrorN } from './xpbd-potential-domain.js';
 export interface RecoverXpbdIncrementalPotentialFeasibleBaseNOptions {
   /** Compiled objective whose complete open domain is queried. */
   readonly problem: XpbdIncrementalPotentialProblemN;
-  /** Known or suspected admissible packed coordinate. */
+  /** Known or suspected admissible packed coordinate; chord fraction zero. */
   readonly anchorCoordinates: ArrayLike<number>;
-  /** Requested packed coordinate, evaluated first. */
+  /**
+   * Packed coordinate this invocation searches toward; evaluated first.
+   *
+   * Every fraction this search reports — on the result and on each trial — is
+   * measured along the chord from `anchorCoordinates` to THIS coordinate.
+   * It is whatever the caller supplied, which is not necessarily an inertial
+   * prediction: the integrated step's filtered warm start supplies the
+   * filter-certified endpoint of the movement, which coincides with the
+   * prediction only when every registered filter certifies the whole
+   * movement. Reconstructing a coordinate from a reported fraction is only
+   * correct against the target actually passed here.
+   */
   readonly targetCoordinates: ArrayLike<number>;
   /** Geometric contraction in `(0, 1)`; default `0.5`. */
   readonly contractionFactor?: number;
@@ -41,7 +52,10 @@ export type XpbdFeasibleBaseTrialN =
   | ({
       /** Zero-based evaluation order: target, anchor, then interior samples. */
       readonly index: number;
-      /** Chord fraction: zero is the anchor and one is the target. */
+      /**
+       * Chord fraction: zero is `anchorCoordinates`, one is the
+       * `targetCoordinates` supplied to this invocation.
+       */
       readonly fraction: number;
       /** Defensive packed coordinate evaluated by this trial. */
       readonly coordinates: Float64Array;
@@ -53,7 +67,10 @@ export type XpbdFeasibleBaseTrialN =
   | ({
       /** Zero-based evaluation order: target, anchor, then interior samples. */
       readonly index: number;
-      /** Chord fraction: zero is the anchor and one is the target. */
+      /**
+       * Chord fraction: zero is `anchorCoordinates`, one is the
+       * `targetCoordinates` supplied to this invocation.
+       */
       readonly fraction: number;
       /** Defensive packed coordinate evaluated by this trial. */
       readonly coordinates: Float64Array;
@@ -68,6 +85,10 @@ export type XpbdIncrementalPotentialFeasibleBaseResultN =
   | {
       /** The requested target already belongs to the complete objective domain. */
       readonly status: 'target-feasible';
+      /**
+       * The whole chord: the accepted coordinate is the `targetCoordinates`
+       * supplied to this invocation — NOT necessarily an inertial prediction.
+       */
       readonly fraction: 1;
       readonly evaluation: XpbdPackedIncrementalPotentialEvaluationN;
       readonly trials: readonly XpbdFeasibleBaseTrialN[];
@@ -75,6 +96,10 @@ export type XpbdIncrementalPotentialFeasibleBaseResultN =
   | {
       /** The first sampled positive chord fraction was feasible. */
       readonly status: 'recovered';
+      /**
+       * Interior fraction of the `anchorCoordinates`-to-`targetCoordinates`
+       * chord of this invocation, in `(0, 1)`.
+       */
       readonly fraction: number;
       readonly evaluation: XpbdPackedIncrementalPotentialEvaluationN;
       readonly trials: readonly XpbdFeasibleBaseTrialN[];
@@ -82,6 +107,7 @@ export type XpbdIncrementalPotentialFeasibleBaseResultN =
   | {
       /** Only the authored anchor was established feasible within the budget. */
       readonly status: 'anchor-only';
+      /** The chord origin: the accepted coordinate is `anchorCoordinates`. */
       readonly fraction: 0;
       readonly evaluation: XpbdPackedIncrementalPotentialEvaluationN;
       readonly trials: readonly XpbdFeasibleBaseTrialN[];
@@ -112,6 +138,18 @@ export type XpbdIncrementalPotentialFeasibleBaseResultN =
  * Evaluation order is fixed: target once, anchor once after a typed target
  * refusal, then `contractionFactor^k` for `k = 1..maximumTrials`. Ordinary
  * provider errors remain errors and are rethrown unchanged.
+ *
+ * Every reported fraction — on the result and on each trial — is in this
+ * invocation's own `anchorCoordinates`-to-`targetCoordinates` frame, and in
+ * no other. That frame is generic: it is always the chord this call was
+ * given. When the integrated filtered warm start supplies a filter-certified
+ * endpoint as the target, fraction one is that endpoint — which equals the
+ * inertial prediction only under a fully certifying `safe` verdict — so any
+ * NONZERO fraction reconstructed against prediction coordinates otherwise
+ * names the wrong point. Zero is the exception in every frame: it is the
+ * anchor. Reconstruction is unnecessary regardless — the accepted coordinate
+ * is carried directly on `evaluation.coordinates`, which the `anchor-refused`
+ * result, having accepted none, does not have.
  */
 export function recoverXpbdIncrementalPotentialFeasibleBaseN(
   options: RecoverXpbdIncrementalPotentialFeasibleBaseNOptions

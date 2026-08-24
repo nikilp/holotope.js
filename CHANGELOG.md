@@ -45,6 +45,35 @@
   records, the outcome, and the requested and certified lengths, alongside the
   existing `feasibleBaseRecovery` point evidence, and the step diagnosis
   surfaces both.
+- **Migration — `feasibleBaseRecovery` fractions are in the certified frame.**
+  This follows from the correction above and is intentional, not a defect:
+  whenever registered filters certify a `feasible-inertial-prediction` movement
+  to anything short of `safe`, the chord recovery is rebased onto the certified
+  movement, so it runs from the authored anchor to the **certified endpoint**
+  rather than to the inertial prediction. Its `fraction` one therefore means
+  *the target the recovery was given* — the certified prefix under a `limited`
+  outcome, and **the authored anchor itself under `indeterminate`**, where
+  `target-feasible` with fraction one means nothing moved at all. A
+  `target-feasible` result no longer implies the prediction was installed.
+- **Who must migrate, and to what.** Code that reconstructed a coordinate as
+  `anchor + fraction × (prediction − anchor)`, or that pinned a particular
+  historical numeric fraction, must change. That reconstruction still agrees
+  under a `safe` certification, when no filter is registered, and wherever the
+  reported fraction is zero — which names the anchor in every frame. For every
+  nonzero fraction under any other outcome it is wrong, and it is worst under
+  `indeterminate`, where it
+  returns the full inertial prediction while the step in fact moved nothing —
+  the very coordinate the certification exists to refuse. **Do not guard the
+  old formula on `outcome === 'limited'`.** Read the coordinate instead of
+  rebuilding it: `feasibleBaseRecovery.evaluation.coordinates` for the accepted
+  coordinate (absent on the `anchor-refused` result, which accepted none), or
+  `minimization.initial.coordinates` for the base the solve started from
+  (`minimization.initialCoordinates` on the `initial-state-refused` terminal,
+  which accepted no base evaluation). The repository's own packed-consumer
+  fixture is the worked example — its warm-start check now asserts
+  `target-feasible` and the certification outcome instead of the numeric
+  fraction it previously pinned, because the target itself is now the certified
+  endpoint.
 - **Unchanged by design:** explicit `initialPositions` remain the
   authoritative, uncertified bypass; `previous-positions` moves nothing and
   certifies nothing; with no filter registered, behaviour is identical — the

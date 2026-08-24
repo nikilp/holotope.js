@@ -139,15 +139,21 @@ export interface StepXpbdIncrementalPotentialNOptions {
    * `previous-positions` keeps the base at the last admissible live state while
    * the inertial prediction still defines the objective's inertia term.
    * `feasible-inertial-prediction` searches the chord from those previous
-   * positions toward the prediction for a point the complete objective accepts,
-   * and retains every sampled result.
+   * positions toward the **certified** warm-start target — the prediction
+   * under a `safe` verdict, the certified endpoint under `limited`, and the
+   * authored anchor itself under `indeterminate` — for a point the complete
+   * objective accepts, and retains every sampled result. Its reported
+   * fractions are in that certified frame; see `feasibleBaseRecovery`.
    *
    * Every AUTOMATICALLY selected base movement is certified by the registered
    * step filters before it is installed: the anchor-to-prediction displacement
    * is submitted to every filter as one segment, a `limited` verdict shortens
    * the installed movement to the certified prefix, and an `indeterminate`
    * verdict installs the anchor instead — an uncertifiable automatic movement
-   * does not happen. Point feasibility of a coordinate never certifies the
+   * does not happen. That certified endpoint, not the raw prediction, is also
+   * what the feasible mode's chord search is retargeted onto.
+   *
+   * Point feasibility of a coordinate never certifies the
    * path to it: an unsigned contact law accepts a far-side placement, so
    * without this certification a warm start could install a base on the other
    * side of an obstacle and the filters, which certify only Armijo segments,
@@ -192,6 +198,30 @@ interface XpbdIncrementalPotentialStepBaseN<
   /**
    * Complete initialization evidence when feasible chord recovery was run.
    * Absent for unchanged warm starts and when explicit positions bypass it.
+   *
+   * **Read the fractions in the recovery's own frame.** The recovery measures
+   * every status, trial and fraction along the chord from the authored anchor
+   * to the target THIS step handed it — which is the recovery target selected
+   * by the warm-start policy, not unconditionally the inertial prediction.
+   * Whenever registered step filters certify a `feasible-inertial-prediction`
+   * movement to anything short of `safe`, the recovery runs from the authored
+   * anchor to the **certified endpoint** instead, and its statuses, trials and
+   * fractions describe that certified chord: the certified prefix under a
+   * `limited` outcome, and the authored anchor itself under `indeterminate` —
+   * where `target-feasible` with `fraction` one means nothing moved at all.
+   * Under `safe`, and when no filter is registered, the target is the inertial
+   * prediction exactly as before.
+   *
+   * Consumers needing the actual installed coordinate should read it rather
+   * than rebuild it. `evaluation.coordinates` carries the accepted trial's own
+   * packed coordinates — absent on the `anchor-refused` result, which accepted
+   * none — and the base the solve started from is
+   * `minimization.initial.coordinates`, or `minimization.initialCoordinates`
+   * on the `initial-state-refused` terminal, which accepted no base evaluation
+   * at all. Rebuilding that coordinate from a reported fraction and the
+   * inertial prediction is unsound unless the outcome is `safe`: it coincides
+   * only where the reported fraction is zero, which names the anchor in every
+   * frame, and is wrong for every nonzero one.
    */
   readonly feasibleBaseRecovery?: XpbdIncrementalPotentialFeasibleBaseResultN;
   /**

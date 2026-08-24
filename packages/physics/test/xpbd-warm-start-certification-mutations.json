@@ -3,7 +3,7 @@
     "packages/physics/test/xpbd-incremental-potential-warm-start.test.ts"
   ],
   "subjects": {
-    "src/xpbd-incremental-potential-step.ts": "77b96e5cd0ee8554374b7b6a4130ef456ae7f61135c83c22080a636a28fa6b9b",
+    "src/xpbd-incremental-potential-step.ts": "1da3d497f7065506add2e744e9ee33e788fd8b836b0ca4cdefd0013082671d1f",
     "src/xpbd-incremental-potential-problem.ts": "661da41579c05beb327e0f7d11adf0b60117b0e808a975b2a5dca5f2666ae1b5",
     "test/xpbd-incremental-potential-warm-start.test.ts": "5bcbd40871f077dee74c250d3a0c346c629c60d83d7af83200be2f51a0a4090f"
   },
