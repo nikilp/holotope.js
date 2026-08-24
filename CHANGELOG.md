@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## v0.0.21
 
-### `@holotope/physics` — fixed
+All five packages are synchronized at `0.0.21`. The substantive change is a
+**behavioural correction** in `@holotope/physics`; the other four packages are
+version-synchronized with no substantive behavioural change. The public surface
+is additive against `0.0.20`: one interface added, nothing removed, renamed or
+retyped.
+
+### `@holotope/physics@0.0.21` — fixed
 
 - **An automatically selected warm-start base is now certified by the
   registered step filters before it is installed.** The released composition
