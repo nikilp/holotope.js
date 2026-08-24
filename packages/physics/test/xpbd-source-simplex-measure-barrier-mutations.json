@@ -17,7 +17,7 @@
         "the measure barrier: energy, forces, and the reference weight weights by the REFERENCE measure: two rest cells differing only in size give energies in exactly that ratio at identical placements"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 11
     },
     {
@@ -31,7 +31,7 @@
         "the measure barrier: energy, forces, and the reference weight weights by the REFERENCE measure: two rest cells differing only in size give energies in exactly that ratio at identical placements"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 2
     },
     {
@@ -47,7 +47,7 @@
         "the measure barrier: energy, forces, and the reference weight weights by the REFERENCE measure: two rest cells differing only in size give energies in exactly that ratio at identical placements"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 10
     },
     {
@@ -63,7 +63,7 @@
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 9
     },
     {
@@ -79,7 +79,7 @@
         "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 9
     },
     {
@@ -92,7 +92,7 @@
         "the measure barrier: exact placement of its nodes places a hyperplanar cell's nodes exactly in its own hyperplane"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -106,7 +106,7 @@
         "the measure barrier: energy, forces, and the reference weight sums to zero force when both sides are bound, because the energy depends only on the relative placement"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 2
     },
     {
@@ -120,7 +120,7 @@
         "the measure barrier: energy, forces, and the reference weight sums to zero force when both sides are bound, because the energy depends only on the relative placement"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 2
     },
     {
@@ -136,7 +136,7 @@
         "the measure barrier: inside the released world keeps the filter honest inside the search: a step large enough to tunnel is not applied whole"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 4
     },
     {
@@ -152,7 +152,7 @@
         "the measure barrier: inside the released world keeps the filter honest inside the search: a step large enough to tunnel is not applied whole"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 4
     },
     {
@@ -165,7 +165,7 @@
         "the measure barrier: the shape of its public surface asks the barrier for one derivative order, once, and never asks for a curvature it would not use"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -181,7 +181,7 @@
         "the measure barrier: energy, forces, and the reference weight publishes forces that are the exact gradient of the published energy, for every supported cell dimension, static and bound"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 11
     },
     {
@@ -194,7 +194,7 @@
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -207,7 +207,7 @@
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -220,7 +220,7 @@
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -233,7 +233,7 @@
         "the measure barrier: refusal and configuration semantics reaches every reason in its published domain vocabulary, each as a recoverable refusal carrying the term identity"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -246,7 +246,7 @@
         "the measure barrier: refusal and configuration semantics rejects authored configuration as a permanent error, never as a recoverable refusal"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -261,7 +261,7 @@
         "the measure barrier: authored options versus tampering SAFETY CALIBRATION: the certified prefix is sound, and a scale of 1.2 applied internally still breaches"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 3
     },
     {
@@ -276,7 +276,7 @@
         "the measure barrier: authored options versus tampering SAFETY CALIBRATION: the certified prefix is sound, and a scale of 1.2 applied internally still breaches"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 3
     },
     {
@@ -289,7 +289,7 @@
         "the measure barrier: the rule itself certifies against the WORST node, not the average one"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -303,7 +303,7 @@
         "the measure barrier: authored options versus tampering accepts no rule, so there is no caller rule to mutate"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 2
     },
     {
@@ -316,7 +316,7 @@
         "the measure barrier: refusal and configuration semantics rejects authored configuration as a permanent error, never as a recoverable refusal"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -331,7 +331,7 @@
         "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 3
     },
     {
@@ -346,7 +346,7 @@
         "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 3
     },
     {
@@ -361,7 +361,7 @@
         "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 3
     },
     {
@@ -376,7 +376,7 @@
         "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 3
     },
     {
@@ -391,7 +391,7 @@
         "the measure barrier: runtime privacy of non-authorable state offers no route to internal state through any reflection surface"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 3
     },
     {
@@ -405,7 +405,7 @@
         "the measure barrier: runtime privacy of non-authorable state cannot be tampered with: every property attack throws and changes nothing"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 2
     },
     {
@@ -418,7 +418,7 @@
         "the measure barrier: the language of its public claims states no general refinement invariance anywhere it makes a claim"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -431,7 +431,7 @@
         "the measure barrier: the language of its public claims states no general refinement invariance anywhere it makes a claim"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -444,7 +444,7 @@
         "the measure barrier: inherited-operation receivers hands the query fresh geometry every call, so nothing retained through the inherited length accessor can change a later evaluation"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -457,7 +457,7 @@
         "the measure barrier: inherited-operation receivers takes no inherited typed-array method on obstacle geometry while compiling"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -470,7 +470,7 @@
         "the measure barrier: inherited-operation receivers never supplies a private partition or the fixed rule to an inherited array operation"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     },
     {
@@ -483,7 +483,7 @@
         "the measure barrier: inherited-operation receivers never supplies a private partition or the fixed rule to an inherited array operation"
       ],
       "restored": true,
-      "testsRun": 42,
+      "testsRun": 44,
       "testsFailed": 1
     }
   ]

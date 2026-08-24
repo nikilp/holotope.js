@@ -82,10 +82,24 @@ const normalizeJsDocText = (comment: string): string => normalizeClaimText(
     .join('\n')
 );
 
-/** Blank-line-delimited paragraphs, in document order. */
-const paragraphsOf = (document: string): string[] =>
-  document.split(/\n[ \t]*\n/u).map((block) => block.trim())
-    .filter((block) => block.length > 0);
+/** A structural candidate, with the offset the scan found it at. */
+interface Candidate { readonly raw: string; readonly start: number }
+
+/** Blank-line-delimited paragraphs, in document order, with their offsets. */
+const paragraphsOf = (document: string): Candidate[] => {
+  const candidates: Candidate[] = [];
+  let at = 0;
+  for (const piece of document.split(/\n[ \t]*\n/u)) {
+    const trimmed = piece.trim();
+    if (trimmed.length > 0) {
+      candidates.push({ raw: trimmed, start: at + piece.indexOf(trimmed) });
+    }
+    // +1 for the newline the split consumed; exact enough for ordering, and
+    // never used to FIND anything.
+    at += piece.length + 2;
+  }
+  return candidates;
+};
 
 /** The opening sentence of a paragraph, normalized, as its key. */
 const openingSentenceOf = (paragraph: string): string => {
@@ -95,21 +109,28 @@ const openingSentenceOf = (paragraph: string): string => {
 };
 
 /** Top-level Markdown bullets: a `- ` line plus its indented continuations. */
-const topLevelBulletsOf = (document: string): string[] => {
-  const bullets: string[] = [];
+const topLevelBulletsOf = (document: string): Candidate[] => {
+  const bullets: Candidate[] = [];
   let current: string[] | null = null;
+  let start = 0;
+  let at = 0;
+  const close = (): void => {
+    if (current !== null) bullets.push({ raw: current.join('\n'), start });
+    current = null;
+  };
   for (const line of document.split('\n')) {
     if (/^- /u.test(line)) {
-      if (current !== null) bullets.push(current.join('\n'));
+      close();
       current = [line];
+      start = at;
     } else if (current !== null && /^\s+\S/u.test(line)) {
       current.push(line);
-    } else if (current !== null) {
-      bullets.push(current.join('\n'));
-      current = null;
+    } else {
+      close();
     }
+    at += line.length + 1;
   }
-  if (current !== null) bullets.push(current.join('\n'));
+  close();
   return bullets;
 };
 
@@ -120,46 +141,80 @@ const boldLeadInOf = (bullet: string): string => {
   return bold === null ? normalized.slice(0, 60) : bold[1]!.trim();
 };
 
-/** Markdown table rows, excluding the header separator. */
-const tableRowsOf = (document: string): string[] =>
-  document.split('\n')
-    .filter((line) => line.trimStart().startsWith('|')
-      && !/^\|[\s:|-]+\|$/u.test(line.trim()));
+/** Markdown table rows, excluding the header separator, with their offsets. */
+const tableRowsOf = (document: string): Candidate[] => {
+  const rows: Candidate[] = [];
+  let at = 0;
+  for (const line of document.split('\n')) {
+    if (line.trimStart().startsWith('|')
+      && !/^\|[\s:|-]+\|$/u.test(line.trim())) {
+      rows.push({ raw: line, start: at });
+    }
+    at += line.length + 1;
+  }
+  return rows;
+};
 
 /** The first cell of a table row, normalized, as its key. */
 const firstCellOf = (row: string): string =>
   normalizeClaimText(row.trim().replace(/^\|/u, '').split('|')[0] ?? '');
 
 /**
- * The documentation comment TypeScript attaches to an exported declaration.
+ * The documentation comment attached to the UNIQUE EXPORTED TOP-LEVEL
+ * declaration with the configured name.
  *
- * Read from the AST, so it follows the declaration when the file is edited and
- * cannot silently become the comment of some other symbol.
+ * Three requirements, and each one closes a demonstrated hole:
+ *
+ * - only `sourceFile.statements` is inspected, and `node.parent` must be the
+ *   source file, so a declaration nested inside a function body is not a
+ *   candidate;
+ * - the declaration must carry the `export` modifier, established from the
+ *   AST through `ts.getCombinedModifierFlags`;
+ * - exactly one declaration may match — zero and more than one both fail.
+ *
+ * The predecessor returned the first name match anywhere in the tree. It
+ * recursed into function bodies and checked neither parentage nor export, so
+ * planting an earlier same-named nested declaration carrying the reviewed
+ * comment moved the pin onto it: the shipped JSDoc could then be falsified
+ * back to "not reachable at runtime", type-check, build, and reach
+ * `dist/*.d.ts` with the gate green and the stored hash untouched. The
+ * adversarial case is the demonstration; the reason to fix it is that any
+ * ordinary refactor introducing a same-named local does the same thing
+ * silently.
+ *
+ * Its comment also claimed the JSDoc "cannot silently become the comment of
+ * some other symbol", which is the property described above and was not the
+ * property implemented. This comment states what the code does.
+ *
+ * This is not a symbol analyser. It protects one named exported declaration in
+ * one named file.
  */
-const attachedJsDocOf = (source: string, symbol: string): string | null => {
+const attachedJsDocOf = (
+  source: string, symbol: string
+): { readonly text: string; readonly start: number } | null => {
   const parsed = ts.createSourceFile(
     'claim.ts', source, ts.ScriptTarget.ES2022, true
   );
-  let found: string | null = null;
-  const visit = (node: ts.Node): void => {
-    if (found !== null) return;
-    const named = (ts.isFunctionDeclaration(node)
-      || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)
-      || ts.isClassDeclaration(node)) && node.name?.text === symbol;
-    if (named) {
-      const ranges = ts.getLeadingCommentRanges(source, node.getFullStart());
-      const doc = (ranges ?? []).filter((range) =>
-        source.slice(range.pos, range.pos + 3) === '/**');
-      if (doc.length > 0) {
-        const last = doc[doc.length - 1]!;
-        found = source.slice(last.pos, last.end);
-      }
-      return;
-    }
-    ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(parsed, visit);
-  return found;
+  const matches = parsed.statements.filter((statement) => {
+    const named = (ts.isFunctionDeclaration(statement)
+      || ts.isInterfaceDeclaration(statement)
+      || ts.isTypeAliasDeclaration(statement)
+      || ts.isClassDeclaration(statement)) && statement.name?.text === symbol;
+    if (!named || statement.parent !== parsed) return false;
+    return (ts.getCombinedModifierFlags(statement as ts.Declaration)
+      & ts.ModifierFlags.Export) !== 0;
+  });
+  // Zero is a missing target; more than one is an ambiguous pin. Neither may
+  // silently resolve to "the first one".
+  if (matches.length !== 1) return null;
+  const target = matches[0]!;
+  const ranges = ts.getLeadingCommentRanges(source, target.getFullStart());
+  const doc = (ranges ?? []).filter((range) =>
+    source.slice(range.pos, range.pos + 3) === '/**');
+  if (doc.length === 0) return null;
+  const last = doc[doc.length - 1]!;
+  // `last.pos` is the offset the scanner reported; nothing is searched for.
+  return { text: source.slice(last.pos, last.end), start: last.pos };
 };
 
 /**
@@ -167,24 +222,65 @@ const attachedJsDocOf = (source: string, symbol: string): string | null => {
  * holds it — a deleted block and a block whose key was rewritten both land
  * here, and both must fail.
  */
+/**
+ * A block as the structure located it, including where it was found.
+ *
+ * Deliberately NOT exported. `check-evidence-readership` collects the fields
+ * of exported interfaces that appear in return position and reports any read
+ * only by tests — and every reader of this module is a test, by construction.
+ * The alternative would be baselining four fields in
+ * `docs/evidence-baseline.json`, which is both outside this commission's
+ * permitted file list and the exact move that gate exists to prevent.
+ * Callers destructure the result; none of them needs the name.
+ */
+interface LocatedReviewedBlock {
+  readonly kind: ReviewedBlockKind;
+  readonly key: string;
+  /** The reviewed content, normalized. */
+  readonly normalized: string;
+  /** The block exactly as it appears in the document. */
+  readonly raw: string;
+  /** Offset of the block's first character, from the locator itself. */
+  readonly start: number;
+  /** Offset one past the block's last character. */
+  readonly end: number;
+}
+
+/**
+ * Locate one block, and keep the position the structure found it at.
+ *
+ * The offset is returned rather than recoverable by search on purpose. The
+ * predecessor returned only the text, so `checkReviewedOrder` recomputed the
+ * position with `document.indexOf(raw)` — and a verbatim copy merged into an
+ * earlier paragraph by a single newline captured it: `paragraphsOf` folded the
+ * copy into a larger paragraph, so it was not a structural candidate and
+ * raised no duplicate failure, while `indexOf` matched it and reported a small
+ * offset for a block that had been moved to the end. The three README boundary
+ * paragraphs could be reordered with the gate green.
+ */
 export function findReviewedBlock(
   kind: ReviewedBlockKind, document: string, key: string
-): { readonly raw: string; readonly normalized: string } | null {
+): LocatedReviewedBlock | null {
+  const located = (raw: string, start: number, normalized: string) => ({
+    kind, key, raw, start, end: start + raw.length, normalized
+  });
   if (kind === 'jsdoc') {
     const doc = attachedJsDocOf(document, key);
-    return doc === null
-      ? null : { raw: doc, normalized: normalizeJsDocText(doc) };
+    if (doc === null) return null;
+    return located(doc.text, doc.start, normalizeJsDocText(doc.text));
   }
   const candidates = kind === 'changelog-bullet' ? topLevelBulletsOf(document)
     : kind === 'guide-table-row' ? tableRowsOf(document)
       : paragraphsOf(document);
   const keyOf = kind === 'changelog-bullet' ? boldLeadInOf
     : kind === 'guide-table-row' ? firstCellOf : openingSentenceOf;
-  const matches = candidates.filter((block) => keyOf(block) === key);
+  const matches = candidates.filter((block) => keyOf(block.raw) === key);
   // Exactly one, so duplicating a reviewed block is a failure rather than a
   // way to keep the gate green while editing the original.
   if (matches.length !== 1) return null;
-  return { raw: matches[0]!, normalized: normalizeClaimText(matches[0]!) };
+  return located(
+    matches[0]!.raw, matches[0]!.start, normalizeClaimText(matches[0]!.raw)
+  );
 }
 
 /** The reviewed content of one block, or `null` when it is no longer there. */
@@ -205,12 +301,16 @@ export function extractReviewedBlock(
 export function checkReviewedBlock(
   block: ReviewedClaimBlock, document: string, digest: (text: string) => string
 ): string | null {
-  const where = `${block.file} :: ${block.id}`;
+  // file :: block :: LOCATOR :: reason :: detail — the locator is named
+  // because two of them exist per file kind and a failure must say which one
+  // could not hold the block.
+  const where = `${block.file} :: ${block.id} :: ${block.kind}`;
   const found = extractReviewedBlock(block.kind, document, block.key);
   if (found === null) {
     return `${where} :: missing :: no unique ${block.kind} keyed`
       + ` "${block.key.slice(0, 60)}" — the block was removed, duplicated,`
-      + ' or its opening was rewritten';
+      + ' its opening was rewritten, or (for a jsdoc) there is not exactly one'
+      + ' exported top-level declaration of that name';
   }
   const actual = digest(found);
   if (actual !== block.sha256) {
@@ -244,14 +344,18 @@ export function checkReviewedOrder(
     // A missing block is reported by `checkReviewedBlock`; order says nothing
     // about it.
     if (found === null) return null;
-    positions.push({ block, at: document.indexOf(found.raw) });
+    // The offset the LOCATOR found, never a search for the text. Recovering
+    // position by `document.indexOf(raw)` is what a merged verbatim decoy
+    // captured.
+    positions.push({ block, at: found.start });
   }
   for (let index = 1; index < positions.length; index++) {
     const previous = positions[index - 1]!;
     const current = positions[index]!;
     if (current.at <= previous.at) {
-      return `${current.block.file} :: ${current.block.id} :: altered ::`
-        + ` reviewed order broken, it now precedes "${previous.block.id}"`;
+      return `${current.block.file} :: ${current.block.id} ::`
+        + ` ${current.block.kind} :: altered :: reviewed order broken, it now`
+        + ` precedes "${previous.block.id}"`;
     }
   }
   return null;

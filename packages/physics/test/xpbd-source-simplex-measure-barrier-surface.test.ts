@@ -737,7 +737,7 @@ describe('the measure barrier: the reviewed privacy claims', () => {
       const failure = checkFile(block, edited);
       console.log(`  FAIL   ${label.slice(0, 62).padEnd(62)}`
         + ` ${failure === null ? '(NOT CAUGHT)'
-          : failure.split(' :: ')[2] ?? ''}`);
+          : failure.split(' :: ')[3] ?? ''}`);
       expect(failure, label).not.toBeNull();
       // The report leads with the file and a block, not just "something
       // changed". A content failure names the block that was edited; an ORDER
@@ -793,6 +793,158 @@ describe('the measure barrier: the reviewed privacy claims', () => {
     expect(withSibling).not.toBe(changelog);
     for (const block of PIN.blocks.filter((b) => b.file === 'CHANGELOG.md')) {
       expect(checkFile(block, withSibling), block.id).toBeNull();
+    }
+  });
+});
+
+/**
+ * The two structural locators, calibrated against the attacks that defeated
+ * their predecessors.
+ *
+ * Both defects were demonstrated against the real gate before this was
+ * written. The JSDoc one shipped `not reachable at runtime` in `dist/*.d.ts`
+ * with `tsc` and the build at exit 0, the whole suite green, and the stored
+ * hash untouched — a reviewed claim changed with nothing to show for it. The
+ * order one let the three README boundary paragraphs be reordered behind a
+ * verbatim copy merged into an earlier paragraph.
+ *
+ * As everywhere in this pin, a failure means "this differs from what was
+ * reviewed", never "this is false".
+ */
+describe('the measure barrier: the structural locators', () => {
+  const PIN = JSON.parse(readFileSync(
+    resolve(HERE, 'fixtures/measure-barrier-reviewed-claims.json'), 'utf8')
+  ) as { readonly blocks: readonly ReviewedClaimBlock[] };
+  const REPOSITORY = resolve(HERE, '../../..');
+  const digest = (text: string): string =>
+    createHash('sha256').update(text).digest('hex');
+  const documentOf = (file: string): string =>
+    readFileSync(resolve(REPOSITORY, file), 'utf8');
+  const byId = (id: string) => PIN.blocks.find((block) => block.id === id)!;
+  const checkFile = (
+    block: ReviewedClaimBlock, document: string
+  ): string | null =>
+    checkReviewedBlock(block, document, digest) ?? checkReviewedOrder(
+      PIN.blocks.filter((entry) => entry.file === block.file), document
+    );
+
+  const JSDOC = byId('jsdoc/compile-function');
+  const law = (): string => documentOf(JSDOC.file);
+  /** The reviewed comment, verbatim, as it sits above the exported function. */
+  const reviewedComment = (): string => {
+    const text = law();
+    const at = text.indexOf(`export function ${JSDOC.key}`);
+    return text.slice(text.lastIndexOf('/**', at), text.indexOf('*/',
+      text.lastIndexOf('/**', at)) + 2);
+  };
+  /** Falsifies the EXPORTED claim, restoring the phrase this arc removed. */
+  const falsifyExported = (text: string): string => {
+    const edited = text.replace(
+      'It is **not authorable through the public API** either',
+      'It is **not reachable at runtime** either'
+    );
+    expect(edited, 'the exported-claim anchor moved').not.toBe(text);
+    return edited;
+  };
+  /** Plants an earlier same-named declaration nested in a function body. */
+  const plantNested = (text: string): string => {
+    const edited = text.replace(
+      '  const cellCount = cellParticles.length;',
+      `${reviewedComment().split('\n').map((line) => `  ${line}`).join('\n')}\n`
+      + `  function ${JSDOC.key}(): void { /* decoy */ }\n`
+      + `  void ${JSDOC.key};\n`
+      + '  const cellCount = cellParticles.length;'
+    );
+    expect(edited, 'the nesting anchor moved').not.toBe(text);
+    return edited;
+  };
+
+  it('CALIBRATION: the JSDoc locator pins the unique EXPORTED TOP-LEVEL '
+    + 'declaration, and nothing else', () => {
+    console.log('\nJSDoc locator calibration');
+    const cases: [string, (text: string) => string, boolean][] = [
+      // 1. the demonstrated attack: nested decoy carries the reviewed comment
+      //    while the exported claim is falsified.
+      ['nested same-named decoy + falsified exported claim',
+        (text) => plantNested(falsifyExported(text)), false],
+      // 2. the same decoy with the exported comment left correct is NOT a
+      //    finding: the reviewed text is still where it was reviewed.
+      ['nested same-named decoy, exported JSDoc correct', plantNested, true],
+      // 3. removing `export` leaves no exported target.
+      ['export modifier removed from the target',
+        (text) => text.replace(`export function ${JSDOC.key}(`,
+          `function ${JSDOC.key}(`), false],
+      // 4. no target at all.
+      ['zero exported top-level declarations of that name',
+        (text) => text.replace(`export function ${JSDOC.key}(`,
+          'export function compileSomethingElseEntirelyN('), false],
+      // 5. two exported targets: ambiguous, never "the first one".
+        ['two exported top-level declarations of that name',
+          (text) => `${text}\n\nexport function ${JSDOC.key}(): void {}\n`,
+          false]
+    ];
+    for (const [label, edit, accepted] of cases) {
+      const failure = checkFile(JSDOC, edit(law()));
+      console.log(`  ${failure === null ? 'ACCEPT' : 'FAIL  '}`
+        + ` ${label.slice(0, 56).padEnd(56)}`
+        + ` ${failure === null ? '' : failure.split(' :: ')[3] ?? ''}`);
+      expect(failure === null, label).toBe(accepted);
+      if (!accepted) {
+        // file :: block :: locator :: reason :: detail
+        expect(failure!, label).toContain(JSDOC.file);
+        expect(failure!, label).toContain(JSDOC.id);
+        expect(failure!, label).toContain('jsdoc');
+      }
+    }
+  });
+
+  it('CALIBRATION: the order check uses the located offset, so a decoy that '
+    + 'is not a structural candidate cannot supply one', () => {
+    console.log('\norder-locator calibration');
+    const file = 'packages/physics/README.md';
+    const blocks = PIN.blocks.filter((block) => block.file === file);
+    const rawOf = (block: ReviewedClaimBlock): string =>
+      findReviewedBlock(block.kind, documentOf(file), block.key)!.raw;
+    const first = rawOf(blocks[0]!);
+    const last = rawOf(blocks[2]!);
+    /** Moves the first reviewed paragraph after the last. */
+    const reorder = (text: string): string =>
+      text.replace(`${first}\n\n`, '').replace(last, `${last}\n\n${first}`);
+    // The decoy must precede the reviewed run, or a content search would have
+    // returned a late offset anyway and proved nothing.
+    const ANCHOR = 'Measure consistency is not invariance under subdivision,'
+      + ' and the two are kept';
+    const cases: [string, (text: string) => string, boolean][] = [
+      ['reorder the three reviewed paragraphs', reorder, false],
+      // 6. the demonstrated bypass: a verbatim copy merged into an earlier
+      //    paragraph by a single newline. `paragraphsOf` folds it into a
+      //    larger paragraph, so it is not a candidate and raises no duplicate
+      //    failure — and it used to supply the position.
+      ['reorder + verbatim decoy merged into an earlier paragraph',
+        (text) => reorder(text).replace(ANCHOR, `${ANCHOR}\n${first}`), false],
+      // 7. a verbatim duplicate that IS a candidate fails as a duplicate.
+      ['verbatim duplicate as its own paragraph',
+        (text) => text.replace(first, `${first}\n\n${first}`), false],
+      // 8. unrelated material before the reviewed run stays legal.
+      ['an unrelated paragraph above the reviewed run',
+        (text) => text.replace(ANCHOR,
+          `An unrelated new paragraph, added above.\n\n${ANCHOR}`), true]
+    ];
+    for (const [label, edit, accepted] of cases) {
+      const edited = edit(documentOf(file));
+      expect(edited, `${label}: the edit did not apply`)
+        .not.toBe(documentOf(file));
+      const failures = blocks
+        .map((block) => checkFile(block, edited))
+        .filter((failure): failure is string => failure !== null);
+      console.log(`  ${failures.length === 0 ? 'ACCEPT' : 'FAIL  '}`
+        + ` ${label.slice(0, 56).padEnd(56)}`
+        + ` ${failures[0]?.split(' :: ')[3] ?? ''}`);
+      expect(failures.length === 0, label).toBe(accepted);
+      if (!accepted) {
+        expect(failures[0]!, label).toContain(file);
+        expect(failures[0]!, label).toContain('readme-paragraph');
+      }
     }
   });
 });
