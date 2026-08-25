@@ -86,6 +86,8 @@ export {
   massPropertiesFromCellComplex4,
   massPropertiesFromConvexBoundary4,
   massPropertiesFromTetrahedralization4,
+  massPropertiesOfGlome4,
+  massPropertiesOfHyperbox4,
   rebasePositionsToPrincipalFrame4,
   type ConvexBoundary4,
   type MassProperties4,

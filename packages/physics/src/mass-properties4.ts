@@ -170,9 +170,51 @@ export function massPropertiesFromConvexBoundary4(
     }
   }
 
+  return finalizeMassProperties4(
+    { volume, mass, centerOfMass, covarianceAtCenter },
+    options,
+    'massPropertiesFromConvexBoundary4'
+  );
+}
+
+/**
+ * Turns an integrated source-frame covariance into the canonical result.
+ *
+ * Shared by every producer of {@link MassProperties4} so that eigenvalue
+ * ordering, orientation repair, rotor construction and the degenerate-axis
+ * policy are decided in exactly one place. An analytic shape and the same shape
+ * integrated from its boundary must not be able to disagree about which frame
+ * they call principal, and the only way to guarantee that is for both to arrive
+ * here.
+ */
+function finalizeMassProperties4(
+  integrated: {
+    readonly volume: number;
+    readonly mass: number;
+    readonly centerOfMass: VecN;
+    readonly covarianceAtCenter: MatN;
+  },
+  options: MassProperties4Options,
+  caller: string
+): MassProperties4 {
+  const { volume, mass, centerOfMass, covarianceAtCenter } = integrated;
+  // Extreme but individually finite inputs can still overflow a second moment,
+  // which carries two more powers of length than the volume does. The
+  // eigensolver already rejects a non-finite covariance, so this adds no
+  // refusal — it names the caller and separates the two diagnoses, since a box
+  // whose volume overflowed is a different mistake from one whose volume is
+  // fine and whose inertia is not.
+  if (!Number.isFinite(volume) || !Number.isFinite(mass)) {
+    throw new Error(`${caller}: inputs overflow to a non-finite mass`);
+  }
+  for (const entry of covarianceAtCenter.data) {
+    if (!Number.isFinite(entry)) {
+      throw new Error(`${caller}: inputs overflow to a non-finite second moment`);
+    }
+  }
   const jacobiTolerance = options.jacobiTolerance ?? 1e-14;
   if (!Number.isFinite(jacobiTolerance) || jacobiTolerance <= 0) {
-    throw new Error('massPropertiesFromConvexBoundary4: jacobiTolerance must be positive');
+    throw new Error(`${caller}: jacobiTolerance must be positive`);
   }
   const eigensystem = symmetricEigenDecomposition(covarianceAtCenter, {
     tolerance: jacobiTolerance
@@ -182,7 +224,7 @@ export function massPropertiesFromConvexBoundary4(
   for (let index = 0; index < principalSecondMoments.length; index++) {
     const value = principalSecondMoments[index]!;
     if (value < -jacobiTolerance * eigenvalueScale * 10) {
-      throw new Error('massPropertiesFromConvexBoundary4: covariance is not positive semidefinite');
+      throw new Error(`${caller}: covariance is not positive semidefinite`);
     }
     principalSecondMoments[index] = Math.max(0, value);
   }
@@ -347,4 +389,110 @@ function determinant4Columns(columns: Float64Array[]): number {
     a11 * (a20 * a32 - a22 * a30) +
     a12 * (a20 * a31 - a21 * a30);
   return a00 * minor0 - a01 * minor1 + a02 * minor2 - a03 * minor3;
+}
+
+/**
+ * Exact mass properties of a uniform solid R4 hyperbox about its own centre.
+ *
+ * The box is the axis-aligned region `|xᵢ| ≤ halfExtents[i]`, so its centre of
+ * mass is the origin of the frame the half-extents are written in. Volume is
+ * `16 h₀h₁h₂h₃` and the source-frame covariance is diagonal with entries
+ * `m hᵢ² / 3`, from which the six plane inertias `m (hᵢ² + hⱼ²) / 3` follow.
+ *
+ * **Frame.** Half-extents are read in the caller's authored axes; the result is
+ * the canonical principal representation, exactly as
+ * {@link massPropertiesFromConvexBoundary4} returns for the same solid. Because
+ * `principalSecondMoments` is ordered ascending and a box's second moment grows
+ * with its extent, the principal frame is the authored axes **permuted so the
+ * half-extents ascend**. For extents that already ascend the permutation is the
+ * identity and `principalRotor` is the identity rotor.
+ *
+ * That matters when pairing this with a collider. `RigidBody4.fromMassProperties`
+ * adopts `principalRotor` as the body's rotation, so a `HyperboxCollider4`
+ * sharing that body must be given its half-extents **in the same principal
+ * order** — sorted ascending — or the collision shape and the mass distribution
+ * will describe two differently oriented boxes. This is the analytic
+ * counterpart of rebasing a complex with `rebasePositionsToPrincipalFrame4`.
+ *
+ * **Uniform solid only.** This describes a box of homogeneous material. A
+ * collider is frequently a proxy for something whose mass is distributed
+ * otherwise — a hull around a dense core, a shell, an avatar whose handling is
+ * authored rather than physical — and for those the authored inertia is the
+ * right answer and this function is not.
+ */
+export function massPropertiesOfHyperbox4(
+  halfExtents: ArrayLike<number>,
+  options: MassProperties4Options = {}
+): MassProperties4 {
+  const caller = 'massPropertiesOfHyperbox4';
+  if (halfExtents.length !== 4) {
+    throw new Error(`${caller}: expected 4 half-extents, got ${halfExtents.length}`);
+  }
+  const half = new Float64Array(4);
+  for (let axis = 0; axis < 4; axis++) {
+    const value = halfExtents[axis]!;
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`${caller}: half-extent ${axis} must be finite and positive`);
+    }
+    half[axis] = value;
+  }
+  const density = options.density ?? 1;
+  if (!Number.isFinite(density) || density <= 0) {
+    throw new Error(`${caller}: density must be finite and positive`);
+  }
+
+  const volume = 16 * half[0]! * half[1]! * half[2]! * half[3]!;
+  const mass = density * volume;
+  const covarianceAtCenter = new MatN(4);
+  for (let axis = 0; axis < 4; axis++) {
+    covarianceAtCenter.set(axis, axis, (mass * half[axis]! * half[axis]!) / 3);
+  }
+  return finalizeMassProperties4(
+    { volume, mass, centerOfMass: VecN.zero(4), covarianceAtCenter },
+    options,
+    caller
+  );
+}
+
+/**
+ * Exact mass properties of a uniform solid R4 glome about its own centre.
+ *
+ * Volume is `π² r⁴ / 2`. The covariance is isotropic: integrating `|x|²` over
+ * the ball gives `∫₀ʳ 2π² s⁵ ds = π² r⁶ / 3`, so `∫|x|² dm = m · 2r² / 3` and,
+ * by symmetry, each `∫xᵢ² dm = m r² / 6`. Every plane inertia is therefore
+ * `m r² / 3` — the same value in all six planes.
+ *
+ * **Frame.** A ball has no preferred axes, so the covariance is a multiple of
+ * the identity, the principal frame is the identity frame, and `principalRotor`
+ * is the identity rotor. Pairing this with a `GlomeCollider4` needs no
+ * reorientation.
+ *
+ * **Uniform solid only**, on the same terms as
+ * {@link massPropertiesOfHyperbox4}.
+ */
+export function massPropertiesOfGlome4(
+  radius: number,
+  options: MassProperties4Options = {}
+): MassProperties4 {
+  const caller = 'massPropertiesOfGlome4';
+  if (!Number.isFinite(radius) || radius <= 0) {
+    throw new Error(`${caller}: radius must be finite and positive`);
+  }
+  const density = options.density ?? 1;
+  if (!Number.isFinite(density) || density <= 0) {
+    throw new Error(`${caller}: density must be finite and positive`);
+  }
+
+  const volume = (Math.PI * Math.PI * radius ** 4) / 2;
+  const mass = density * volume;
+  const secondMoment = (mass * radius * radius) / 6;
+  const covarianceAtCenter = new MatN(4);
+  for (let axis = 0; axis < 4; axis++) {
+    covarianceAtCenter.set(axis, axis, secondMoment);
+  }
+  return finalizeMassProperties4(
+    { volume, mass, centerOfMass: VecN.zero(4), covarianceAtCenter },
+    options,
+    caller
+  );
 }

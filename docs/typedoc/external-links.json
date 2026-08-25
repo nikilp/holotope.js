@@ -872,6 +872,8 @@
       "massPropertiesFromCellComplex4": "/api/physics/functions/massPropertiesFromCellComplex4",
       "massPropertiesFromConvexBoundary4": "/api/physics/functions/massPropertiesFromConvexBoundary4",
       "massPropertiesFromTetrahedralization4": "/api/physics/functions/massPropertiesFromTetrahedralization4",
+      "massPropertiesOfGlome4": "/api/physics/functions/massPropertiesOfGlome4",
+      "massPropertiesOfHyperbox4": "/api/physics/functions/massPropertiesOfHyperbox4",
       "minimizeXpbdIncrementalPotentialN": "/api/physics/functions/minimizeXpbdIncrementalPotentialN",
       "MinimizeXpbdIncrementalPotentialNOptions": "/api/physics/interfaces/MinimizeXpbdIncrementalPotentialNOptions",
       "MixedAnalyticContactOptions4": "/api/physics/interfaces/MixedAnalyticContactOptions4",
