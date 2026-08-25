@@ -94,6 +94,23 @@ export {
   type MassProperties4Options
 } from './mass-properties4.js';
 export {
+  sectionOfComplex4,
+  sectionOfGlome4,
+  sectionOfHyperbox4,
+  sectionOfSource4,
+  type BallSection4,
+  type ComplexSectionSource4,
+  type EmptySection4,
+  type GlomeSectionSource4,
+  type HyperboxSectionSource4,
+  type PolyhedralSection4,
+  type Section4,
+  type Section4Options,
+  type SectionProvenance4,
+  type SectionSource4,
+  type TangentSection4
+} from './section4.js';
+export {
   RigidBody4,
   type RigidBody4Options,
   type RigidBody4StateOptions

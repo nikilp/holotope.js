@@ -103,6 +103,9 @@ there is improved here.
 | [`findIncidentCellsN`](/api/core/geometry/functions/findIncidentCellsN) | [open](https://nikilp.github.io/holotope.js/playground.html#findIncidentCellsN) |
 | [`gjkDistance`](/api/physics/functions/gjkDistance) | [open](https://nikilp.github.io/holotope.js/playground.html#gjkDistance) |
 | [`massPropertiesFromCellComplex4`](/api/physics/functions/massPropertiesFromCellComplex4) | [open](https://nikilp.github.io/holotope.js/playground.html#massPropertiesFromCellComplex4) |
+| [`sectionOfComplex4`](/api/physics/functions/sectionOfComplex4) | [open](https://nikilp.github.io/holotope.js/playground.html#sectionOfComplex4) |
+| [`sectionOfGlome4`](/api/physics/functions/sectionOfGlome4) | [open](https://nikilp.github.io/holotope.js/playground.html#sectionOfGlome4) |
+| [`sectionOfHyperbox4`](/api/physics/functions/sectionOfHyperbox4) | [open](https://nikilp.github.io/holotope.js/playground.html#sectionOfHyperbox4) |
 | [`sectionSimplexGroupN`](/api/core/projection/functions/sectionSimplexGroupN) | [open](https://nikilp.github.io/holotope.js/playground.html#sectionSimplexGroupN) |
 | [`solveXpbdIncrementalPotentialNewtonDirectionN`](/api/physics/functions/solveXpbdIncrementalPotentialNewtonDirectionN) | [open](https://nikilp.github.io/holotope.js/playground.html#solveXpbdIncrementalPotentialNewtonDirectionN) |
 | [`stepXpbdIncrementalPotentialWorldN`](/api/physics/functions/stepXpbdIncrementalPotentialWorldN) | [open](https://nikilp.github.io/holotope.js/playground.html#stepXpbdIncrementalPotentialWorldN) |
