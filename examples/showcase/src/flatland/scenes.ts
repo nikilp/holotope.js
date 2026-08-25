@@ -88,3 +88,48 @@ export function chartToAmbient(
     a * u[0]! + b * v[0]!, a * u[1]! + b * v[1]!, a * u[2]! + b * v[2]!
   ]);
 }
+
+/**
+ * What the stage must look like in each scene, as data rather than as prose.
+ *
+ * The defect this exists to prevent: `showScene` used to install a destination
+ * without fully clearing the one before, so arriving at scene 4 or 6 straight
+ * from the opening quiz left the quiz's layout in place and the stage rendered
+ * wrongly or not at all. A transition is only correct if the resulting stage
+ * matches this table no matter which state it came from, so the table is the
+ * test's oracle and the page's contract at once.
+ */
+export interface StageExpectation {
+  /** Panes visible: both, or only the solid one. */
+  readonly panes: 'both';
+  /** What occupies the right pane. */
+  readonly right: 'svg' | 'view3d';
+  readonly scrubVisible: boolean;
+  readonly hiddenVisible: boolean;
+  /** Layout classes that must NOT be left set. */
+  readonly forbiddenClasses: readonly string[];
+}
+
+export const STAGE: Record<SceneId, StageExpectation> = {
+  section: {
+    panes: 'both', right: 'svg', scrubVisible: true, hiddenVisible: false,
+    forbiddenClasses: ['guessing', 'solo']
+  },
+  projection: {
+    panes: 'both', right: 'svg', scrubVisible: false, hiddenVisible: false,
+    forbiddenClasses: ['guessing', 'solo']
+  },
+  tesseract: {
+    panes: 'both', right: 'view3d', scrubVisible: true, hiddenVisible: true,
+    forbiddenClasses: ['guessing', 'solo']
+  }
+};
+
+/** Every ordered scene-to-scene transition, plus each scene entered cold. */
+export function allTransitions(): { from: SceneId | 'quiz'; to: SceneId }[] {
+  const ids = SCENES.map((scene) => scene.id);
+  const out: { from: SceneId | 'quiz'; to: SceneId }[] = [];
+  for (const to of ids) out.push({ from: 'quiz', to });
+  for (const from of ids) for (const to of ids) out.push({ from, to });
+  return out;
+}

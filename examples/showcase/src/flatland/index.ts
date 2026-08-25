@@ -11,6 +11,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  OrthographicCamera,
   PerspectiveCamera,
   Quaternion,
   Scene,
@@ -177,10 +178,15 @@ function drawOutline(
       const where = outlineProvenance(outline, index);
       dot.setAttribute('tabindex', '0');
       dot.setAttribute('role', 'button');
+      dot.setAttribute('data-corner', String(index));
       dot.setAttribute('aria-label', `corner cut from ${where?.summary ?? 'the solid'}`);
       dot.style.cursor = 'pointer';
-      const show = (): void => {
+      const show = (event?: Event): void => {
+        event?.stopPropagation();
         if (where === undefined) return;
+        // Stamped with the cut this corner belongs to, so a later scrub can tell
+        // that the sentence on screen is describing a shape that is gone.
+        provenanceLine.dataset.forOffset = String(outline.offset);
         provenanceLine.textContent = '';
         provenanceLine.append('this corner is ');
         const strong = document.createElement('b');
@@ -188,8 +194,13 @@ function drawOutline(
         provenanceLine.append(strong, ' of the cube — the cut recorded where it came from');
       };
       dot.addEventListener('pointerenter', show);
+      dot.addEventListener('pointerdown', show);
       dot.addEventListener('focus', show);
       dot.addEventListener('click', show);
+      dot.addEventListener('keydown', (event) => {
+        const key = (event as KeyboardEvent).key;
+        if (key === 'Enter' || key === ' ') { event.preventDefault(); show(event); }
+      });
     }
     svg.append(dot);
   });
@@ -481,7 +492,7 @@ controls.addEventListener('end', () => { orbiting = false; });
 
 function spin(): void {
   const moved = controls.update();
-  if (moved === true || moved === undefined) renderer.render(scene, camera);
+  if (moved === true || moved === undefined) renderLeft();
   // Keep turning while the user drags, and afterwards until damping settles.
   if (orbiting || moved === true) requestAnimationFrame(spin);
 }
@@ -493,9 +504,95 @@ function resize(): void {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.render(scene, camera);
+  renderLeft();
 }
 new ResizeObserver(resize).observe(viewHost);
+
+/**
+ * A second 3D view, for the right-hand pane.
+ *
+ * Scenes 4 and 6 compare two things that are both three-dimensional, and an
+ * earlier draft overlaid them in one view. That was wrong for scene 6 in
+ * particular: a perspective PROJECTION of a tesseract and an INTRINSIC section
+ * of it live in different frames at different scales, so drawing one inside the
+ * other invites "the section is inside the projection", which means nothing.
+ * They get a pane each, each labelled, each with its own camera.
+ */
+const flatPane = document.querySelector<HTMLElement>('#flatPane')!;
+const rightHost = document.createElement('div');
+rightHost.id = 'rightView';
+const rightRenderer = new WebGLRenderer({ antialias: true, alpha: true });
+rightRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+rightHost.append(rightRenderer.domElement);
+
+const rightScene = new Scene();
+const rightCamera = new PerspectiveCamera(38, 1, 0.1, 100);
+rightCamera.position.set(3.6, 2.6, 4.4);
+rightCamera.lookAt(0, 0, 0);
+rightScene.add(new AmbientLight(0x4a5570, 1.15));
+const rightKey = new DirectionalLight(0xfff2e0, 2.0);
+rightKey.position.set(4, 6, 3);
+rightScene.add(rightKey);
+const rightRim = new DirectionalLight(0x7fd4ff, 0.8);
+rightRim.position.set(-5, -1, -4);
+rightScene.add(rightRim);
+
+const rightControls = new OrbitControls(rightCamera, rightRenderer.domElement);
+rightControls.enableDamping = true;
+rightControls.dampingFactor = 0.08;
+rightControls.enablePan = false;
+rightControls.minDistance = 2.4;
+rightControls.maxDistance = 14;
+
+let rightSpinning = false;
+rightControls.addEventListener('start', () => {
+  rightSpinning = true;
+  requestAnimationFrame(rightSpin);
+});
+rightControls.addEventListener('end', () => { rightSpinning = false; });
+function rightSpin(): void {
+  const moved = rightControls.update();
+  if (moved === true || moved === undefined) rightRenderer.render(rightScene, rightCamera);
+  if (rightSpinning || moved === true) requestAnimationFrame(rightSpin);
+}
+
+function resizeRight(): void {
+  const width = rightHost.clientWidth;
+  const height = rightHost.clientHeight;
+  if (width === 0 || height === 0) return;
+  rightRenderer.setSize(width, height, false);
+  rightCamera.aspect = width / height;
+  rightCamera.updateProjectionMatrix();
+  rightRenderer.render(rightScene, rightCamera);
+}
+new ResizeObserver(resizeRight).observe(rightHost);
+
+/**
+ * An orthographic camera looking exactly along the projection direction.
+ *
+ * Scene 4's whole claim is that two solids coincide under the projection the
+ * scene defines — an orthographic drop of the normal component. A perspective
+ * camera is a DIFFERENT map, so under it the two never coincide at any
+ * distance, and an earlier draft told the visitor they would. Rather than
+ * narrowing the sentence to something weaker, the scene now offers the actual
+ * projection: this camera IS the map the mathematics describes, so on-axis the
+ * two solids genuinely superimpose.
+ */
+const onAxisCamera = new OrthographicCamera(-2.4, 2.4, 2.4, -2.4, 0.1, 100);
+let onAxis = false;
+
+function positionOnAxis(): void {
+  const n = normal.clone().multiplyScalar(6);
+  onAxisCamera.position.copy(n);
+  onAxisCamera.up.set(0, 1, 0);
+  onAxisCamera.lookAt(0, 0, 0);
+  onAxisCamera.updateProjectionMatrix();
+}
+
+/** Renders the left pane with whichever camera the current scene wants. */
+function renderLeft(): void {
+  renderer.render(scene, onAxis ? onAxisCamera : camera);
+}
 
 // ---------------------------------------------------------------- state
 
@@ -517,13 +614,20 @@ function setOffset(offset: number): void {
   const beadShown = beadDistance < 0.09 ? 1 - beadDistance / 0.09 : null;
   drawOutline(liveSvg, outline, { interactive: true, bead: beadShown });
 
+  // The sentence is present tense, so it may not survive the shape it names.
+  if (provenanceLine.dataset.forOffset !== undefined
+    && provenanceLine.dataset.forOffset !== String(offset)) {
+    delete provenanceLine.dataset.forOffset;
+    provenanceLine.textContent =
+      'Click or tab to a corner of this cut to see where it was cut from.';
+  }
   shapeName.textContent = outline.shape;
   shapeSides.textContent = outline.sides > 0 ? `· ${outline.sides} sides` : '';
   offsetValue.textContent = offset.toFixed(3).replace('-', '−');
   planeOutline.position.copy(normal).multiplyScalar(offset);
   sideUniforms.uPlaneOffset.value = offset;
   drawSectionSolid(outline);
-  renderer.render(scene, camera);
+  renderLeft();
 }
 
 offsetInput.addEventListener('input', () => {
@@ -547,6 +651,10 @@ const scrubFromPointer = (event: PointerEvent): void => {
 };
 flatHost.addEventListener('pointerdown', (event) => {
   if (scrubRow.classList.contains('hidden')) return;
+  // A corner is an inspection target, not a scrub surface. Sharing the gesture
+  // meant that reading a corner's provenance moved the plane and destroyed the
+  // very cut the sentence then described.
+  if ((event.target as Element | null)?.closest('[data-corner]') !== null) return;
   dragging = true;
   flatHost.setPointerCapture(event.pointerId);
   scrubFromPointer(event);
@@ -636,13 +744,15 @@ function actOneGuess(): void {
         ? [
             { text: 'A cube.', as: 'strong' },
             ' Three cuts were enough — but only because you already knew which solids'
-            + ' were on offer. The flat shapes never mentioned the corners off the plane.'
+            + ' were on offer, and the offer was short. The flat shapes themselves never'
+            + ' mentioned a single corner off the plane.'
           ]
         : [
             { text: 'It was a cube.', as: 'strong' },
-            ` ${choice.label.replace('A ', '')} is a fair guess: nothing in three flat`
-            + ' shapes rules it out. That is the point — each cut only ever reported the'
-            + ' plane it was on.'
+            ` These three cuts do rule out ${choice.label.replace('A ', '')} — a hexagon`
+            + ' is beyond it. But notice what did the ruling out: your knowledge of'
+            + ' which solids exist, not the cuts. Nothing on screen showed you a single'
+            + ' corner off the plane.'
           ]);
       const go = document.createElement('button');
       go.textContent = 'Show me the solid →';
@@ -730,29 +840,114 @@ const tesseractSection = new Mesh(new BufferGeometry(), new MeshStandardMaterial
   transparent: false
 }));
 tesseractSection.renderOrder = DRAW_ORDER.section;
-tesseractGroup.add(tesseractWire, tesseractSection);
+tesseractGroup.add(tesseractWire);
+// The section is an INTRINSIC object in its own 3D chart, so it lives in the
+// second scene rather than inside the projection's frame.
+rightScene.add(tesseractSection);
 
 let hiddenXw = 0;
 let hiddenYw = 0;
 
+/**
+ * Redraws both of scene 6's products from the current source.
+ *
+ * The projection goes to the left pane and the section to the right, each with
+ * its own camera. They are NOT overlaid: a perspective projection and an
+ * intrinsic section are different kinds of picture at different scales, and
+ * nesting one in the other would invite "the section is inside the projection",
+ * which is not a statement about anything.
+ *
+ * The caption is measured every time. An earlier draft printed a fixed sentence
+ * saying the w = 0 section is a cube, which the hidden-plane sliders — the very
+ * control the copy recommends — make false. Now the readout says what the
+ * current geometry is, and the cube claim is qualified as the neutral
+ * orientation because that is the only orientation in which it holds.
+ */
 function drawTesseract(offset: number): void {
   rotateHiddenPlanes(tesseract, hiddenXw, hiddenYw);
   tesseractWire.geometry.dispose();
   tesseractWire.geometry = edgeGeometry(projectedPoints(tesseract), sourceEdges(tesseract));
+
   const cut = sectionAtW(tesseract, offset);
   tesseractSection.geometry.dispose();
   tesseractSection.geometry = sectionBoundaryFaces(cut);
   tesseractSection.visible = cut.cellCount > 0;
 
   const span = sectionSpan(cut);
-  shapeName.textContent = cut.cellCount === 0 ? 'empty'
-    : span.every((axis) => Math.abs(axis - span[0]!) < 1e-9) ? 'cube' : 'box';
+  const turned = hiddenXw !== 0 || hiddenYw !== 0;
+  const cubic = span.every((axis) => Math.abs(axis - span[0]!) < 1e-9);
+  shapeName.textContent = cut.cellCount === 0 ? 'empty' : cubic ? 'cube' : 'box';
   shapeSides.textContent = cut.cellCount === 0 ? ''
     : `· ${span.map((axis) => axis.toFixed(2)).join(' × ')}`;
   offsetValue.textContent = offset.toFixed(3).replace('-', '−');
+
+  provenanceLine.textContent = cut.cellCount === 0
+    ? 'The slicing space has left the source: there is nothing to cut.'
+    : turned
+      ? `Turned through a hidden plane, so this is a ${cubic ? 'cube' : 'box'}`
+        + ` measuring ${span.map((axis) => axis.toFixed(2)).join(' × ')}.`
+        + ' The cube-at-w-0 rule holds only in the neutral orientation.'
+      : 'In the neutral orientation the section is a cube at w = 0, and empty past ±1.';
+  rightRenderer.render(rightScene, rightCamera);
 }
 
 // ---------------------------------------------------------------- the lesson
+
+/** What each pane is, named on the pane rather than left to the copy. */
+const SCENE_PANES = {
+  section: { left: 'The solid — a cube', right: 'The section · 2D' },
+  projection: { left: 'Two solids', right: 'Their shared shadow · orthographic · 2D' },
+  tesseract: {
+    left: 'Perspective projection · 4D → 3D',
+    right: 'Exact section · 3D, in its own frame'
+  }
+} as const;
+
+/**
+ * A faint window standing for the slicing space itself.
+ *
+ * The section is the intersection with an INFINITE slicing space, and drawing
+ * only the intersection quietly suggests that space stops where the solid does.
+ * The window is finite because a screen is, and faint because it is scenery:
+ * what is being asserted is the cut, not the box.
+ */
+const sliceWindow = new LineSegments(
+  new BufferGeometry(),
+  new LineBasicMaterial({ color: 0x3c4657 })
+);
+{
+  const half = 1.9;
+  const points: number[] = [];
+  const box = [
+    [-half, -half, -half], [half, -half, -half], [half, half, -half], [-half, half, -half],
+    [-half, -half, half], [half, -half, half], [half, half, half], [-half, half, half]
+  ];
+  const edges: [number, number][] = [
+    [0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4],
+    [0, 4], [1, 5], [2, 6], [3, 7]
+  ];
+  for (const [a, b] of edges) points.push(...box[a]!, ...box[b]!);
+  sliceWindow.geometry.setAttribute(
+    'position', new BufferAttribute(Float32Array.from(points), 3)
+  );
+}
+sliceWindow.visible = false;
+rightScene.add(sliceWindow);
+
+/**
+ * The grammar the three scenes share, stated once where it can be read.
+ *
+ * A section of an N-dimensional solid by an (N−1)-dimensional slicing space is
+ * (N−1)-dimensional — and its BOUNDARY is one lower again. Scene 3's cut is a
+ * 2D region whose boundary is the 1D polygon the eye follows; scene 6's cut is a
+ * 3D solid whose boundary is the 2D surface being drawn.
+ */
+const GRAMMAR: Record<SceneId, string> = {
+  section: '1D/0D→0D · 2D/1D→1D · 3D/2D→2D · 4D/3D→3D    here: 3D solid / 2D plane → 2D section, bounded by a 1D polygon',
+  projection: 'projection drops an axis instead of intersecting one: 3D → 2D, many-to-one',
+  tesseract: '1D/0D→0D · 2D/1D→1D · 3D/2D→2D · 4D/3D→3D    here: 4D solid / 3D space → 3D section, bounded by a 2D surface'
+};
+
 
 /**
  * One lesson in three scenes, not three pages.
@@ -766,11 +961,57 @@ function drawTesseract(offset: number): void {
 let current: SceneId = 'section';
 
 const sceneNav = document.querySelector<HTMLDivElement>('#sceneNav')!;
+const paneTitle = document.querySelector<HTMLSpanElement>('#solidState')!;
+const rightTitle = document.querySelector<HTMLSpanElement>('#rightTitle')!;
+const grammarLine = document.querySelector<HTMLParagraphElement>('#grammar')!;
 const hiddenRow = document.querySelector<HTMLDivElement>('#hiddenRow')!;
 const xwInput = document.querySelector<HTMLInputElement>('#xw')!;
 const ywInput = document.querySelector<HTMLInputElement>('#yw')!;
 
+/**
+ * The one place the stage changes, and the only place it may.
+ *
+ * An earlier draft let `actTwoReveal` do the cleanup for scene 3 while
+ * `showScene` did a partial job for the others, so clicking a scene pill from
+ * the opening quiz left the quiz's layout in place: scene 4 rendered with its
+ * solid pane hidden and scene 6 rendered nothing at all. Every transition now
+ * goes through here, and every transition begins by putting the stage back to a
+ * known-empty state rather than by assuming where it came from.
+ *
+ * `resetStage` is deliberately exhaustive rather than minimal. It is cheap, it
+ * runs once per transition, and a reset that lists everything cannot be wrong
+ * about which scene it is leaving.
+ */
+function resetStage(): void {
+  const panes = document.querySelector<HTMLDivElement>('#panes');
+  panes?.classList.remove('guessing', 'solo');
+
+  solid.visible = false;
+  planeOutline.visible = false;
+  sectionMesh.visible = false;
+  sectionEdge.visible = false;
+  projectionGroup.visible = false;
+  tesseractGroup.visible = false;
+  sliceWindow.visible = false;
+  onAxis = false;
+
+  choicesHost.textContent = '';
+  provenanceLine.textContent = '';
+  shapeName.textContent = '—';
+  shapeSides.textContent = '';
+  scrubRow.classList.add('hidden');
+  hiddenRow.classList.add('hidden');
+  document.querySelector<HTMLDivElement>('.shape-name')?.classList.remove('hidden');
+
+  // The right pane hosts either the SVG or the second 3D view, never both and
+  // never a leftover from the scene before.
+  flatHost.textContent = '';
+  rightHost.remove();
+  for (const group of rightScene.children) group.visible = false;
+}
+
 function showScene(id: SceneId, fromHash = false): void {
+  resetStage();
   current = id;
   if (!fromHash) history.replaceState(null, '', `#${id}`);
   for (const button of Array.from(sceneNav.querySelectorAll('button'))) {
@@ -778,25 +1019,17 @@ function showScene(id: SceneId, fromHash = false): void {
     button.classList.toggle('active', active);
     button.setAttribute('aria-current', active ? 'step' : 'false');
   }
-  solid.visible = id === 'section';
-  planeOutline.visible = id === 'section';
-  sectionMesh.visible = false;
-  sectionEdge.visible = false;
-  projectionGroup.visible = id === 'projection';
-  tesseractGroup.visible = id === 'tesseract';
-  hiddenRow.classList.toggle('hidden', id !== 'tesseract');
-  const panes = document.querySelector<HTMLDivElement>('#panes');
-  panes?.classList.toggle('solo', id === 'tesseract');
-  if (id !== 'tesseract') resize();
-  choicesHost.textContent = '';
-  provenanceLine.textContent = '';
+  paneTitle.textContent = SCENE_PANES[id].left;
+  rightTitle.textContent = SCENE_PANES[id].right;
+  grammarLine.textContent = GRAMMAR[id];
 
   if (id === 'section') {
-    document.querySelector<HTMLDivElement>('#panes')?.classList.remove('guessing');
+    flatHost.append(liveSvg);
+    solid.visible = true;
+    planeOutline.visible = true;
     scrubRow.classList.remove('hidden');
     offsetInput.min = String(-DIAGONAL_REACH);
     offsetInput.max = String(DIAGONAL_REACH);
-    solidState.textContent = '— a cube';
     sentence(prompt, [
       { text: 'Push it through.', as: 'strong' },
       ' Only the plane moves. ',
@@ -805,48 +1038,83 @@ function showScene(id: SceneId, fromHash = false): void {
       + ' to look along the cut and see that it is flat.'
     ]);
     provenanceLine.textContent =
-      'Drag the flat view or use the slider. Hover a corner to see where it was cut from.';
+      'Drag the slider to move the plane. Click or tab to a corner to see where it was cut from.';
     setOffset(Number(offsetInput.value));
+    resize();
     return;
   }
 
   if (id === 'projection') {
-    scrubRow.classList.add('hidden');
-    solidState.textContent = '— two solids';
+    flatHost.append(liveSvg);
+    projectionGroup.visible = true;
     sentence(prompt, [
       { text: 'Now cast a shadow instead of cutting.', as: 'strong' },
-      ' Two different solids are here, the cube and a warped twin. ',
+      ' Two different solids are here, the cube and a warped twin, standing '
+      + `${pairSeparation.toFixed(2)} apart. `,
       { text: 'A projection is many-to-one: it stacks what it cannot separate.', as: 'lesson' },
-      ` Their shadows agree to about 1e-16 while the solids stand ${pairSeparation.toFixed(2)}`
-      + ' apart. Orbit the view: from the shadow direction they are one object, and'
-      + ' from anywhere else they never were.'
+      ' The right pane is that projection — an orthographic drop along the'
+      + ' diagonal — and both solids land on it identically.'
     ]);
-    provenanceLine.textContent =
-      'Amber is the shared shadow. Blue is the cube; violet is the twin.';
     drawProjectionShadow();
-    renderer.render(scene, camera);
+    installOnAxisToggle();
+    resize();
     return;
   }
 
-  // tesseract
+  // tesseract: two three-dimensional products, side by side, each in its frame.
+  flatPane.append(rightHost);
+  tesseractGroup.visible = true;
+  sliceWindow.visible = true;
+  for (const group of rightScene.children) group.visible = true;
   scrubRow.classList.remove('hidden');
+  hiddenRow.classList.remove('hidden');
   offsetInput.min = String(-(W_REACH + 0.2));
   offsetInput.max = String(W_REACH + 0.2);
   offsetInput.value = '0';
-  solidState.textContent = '— a 3D projection and an exact 3D section of one 4D source';
   sentence(prompt, [
     { text: 'One rung up.', as: 'strong' },
-    ' The source is a tesseract, and neither thing on screen is it: the wireframe'
-    + ' is a 3D perspective projection, the solid is an exact 3D section. ',
+    ' The source is a tesseract, and neither pane is it. Left is a 3D perspective'
+    + ' projection; right is the exact 3D section, drawn in its own frame inside a'
+    + ' faint window standing for the infinite 3D slicing space. ',
     { text: 'The same two losses, one dimension higher.', as: 'lesson' },
-    ' Slide w to move the cutting space; turn the hidden planes to rotate the'
+    ' Slide w to move the slicing space; turn the hidden planes to rotate the'
     + ' source through directions the camera cannot reach.'
   ]);
-  provenanceLine.textContent =
-    'At w = 0 the section is a cube. Past ±1 there is nothing left to cut.';
   drawTesseract(0);
   resize();
-  renderer.render(scene, camera);
+  resizeRight();
+}
+
+/**
+ * The control that makes scene 4's claim true rather than narrower.
+ *
+ * Pressing it swaps the left camera for one that IS the scene's projection —
+ * orthographic, looking exactly along the diagonal — so the two solids
+ * genuinely superimpose. Releasing it returns to the perspective view where
+ * they are obviously two.
+ */
+function installOnAxisToggle(): void {
+  const button = document.createElement('button');
+  const label = (): void => {
+    button.textContent = onAxis
+      ? 'Turn away from the shadow direction'
+      : 'Look along the shadow direction';
+    button.setAttribute('aria-pressed', String(onAxis));
+  };
+  button.className = 'primary';
+  button.addEventListener('click', () => {
+    onAxis = !onAxis;
+    if (onAxis) positionOnAxis();
+    label();
+    provenanceLine.textContent = onAxis
+      ? 'On-axis, under the scene\u2019s own orthographic projection, the two solids coincide exactly.'
+      : 'Off-axis, in perspective, the two solids are plainly different objects.';
+    renderLeft();
+  });
+  label();
+  choicesHost.append(button);
+  provenanceLine.textContent =
+    'Amber is the shared shadow. Blue is the cube; violet is the twin.';
 }
 
 /** The shared shadow, drawn into the flat pane. */
@@ -884,7 +1152,7 @@ const readHidden = (): void => {
   hiddenXw = Number(xwInput.value);
   hiddenYw = Number(ywInput.value);
   drawTesseract(Number(offsetInput.value));
-  renderer.render(scene, camera);
+  renderLeft();
 };
 xwInput.addEventListener('input', readHidden);
 ywInput.addEventListener('input', readHidden);
