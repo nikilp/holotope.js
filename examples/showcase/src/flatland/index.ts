@@ -27,7 +27,7 @@ import {
 } from './scenes.js';
 import {
   ambientSeparation, buildProjectionPair, projectedEdges as pairEdges,
-  projectedVertices
+  projectedVertices, projectionExtent
 } from './projection.js';
 import {
   W_REACH, buildTesseractSource, projectedPoints, rotateHiddenPlanes,
@@ -106,6 +106,11 @@ const provenanceLine = document.querySelector<HTMLParagraphElement>('#provenance
 
 /** Widest half-extent any cut reaches, so every cut is drawn to one scale. */
 const CHART_EXTENT = Math.SQRT2 * 1.02;
+
+/** Sets a square viewBox of the given half-extent, centred on the origin. */
+function setViewBox(svg: SVGSVGElement, extent: number): void {
+  svg.setAttribute('viewBox', `${-extent} ${-extent} ${extent * 2} ${extent * 2}`);
+}
 
 function makeSvg(size = 260): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, 'svg');
@@ -504,6 +509,7 @@ function resize(): void {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  fitOnAxis(width, height);
   renderLeft();
 }
 new ResizeObserver(resize).observe(viewHost);
@@ -568,6 +574,17 @@ function resizeRight(): void {
 new ResizeObserver(resizeRight).observe(rightHost);
 
 /**
+ * Scene 4's two solids and the numbers derived from them.
+ *
+ * Hoisted above the cameras because the on-axis view must be framed to the same
+ * extent the shadow is drawn at — that congruence is the scene's whole claim.
+ */
+const pair = buildProjectionPair();
+const pairSeparation = ambientSeparation(pair);
+/** Half-extent containing the whole projection, derived from its own points. */
+const PROJECTION_EXTENT = projectionExtent(pair);
+
+/**
  * An orthographic camera looking exactly along the projection direction.
  *
  * Scene 4's whole claim is that two solids coincide under the projection the
@@ -578,15 +595,43 @@ new ResizeObserver(resizeRight).observe(rightHost);
  * projection: this camera IS the map the mathematics describes, so on-axis the
  * two solids genuinely superimpose.
  */
-const onAxisCamera = new OrthographicCamera(-2.4, 2.4, 2.4, -2.4, 0.1, 100);
+const onAxisCamera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
 let onAxis = false;
 
+/**
+ * Half-extent of world the on-axis view must show, matched to the shadow.
+ *
+ * The button's claim is that on-axis you are looking at the amber shadow, so
+ * the two pictures have to be congruent — same content, same scale, same shape.
+ */
+const ON_AXIS_EXTENT = PROJECTION_EXTENT;
+
+/**
+ * Fits the orthographic frustum to the pane without distorting it.
+ *
+ * The first version left the frustum square at ±2.4 and only ever updated the
+ * PERSPECTIVE camera's aspect in `resize`, so the on-axis image was stretched by
+ * exactly the pane's width over its height — 4:1 on a wide pane, 1.71:1 on an
+ * ordinary two-column desktop. That defeats the button: a stretched hexagon is
+ * visibly not the shadow it claims to be. Widening the frustum on the long axis
+ * keeps world units square in both directions and letterboxes instead.
+ */
+function fitOnAxis(width: number, height: number): void {
+  if (width === 0 || height === 0) return;
+  const aspect = width / height;
+  const half = ON_AXIS_EXTENT;
+  onAxisCamera.left = aspect >= 1 ? -half * aspect : -half;
+  onAxisCamera.right = aspect >= 1 ? half * aspect : half;
+  onAxisCamera.top = aspect >= 1 ? half : half / aspect;
+  onAxisCamera.bottom = aspect >= 1 ? -half : -half / aspect;
+  onAxisCamera.updateProjectionMatrix();
+}
+
 function positionOnAxis(): void {
-  const n = normal.clone().multiplyScalar(6);
-  onAxisCamera.position.copy(n);
+  onAxisCamera.position.copy(normal).multiplyScalar(6);
   onAxisCamera.up.set(0, 1, 0);
   onAxisCamera.lookAt(0, 0, 0);
-  onAxisCamera.updateProjectionMatrix();
+  fitOnAxis(viewHost.clientWidth, viewHost.clientHeight);
 }
 
 /** Renders the left pane with whichever camera the current scene wants. */
@@ -779,8 +824,6 @@ const projectionGroup = new Group();
 projectionGroup.visible = false;
 scene.add(projectionGroup);
 
-const pair = buildProjectionPair();
-const pairSeparation = ambientSeparation(pair);
 {
   const readPoints = (complex: typeof pair.original): number[][] => {
     const out: number[][] = [];
@@ -845,6 +888,19 @@ tesseractGroup.add(tesseractWire);
 // second scene rather than inside the projection's frame.
 rightScene.add(tesseractSection);
 
+/**
+ * Hidden-plane angles, in radians.
+ *
+ * The sliders that drive these must be able to express exactly zero, which is
+ * an arithmetic property of their range and step rather than of their value
+ * attribute: a range of ±1.5708 stepping by 0.01 puts the grid at
+ * `-1.5708 + k·0.01`, and no `k` lands on zero — the nearest is `-0.0008`. A
+ * visitor who touched a slider could therefore never return to the neutral
+ * orientation, so the caption claimed a rotation forever and an exactly cubic
+ * section was labelled a box beside dimensions reading 2.00 × 2.00 × 2.00. The
+ * range is ±1.57 so that zero is on the grid; the 0.0008 rad of travel given up
+ * at each end is not a quarter turn anyone can see.
+ */
 let hiddenXw = 0;
 let hiddenYw = 0;
 
@@ -884,8 +940,11 @@ function drawTesseract(offset: number): void {
   provenanceLine.textContent = cut.cellCount === 0
     ? 'The slicing space has left the source: there is nothing to cut.'
     : turned
-      ? `Turned through a hidden plane, so this is a ${cubic ? 'cube' : 'box'}`
-        + ` measuring ${span.map((axis) => axis.toFixed(2)).join(' × ')}.`
+      // No causal 'so': at a quarter turn the spans come back equal and the cut
+      // is a cube again, which a 'so this is a box' would contradict. The
+      // measured dimensions and the cube/box label stay authoritative.
+      ? `Turned through a hidden plane. This cut measures`
+        + ` ${span.map((axis) => axis.toFixed(2)).join(' × ')}.`
         + ' The cube-at-w-0 rule holds only in the neutral orientation.'
       : 'In the neutral orientation the section is a cube at w = 0, and empty past ±1.';
   rightRenderer.render(rightScene, rightCamera);
@@ -1024,6 +1083,7 @@ function showScene(id: SceneId, fromHash = false): void {
   grammarLine.textContent = GRAMMAR[id];
 
   if (id === 'section') {
+    setViewBox(liveSvg, CHART_EXTENT);
     flatHost.append(liveSvg);
     solid.visible = true;
     planeOutline.visible = true;
@@ -1117,10 +1177,13 @@ function installOnAxisToggle(): void {
     'Amber is the shared shadow. Blue is the cube; violet is the twin.';
 }
 
-/** The shared shadow, drawn into the flat pane. */
+/** The shared shadow, drawn into the flat pane at its own scale. */
 function drawProjectionShadow(): void {
   const points = projectedVertices(pair, pair.original);
   const edges = pairEdges(pair.original);
+  // The shadow reaches further than a section does, so it carries its own
+  // extent rather than borrowing the section's.
+  setViewBox(liveSvg, PROJECTION_EXTENT);
   liveSvg.textContent = '';
   liveSvg.setAttribute('aria-label', 'the shadow both solids cast');
   for (const [a, b] of edges) {
@@ -1177,6 +1240,13 @@ Object.assign(globalThis, {
     reveal: () => actTwoReveal(),
     scene: () => scene,
     camera: () => camera,
+    /** The on-axis frustum the page computed, for the frame regression check. */
+    onAxisFrustum: () => ({
+      left: onAxisCamera.left, right: onAxisCamera.right,
+      top: onAxisCamera.top, bottom: onAxisCamera.bottom,
+      pane: [viewHost.clientWidth, viewHost.clientHeight] as [number, number]
+    }),
+    viewBoxOf: (): string => liveSvg.getAttribute('viewBox') ?? '',
     sampleFrame: (): { mean: number[]; canvas: number[] } => {
       renderer.render(scene, camera);
       const gl = renderer.getContext();

@@ -169,3 +169,40 @@ export function ambientSeparation(pair: ProjectionPair): number {
   }
   return worst;
 }
+
+/**
+ * Fractional padding around the projection, so no vertex sits on the boundary.
+ *
+ * Small and fixed: the figure should fill its pane, and a vertex exactly on the
+ * edge reads as clipped even when it is not.
+ */
+export const PROJECTION_PADDING = 0.08;
+
+/**
+ * Half-extent of a square viewBox that contains the whole projection.
+ *
+ * Derived from the points actually being drawn rather than assumed. The first
+ * version reused the SECTION's extent — `√2 × 1.02 ≈ 1.4425`, which is right for
+ * a cut, whose vertices never leave the solid — for the SHADOW, whose vertices
+ * reach `2√2/√3 ≈ 1.6330`. The hexagon's two ±x poles fell outside and were
+ * clipped by `overflow: hidden` at every pane narrower than 1.132:1, which is
+ * most of them. The two vertices a visitor lost were exactly the ones that make
+ * it a hexagon.
+ *
+ * Square, and taken over BOTH sources, so the two projections share one
+ * coordinate scale and a resize letterboxes rather than distorts: with
+ * `preserveAspectRatio="… meet"` a square viewBox is always fully visible, so
+ * nothing can be clipped at any aspect ratio.
+ *
+ * @param pair - The two solids being projected.
+ * @returns The half-extent to use for the viewBox, in chart units.
+ */
+export function projectionExtent(pair: ProjectionPair): number {
+  let worst = 0;
+  for (const complex of [pair.original, pair.twin]) {
+    for (const [x, y] of projectedVertices(pair, complex)) {
+      worst = Math.max(worst, Math.abs(x), Math.abs(y));
+    }
+  }
+  return worst * (1 + PROJECTION_PADDING);
+}
