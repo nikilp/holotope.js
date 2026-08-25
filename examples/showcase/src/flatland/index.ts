@@ -21,6 +21,18 @@ import {
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DRAW_ORDER } from './draw-order.js';
 import {
+  SCENES, sceneFromHash, chartToAmbient, edgeGeometry, sectionBoundaryFaces,
+  type SceneId
+} from './scenes.js';
+import {
+  ambientSeparation, buildProjectionPair, projectedEdges as pairEdges,
+  projectedVertices
+} from './projection.js';
+import {
+  W_REACH, buildTesseractSource, projectedPoints, rotateHiddenPlanes,
+  sectionAtW, sectionSpan, sourceEdges
+} from './tesseract.js';
+import {
   DIAGONAL_REACH,
   SIDE_CHANGE_OFFSET,
   buildFlatlandSource,
@@ -514,7 +526,15 @@ function setOffset(offset: number): void {
   renderer.render(scene, camera);
 }
 
-offsetInput.addEventListener('input', () => setOffset(Number(offsetInput.value)));
+offsetInput.addEventListener('input', () => {
+  const value = Number(offsetInput.value);
+  if (current === 'tesseract') {
+    drawTesseract(value);
+    renderer.render(scene, camera);
+    return;
+  }
+  setOffset(value);
+});
 
 // Drag anywhere on the flat pane to scrub, so touch has a direct path.
 let dragging = false;
@@ -557,6 +577,11 @@ function actTwoReveal(): void {
   ]);
   provenanceLine.textContent =
     'Drag the flat view or use the slider. Hover a corner to see where it was cut from.';
+  const onward = document.createElement('button');
+  onward.textContent = 'Next: projection →';
+  onward.className = 'primary';
+  onward.addEventListener('click', () => showScene('projection'));
+  choicesHost.append(onward);
 
   const from = -DIAGONAL_REACH;
   const to = 0;
@@ -630,11 +655,251 @@ function actOneGuess(): void {
   }
 }
 
+// ---------------------------------------------------------------- scene 4
+
+/**
+ * Scene 4 — two solids, one shadow.
+ *
+ * The cube from scene 3 and a twin displaced along the projection direction
+ * alone. Their shadows agree to about 1e-16 while they stand about 1 apart, so
+ * from the projection direction the view cannot separate them and one orbit
+ * away it obviously can. The flat pane draws the single shared shadow.
+ */
+const projectionGroup = new Group();
+projectionGroup.visible = false;
+scene.add(projectionGroup);
+
+const pair = buildProjectionPair();
+const pairSeparation = ambientSeparation(pair);
+{
+  const readPoints = (complex: typeof pair.original): number[][] => {
+    const out: number[][] = [];
+    for (let v = 0; v < complex.vertexCount; v++) {
+      out.push([
+        complex.positions[v * 3]!, complex.positions[v * 3 + 1]!, complex.positions[v * 3 + 2]!
+      ]);
+    }
+    return out;
+  };
+  const edges = pairEdges(pair.original);
+  const cube = new LineSegments(
+    edgeGeometry(readPoints(pair.original), edges),
+    new LineBasicMaterial({ color: 0x9fd3e2 })
+  );
+  const twin = new LineSegments(
+    edgeGeometry(readPoints(pair.twin), edges),
+    new LineBasicMaterial({ color: 0xc98be0 })
+  );
+  projectionGroup.add(cube, twin);
+
+  // The shadow itself, drawn in the plane so the coincidence is visible in 3D
+  // too rather than only in the flat pane.
+  const [u, v] = pair.slice.basis;
+  const shadow = new LineSegments(
+    edgeGeometry(
+      chartToAmbient(projectedVertices(pair, pair.original), Array.from(u!), Array.from(v!)),
+      edges
+    ),
+    new LineBasicMaterial({ color: 0xe0a34e })
+  );
+  projectionGroup.add(shadow);
+}
+
+// ---------------------------------------------------------------- scene 6
+
+/**
+ * Scene 6 — the same two maps, one dimension up.
+ *
+ * A tesseract is the source. The view shows a 3D perspective PROJECTION of it
+ * and an exact 3D SECTION through it. Neither is the tesseract; both are
+ * representations of one authoritative 4D source.
+ */
+const tesseractGroup = new Group();
+tesseractGroup.visible = false;
+scene.add(tesseractGroup);
+
+const tesseract = buildTesseractSource();
+const tesseractWire = new LineSegments(
+  new BufferGeometry(),
+  new LineBasicMaterial({ color: 0x9fd3e2 })
+);
+const tesseractSection = new Mesh(new BufferGeometry(), new MeshStandardMaterial({
+  color: new Color('#6d5029'),
+  roughness: 0.5,
+  side: DoubleSide,
+  transparent: false
+}));
+tesseractSection.renderOrder = DRAW_ORDER.section;
+tesseractGroup.add(tesseractWire, tesseractSection);
+
+let hiddenXw = 0;
+let hiddenYw = 0;
+
+function drawTesseract(offset: number): void {
+  rotateHiddenPlanes(tesseract, hiddenXw, hiddenYw);
+  tesseractWire.geometry.dispose();
+  tesseractWire.geometry = edgeGeometry(projectedPoints(tesseract), sourceEdges(tesseract));
+  const cut = sectionAtW(tesseract, offset);
+  tesseractSection.geometry.dispose();
+  tesseractSection.geometry = sectionBoundaryFaces(cut);
+  tesseractSection.visible = cut.cellCount > 0;
+
+  const span = sectionSpan(cut);
+  shapeName.textContent = cut.cellCount === 0 ? 'empty'
+    : span.every((axis) => Math.abs(axis - span[0]!) < 1e-9) ? 'cube' : 'box';
+  shapeSides.textContent = cut.cellCount === 0 ? ''
+    : `· ${span.map((axis) => axis.toFixed(2)).join(' × ')}`;
+  offsetValue.textContent = offset.toFixed(3).replace('-', '−');
+}
+
+// ---------------------------------------------------------------- the lesson
+
+/**
+ * One lesson in three scenes, not three pages.
+ *
+ * Section forgets → projection overlaps → the distinction transfers one
+ * dimension upward. The chrome, the two panes, the amber-cut vocabulary and the
+ * orbit are shared throughout; only the source and the map into the flat view
+ * change. Scene 3 remains the page's landing scene so its route and tests are
+ * unaffected, and `#projection` / `#tesseract` address the others directly.
+ */
+let current: SceneId = 'section';
+
+const sceneNav = document.querySelector<HTMLDivElement>('#sceneNav')!;
+const hiddenRow = document.querySelector<HTMLDivElement>('#hiddenRow')!;
+const xwInput = document.querySelector<HTMLInputElement>('#xw')!;
+const ywInput = document.querySelector<HTMLInputElement>('#yw')!;
+
+function showScene(id: SceneId, fromHash = false): void {
+  current = id;
+  if (!fromHash) history.replaceState(null, '', `#${id}`);
+  for (const button of Array.from(sceneNav.querySelectorAll('button'))) {
+    const active = button.dataset.scene === id;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-current', active ? 'step' : 'false');
+  }
+  solid.visible = id === 'section';
+  planeOutline.visible = id === 'section';
+  sectionMesh.visible = false;
+  sectionEdge.visible = false;
+  projectionGroup.visible = id === 'projection';
+  tesseractGroup.visible = id === 'tesseract';
+  hiddenRow.classList.toggle('hidden', id !== 'tesseract');
+  const panes = document.querySelector<HTMLDivElement>('#panes');
+  panes?.classList.toggle('solo', id === 'tesseract');
+  if (id !== 'tesseract') resize();
+  choicesHost.textContent = '';
+  provenanceLine.textContent = '';
+
+  if (id === 'section') {
+    document.querySelector<HTMLDivElement>('#panes')?.classList.remove('guessing');
+    scrubRow.classList.remove('hidden');
+    offsetInput.min = String(-DIAGONAL_REACH);
+    offsetInput.max = String(DIAGONAL_REACH);
+    solidState.textContent = '— a cube';
+    sentence(prompt, [
+      { text: 'Push it through.', as: 'strong' },
+      ' Only the plane moves. ',
+      { text: 'A section is local: it forgets everything off-plane.', as: 'lesson' },
+      ' The green bead leaves no trace until the plane reaches it. Drag the solid'
+      + ' to look along the cut and see that it is flat.'
+    ]);
+    provenanceLine.textContent =
+      'Drag the flat view or use the slider. Hover a corner to see where it was cut from.';
+    setOffset(Number(offsetInput.value));
+    return;
+  }
+
+  if (id === 'projection') {
+    scrubRow.classList.add('hidden');
+    solidState.textContent = '— two solids';
+    sentence(prompt, [
+      { text: 'Now cast a shadow instead of cutting.', as: 'strong' },
+      ' Two different solids are here, the cube and a warped twin. ',
+      { text: 'A projection is many-to-one: it stacks what it cannot separate.', as: 'lesson' },
+      ` Their shadows agree to about 1e-16 while the solids stand ${pairSeparation.toFixed(2)}`
+      + ' apart. Orbit the view: from the shadow direction they are one object, and'
+      + ' from anywhere else they never were.'
+    ]);
+    provenanceLine.textContent =
+      'Amber is the shared shadow. Blue is the cube; violet is the twin.';
+    drawProjectionShadow();
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // tesseract
+  scrubRow.classList.remove('hidden');
+  offsetInput.min = String(-(W_REACH + 0.2));
+  offsetInput.max = String(W_REACH + 0.2);
+  offsetInput.value = '0';
+  solidState.textContent = '— a 3D projection and an exact 3D section of one 4D source';
+  sentence(prompt, [
+    { text: 'One rung up.', as: 'strong' },
+    ' The source is a tesseract, and neither thing on screen is it: the wireframe'
+    + ' is a 3D perspective projection, the solid is an exact 3D section. ',
+    { text: 'The same two losses, one dimension higher.', as: 'lesson' },
+    ' Slide w to move the cutting space; turn the hidden planes to rotate the'
+    + ' source through directions the camera cannot reach.'
+  ]);
+  provenanceLine.textContent =
+    'At w = 0 the section is a cube. Past ±1 there is nothing left to cut.';
+  drawTesseract(0);
+  resize();
+  renderer.render(scene, camera);
+}
+
+/** The shared shadow, drawn into the flat pane. */
+function drawProjectionShadow(): void {
+  const points = projectedVertices(pair, pair.original);
+  const edges = pairEdges(pair.original);
+  liveSvg.textContent = '';
+  liveSvg.setAttribute('aria-label', 'the shadow both solids cast');
+  for (const [a, b] of edges) {
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', String(points[a]![0]));
+    line.setAttribute('y1', String(points[a]![1]));
+    line.setAttribute('x2', String(points[b]![0]));
+    line.setAttribute('y2', String(points[b]![1]));
+    line.setAttribute('stroke', '#e0a34e');
+    line.setAttribute('stroke-width', '0.026');
+    svgAppend(line);
+  }
+  shapeName.textContent = 'one shadow';
+  shapeSides.textContent = '· two solids';
+}
+
+const svgAppend = (node: SVGElement): void => { liveSvg.append(node); };
+
+for (const scene of SCENES) {
+  const button = document.createElement('button');
+  button.textContent = scene.label;
+  button.dataset.scene = scene.id;
+  button.addEventListener('click', () => showScene(scene.id));
+  sceneNav.append(button);
+}
+addEventListener('hashchange', () => showScene(sceneFromHash(location.hash), true));
+
+const readHidden = (): void => {
+  hiddenXw = Number(xwInput.value);
+  hiddenYw = Number(ywInput.value);
+  drawTesseract(Number(offsetInput.value));
+  renderer.render(scene, camera);
+};
+xwInput.addEventListener('input', readHidden);
+ywInput.addEventListener('input', readHidden);
+
 // ---------------------------------------------------------------- boot
 
 resize();
 setOffset(-DIAGONAL_REACH);
-actOneGuess();
+if (location.hash === '' || sceneFromHash(location.hash) === 'section') {
+  actOneGuess();
+} else {
+  flatHost.textContent = '';
+  flatHost.append(liveSvg);
+  showScene(sceneFromHash(location.hash), true);
+}
 
 /** Exposed for the page's own tests and for measurement, never for control. */
 Object.assign(globalThis, {
