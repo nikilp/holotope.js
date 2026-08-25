@@ -9,14 +9,17 @@ import {
   LineBasicMaterial,
   LineSegments,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
-  PlaneGeometry,
+  Quaternion,
   Scene,
   SphereGeometry,
   Vector3,
   WebGLRenderer
 } from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { DRAW_ORDER } from './draw-order.js';
 import {
   DIAGONAL_REACH,
   SIDE_CHANGE_OFFSET,
@@ -244,18 +247,76 @@ function cubeEdges(): BufferGeometry {
   return geometry;
 }
 
+
+/** Unit main diagonal: the cutting plane's normal, and the axis it slides on. */
+const normal = new Vector3(...source.normal);
+
 const solid = new Group();
 solid.visible = false;
 scene.add(solid);
-solid.add(new Mesh(cubeGeometry(), new MeshStandardMaterial({
+/**
+ * Which side of the plane a fragment is on, decided per fragment.
+ *
+ * Shading the two halves differently is worth keeping — it is what shows the
+ * plane bisecting the solid rather than floating in it. The rule is that the
+ * DIVIDING SURFACE may be crisp, because it is a real boundary in space, while
+ * the OFFSET must enter continuously, because moving the plane is not an event.
+ * A fragment's side is `dot(worldPosition, normal) - offset`, so sweeping the
+ * plane slides the boundary smoothly across the cube and passing zero is the
+ * unremarkable moment the halves happen to be equal.
+ *
+ * The previous version got this backwards: it read the side from a whole-object
+ * sort, which is constant across the object and flips all at once.
+ */
+const sideUniforms = {
+  uPlaneNormal: { value: normal.clone() },
+  uPlaneOffset: { value: 0 },
+  uFarTint: { value: new Color('#3f6f80') },
+  uNearTint: { value: new Color('#8fc6d8') }
+};
+
+const cubeMaterial = new MeshStandardMaterial({
   color: new Color('#5f93a6'),
   roughness: 0.42,
   metalness: 0.05,
   transparent: true,
-  opacity: 0.5,
-  side: DoubleSide
-})));
-solid.add(new LineSegments(cubeEdges(), new LineBasicMaterial({ color: 0x9fd3e2 })));
+  opacity: 0.42,
+  side: DoubleSide,
+  depthWrite: false
+});
+cubeMaterial.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, sideUniforms);
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vFlatlandWorld;')
+    .replace(
+      '#include <worldpos_vertex>',
+      '#include <worldpos_vertex>\n\tvFlatlandWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;'
+    );
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', `#include <common>
+varying vec3 vFlatlandWorld;
+uniform vec3 uPlaneNormal;
+uniform float uPlaneOffset;
+uniform vec3 uFarTint;
+uniform vec3 uNearTint;`)
+    .replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>
+	{
+		float side = dot(vFlatlandWorld, uPlaneNormal) - uPlaneOffset;
+		// A narrow smoothstep keeps the boundary crisp without aliasing it.
+		float mixAmount = smoothstep(-0.035, 0.035, side);
+		diffuseColor.rgb *= mix(uFarTint, uNearTint, mixAmount);
+	}`
+    );
+};
+
+const cubeFaces = new Mesh(cubeGeometry(), cubeMaterial);
+cubeFaces.renderOrder = DRAW_ORDER.cubeFaces;
+solid.add(cubeFaces);
+const cubeWire = new LineSegments(cubeEdges(), new LineBasicMaterial({ color: 0x9fd3e2 }));
+cubeWire.renderOrder = DRAW_ORDER.cubeEdges;
+solid.add(cubeWire);
 
 /** The bead: a feature inside the solid that the flat view cannot see. */
 const BEAD_AT = new Vector3(0.42, 0.42, 0.42);
@@ -268,17 +329,150 @@ const bead = new Mesh(
 bead.position.copy(BEAD_AT);
 solid.add(bead);
 
-const normal = new Vector3(...source.normal);
-const planeMesh = new Mesh(new PlaneGeometry(2.9, 2.9), new MeshStandardMaterial({
-  color: new Color('#e0a34e'),
-  transparent: true,
-  opacity: 0.22,
-  side: DoubleSide,
-  roughness: 0.9
-}));
-planeMesh.lookAt(normal);
-planeMesh.visible = false;
-scene.add(planeMesh);
+
+
+/** Two orthonormal in-plane directions, for the frame and its grid. */
+function planeBasis(n: Vector3): [Vector3, Vector3] {
+  const seed = Math.abs(n.x) < 0.9 ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
+  const u = seed.clone().sub(n.clone().multiplyScalar(seed.dot(n))).normalize();
+  return [u, new Vector3().crossVectors(n, u).normalize()];
+}
+
+/** The cutting plane as a diagram: one square outline plus a sparse grid. */
+function planeFrameGeometry(): BufferGeometry {
+  const [u, v] = planeBasis(normal);
+  const half = 1.35;
+  const points: number[] = [];
+  const at = (a: number, b: number): number[] => [
+    u.x * a + v.x * b, u.y * a + v.y * b, u.z * a + v.z * b
+  ];
+  const corners = [at(-half, -half), at(half, -half), at(half, half), at(-half, half)];
+  for (let i = 0; i < 4; i++) points.push(...corners[i]!, ...corners[(i + 1) % 4]!);
+  for (let k = -2; k <= 2; k++) {
+    const t = (k / 3) * half * 1.5;
+    points.push(...at(t, -half), ...at(t, half));
+    points.push(...at(-half, t), ...at(half, t));
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(Float32Array.from(points), 3));
+  return geometry;
+}
+
+const planeOutline = new LineSegments(
+  planeFrameGeometry(),
+  new LineBasicMaterial({ color: 0x8a6a3c })
+);
+planeOutline.renderOrder = DRAW_ORDER.planeFrame;
+planeOutline.visible = false;
+scene.add(planeOutline);
+
+/**
+ * The cut itself, as the section's own triangles, drawn the way the flat pane
+ * draws it: a muted fill carrying a bright boundary.
+ *
+ * Opaque, so it is never sorted against anything. The fill is deliberately dark
+ * — a bright one is geometrically honest but reads as a solid amber mass filling
+ * the cube, because a mid-cut really does cover most of the silhouette from a
+ * general angle. The boundary line is what should carry the shape, and it is the
+ * same amber the flat pane strokes with, so the two views read as one object.
+ */
+const sectionMesh = new Mesh(
+  new BufferGeometry(),
+  new MeshBasicMaterial({
+    color: new Color('#6d5029'),
+    side: DoubleSide,
+    // The boundary line is exactly coplanar with this fill, so without a nudge
+    // the two z-fight and the line disappears in patches.
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1
+  })
+);
+sectionMesh.renderOrder = DRAW_ORDER.section;
+sectionMesh.visible = false;
+scene.add(sectionMesh);
+
+const sectionEdge = new LineSegments(
+  new BufferGeometry(),
+  new LineBasicMaterial({ color: 0xe0a34e })
+);
+sectionEdge.renderOrder = DRAW_ORDER.section;
+sectionEdge.visible = false;
+scene.add(sectionEdge);
+
+/** Rebuilds the 3D cut from the section the flat pane is already showing. */
+function drawSectionSolid(outline: ReturnType<typeof sectionOutline>): void {
+  const result = outline.result;
+  if (result.cellCount === 0) {
+    sectionMesh.visible = false;
+    sectionEdge.visible = false;
+    return;
+  }
+  const points = new Float32Array(result.cellCount * 9);
+  for (let cell = 0; cell < result.cellCount; cell++) {
+    for (let corner = 0; corner < 3; corner++) {
+      const vertex = result.cells[cell * 3 + corner]!;
+      for (let axis = 0; axis < 3; axis++) {
+        points[cell * 9 + corner * 3 + axis] = result.ambientPositions[vertex * 3 + axis]!;
+      }
+    }
+  }
+  sectionMesh.geometry.dispose();
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(points, 3));
+  sectionMesh.geometry = geometry;
+  sectionMesh.visible = true;
+
+  // The boundary ring the flat pane already walked, drawn in place.
+  const ring = outline.ringVertices;
+  const edge = new Float32Array(ring.length * 6);
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]!;
+    const b = ring[(i + 1) % ring.length]!;
+    for (let axis = 0; axis < 3; axis++) {
+      edge[i * 6 + axis] = result.ambientPositions[a * 3 + axis]!;
+      edge[i * 6 + 3 + axis] = result.ambientPositions[b * 3 + axis]!;
+    }
+  }
+  sectionEdge.geometry.dispose();
+  const edgeGeometry = new BufferGeometry();
+  edgeGeometry.setAttribute('position', new BufferAttribute(edge, 3));
+  sectionEdge.geometry = edgeGeometry;
+  sectionEdge.visible = true;
+}
+
+/**
+ * Orbiting the solid, so the cut can be inspected edge-on and face-on.
+ *
+ * Worth having because the section's shape is easiest to believe when you can
+ * look along the plane and see it is genuinely flat. The camera is the only
+ * thing this moves: the side shading is decided in world space from the plane
+ * itself, so orbiting never changes which half of the cube reads as near.
+ *
+ * Rendering stays on demand. `update()` reports whether the camera actually
+ * moved, so an idle page draws nothing.
+ */
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.minDistance = 2.6;
+controls.maxDistance = 12;
+controls.rotateSpeed = 0.85;
+
+let orbiting = false;
+controls.addEventListener('start', () => {
+  orbiting = true;
+  requestAnimationFrame(spin);
+});
+controls.addEventListener('end', () => { orbiting = false; });
+
+function spin(): void {
+  const moved = controls.update();
+  if (moved === true || moved === undefined) renderer.render(scene, camera);
+  // Keep turning while the user drags, and afterwards until damping settles.
+  if (orbiting || moved === true) requestAnimationFrame(spin);
+}
 
 function resize(): void {
   const width = viewHost.clientWidth;
@@ -314,7 +508,9 @@ function setOffset(offset: number): void {
   shapeName.textContent = outline.shape;
   shapeSides.textContent = outline.sides > 0 ? `· ${outline.sides} sides` : '';
   offsetValue.textContent = offset.toFixed(3).replace('-', '−');
-  planeMesh.position.copy(normal).multiplyScalar(offset);
+  planeOutline.position.copy(normal).multiplyScalar(offset);
+  sideUniforms.uPlaneOffset.value = offset;
+  drawSectionSolid(outline);
   renderer.render(scene, camera);
 }
 
@@ -346,7 +542,7 @@ function actTwoReveal(): void {
   flatHost.textContent = '';
   flatHost.append(liveSvg);
   solid.visible = true;
-  planeMesh.visible = true;
+  planeOutline.visible = true;
   document.querySelector<HTMLDivElement>('#panes')?.classList.remove('guessing');
   resize();
   document.querySelector<HTMLDivElement>('.shape-name')?.classList.remove('hidden');
@@ -357,7 +553,7 @@ function actTwoReveal(): void {
     ' Only the plane moves. ',
     { text: 'A section is local: it forgets everything off-plane.', as: 'lesson' },
     ' The green bead inside the cube leaves no trace in the flat view until the plane'
-    + ' reaches it.'
+    + ' reaches it. Drag the solid to look along the cut and see that it is flat.'
   ]);
   provenanceLine.textContent =
     'Drag the flat view or use the slider. Hover a corner to see where it was cut from.';
@@ -444,6 +640,23 @@ actOneGuess();
 Object.assign(globalThis, {
   __flatland: {
     outlineAt: (offset: number) => sectionOutline(source, offset),
+    setOffset: (offset: number) => { offsetInput.value = String(offset); setOffset(offset); },
+    reveal: () => actTwoReveal(),
+    scene: () => scene,
+    camera: () => camera,
+    sampleFrame: (): { mean: number[]; canvas: number[] } => {
+      renderer.render(scene, camera);
+      const gl = renderer.getContext();
+      const w = gl.drawingBufferWidth;
+      const h = gl.drawingBufferHeight;
+      const pixels = new Uint8Array(w * h * 4);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        r += pixels[i]!; g += pixels[i + 1]!; b += pixels[i + 2]!; n++;
+      }
+      return { mean: [r / n, g / n, b / n], canvas: [w, h] };
+    },
     lastRecutMs: () => recutMs,
     sideChangeOffset: SIDE_CHANGE_OFFSET
   }
