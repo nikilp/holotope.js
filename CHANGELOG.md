@@ -1,5 +1,169 @@
 # Changelog
 
+## v0.0.22
+
+All five packages are synchronized at `0.0.22`. The substantive published
+additions are in `@holotope/core` and `@holotope/physics`; `@holotope/three`,
+`@holotope/experiment` and `@holotope/experiment-physics` are
+version-synchronized with no substantive package change. The Flatland work in
+this release is showcase-only and adds no npm package surface. The public
+package surface is additive against `0.0.21`: 24 additions, nothing removed,
+renamed or retyped.
+
+### `@holotope/physics@0.0.22` — added
+
+- **Mass properties for the two R4 solids you describe with numbers.**
+  `massPropertiesOfHyperbox4(halfExtents, options?)` and
+  `massPropertiesOfGlome4(radius, options?)` return the existing
+  `MassProperties4` in closed form — volume, mass, centre and the source
+  covariance `m hᵢ²/3` for a box, `m r²/6` for a ball — where previously the
+  only route was to build a cell complex and integrate it, or to invent a
+  diagonal by hand. An invented isotropic diagonal deletes free precession
+  outright, because a body with no anisotropy left has nothing for the torque
+  to act on.
+- **The result is the canonical principal representation**, identical to what
+  `massPropertiesFromConvexBoundary4` returns for the same solid: both paths
+  share one finalization, so an analytic shape and the same shape integrated
+  from its boundary cannot disagree about the frame, the moment order, or how
+  a degenerate eigenspace is oriented.
+- **The frame is the part to know about.** `principalSecondMoments` is ordered
+  ascending and a box's second moment grows with its extent, so the principal
+  frame is the authored axes **permuted so the half-extents ascend**.
+  `RigidBody4.fromMassProperties` adopts `principalRotor` as the body's
+  rotation, so a plainly attached `HyperboxCollider4` sharing that body must be
+  given its half-extents **sorted ascending**, or the collision shape and the
+  mass distribution describe two differently oriented boxes. Extents that
+  already ascend need no sort, and a glome has no preferred axes at all.
+- **Uniform solids only.** These describe homogeneous material. A collider is
+  often a proxy for something whose mass is distributed otherwise — a hull
+  around a dense core, a shell, an avatar whose handling is authored rather
+  than physical — and for those the authored inertia is the right answer and
+  these are not.
+- No body/collider/source registry, ownership contract or lifecycle
+  abstraction is introduced. The functions take numbers and return a record.
+
+- **Exact 3D sections of moving 4D sources.** `sectionOfGlome4`,
+  `sectionOfHyperbox4`, `sectionOfComplex4` and the dispatching
+  `sectionOfSource4` take an authored source, a body pose and an affine
+  hyperplane in R4 — any `⟨normal, x⟩ = offset`, not only `w = const` — and
+  return the section expressed in that hyperplane's own R3 chart.
+- **The caller never reconciles frames.** A body built from an authored box is
+  posed in the box's *principal* frame, not the axes its half-extents were
+  written in. The composition applies `pose ∘ (source → centred principal)` as
+  one transform, once, into a private buffer, so no caller sorts extents,
+  rebases vertices or composes a principal rotor to obtain the right section.
+- **Results are a union**, because a plane and a solid can miss each other:
+  `'empty'`, `'tangent'` (contact with no volume), `'ball'` (a glome's exact
+  3-ball) and `'polyhedral'`. Every arm — empty included — carries
+  `provenance` retaining the authored source **by reference**, the pose and the
+  hyperplane. Boxes and complexes reach the released section machinery, so
+  `parentCells` and `lineage` keep naming authored cells and vertices.
+- **The source is never advanced.** Authored positions stay authoritative, so
+  the same source backs any number of sections at any number of poses, and
+  returning a body to an earlier pose reproduces its earlier section.
+
+#### Bounds worth reading before you rely on them
+
+- **`Section4Options.pose` is a body-frame pose**, not a world placement of the
+  authored source. It maps the source's *centred principal* frame into the
+  world, so the identity places a box in its principal axes — half-extents
+  ascending — and moves an off-centre complex onto the origin, exactly as an
+  unpositioned body would.
+- **A supplied `massProperties` must be the frame the body was posed from.**
+  Omit it and the frame is recomputed; for a box that recomputation is always
+  the canonical signed permutation, which is what `fromMassProperties` used.
+- **An analytic hyperbox accepts only frames a plainly attached collider can
+  follow**: the signed permutations that sort those half-extents, with a zero
+  centre of mass and ascending moments each associated with the extent its own
+  column points at. A rotation inside a degenerate inertia eigenspace is a
+  valid *inertia* basis and is refused here — 90° turns of a tied pair qualify,
+  45° turns do not. `HyperboxCollider4` does accept a `localTransform`, but
+  nothing tells this path about one, so a source needing an arbitrary frame
+  belongs in a `ComplexSectionSource4`, whose authored coordinates carry the
+  geometry a mass-property record cannot.
+- **A polyhedral section is the exact region, with a triangulated vertex set.**
+  It is produced through the tetrahedralized 3-boundary, so its vertices
+  include crossings of internal edges and are not the minimal set a convex-hull
+  formulation would give. The occupied region is exact either way.
+- **`epsilon` is an absolute world length, and means different things on the
+  two arms.** On a box or a complex it is a distance from the hyperplane; on a
+  glome it is applied to the grazing depth `|d| − r`, so a ball reads as
+  tangent while its section radius is still `√(2rε − ε²)` — about `5.1e-5` at
+  `r = 1.3` and the default `ε = 1e-9`, not `1e-9`. A source authored at a very
+  large or very small scale should set it.
+
+### `@holotope/core@0.0.22` — added
+
+- **`groupRepresentationCandidatesN(hits)` — how many sources one observation
+  names.** A `RepresentationHitN` answers "what did I pick?"; a manipulation
+  asks "which source may I act on?", and those come apart. Hand it every hit
+  produced for one observation — one per renderer intersection, each adapted by
+  the released adapter for the product it came from — and it reports zero, one
+  or several sources, discriminated so a unique target is reachable without
+  indexing into a list.
+- **Target multiplicity is not point ambiguity.** `RepresentationHitN.ambiguity`
+  describes whether a hit names more than one source *point* under the display
+  map, and is a property of the map: a projection reads `projection-overlap`
+  even where nothing overlaps, and an injective section chart reads `none` even
+  where two source cells coincide. That last case is truthful and still costs
+  something — the point really is unique while two cells remain candidates.
+- **Candidates group by live object identity**: for a cell, its complex object,
+  its group object and its ordinal within that group. Deliberately not
+  `SourceCellIdN`, which is structural identity for regeneration boundaries and
+  is byte-identical for two separately authored complexes.
+- **It fails closed.** Every hit must resolve to an identity or the call
+  throws, so no result can be narrowed to `unique` while a hit went
+  unclassified; `hitCount` always equals the sum of the candidates' own counts,
+  and `'none'` means the input was empty. The dispatch is exhaustive over
+  `RepresentationSourceN`.
+- **Retired topology is detected.** A cell's `SourceCellReferenceN` is
+  inspected before it may name a candidate, and a retired one throws with its
+  reason — an ordinal still points somewhere after the cell it named has
+  changed, so a stale snapshot would otherwise merge with whatever now occupies
+  that slot. This is a topology check, **not** a freshness check: a hit's pose
+  and ambient point may still be out of date and nothing here notices.
+- **Immutability is structural.** The result, its candidates array, each
+  candidate record and each candidate's hits array are frozen, so the
+  grouping's counts cannot drift; the hits, sources, complexes and fields
+  reached through them stay caller-owned and untouched.
+- It keeps no clock, version, registry or persistent state, does not map a
+  renderer intersection back to the product that drew it, and chooses no
+  candidate. Nearest-hit policy and freshness remain the caller's.
+
+### Showcase
+
+Showcase-only. None of this is an npm export.
+
+- **A guided section and projection ladder**, built from authoritative library
+  geometry rather than drawn to illustrate it: a cube passes through a plane,
+  the flat shape is produced by `sectionSimplexGroupN` on the cube's own
+  tetrahedralization, and every outline retains its source lineage.
+- **Projection and section are shown as different losses.** A section is
+  injective on what it keeps and loses *dimension*; a projection is many-to-one,
+  so several source points share one image. The rung above repeats the pair one
+  dimension up, with projected overlaps visible as overlaps.
+- **The shading jump at offset zero was a sort, not a section.** Transparent
+  objects were being ordered by a rule that changed as the plane crossed the
+  centre; the section itself never jumped.
+- **Scene transitions, claims, framing and controls corrected**: one canonical
+  transition rather than several, claims that survive their own controls, a
+  shadow framed to the shadow with aspect handled honestly, and a reachable
+  neutral position on the controls.
+- **The provenance browser paints one observation once.** It adapts every
+  renderer intersection rather than the first, presents multiple candidates
+  without choosing among them, reports point ambiguity separately from target
+  multiplicity, and renders the source record and the readings in a single
+  pass.
+- **Flatland finds its tetrahedral source by a module-owned group key.** The
+  cut asks the complex for that named group and validates it, rather than
+  taking the first compatible group it finds.
+
+### Unchanged in this release
+
+### `@holotope/three@0.0.22`, `@holotope/experiment@0.0.22`, `@holotope/experiment-physics@0.0.22`
+
+Version-synchronized only. No substantive package change.
+
 ## v0.0.21
 
 All five packages are synchronized at `0.0.21`. The substantive change is a
