@@ -14,7 +14,8 @@
     "check:cdn": "node scripts/check-cdn-example.mjs",
     "check:three-compat": "node scripts/check-three-compatibility.mjs",
     "check:cdn:online": "node scripts/check-cdn-example.mjs --online",
-    "release:preflight": "node scripts/check-release-ready.mjs"
+    "release:preflight": "node scripts/check-release-ready.mjs",
+    "release:notes": "node scripts/release-notes.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

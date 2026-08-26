@@ -65,6 +65,23 @@ jobs:
             fi
           done
 
+      # Before anything irreversible. The notes come from the committed
+      # changelog, so a tag whose section is missing, duplicated or empty is a
+      # mistake in the release, not a formatting problem to find afterwards --
+      # and finding it here costs nothing, while finding it after the publish
+      # step means five packages are on npm and cannot be taken back.
+      #
+      # The tag arrives as $GITHUB_REF_NAME, quoted, rather than through ${{ }}
+      # interpolation into the run block: a ref name is attacker-influenced on
+      # some events, and only the environment form keeps it a value.
+      - name: Generate release notes from the changelog
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          node scripts/release-notes.mjs \
+            --tag "$GITHUB_REF_NAME" \
+            --out "$RUNNER_TEMP/release-notes.md"
+
       - name: Build
         run: pnpm build
 
@@ -140,5 +157,5 @@ jobs:
             gh release create "$GITHUB_REF_NAME" \
               --verify-tag \
               --title "$GITHUB_REF_NAME" \
-              --generate-notes
+              --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
