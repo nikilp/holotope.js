@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { DRAW_ORDER, TRANSPARENT_OBJECT_BUDGET } from '../src/flatland/draw-order.js';
+import { CellComplex } from '@holotope/core';
 import {
   DIAGONAL_REACH,
+  FLATLAND_TETRAHEDRA_KEY,
   SIDE_CHANGE_OFFSET,
   buildFlatlandSource,
+  flatlandTetrahedra,
   outlineProvenance,
   sectionOutline
 } from '../src/flatland/section.js';
@@ -235,5 +238,90 @@ describe('flatland: nothing happens at offset zero', () => {
     const opaque = [DRAW_ORDER.section, DRAW_ORDER.planeFrame, DRAW_ORDER.cubeEdges];
     for (const order of opaque) expect(order).toBeLessThan(DRAW_ORDER.cubeFaces);
     expect(new Set(opaque).size).toBe(1);
+  });
+});
+
+describe('the cut finds its source by name', () => {
+  it('installs the named tetrahedral group inside the complex', () => {
+    const source = buildFlatlandSource();
+    const named = source.complex.groups.filter(
+      (group) => group.key === FLATLAND_TETRAHEDRA_KEY
+    );
+    expect(named).toHaveLength(1);
+    expect(named[0]!.dim).toBe(3);
+    expect(named[0]!.kind).toBe('simplex');
+    expect(named[0]!.verticesPerCell).toBe(4);
+    // The complex stays the authority: the group lives inside it, and the
+    // returned source no longer carries a second handle on it.
+    expect(flatlandTetrahedra(source.complex)).toBe(named[0]);
+    expect(Object.keys(source).sort()).toEqual(['complex', 'normal']);
+  });
+
+  it('uses the named group even when another compatible one is present', () => {
+    // A decoy: same dimension, same kind, same arity, added *before* the cut
+    // is taken. Selecting "the first simplex group" would let it capture the
+    // cut and quietly change the outline.
+    const source = buildFlatlandSource();
+    const named = flatlandTetrahedra(source.complex);
+    const decoy = {
+      key: 'unrelated-simplices',
+      dim: 3,
+      kind: 'simplex' as const,
+      verticesPerCell: 4,
+      indices: Uint32Array.from([0, 1, 2, 3])
+    };
+    const withDecoy = new CellComplex(
+      source.complex.ambientDim,
+      source.complex.positions,
+      [decoy, ...source.complex.groups.map((group) => ({ ...group }))]
+    );
+    expect(withDecoy.groups[0]!.kind).toBe('simplex');
+    expect(withDecoy.groups[0]!.dim).toBe(3);
+    expect(flatlandTetrahedra(withDecoy).key).toBe(FLATLAND_TETRAHEDRA_KEY);
+    expect(flatlandTetrahedra(withDecoy).indices.length).toBe(named.indices.length);
+
+    // And the outline through the decoyed complex is the outline it always was.
+    const decoyed = sectionOutline({ complex: withDecoy, normal: source.normal }, 0);
+    const plain = sectionOutline(source, 0);
+    expect(decoyed.shape).toBe(plain.shape);
+    expect(decoyed.sides).toBe(plain.sides);
+    expect(decoyed.ring.map((p) => Array.from(p)))
+      .toEqual(plain.ring.map((p) => Array.from(p)));
+  });
+
+  it('fails loudly when the named group is missing, duplicated or malformed', () => {
+    const source = buildFlatlandSource();
+    const bare = new CellComplex(
+      source.complex.ambientDim,
+      source.complex.positions,
+      source.complex.groups
+        .filter((group) => group.key !== FLATLAND_TETRAHEDRA_KEY)
+        .map((group) => ({ ...group }))
+    );
+    expect(() => flatlandTetrahedra(bare)).toThrow(/no group keyed/);
+
+    const named = flatlandTetrahedra(source.complex);
+    // The name can only ever resolve to one group, because `CellComplex`
+    // refuses a duplicate key itself — at construction and at `addGroup`. The
+    // accessor's own duplicate arm is therefore unreachable through the
+    // released surface, and is kept so the accessor is correct on its own
+    // terms rather than because of where it happens to be called.
+    expect(() => new CellComplex(
+      source.complex.ambientDim, source.complex.positions,
+      [{ ...named }, { ...named }]
+    )).toThrow(/duplicate group key/);
+    expect(() => source.complex.addGroup({ ...named }))
+      .toThrow(/duplicate group key/);
+
+    for (const wrong of [
+      { ...named, dim: 2 },
+      { ...named, kind: 'cuboid' as const },
+      { ...named, verticesPerCell: 8 }
+    ]) {
+      const malformed = new CellComplex(
+        source.complex.ambientDim, source.complex.positions, [wrong]);
+      expect(() => flatlandTetrahedra(malformed))
+        .toThrow(/the cut needs 3-dimensional simplices with 4/);
+    }
   });
 });

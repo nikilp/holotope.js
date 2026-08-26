@@ -70,10 +70,20 @@ export interface FlatlandOutline {
   readonly result: SectionSimplexGroupNResultN;
 }
 
-/** The authored solid, its tetrahedralization, and the diagonal it is cut on. */
+/**
+ * The key this module gives the tetrahedral group it adds to the cube.
+ *
+ * The complex is the authority, so the group lives inside it rather than
+ * beside it, and this name is how the cut finds it again. Naming it also
+ * decides what happens if the complex ever gains a second simplex group:
+ * `flatlandTetrahedra` asks for *this* group rather than for the first
+ * compatible one, so an unrelated group added earlier cannot capture the cut.
+ */
+export const FLATLAND_TETRAHEDRA_KEY = 'flatland-tetrahedra';
+
+/** The authored solid and the diagonal it is cut on. */
 export interface FlatlandSource {
   readonly complex: CellComplex;
-  readonly tetrahedra: CellGroup;
   /** Unit main diagonal, the plane's normal. */
   readonly normal: readonly [number, number, number];
 }
@@ -81,7 +91,7 @@ export interface FlatlandSource {
 /**
  * Builds the cube and the tetrahedralization every cut is taken from.
  *
- * @returns The complex with its simplex group attached, ready to section.
+ * @returns The complex with its named simplex group attached, ready to section.
  */
 export function buildFlatlandSource(): FlatlandSource {
   const complex = createHypercube({ dim: 3, size: 2 * CUBE_HALF_EXTENT });
@@ -92,9 +102,52 @@ export function buildFlatlandSource(): FlatlandSource {
     throw new Error('buildFlatlandSource: the cube has no cuboid 3-cell');
   }
   const tetrahedra = simplexizeCuboidGroupN(cuboid).simplexGroup;
+  tetrahedra.key = FLATLAND_TETRAHEDRA_KEY;
+  // `addGroup` refuses a duplicate key, so the complex itself guarantees the
+  // name resolves to at most one group.
   complex.addGroup(tetrahedra);
   const unit = 1 / Math.sqrt(3);
-  return { complex, tetrahedra, normal: [unit, unit, unit] };
+  return { complex, normal: [unit, unit, unit] };
+}
+
+/**
+ * The tetrahedral group the cut is taken from, located by name and checked.
+ *
+ * Every failure here means the complex is not the one this module built, so
+ * each is raised rather than worked around: silently sectioning a group of the
+ * wrong dimension or arity would produce an outline that looks plausible and
+ * describes something else.
+ *
+ * @param complex - The authored solid, normally `source.complex`.
+ */
+export function flatlandTetrahedra(complex: CellComplex): CellGroup {
+  const named = complex.groups.filter(
+    (group) => group.key === FLATLAND_TETRAHEDRA_KEY
+  );
+  if (named.length === 0) {
+    throw new Error(
+      `flatlandTetrahedra: no group keyed "${FLATLAND_TETRAHEDRA_KEY}"; ` +
+      'this complex did not come from buildFlatlandSource'
+    );
+  }
+  // Unreachable through the released surface: `CellComplex` refuses a duplicate
+  // key at construction and at `addGroup`. Kept so this accessor is correct on
+  // its own terms rather than because of where it happens to be called.
+  if (named.length > 1) {
+    throw new Error(
+      `flatlandTetrahedra: ${named.length} groups are keyed ` +
+      `"${FLATLAND_TETRAHEDRA_KEY}", so the cut has no single source`
+    );
+  }
+  const group = named[0]!;
+  if (group.dim !== 3 || group.kind !== 'simplex' || group.verticesPerCell !== 4) {
+    throw new Error(
+      `flatlandTetrahedra: group "${FLATLAND_TETRAHEDRA_KEY}" is ` +
+      `${group.dim}-dimensional ${group.kind} with ${group.verticesPerCell} ` +
+      'vertices per cell; the cut needs 3-dimensional simplices with 4'
+    );
+  }
+  return group;
 }
 
 /**
@@ -117,7 +170,7 @@ export function sectionOutline(
 ): FlatlandOutline {
   const result = sectionSimplexGroupN({
     complex: source.complex,
-    group: source.tetrahedra,
+    group: flatlandTetrahedra(source.complex),
     slice: new HyperplaneSliceN({ normal: [...source.normal], offset })
   });
 
