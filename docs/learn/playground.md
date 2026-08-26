@@ -102,6 +102,7 @@ there is improved here.
 | [`fibonacciPatch`](/api/core/lattice/functions/fibonacciPatch) | [open](https://nikilp.github.io/holotope.js/playground.html#fibonacciPatch) |
 | [`findIncidentCellsN`](/api/core/geometry/functions/findIncidentCellsN) | [open](https://nikilp.github.io/holotope.js/playground.html#findIncidentCellsN) |
 | [`gjkDistance`](/api/physics/functions/gjkDistance) | [open](https://nikilp.github.io/holotope.js/playground.html#gjkDistance) |
+| [`groupRepresentationCandidatesN`](/api/core/representation/functions/groupRepresentationCandidatesN) | [open](https://nikilp.github.io/holotope.js/playground.html#groupRepresentationCandidatesN) |
 | [`massPropertiesFromCellComplex4`](/api/physics/functions/massPropertiesFromCellComplex4) | [open](https://nikilp.github.io/holotope.js/playground.html#massPropertiesFromCellComplex4) |
 | [`sectionOfComplex4`](/api/physics/functions/sectionOfComplex4) | [open](https://nikilp.github.io/holotope.js/playground.html#sectionOfComplex4) |
 | [`sectionOfGlome4`](/api/physics/functions/sectionOfGlome4) | [open](https://nikilp.github.io/holotope.js/playground.html#sectionOfGlome4) |

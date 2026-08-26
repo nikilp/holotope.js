@@ -1,3 +1,12 @@
+export {
+  groupRepresentationCandidatesN,
+  type MultipleRepresentationCandidatesN,
+  type NoRepresentationCandidatesN,
+  type RepresentationCandidateN,
+  type RepresentationCandidateSetN,
+  type RepresentationTargetMultiplicity,
+  type UniqueRepresentationCandidateN
+} from './candidates.js';
 export type {
   AmbientPointStatus,
   RepresentationAmbiguity,

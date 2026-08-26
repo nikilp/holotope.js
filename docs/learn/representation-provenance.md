@@ -638,3 +638,95 @@ The invariant across these products is: every dimensional reduction declares
 what it can recover—source feature, unique ambient point, approximate source
 cell, or full evaluation record—without silently promoting the representation
 to source truth.
+
+## One observation, several targets
+
+A hit answers "what did I pick?". A manipulation asks a different question:
+"which source may I act on?" Those come apart, and `RepresentationHitN` only
+answers the first.
+
+`RepresentationHitN.ambiguity` describes whether the hit names more than one
+source **point** under the display map. It is a property of the map, not of the
+observation: a projection is not injective, so every hit through one reads
+`projection-overlap` even when nothing overlaps there, and an injective section
+chart reads `none` even when two source cells coincide.
+
+`groupRepresentationCandidatesN` answers the second question. Hand it every hit
+produced for one observation — one per renderer intersection, each adapted by
+the released adapter for the product it came from — and it reports how many
+distinct sources that observation names.
+
+```ts
+import { groupRepresentationCandidatesN } from '@holotope/core';
+
+const grouped = groupRepresentationCandidatesN([]);
+if (grouped.targetMultiplicity === 'unique') {
+  grouped.candidate.source;    // one source named: act on it
+} else if (grouped.targetMultiplicity === 'multiple') {
+  grouped.candidates.length;   // several named: the caller chooses
+}
+```
+
+### The two readings are independent
+
+| display map | coincident sources | `ambiguity` | `targetMultiplicity` |
+| --- | --- | --- | --- |
+| injective section | one | `none` | `unique` |
+| lossy projection | one | `projection-overlap` | `unique` |
+| injective section | two | `none` | **`multiple`** |
+| lossy projection | two | `projection-overlap` | `multiple` |
+
+The third row is the one that costs something. The point really is unique, so
+`ambiguity: 'none'` is truthful — and two source cells are still candidates.
+Reading point-uniqueness as permission to act would pick the wrong one half the
+time.
+
+### What identifies a candidate
+
+Live object identity, not structural identity. For a cell: its complex object,
+its group object, and its ordinal within that group — the contents of
+`source.reference`.
+
+Deliberately **not** `SourceCellIdN`. That is structural identity for
+regeneration boundaries, and two separately authored complexes produce
+byte-identical ids. Grouping on it would merge two things a caller can act on
+independently.
+
+### It fails closed
+
+Every hit must resolve to an identity, or the call throws. There is no arm in
+which a hit the function could not classify sits beside a target you are told is
+safe to act on — "unique among the hits I understood" is not something to act
+on. `hitCount` always equals the sum of the candidates' own counts, and
+`targetMultiplicity: 'none'` means the input was empty.
+
+A cell's `SourceCellReferenceN` is inspected before it may name a candidate. A
+retired one throws with its reason, because its ordinal still points somewhere:
+without the check, a stale snapshot would merge with whatever cell now occupies
+that slot and be handed back as though it were live.
+
+That is a **topology** check, not a freshness check. Retired topology is
+detected because the reference already exposes it. A hit's pose and ambient
+point may still be out of date and nothing here notices — a hit is a value
+snapshot with no epoch, and no clock, version or registry is introduced.
+
+### Structural immutability
+
+The result, its candidates array, each candidate record and each candidate's
+hits array are frozen: the grouping's structure and counts cannot drift, and
+assigning to `candidate.hitCount` or `candidate.source` throws in strict mode.
+
+The hits, sources, complexes, fields and evaluation records reached through them
+are **caller-owned and left alone**. Nothing is deep-frozen, so your own objects
+remain yours to mutate.
+
+### What it does not do
+
+It groups the hits it is given, and nothing else. It cannot discover an
+intersection the renderer or the caller left out — pass all of them, never
+`intersections[0]`, and if any intersection refuses, treat the observation as
+incomplete rather than grouping the subset that worked. It does not map a
+renderer intersection back to the product that drew it; that mapping stays the
+caller's. It does not decide which candidate is nearest or preferred, and
+encounter order means only the order the hits arrived in. It keeps no state,
+registers nothing, and does not make `SourceCellIdN` globally unique.

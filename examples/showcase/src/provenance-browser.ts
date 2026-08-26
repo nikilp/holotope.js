@@ -48,6 +48,7 @@ import {
   representationHitFromProjectedEdge,
   representationHitFromSlicedComplex
 } from '@holotope/three';
+import { presentObservation } from './provenance-observation.js';
 import {
   type Param,
   type Values,
@@ -242,22 +243,37 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
     return;
   }
 
-  // Rebuilt rather than forwarded: three widens the optional fields with
-  // undefined, which the exact-optional contract does not accept.
-  const nearest = hits[0]!;
-  const intersection: RepresentationIntersection3D = {
-    point: nearest.point,
-    ...(nearest.faceIndex === undefined ? {} : { faceIndex: nearest.faceIndex }),
-    ...(nearest.index === undefined ? {} : { index: nearest.index })
-  };
-
-  try {
-    const hit = spec.resolve(intersection);
-    describe(hit);
-    highlightSourceCell(hit);
-  } catch (error) {
-    reportCounts([[String(error instanceof Error ? error.message : error), '']]);
+  // All-or-nothing. Every real intersection is adapted before anything is
+  // grouped: taking `hits[0]` would silently pick one of several sources, and
+  // grouping a partial list would name a target derived from an observation the
+  // page did not fully understand. What to draw is decided in
+  // `presentObservation`, away from the DOM, so the decision is testable.
+  const adapted: RepresentationHitN[] = [];
+  let refusal = '';
+  for (const candidate of hits) {
+    const intersection: RepresentationIntersection3D = {
+      point: candidate.point,
+      ...(candidate.faceIndex === undefined ? {} : { faceIndex: candidate.faceIndex }),
+      ...(candidate.index === undefined ? {} : { index: candidate.index })
+    };
+    try {
+      adapted.push(spec.resolve(intersection));
+    } catch (error) {
+      refusal = String(error instanceof Error ? error.message : error);
+      break;
+    }
   }
+
+  const presentation = presentObservation(adapted, hits.length, refusal);
+  if (presentation.highlightHit === null) {
+    highlightGeometry.setIndex([]);
+  } else {
+    describe(presentation.highlightHit);
+    highlightSourceCell(presentation.highlightHit);
+  }
+  reportCounts(presentation.rows.length > 0
+    ? presentation.rows.map(([label, value]): [string, string] => [label, value])
+    : [[spec.instruction, '']]);
 });
 
 reportCounts([[spec.instruction, '']]);
