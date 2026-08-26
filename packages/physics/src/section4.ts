@@ -212,9 +212,10 @@ export interface Section4Options {
    * On a box or a complex it is a distance from the hyperplane: a vertex within
    * `epsilon` of the plane counts as lying on it. On a glome it is applied to
    * the grazing depth `|d| − r` instead, which makes the band asymmetric in the
-   * section's own radius — a ball is called tangent while its section radius is
-   * still up to about `√(2rε)`, so at `r = 1.3` and the default that is a
-   * section of radius 1.6e-5 rather than of 1e-9.
+   * section's own radius — a ball is still called tangent at the inner edge of
+   * the band, where its section radius is `√(2rε − ε²)`, or `√(2rε)` to the
+   * precision that matters here. At `r = 1.3` and the default `ε = 1e-9` that
+   * is a section of radius about 5.1e-5, not 1e-9.
    *
    * Because it is absolute rather than relative, a source authored at a very
    * large or very small scale should set it.
