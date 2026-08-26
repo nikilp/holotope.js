@@ -54,6 +54,68 @@ export function targetSummary(
   }
 }
 
+/**
+ * The page's own description of one hit's source record.
+ *
+ * Pure: it returns rows and touches no DOM, so the whole observation can be
+ * painted by a single render. Splitting it out is the correction — it used to
+ * paint directly, and the handler's own render then cleared it.
+ *
+ * Rows are `[label, value]` here, matching {@link ObservationPresentation}; they
+ * are put into `reportCounts` order once, in {@link observationRows}.
+ */
+export function descriptionRows(
+  hit: RepresentationHitN
+): readonly (readonly [string, string])[] {
+  const rows: (readonly [string, string])[] = [
+    ['representation', hit.representation],
+    ['source kind', hit.source.kind]
+  ];
+  // The source record is the answer a projection's coordinates cannot give.
+  // Narrowed on `kind` rather than cast, so a wrong field name fails to
+  // compile instead of silently reporting nothing.
+  if (hit.source.kind === 'cell') {
+    rows.push(['source cell index', String(hit.source.cellIndex)]);
+    rows.push(['source cell dimension', String(hit.source.intrinsicDim)]);
+    rows.push(['source vertices', hit.source.vertexIndices.join(', ')]);
+  }
+  rows.push(['ambient point', hit.ambientPointStatus]);
+  if (hit.ambientPoint) {
+    rows.push(['in R⁴', [...hit.ambientPoint.data].map((v) => v.toFixed(2)).join(', ')]);
+  }
+  rows.push(['ambiguity', hit.ambiguity]);
+  return rows;
+}
+
+/**
+ * Everything one observation paints, as a single collection.
+ *
+ * The page calls `reportCounts` exactly once with this. Painting in two calls
+ * is what broke: `reportCounts` replaces the container's children, so a second
+ * call erases the first.
+ *
+ * Provenance rows are appended when, and only when, a unique target was named —
+ * the same condition that allows a highlight. Rows come back in `reportCounts`
+ * order, `[value, label]`, which renders the value prominently and the label
+ * after it.
+ */
+export function observationRows(
+  presentation: ObservationPresentation,
+  instruction: string
+): readonly (readonly [number | string, string])[] {
+  if (presentation.outcome === 'empty') return [[instruction, '']];
+  const flipped = presentation.rows.map(
+    ([label, value]): readonly [number | string, string] => [value, label]
+  );
+  if (presentation.highlightHit === null) return flipped;
+  return [
+    ...flipped,
+    ...descriptionRows(presentation.highlightHit).map(
+      ([label, value]): readonly [number | string, string] => [value, label]
+    )
+  ];
+}
+
 /** An encounter-local label. Position in this list, never a persistent identity. */
 function label(candidate: RepresentationCandidateN, index: number): readonly [string, string] {
   const source = candidate.hits[0]!.source;

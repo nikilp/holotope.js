@@ -48,7 +48,7 @@ import {
   representationHitFromProjectedEdge,
   representationHitFromSlicedComplex
 } from '@holotope/three';
-import { presentObservation } from './provenance-observation.js';
+import { observationRows, presentObservation } from './provenance-observation.js';
 import {
   type Param,
   type Values,
@@ -186,32 +186,6 @@ const raycaster = new Raycaster();
 raycaster.params.Line = { threshold: 0.04 };
 const pointer = new Vector2();
 
-function describe(hit: RepresentationHitN): void {
-  const rows: (readonly [number | string, string])[] = [
-    [hit.representation, 'representation'],
-    [hit.source.kind, 'source kind']
-  ];
-
-  // The source record is the answer a projection's coordinates cannot give.
-  // Narrowed on `kind` rather than cast, so a wrong field name fails to
-  // compile instead of silently reporting nothing.
-  if (hit.source.kind === 'cell') {
-    rows.push([hit.source.cellIndex, 'source cell index']);
-    rows.push([hit.source.intrinsicDim, 'source cell dimension']);
-    rows.push([hit.source.vertexIndices.join(', '), 'source vertices']);
-  }
-
-  rows.push([hit.ambientPointStatus, 'ambient point']);
-  if (hit.ambientPoint) {
-    rows.push([
-      [...hit.ambientPoint.data].map((v) => v.toFixed(2)).join(', '),
-      'in R⁴'
-    ]);
-  }
-  rows.push([hit.ambiguity, 'ambiguity']);
-  reportCounts(rows);
-}
-
 function highlightSourceCell(hit: RepresentationHitN): void {
   if (hit.source.kind !== 'cell') {
     highlightGeometry.setIndex([]);
@@ -268,12 +242,11 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
   if (presentation.highlightHit === null) {
     highlightGeometry.setIndex([]);
   } else {
-    describe(presentation.highlightHit);
     highlightSourceCell(presentation.highlightHit);
   }
-  reportCounts(presentation.rows.length > 0
-    ? presentation.rows.map(([label, value]): [string, string] => [label, value])
-    : [[spec.instruction, '']]);
+  // Exactly one render. `reportCounts` replaces the container's children, so
+  // painting the provenance separately would only be erased by this call.
+  reportCounts(observationRows(presentation, spec.instruction));
 });
 
 reportCounts([[spec.instruction, '']]);
