@@ -49,7 +49,8 @@ turn explicit **projections** of that state into ordinary 3D objects.
   ├─ spectral             symmetric eigensystems and CellComplex graph-Laplacian modes
   ├─ projection           CameraN, homogeneous N→3 maps, inverse fibres, simplex lifts, slicing;
   │                       RN affine charts and simplicial sections with composable source weights
-  ├─ representation       map lineage, source references, and renderer-independent hit results
+  ├─ representation       map lineage, source references, and renderer-independent hit results;
+  │                       candidate grouping separates point ambiguity from acting-target count
   └─ coxeter              exact Coxeter groups, Wythoff construction of the uniform polychora
 
 @holotope/three           three.js adapter (three as peer dependency)
@@ -69,7 +70,8 @@ turn explicit **projections** of that state into ordinary 3D objects.
   └─ RaymarchedBicomplexJulia3D product-distance ray marching after exact factorization
 
 @holotope/physics         headless higher-dimensional mechanics
-  ├─ mass properties      convex R4 volume, COM, covariance, and principal inertia
+  ├─ mass properties      convex R4 volume, COM, covariance, and principal inertia,
+  │                       by complex integration or in closed form for a glome or hyperbox
   ├─ RigidBody4           world bivector momentum + Spin(4) orientation
   ├─ PhysicsWorld4        fixed-step gravity, force, torque, and ballistic integration
   ├─ ObjectN binding      fixed-step pose snapshots and renderer-neutral interpolation
@@ -77,6 +79,7 @@ turn explicit **projections** of that state into ordinary 3D objects.
   ├─ narrowphase          typed distance, shallow, penetration, deep-manifold capabilities
   ├─ contact response     warm-started normal impulses + coupled R4 friction ball
   ├─ contact pipeline     mixed glomes, planes, hyperboxes, vertex polytopes
+  ├─ exact sections       R3 sections of a moving R4 glome, hyperbox, or authored complex
   ├─ rigid constraints    scalar rows + 1..6-row blocks; point and stabilizer-classified rotation joints
   ├─ distance policies    N-D geometry + R4 equality, guardians, and motor bindings
   ├─ material geometry    typed StVK/Neo-Hookean + smooth measure barrier + guards
@@ -241,12 +244,18 @@ explains why a projected mesh is never the source object — then work from
     feature. There is no automatic active-set search, no self-contact, no
     mesh–mesh CCD, and no moving-obstacle family. Cloth, stacked deformables and a
     rod in a knot remain out of reach.
-  - **Contact stiffness follows mesh topology.** Contact energy is a sum over
-    source cells, so a closest approach on a shared sub-feature contributes one
-    term per adjacent cell. A stiffness tuned on one mesh does not transfer to a
-    refinement of it. Lagged friction inherits this: its effective coefficient
-    follows contact-term multiplicity, and it demonstrates sliding deceleration,
-    not static friction or sticking.
+  - **Contact stiffness follows mesh topology in the per-cell families.**
+    Their contact energy is a sum over source cells, so a closest approach on a
+    shared sub-feature contributes one term per adjacent cell, and a stiffness
+    tuned on one mesh does not transfer to a refinement of it. Lagged friction
+    inherits this: its effective coefficient follows contact-term multiplicity,
+    and it demonstrates sliding deceleration, not static friction or sticking.
+    `compileXpbdSourceSimplexMeasureBarrierN` is the reference-measure
+    alternative: it carries a cell's rest measure once, so splitting a cell does
+    not answer twice and the weighting stops following cell count. That is
+    measure consistency, **not** invariance under subdivision and not a
+    continuum bound — the integrand is a nonlinear barrier under a fixed finite
+    quadrature.
   - **Spatial acceleration is opt-in and static-only.** A compiled AABB hierarchy
     over an unmoving obstacle is selected explicitly and refuses a moved source
     rather than rebuilding.
@@ -259,14 +268,14 @@ explains why a projected mesh is never the source object — then work from
     optimization path represents none of the three and refuses their presence by
     name. Pick one per physical interval.
 
-  **Next validated boundary — designed, not shipped.** A contact-specific,
-  fixed-rule, **reference-measure** surface-contact compiler: contact integrated
-  over a source cell's rest measure rather than sampled at its vertices. Its
-  authoritative geometry, particle binding, moving-obstacle semantics and evidence
-  surface are being designed before any implementation, and no public symbol
-  exists. Reference measure only — the current-measure form and a caller-authored
-  force-usability policy are both held back for want of a certified enclosure of
-  the assembled contact force.
+  **Reference-measure surface contact — shipped in v0.0.20.**
+  `compileXpbdSourceSimplexMeasureBarrierN` weights contact by a source cell's
+  **reference** k-measure and averages a clamped-log barrier over fixed interior
+  nodes, rather than summing a term per cell at its vertices. It compiles one
+  conservative provider and one paired step filter for `k = 1, 2, 3` — the range
+  over which the exact point–simplex query publishes a direction enclosure. The
+  current-measure form and a caller-authored force-usability policy remain held
+  back for want of a certified enclosure of the assembled contact force.
 
   **Longer-term research.** Cached sparse/global PSD assembly and globally
   admissible Newton material stepping; automatic and dynamic broadphase with
