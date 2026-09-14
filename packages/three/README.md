@@ -28,19 +28,29 @@ with this package re-exporting the types.
 
 ## Tested three.js compatibility
 
-`three` is a peer dependency; the declared range is **`>=0.184.0 <0.186.0`**.
+`three` is a peer dependency; the declared range is **`>=0.184.0 <0.187.0`**.
 That range is *tested*, not inferred from semver, and it is not a promise
 about revisions that do not exist yet.
 
-| revision | runtime (import, adapters, pick, bundle, WebGL + WebGPU render) | strict TypeScript (`skipLibCheck: false`) |
-| --- | --- | --- |
-| r182 and earlier | **not supported** — `three/tsl` lacks node functions the WebGPU entry imports | — |
-| 0.183.0 | passes | **blocked**: `@types/three@0.183.0` references a `RenderPipeline.js` it does not ship |
-| 0.183.1 | passes | passes |
-| 0.183.2 | passes | **blocked**: no `@types/three@0.183.2` is published |
-| **0.184.0** | passes | passes |
-| **0.185.0** | passes | passes |
-| **0.185.1** | passes | passes |
+**A range is wider than the sample that supports it.** The range claims a
+continuum; the table below lists the exact revisions that were actually run.
+Every **minor** in the range has a driven representative, and
+`pnpm check:three-compat` fails if one does not — but the revisions in this
+table are the only ones exercised. A patch release inside a covered minor is
+claimed on its minor's representative and on upstream's patch-release
+discipline. That is an inference, not a measurement, and this table should not
+be read as a per-patch guarantee.
+
+| revision | driven | runtime (import, adapters, pick, bundle) | real-browser render | strict TypeScript (`skipLibCheck: false`) |
+| --- | --- | --- | --- | --- |
+| r182 and earlier | — | **not supported** — `three/tsl` lacks node functions the WebGPU entry imports | — | — |
+| 0.183.0 | P57 | passes | WebGL2 + WebGPU | **blocked**: `@types/three@0.183.0` references a `RenderPipeline.js` it does not ship |
+| 0.183.1 | P57 | passes | WebGL2 + WebGPU | passes |
+| 0.183.2 | P57 | passes | WebGL2 + WebGPU | **blocked**: no `@types/three@0.183.2` is published |
+| **0.184.0** | **CI, every run** | passes | WebGL2 + WebGPU (P57) | passes |
+| **0.185.0** | P57 | passes | WebGL2 + WebGPU | passes |
+| **0.185.1** | **CI, every run** | passes | WebGL2 + WebGPU | passes |
+| **0.186.0** | **CI, every run** | passes | WebGL2 + WebGPU | passes |
 
 The r183 patches are excluded from the supported range for a **declaration
 packaging** reason rather than a runtime one, and because a supported range
@@ -48,14 +58,25 @@ must be contiguous: `0.183.2` sits between two typed revisions with no
 declarations at all. Every r183 row rendered a real WebGL *and* WebGPU frame
 with no console output.
 
-`0.185.1` remains the exact reproducibility reference — the version this
-repository develops, bundles, and publishes CDN examples against. A peer
-*window* and a reproducibility *anchor* are different objects, and widening
-the first does not move the second.
+The render column is a **one-off measurement per revision**, not a CI column:
+each row rendered from freshly packed artifacts in a real browser at the time
+that revision was admitted, on one configuration only (Chrome, Apple GPU).
+`WebGLRenderer` is WebGL2-only across this whole window, so "WebGL2" is what
+that column means. The compute-backed WebGPU products (`SlicedComplexGPU` and
+the other `*GPU` adapters) have **no WebGL fallback** and cannot have one —
+compute shaders have none — so a WebGL2 tick never covers them. No Firefox,
+Safari, Windows, discrete-GPU or mobile configuration has been exercised.
 
-CI drives both ends of the range (`0.184.0` and `0.185.1`) from freshly packed
-artifacts on every run — `pnpm check:three-compat` — and drives **both
-columns** at each end: a live runtime lifecycle *and* a strict TypeScript
+`0.186.0` is the exact reproducibility reference — the version this repository
+develops, bundles, publishes CDN examples against, and runs packed-consumer
+conformance on. A peer *window* and a reproducibility *anchor* are different
+objects, and widening the first does not move the second; this anchor moved
+because the reference was deliberately advanced, not to follow the range.
+
+CI drives the matrix (`0.184.0`, `0.185.1`, `0.186.0` — one representative per
+claimed minor) from freshly packed artifacts on every run —
+`pnpm check:three-compat` — and drives **both columns** at each revision: a
+live runtime lifecycle *and* a strict TypeScript
 compile of a composition of both entry points against that revision's own
 published declarations (`strict`, `skipLibCheck: false`,
 `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`). The

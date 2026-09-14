@@ -50,10 +50,17 @@ const OUT = (() => {
  * Reused rather than resolved fresh so conformance tests the combination this
  * repository develops against, and so a consumer install cannot quietly drift
  * to a newer Three.js than the adapter's peer range admits.
+ *
+ * This tracks the reproducibility REFERENCE, not the peer range's minimum, and
+ * it has to move with it. Left at 0.185.1 after the reference advanced to
+ * 0.186.0, this gate would have gone on proving a combination the repository
+ * no longer develops against while its own docstring claimed otherwise - green,
+ * and about the wrong thing. The peer range's ends and interior are the
+ * separate business of `check:three-compat`.
  */
 const CONSUMER_DEPENDENCIES = {
-  three: '0.185.1',
-  '@types/three': '0.185.1',
+  three: '0.186.0',
+  '@types/three': '0.186.0',
   '@types/node': '^22.15.0',
   typescript: '^5.8.3',
   vite: '^6.3.5'

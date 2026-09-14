@@ -28,16 +28,29 @@
  * missing — a revision whose declarations are unavailable is a failure, not a
  * skip.
  *
- * The revisions driven here are the *tested* interval. They are not a promise
+ * A RANGE AND A MATRIX ARE DIFFERENT SIZES, and the difference is the point.
+ * The range is a claim over a continuum of published revisions; the matrix is a
+ * finite sample of it. This guard enforces the strongest sample that is
+ * decidable offline - **one driven revision per MINOR the range claims** - and
+ * it enforces nothing finer. A green run therefore means "every minor in the
+ * declared range has a revision that cleared both columns", NOT "every patch
+ * release in the range was exercised". Patch releases inside a covered minor
+ * are claimed on the evidence of their minor's representative and on upstream's
+ * own patch-release discipline, which is an inference, not a measurement. Say
+ * that where the range is published; do not let a table of ticks imply more.
+ *
+ * The revisions driven here are the *tested* sample. They are not a promise
  * about revisions that do not exist yet: a wider peer range may only follow a
  * wider measured matrix (P57 Track V drove r183.0-r185.1 to set this one).
  *
- * The matrix is the range's two ends PLUS `RETAINED_REVISIONS`. Deriving it
+ * The sample is the range's two ends PLUS `RETAINED_REVISIONS`. Deriving it
  * from the ends alone was enough only while the interior was empty: the moment
- * the reference moves forward past a revision the range still claims, that
- * revision stops being driven and the claim over it goes unmeasured, silently.
- * Retaining it is not belt-and-braces - a revision inside a declared range with
- * no row in this matrix is an unsupported claim, whatever the ends report.
+ * the reference moves forward past a minor the range still claims, that minor
+ * stops being driven and the claim over it goes unmeasured, silently. Retaining
+ * it is not belt-and-braces - a minor inside a declared range with no row in
+ * this matrix is an unsupported claim, whatever the ends report. The coverage
+ * guard below is what makes that sentence enforced rather than merely asserted:
+ * a hand-maintained list nobody checks fails open the first time it is edited.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -74,10 +87,25 @@ const RETAINED_REVISIONS = ['0.185.1'];
 
 const REVISIONS = [...new Set([minimum, ...RETAINED_REVISIONS, reference])];
 
-/** Cheap semver-ish ordering; every revision here is `0.MINOR.PATCH`. */
+/** `MAJOR.MINOR.PATCH` -> parts, or `undefined` for anything else. */
+const parse = (revision) => {
+  const parts = String(revision).split('.').map(Number);
+  if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part) || part < 0)) {
+    return undefined;
+  }
+  const [major, minor, patch] = parts;
+  return { major, minor, patch };
+};
+/** Cheap semver-ish ordering over the parsed parts. */
 const order = (revision) => {
-  const [major, minor, patch] = revision.split('.').map(Number);
-  return major * 1e8 + minor * 1e4 + patch;
+  const at = parse(revision);
+  if (at === undefined) {
+    console.error(
+      `check-three-compatibility: cannot read a MAJOR.MINOR.PATCH revision from "${revision}"`
+    );
+    process.exit(2);
+  }
+  return at.major * 1e8 + at.minor * 1e4 + at.patch;
 };
 const upperBound = /<\s*([\d.]+)/.exec(peerRange)?.[1];
 for (const retained of RETAINED_REVISIONS) {
@@ -93,10 +121,66 @@ for (const retained of RETAINED_REVISIONS) {
   }
 }
 
+/**
+ * The MINORS the declared range claims.
+ *
+ * `<X.Y.0` excludes every `X.Y.*`, so the last claimed minor is `Y - 1`;
+ * `<X.Y.3` claims `X.Y.0 … X.Y.2`, so it is `Y`. An unbounded range claims
+ * revisions that do not exist yet and no finite matrix can cover it, which is
+ * why the absence of an upper bound is a failure here rather than a pass.
+ */
+function claimedMinors(lowest, highestExclusive) {
+  const low = parse(lowest);
+  const high = parse(highestExclusive);
+  if (low === undefined || high === undefined || low.major !== high.major) return undefined;
+  const last = high.patch > 0 ? high.minor : high.minor - 1;
+  const minors = [];
+  for (let minor = low.minor; minor <= last; minor++) minors.push(minor);
+  return { major: low.major, minors };
+}
+
+const claimed = upperBound === undefined ? undefined : claimedMinors(minimum, upperBound);
+if (claimed === undefined) {
+  console.error(
+    `check-three-compatibility: cannot enumerate the minors that "${peerRange}" claims. ` +
+    'The range needs a `>=MAJOR.MINOR.PATCH` and a `<MAJOR.MINOR.PATCH` with the same ' +
+    'major, because an unbounded or cross-major claim cannot be covered by any finite matrix.'
+  );
+  process.exit(2);
+}
+/**
+ * COVERAGE: every claimed minor must have a driven representative.
+ *
+ * This is the direction the previous version of this guard did not check. It
+ * only verified that each retained revision lay *inside* the range - true and
+ * useless when the list is emptied, because `{minimum, reference}` alone stays
+ * green while the minors between them go unmeasured. Deleting `0.185.1` from
+ * `RETAINED_REVISIONS` under `>=0.184.0 <0.187.0` did exactly that: exit 0,
+ * 0.185.x claimed and driven by nothing. So does moving the reference forward
+ * over a minor without retaining it. Both now fail here.
+ */
+const drivenMinors = new Set(REVISIONS.map((revision) => parse(revision)?.minor));
+const uncovered = claimed.minors.filter((minor) => !drivenMinors.has(minor));
+if (uncovered.length > 0) {
+  console.error(
+    `\ncheck-three-compatibility: the declared range "${peerRange}" claims ` +
+    `${claimed.major}.${uncovered.join('.x, ' + claimed.major + '.')}.x, and the matrix ` +
+    `(${REVISIONS.join(', ')}) drives no revision from ` +
+    `${uncovered.length === 1 ? 'that minor' : 'those minors'}.\n\n` +
+    'A minor inside the range with no row here is an unsupported claim. Either add a\n' +
+    'published revision from it to RETAINED_REVISIONS and let this guard drive it, or\n' +
+    'narrow the range so the claim and the matrix describe the same interval. Never\n' +
+    'delete the coverage requirement to make this pass.\n'
+  );
+  process.exit(2);
+}
+
 REVISIONS.sort((left, right) => order(left) - order(right));
 console.log(
   `check-three-compatibility: peer range "${peerRange}", reference ${reference}; ` +
-  `driving ${REVISIONS.join(', ')}`
+  `driving ${REVISIONS.join(', ')} - one representative per claimed minor ` +
+  `(${claimed.major}.${claimed.minors.join('.x, ' + claimed.major + '.')}.x). ` +
+  'This samples the range; it does not exercise every patch release in it.'
 );
 
 const TYPED_DRIVE = `import * as THREE from 'three';
@@ -529,5 +613,7 @@ if (missing.length > 0) {
 }
 console.log(
   `\ncheck-three-compatibility: ${REVISIONS.length} tested revision(s) pass ` +
-  'both the strict-TypeScript and runtime columns.'
+  'both the strict-TypeScript and runtime columns, covering every minor the ' +
+  `range claims (${claimed.major}.${claimed.minors.join('.x, ' + claimed.major + '.')}.x). ` +
+  'Patch releases other than these were not exercised.'
 );
