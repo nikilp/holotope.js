@@ -31,6 +31,13 @@
  * The revisions driven here are the *tested* interval. They are not a promise
  * about revisions that do not exist yet: a wider peer range may only follow a
  * wider measured matrix (P57 Track V drove r183.0-r185.1 to set this one).
+ *
+ * The matrix is the range's two ends PLUS `RETAINED_REVISIONS`. Deriving it
+ * from the ends alone was enough only while the interior was empty: the moment
+ * the reference moves forward past a revision the range still claims, that
+ * revision stops being driven and the claim over it goes unmeasured, silently.
+ * Retaining it is not belt-and-braces - a revision inside a declared range with
+ * no row in this matrix is an unsupported claim, whatever the ends report.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -56,7 +63,37 @@ if (minimum === undefined) {
   process.exit(2);
 }
 
-const REVISIONS = [...new Set([minimum, reference])];
+/**
+ * Revisions that stay in the matrix after the reference moves off them.
+ *
+ * Every entry must lie inside the declared peer range; the guard checks that
+ * below rather than trusting the list, so a range narrowed past one of these
+ * fails loudly instead of quietly driving a revision it no longer claims.
+ */
+const RETAINED_REVISIONS = ['0.185.1'];
+
+const REVISIONS = [...new Set([minimum, ...RETAINED_REVISIONS, reference])];
+
+/** Cheap semver-ish ordering; every revision here is `0.MINOR.PATCH`. */
+const order = (revision) => {
+  const [major, minor, patch] = revision.split('.').map(Number);
+  return major * 1e8 + minor * 1e4 + patch;
+};
+const upperBound = /<\s*([\d.]+)/.exec(peerRange)?.[1];
+for (const retained of RETAINED_REVISIONS) {
+  const insideLowerBound = order(retained) >= order(minimum);
+  const insideUpperBound = upperBound === undefined || order(retained) < order(upperBound);
+  if (!insideLowerBound || !insideUpperBound) {
+    console.error(
+      `check-three-compatibility: retained revision ${retained} is outside the ` +
+      `declared range "${peerRange}". Drop it from RETAINED_REVISIONS in the same ` +
+      'change that narrows the range, so the matrix and the claim stay the same set.'
+    );
+    process.exit(2);
+  }
+}
+
+REVISIONS.sort((left, right) => order(left) - order(right));
 console.log(
   `check-three-compatibility: peer range "${peerRange}", reference ${reference}; ` +
   `driving ${REVISIONS.join(', ')}`
