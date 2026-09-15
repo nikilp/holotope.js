@@ -125,9 +125,34 @@ export function contactTangentBasis4(
   for (const source of sources) {
     assertVector4(source, 'basis vector');
     const tangent = source.clone();
-    tangent.sub(unitNormal.clone().multiplyScalar(tangent.dot(unitNormal)));
-    for (const accepted of basis) {
-      tangent.sub(accepted.clone().multiplyScalar(tangent.dot(accepted)));
+    // Two orthogonalization passes, not one.
+    //
+    // A single pass of classical Gram-Schmidt loses orthogonality exactly when
+    // a source is nearly parallel to what it is being projected against, and
+    // that is the ordinary case here: when the contact normal is close to a
+    // coordinate axis, `e_k - (e_k . n) n` is the difference of two nearly
+    // equal unit vectors. The cancelled result keeps absolute error of order
+    // eps while its own length collapses, so after normalization its relative
+    // error — and hence `t . n` — is eps divided by that length.
+    //
+    // Measured on a box pair whose contact normal is within 5e-8 of -x: one
+    // pass left `t . n` as large as 8.6e-9, which put every reconstructed
+    // vertex 7.6e-9 off the contact plane. A face nearly parallel to that plane
+    // projects into it almost degenerately, so the off-plane drift landed
+    // whole on that constraint and every candidate vertex was rejected as
+    // infeasible. The enumerator then had nothing to return and threw.
+    //
+    // Re-projecting a second time cancels the first pass's residual rather than
+    // its signal: the second subtraction removes a quantity of order eps
+    // times the already-shortened length, so the result is orthogonal to
+    // machine precision. This changes no tolerance and admits no point that
+    // was previously excluded on geometric grounds; it only stops the basis
+    // from mis-stating which points lie in the plane at all.
+    for (let pass = 0; pass < 2; pass++) {
+      tangent.sub(unitNormal.clone().multiplyScalar(tangent.dot(unitNormal)));
+      for (const accepted of basis) {
+        tangent.sub(accepted.clone().multiplyScalar(tangent.dot(accepted)));
+      }
     }
     const length = tangent.length();
     if (length > tolerance) basis.push(tangent.multiplyScalar(1 / length));
