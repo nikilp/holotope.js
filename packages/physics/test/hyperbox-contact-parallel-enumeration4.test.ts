@@ -411,8 +411,8 @@ describe('the configuration matrix', () => {
       { planes: [[0, 1], [0, 2]] as const, dim: 1, vertices: 2 },
       { planes: [[0, 1], [0, 2], [0, 3]] as const, dim: 0, vertices: 1 }
     ];
-    // 1e-7 is excluded here and covered separately below: at that angle SAT
-    // selects a cross-family axis rather than a facet normal, which is a
+    // 1e-7 is excluded here and covered separately below: at that angle the
+    // alignment translation overshoots the touching configuration, which is a
     // different situation and a second, still-open defect.
     for (const family of families) {
       for (const angle of [1e-3, 1e-5, 1e-9]) {
@@ -427,9 +427,9 @@ describe('the configuration matrix', () => {
   it('both bodies rotated, in different planes, still enumerates', () => {
     // The captured failure had both bodies turned. A fixture that turns only
     // one would not have covered it.
-    // Angles are chosen outside the cross-family axis regime recorded as OPEN
-    // below; measured, this family enumerates at 1e-2 through 1e-7 and at 1e-9,
-    // and throws only at 1e-8 where SAT switches axis.
+    // Angles are chosen outside the overshoot regime recorded as OPEN below;
+    // measured, this family enumerates at 1e-2 through 1e-7 and at 1e-9, and
+    // throws only at 1e-8.
     for (const angle of [1e-3, 1e-6]) {
       const reading = inspect(
         posedPair({
@@ -508,26 +508,32 @@ describe('the configuration matrix', () => {
 });
 
 describe('a second defect, distinct from the one fixed here', () => {
-  it('OPEN: a cross-family SAT axis leaves no feasible vertex to enumerate', () => {
-    // Recorded, not repaired. This is NOT the tangent-basis conditioning fault
-    // that the rest of this file is about, and it is not asserted to be wanted
-    // behaviour — it is the next thing to fix, scoped separately because the
-    // correction lies in axis selection or in the alignment translation rather
-    // than in the enumerator.
+  it('OPEN: the alignment translation overshoots the touching configuration', () => {
+    // Recorded, not repaired. This is NOT the tangent-basis cancellation that
+    // the rest of this file is about, and it is not asserted to be wanted
+    // behaviour.
     //
-    // At a tilt of 1e-7 in one plane, `hyperboxSat4` reports the axis
-    // (-1, -1e-7, 0, 0): a cross-family axis, not either body's facet normal.
-    // The API then translates A along THAT axis until the projected intervals
-    // touch. Because the axis is not normal to B's face, the just-touching
-    // configuration does not place A's corners on B's boundary: measured, all
-    // eight of A's corners that reach the contact plane sit 5.0e-9 to 1.05e-7
-    // OUTSIDE B's face. No feasible vertex exists for the enumerator to find,
-    // so widening a tolerance would not help and would admit points outside B.
+    // SUPERSEDES an earlier description of this case, which called the axis
+    // "cross-family". It is not: `hyperboxSat4` reports
+    // `source.featureClass === 'facet-a'` with `axesA: [0]`, so the axis IS a
+    // facet normal — A's own, carrying A's 1e-7 tilt. Two corrections that
+    // followed from that misreading, "make SAT prefer a facet normal" and
+    // "align along the reference box's facet normal instead of the raw axis",
+    // are withdrawn: both merely select the axis SAT already returns.
+    //
+    // What is actually wrong is the translation. A is moved along that axis
+    // until the projected intervals touch, and the result overshoots: measured,
+    // all eight of A's corners that reach the contact plane sit 5.0e-9 to
+    // 1.05e-7 OUTSIDE B. No feasible vertex exists for the enumerator to find,
+    // so no tolerance could rescue it without admitting points outside B.
     const pair = posedPair({ planes: [[0, 1]], angle: 1e-7, gap: 0.83 });
     const sat = hyperboxSat4(pair.a, pair.b);
     expect(sat.status).toBe('overlapping');
-    // The axis carries the tilt, rather than being a clean facet normal.
-    expect(Math.abs(sat.axis.data[1]!)).toBeGreaterThan(1e-9);
+    // The axis is A's facet normal, reported as such.
+    expect(sat.source.featureClass).toBe('facet-a');
+    expect(Array.from(sat.source.axesA)).toEqual([0]);
+    const axisA = pair.a.worldAxes()[0]!;
+    expect(Math.abs(Math.abs(axisA.dot(sat.axis)) - 1)).toBeLessThan(1e-12);
     expect(() => hyperboxContactPatch4(pair.a, pair.b)).toThrow(
       /failed to enumerate a bounded contact patch/
     );

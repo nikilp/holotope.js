@@ -127,27 +127,37 @@ export function contactTangentBasis4(
     const tangent = source.clone();
     // Two orthogonalization passes, not one.
     //
-    // A single pass of classical Gram-Schmidt loses orthogonality exactly when
-    // a source is nearly parallel to what it is being projected against, and
-    // that is the ordinary case here: when the contact normal is close to a
-    // coordinate axis, `e_k - (e_k . n) n` is the difference of two nearly
-    // equal unit vectors. The cancelled result keeps absolute error of order
-    // eps while its own length collapses, so after normalization its relative
-    // error — and hence `t . n` — is eps divided by that length.
+    // The loop below projects against the running vector rather than the
+    // original, so it is MODIFIED Gram-Schmidt. That is not what fails here,
+    // and the distinction does not even arise for the first subtraction: with
+    // a single vector to project against, the modified and classical forms are
+    // the same expression. The failure is plain cancellation.
     //
-    // Measured on a box pair whose contact normal is within 5e-8 of -x: one
-    // pass left `t . n` as large as 8.6e-9, which put every reconstructed
-    // vertex 7.6e-9 off the contact plane. A face nearly parallel to that plane
-    // projects into it almost degenerately, so the off-plane drift landed
-    // whole on that constraint and every candidate vertex was rejected as
-    // infeasible. The enumerator then had nothing to return and threw.
+    // When a source is nearly parallel to the normal, `e_k - (e_k . n) n` is
+    // the difference of two nearly equal unit vectors. The subtraction carries
+    // absolute rounding error of order eps while its result's own length
+    // collapses, so after normalization the relative error — and hence
+    // `t . n` — is about eps divided by that length, however the projections
+    // were ordered.
     //
-    // Re-projecting a second time cancels the first pass's residual rather than
-    // its signal: the second subtraction removes a quantity of order eps
-    // times the already-shortened length, so the result is orthogonal to
-    // machine precision. This changes no tolerance and admits no point that
-    // was previously excluded on geometric grounds; it only stops the basis
-    // from mis-stating which points lie in the plane at all.
+    // Measured for a contact normal within 5e-8 of -x:
+    // `|e0 - (e0 . n) n|` is 5.32e-8, giving a predicted eps/|r| of 4.18e-9,
+    // and the single-pass basis showed `t . n` of 3.04e-9, 8.60e-9 and
+    // -6.00e-9. ALL THREE vectors are affected, not only the one built from
+    // the near-parallel source: the first vector's error propagates into the
+    // others through the subtractions against already-accepted vectors.
+    //
+    // The consequence is an off-plane drift of `sum_i x_i (t_i . n)` for a
+    // point at tangent coordinates x — proportional to |x|, not a constant. At
+    // the |x| ~ 1.05 of the reproducing case it is about 1.07e-8, and the
+    // particular vertex that mattered there was 7.64e-9 off the plane.
+    //
+    // Re-projecting a second time cancels the first pass's residual rather
+    // than its signal: the second subtraction removes a quantity of order eps
+    // times the already-shortened length. Measured after this change, `t . n`
+    // is at or below 6.62e-24 for the same normal. This changes no tolerance
+    // and admits no point that was previously excluded on geometric grounds;
+    // it only stops the basis from mis-stating which points lie in the plane.
     for (let pass = 0; pass < 2; pass++) {
       tangent.sub(unitNormal.clone().multiplyScalar(tangent.dot(unitNormal)));
       for (const accepted of basis) {
