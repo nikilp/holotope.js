@@ -152,93 +152,242 @@ describe('scaling a bound by the denominator is exact at the facets', () => {
   });
 });
 
-describe('every shipped preset authors its window in numerator units', () => {
-  /**
-   * Measured rather than asserted: for each accepted point, how much of each
-   * halfspace bound the numerator uses against how much the divided Float64
-   * coordinate uses. The ratio is the denominator when the window is authored
-   * in numerator units.
-   */
-  function fillRatio(
-    flat: { ring: typeof phiRing; perpendicularDenominator: bigint },
-    windows: readonly ConvexWindow[],
-    points: readonly { perpendicularExact: readonly ExactValue[]; perpendicular: Float64Array }[]
-  ): number {
-    let worstNumerator = -Infinity;
-    let worstFloat = -Infinity;
-    for (const point of points) {
-      for (const window of windows) {
-        for (const halfspace of window.halfspaces) {
-          let numerator = 0;
-          let divided = 0;
-          for (let i = 0; i < halfspace.normal.length; i++) {
-            const n = flat.ring.toNumber(halfspace.normal[i]!);
-            numerator += n * flat.ring.toNumber(point.perpendicularExact[i]!);
-            divided += n * point.perpendicular[i]!;
-          }
-          const bound = flat.ring.toNumber(halfspace.bound);
-          if (Math.abs(bound) < 1e-12) continue;
-          worstNumerator = Math.max(worstNumerator, numerator / bound);
-          worstFloat = Math.max(worstFloat, divided / bound);
-        }
+/**
+ * Which coordinate does a shipped preset's window actually classify?
+ *
+ * NOT by a fill RATIO. `perpendicular[i]` is identically
+ * `perpendicularExact[i] / d`, so the ratio between the two fills is `d` for any
+ * window, any points, correct or not — it cannot discriminate, and an earlier
+ * version of this file asserted exactly that vacuity.
+ *
+ * Instead each preset's accepted set is compared against the two competing
+ * readings of its OWN authored bounds, both recomputed here from
+ * `perpendicularExact` with ring arithmetic rather than by calling
+ * `ConvexWindow.classify`:
+ *
+ *   numerator semantics   accept iff  n · numerator <= b
+ *   true-coordinate sem.  accept iff  n · (numerator / d) <= b,
+ *                         equivalently  n · numerator <= d · b
+ *
+ * The second admits strictly more points when `d > 1`, so the two disagree on a
+ * named, non-empty set — and every disagreeing point is a witness the library
+ * must reject. That is what makes these assertions discriminating.
+ *
+ * FINITE-SAMPLE LIMIT. Each check enumerates one explicit coefficient box. It
+ * establishes the contract for the points in that box and nothing beyond it: a
+ * window could in principle behave differently outside, and no box proves a
+ * property of the infinite lattice. The boxes are chosen small enough to
+ * enumerate exactly and large enough that points reach their authored bound.
+ */
+interface PresetUnderTest {
+  readonly name: string;
+  readonly denominator: bigint;
+  readonly rank: number;
+  readonly half: number;
+  readonly lattice: LatticeN;
+  readonly flat: FlatN;
+  /** The window a given coefficient tuple is classified against. */
+  windowFor(coefficients: readonly bigint[]): ConvexWindow | null;
+  readonly accepted: ReadonlySet<string>;
+}
+
+/** `normal . point` in the ring, without going through the window. */
+function dot(
+  ring: FlatN['ring'],
+  normal: readonly ExactValue[],
+  point: readonly ExactValue[]
+): ExactValue {
+  let value = ring.zero;
+  for (let i = 0; i < normal.length; i++) {
+    value = ring.add(value, ring.mul(normal[i]!, point[i]!));
+  }
+  return value;
+}
+
+/**
+ * Enumerate the box and split it by the two competing readings.
+ *
+ * `boundScale` of 1 is numerator semantics; `d` is true-coordinate semantics.
+ */
+function acceptedUnder(preset: PresetUnderTest, boundScale: bigint): Set<string> {
+  const ring = preset.flat.ring;
+  const scale: ExactValue = { a: boundScale, b: 0n };
+  const out = new Set<string>();
+  const coefficients = new Array<bigint>(preset.rank).fill(0n);
+  const visit = (axis: number): void => {
+    if (axis === preset.rank) {
+      const window = preset.windowFor(coefficients);
+      if (!window) return;
+      const numerator = preset.flat.projectPerpendicular(preset.lattice.point(coefficients));
+      for (const halfspace of window.halfspaces) {
+        const value = dot(ring, halfspace.normal, numerator);
+        if (ring.compare(value, ring.mul(scale, halfspace.bound)) > 0) return;
       }
+      out.add(coefficients.join(','));
+      return;
     }
-    return worstNumerator / worstFloat;
+    for (let v = -preset.half; v <= preset.half; v++) {
+      coefficients[axis] = BigInt(v);
+      visit(axis + 1);
+    }
+  };
+  visit(0);
+  return out;
+}
+
+/**
+ * The largest fraction of any authored bound that the accepted points reach.
+ *
+ * These two numbers are FLOAT SUMMARIES of facts the set comparisons above
+ * already establish exactly. They are reported separately — never as a ratio —
+ * and compared with a small tolerance, because summing `normal · perpendicular`
+ * in Float64 lands a unit in the last place either side of an exact bound:
+ * elser-sloane's true-coordinate fill is exactly 1/6 and evaluates to
+ * 0.16666666666666669.
+ */
+function extents(preset: PresetUnderTest, points: readonly {
+  coefficients: readonly bigint[];
+  perpendicularExact: readonly ExactValue[];
+  perpendicular: Float64Array;
+}[]): { numerator: number; trueCoordinate: number } {
+  const ring = preset.flat.ring;
+  let numerator = -Infinity;
+  let trueCoordinate = -Infinity;
+  for (const point of points) {
+    const window = preset.windowFor(point.coefficients);
+    if (!window) continue;
+    for (const halfspace of window.halfspaces) {
+      const bound = ring.toNumber(halfspace.bound);
+      if (Math.abs(bound) < 1e-12) continue;
+      numerator = Math.max(
+        numerator, ring.toNumber(dot(ring, halfspace.normal, point.perpendicularExact)) / bound
+      );
+      let divided = 0;
+      for (let i = 0; i < halfspace.normal.length; i++) {
+        divided += ring.toNumber(halfspace.normal[i]!) * point.perpendicular[i]!;
+      }
+      trueCoordinate = Math.max(trueCoordinate, divided / bound);
+    }
+  }
+  return { numerator, trueCoordinate };
+}
+
+/** One ulp of headroom for the float summaries; the exact work is done above. */
+const FILL_EPS = 1e-12;
+
+function check(preset: PresetUnderTest): void {
+  const d = preset.denominator;
+  const underNumerator = acceptedUnder(preset, 1n);
+  const underTrueCoordinate = acceptedUnder(preset, d);
+
+  // The two readings must actually disagree, or nothing below discriminates.
+  const onlyUnderTrue = [...underTrueCoordinate].filter((k) => !underNumerator.has(k));
+  expect(onlyUnderTrue.length, `${preset.name}: the two semantics agree on this box, so it cannot discriminate`)
+    .toBeGreaterThan(0);
+
+  // Every point the library accepted satisfies the NUMERATOR reading of the
+  // preset's own bounds. Under the other reading a point may exceed a bound by
+  // up to a factor of d, so this fails there.
+  for (const key of preset.accepted) {
+    expect(underNumerator.has(key), `${preset.name}: accepted ${key} violates n . numerator <= b`).toBe(true);
   }
 
-  it('ammann-beenker, at denominator 4', () => {
-    const model = createAmmannBeenkerModelSet();
+  // Concrete witnesses: every point the true-coordinate reading would admit and
+  // the numerator reading would not is rejected by the library.
+  for (const key of onlyUnderTrue) {
+    expect(preset.accepted.has(key), `${preset.name}: ${key} is admitted only by true-coordinate semantics, but was accepted`).toBe(false);
+  }
+}
+
+describe('each preset classifies the numerator, not the divided coordinate', () => {
+  it('ammann-beenker, denominator 4', () => {
+    // 'exclude' rather than the default 'error': under the competing semantics
+    // this preset meets a singular cut and throws, and a throw would let the
+    // check pass for a reason that has nothing to do with the contract. With a
+    // tie-break that does not throw, what fails is the witness assertion.
+    const model = createAmmannBeenkerModelSet('exclude');
+    expect(model.flat.perpendicularDenominator).toBe(4n);
+    const half = 4;
     const patch = model.sample({
-      coefficientRanges: Array.from({ length: 4 }, () => ({ min: -4, max: 4 }))
+      coefficientRanges: Array.from({ length: 4 }, () => ({ min: -half, max: half }))
     });
-    expect(Number(model.flat.perpendicularDenominator)).toBe(4);
-    expect(fillRatio(model.flat, [model.window], patch.points)).toBeCloseTo(4, 6);
+    const preset: PresetUnderTest = {
+      name: 'ammann-beenker', denominator: 4n, rank: 4, half,
+      lattice: model.lattice, flat: model.flat,
+      windowFor: () => model.window,
+      accepted: new Set(patch.points.map((p) => p.coefficients.join(',')))
+    };
+    check(preset);
+    const { numerator, trueCoordinate } = extents(preset, patch.points);
+    // Reported separately, never as a ratio. The numerator reaches its authored
+    // bound; the divided coordinate cannot exceed a quarter of it.
+    expect(numerator).toBeLessThanOrEqual(1 + FILL_EPS);
+    expect(numerator).toBeGreaterThan(0.9);
+    expect(trueCoordinate).toBeLessThanOrEqual(1 / 4 + FILL_EPS);
   });
 
-  it('penrose, at denominator 7, each point against its own window class', () => {
+  it('penrose, denominator 7, per window class', () => {
     const model = createPenroseModelSet();
+    expect(model.flat.perpendicularDenominator).toBe(7n);
+    const half = 5;
     const patch = model.sample({
-      coefficientRanges: Array.from({ length: 4 }, () => ({ min: -5, max: 5 }))
+      coefficientRanges: Array.from({ length: 4 }, () => ({ min: -half, max: half }))
     });
-    expect(Number(model.flat.perpendicularDenominator)).toBe(7);
-    let worstNumerator = -Infinity;
-    let worstFloat = -Infinity;
-    for (const point of patch.points) {
-      const window = model.windows.get(point.windowClass)!;
-      for (const halfspace of window.halfspaces) {
-        let numerator = 0;
-        let divided = 0;
-        for (let i = 0; i < halfspace.normal.length; i++) {
-          const n = phiRing.toNumber(halfspace.normal[i]!);
-          numerator += n * phiRing.toNumber(point.perpendicularExact[i]!);
-          divided += n * point.perpendicular[i]!;
-        }
-        const bound = phiRing.toNumber(halfspace.bound);
-        if (Math.abs(bound) < 1e-12) continue;
-        worstNumerator = Math.max(worstNumerator, numerator / bound);
-        worstFloat = Math.max(worstFloat, divided / bound);
-      }
-    }
-    expect(worstNumerator / worstFloat).toBeCloseTo(7, 6);
+    // The class rule is sum(coefficients) mod 5, with residue 0 carrying no
+    // window; recomputed here rather than read off the produced points.
+    const classOf = (coefficients: readonly bigint[]): ConvexWindow | null => {
+      const residue = Number(((coefficients.reduce((s, v) => s + v, 0n) % 5n) + 5n) % 5n);
+      return residue === 0 ? null : model.windows.get(residue as 1 | 2 | 3 | 4) ?? null;
+    };
+    const preset: PresetUnderTest = {
+      name: 'penrose', denominator: 7n, rank: 4, half,
+      lattice: model.lattice, flat: model.flat, windowFor: classOf,
+      accepted: new Set(patch.points.map((p) => p.coefficients.join(',')))
+    };
+    check(preset);
+    const { numerator, trueCoordinate } = extents(preset, patch.points);
+    expect(numerator).toBeLessThanOrEqual(1 + FILL_EPS);
+    expect(numerator).toBeGreaterThan(0.9);
+    expect(trueCoordinate).toBeLessThanOrEqual(1 / 7 + FILL_EPS);
   });
 
-  it('elser-sloane, at denominator 6', () => {
+  it('elser-sloane, denominator 6', () => {
     const model = createElserSloaneModelSet();
+    expect(model.flat.perpendicularDenominator).toBe(6n);
+    const half = 1;
     const patch = model.sample({
-      coefficientRanges: Array.from({ length: 8 }, () => ({ min: -1, max: 1 }))
+      coefficientRanges: Array.from({ length: 8 }, () => ({ min: -half, max: half }))
     });
-    expect(Number(model.flat.perpendicularDenominator)).toBe(6);
-    expect(fillRatio(model.flat, [model.window], patch.points)).toBeCloseTo(6, 6);
+    const preset: PresetUnderTest = {
+      name: 'elser-sloane', denominator: 6n, rank: 8, half,
+      lattice: model.lattice, flat: model.flat,
+      windowFor: () => model.window,
+      accepted: new Set(patch.points.map((p) => p.coefficients.join(',')))
+    };
+    check(preset);
+    const { numerator, trueCoordinate } = extents(preset, patch.points);
+    expect(numerator).toBeLessThanOrEqual(1 + FILL_EPS);
+    expect(numerator).toBeGreaterThan(0.9);
+    expect(trueCoordinate).toBeLessThanOrEqual(1 / 6 + FILL_EPS);
   });
 
-  it('akn, at denominator 7 under a phason offset', () => {
-    const model = createAKNModelSet({
-      phasonOffsetSevenths: [Z(1, 0), Z(1, 0), Z(2, 0)]
-    });
+  it('akn, denominator 7 under a phason offset', () => {
+    const model = createAKNModelSet({ phasonOffsetSevenths: [Z(1, 0), Z(1, 0), Z(2, 0)] });
+    expect(model.flat.perpendicularDenominator).toBe(7n);
+    const half = 2;
     const patch = model.sample({
-      coefficientRanges: Array.from({ length: 6 }, () => ({ min: -2, max: 2 }))
+      coefficientRanges: Array.from({ length: 6 }, () => ({ min: -half, max: half }))
     });
-    expect(Number(model.flat.perpendicularDenominator)).toBe(7);
-    expect(fillRatio(model.flat, [model.window], patch.points)).toBeCloseTo(7, 6);
+    const preset: PresetUnderTest = {
+      name: 'akn', denominator: 7n, rank: 6, half,
+      lattice: model.lattice, flat: model.flat,
+      windowFor: () => model.window,
+      accepted: new Set(patch.points.map((p) => p.coefficients.join(',')))
+    };
+    check(preset);
+    const { numerator, trueCoordinate } = extents(preset, patch.points);
+    expect(numerator).toBeLessThanOrEqual(1 + FILL_EPS);
+    expect(numerator).toBeGreaterThan(0.9);
+    expect(trueCoordinate).toBeLessThanOrEqual(1 / 7 + FILL_EPS);
   });
 });
