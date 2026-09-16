@@ -69,11 +69,42 @@ export interface FlatNOptions {
   parallelProjection: ReadonlyArray<ReadonlyArray<ExactValue>>;
   /** Row-major exact map from ambient coordinates to internal coordinates. */
   perpendicularProjection: ReadonlyArray<ReadonlyArray<ExactValue>>;
+  /**
+   * Added to the parallel projection BEFORE the denominator is applied, so it
+   * is expressed in NUMERATOR units: to shift by a true `t`, supply
+   * `parallelDenominator * t`.
+   */
   parallelOffset?: readonly ExactValue[];
+  /**
+   * Added to the perpendicular projection BEFORE the denominator is applied, so
+   * it is expressed in NUMERATOR units: to shift the internal coordinate by a
+   * true `t`, supply `perpendicularDenominator * t`. Supplying `t` itself
+   * produces a shift of `t / perpendicularDenominator`.
+   */
   perpendicularOffset?: readonly ExactValue[];
-  /** Positive common denominator for parallel exact coordinates. Default 1. */
+  /**
+   * Positive common denominator for parallel exact coordinates. Default 1.
+   *
+   * `parallelProjection` and `parallelOffset` hold NUMERATORS. The denominator
+   * is applied only when rendering `ModelPoint.parallel` as Float64; it never
+   * takes part in an exact computation.
+   */
   parallelDenominator?: bigint;
-  /** Positive common denominator for perpendicular exact coordinates. Default 1. */
+  /**
+   * Positive common denominator for perpendicular exact coordinates. Default 1.
+   *
+   * `perpendicularProjection` and `perpendicularOffset` hold NUMERATORS, and so
+   * does the coordinate the window classifies. The denominator is applied only
+   * when rendering `ModelPoint.perpendicular` as Float64.
+   *
+   * **Window bounds must be scaled with it.** `ConvexWindow` compares against
+   * the undivided numerator, so a window authored for true coordinates accepts
+   * a region `perpendicularDenominator` times narrower than intended unless
+   * every halfspace bound is multiplied by the same denominator. This is the
+   * established contract, not an accident: `ammannBeenker` (4), `penrose` (7),
+   * `akn` (7) and `elserSloane` (6) all author their windows this way. See
+   * `ExactHalfspace`.
+   */
   perpendicularDenominator?: bigint;
 }
 
@@ -162,7 +193,20 @@ export class FlatN {
 }
 
 export interface ExactHalfspace {
-  /** The accepted side is `normal dot point <= bound`. */
+  /**
+   * The accepted side is `normal dot point <= bound`, where `point` is the
+   * UNDIVIDED exact coordinate — `FlatN.projectPerpendicular`'s return value,
+   * equivalently `ModelPoint.perpendicularExact` — and NOT that value divided
+   * by `perpendicularDenominator`.
+   *
+   * So `normal` and `bound` are expressed in numerator units. Under a flat with
+   * `perpendicularDenominator: d`, a window meant to admit `|y| <= b` in true
+   * coordinates must be authored with bound `d * b`.
+   *
+   * Scaling every bound by a positive integer is exact and moves no point
+   * across a facet: `n . numerator = d * b` holds exactly when
+   * `n . (numerator / d) = b`, so `boundary` decisions are unchanged.
+   */
   readonly normal: readonly ExactValue[];
   readonly bound: ExactValue;
   /** Facet convention; `defer` delegates equality to the model-set policy. */
@@ -171,7 +215,18 @@ export interface ExactHalfspace {
 
 export type WindowLocation = 'inside' | 'boundary' | 'outside';
 
-/** A convex exact window represented by ring-valued halfspaces. */
+/**
+ * A convex exact window represented by ring-valued halfspaces.
+ *
+ * The window lives in the same coordinates as the value passed to `classify`,
+ * which for a model set is the undivided perpendicular NUMERATOR. A window used
+ * with a flat whose `perpendicularDenominator` is not 1 must therefore have its
+ * bounds scaled by that denominator; see `ExactHalfspace`.
+ *
+ * Nothing here divides. `ExactRing` provides no division — these rings are not
+ * fields — so the exact way to express "compare the divided coordinate against
+ * `b`" is to compare the numerator against `d * b`.
+ */
 export class ConvexWindow {
   readonly ring: ExactRing;
   readonly dim: number;
@@ -245,6 +300,11 @@ export interface ModelPoint {
   readonly coefficients: readonly bigint[];
   readonly ambient: readonly ExactValue[];
   readonly parallelExact: readonly ExactValue[];
+  /**
+   * The undivided exact internal coordinate: `perpendicularDenominator` has NOT
+   * been applied. This is the value the window classified, and the value
+   * `perpendicular` is derived from by dividing.
+   */
   readonly perpendicularExact: readonly ExactValue[];
   /** Common exact-coordinate denominator used by `parallelExact`. */
   readonly parallelDenominator: bigint;
