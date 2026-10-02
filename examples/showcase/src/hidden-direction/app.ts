@@ -3,7 +3,7 @@ import './hidden-direction.css';
 import { Mesh, Raycaster, Vector2, Vector3, type Material, type MeshStandardMaterial, type Object3D } from 'three';
 import { CHAPTERS, createExperience, type Action, type ChapterId } from './experience.js';
 import { BUTTONS, INSTRUMENTS, chapterAction, keyAction, sliderKey, type CameraKey } from './bindings.js';
-import { plainReading, signedReading } from './copy.js';
+import { AT_ZERO, derivedReading, plainReading, signedReading } from './copy.js';
 import { anaRegion, lineSegment, type Footprint } from './plane.js';
 import { createStage } from './stage.js';
 
@@ -144,7 +144,11 @@ export function createApp(root: HTMLElement): void {
       if (a < -Math.PI / 2) a += Math.PI;
       send(INSTRUMENTS.turn.act((a * 180) / Math.PI));
     } else {
-      send(INSTRUMENTS.slide.act(line.n[0] * px + line.n[1] * pw));
+      // The offset under the pointer, through the slice's normal without its round-off: at a turn of exactly
+      // 90° the normal's w component is cos 90° = 6·10⁻¹⁷, which would leave a pointer on the centre column a
+      // few 10⁻¹⁶ off the centre point. (+ 0 turns a −0 into 0.)
+      const [nx, nw] = line.n.map((v) => (Math.abs(v) < AT_ZERO ? 0 : v));
+      send(INSTRUMENTS.slide.act(nx! * px + nw! * pw + 0));
     }
   };
   drag(el.map, (e) => {
@@ -317,9 +321,9 @@ export function createApp(root: HTMLElement): void {
       return li;
     });
     if (rows.some((li, i) => el.bodies.children[i] !== li) || el.bodies.children.length !== rows.length) el.bodies.replaceChildren(...rows);
-    el.numbers.innerHTML = `<div><span>slice normal</span><span class="hz-num">(${view.cut.normal.map((v) => signedReading(v, 3)).join(', ')})</span></div>`
+    el.numbers.innerHTML = `<div><span>slice normal</span><span class="hz-num">(${view.cut.normal.map((v) => derivedReading(v, 3)).join(', ')})</span></div>`
       + `<div><span>offset along it</span><span class="hz-num">${signedReading(view.cut.offset, 3)}</span></div>`
-      + view.bodies.map((b) => `<div><span>${b.name} across your slice</span><span class="hz-num">${signedReading(b.low, 2)} … ${signedReading(b.high, 2)}</span></div>`).join('');
+      + view.bodies.map((b) => `<div><span>${b.name} across your slice</span><span class="hz-num">${derivedReading(b.low, 2)} … ${derivedReading(b.high, 2)}</span></div>`).join('');
 
     paintGauge();
     paintMap();
@@ -530,6 +534,8 @@ export function createApp(root: HTMLElement): void {
   });
 
   window.addEventListener('resize', () => paint());
+  // The event line arrives with a short slide; tags are placed again against where it settles.
+  el.event.addEventListener('animationend', () => paintLabels());
   paint();
   requestAnimationFrame(frame);
 }

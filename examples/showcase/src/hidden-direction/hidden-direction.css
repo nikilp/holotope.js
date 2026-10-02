@@ -5,7 +5,9 @@
  * picture except what the picture is about — its event line, its empty-view
  * card, and the camera's own button. "In the camera's view" means inside the
  * camera's frustum: on a short screen the event line can cover part of the
- * picture's top edge, though never a name tag (`app.ts` moves a tag from under it).
+ * picture's top edge. `app.ts` moves a name tag from under it, or from the
+ * camera's controls, to the first clear place below its body or below the line;
+ * if neither is clear the tag stays where it was.
  */
 
 .hd {
@@ -158,6 +160,9 @@
 .hd-map .knob { fill: var(--slice); stroke: #1a1408; stroke-width: 1.5; cursor: grab; }
 .hd-map .centre { fill: var(--text-soft); }
 .hd-map-read { margin: 8px 14px 0; display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--muted); }
+/* The map's two readings, one per line, so that a longer one ("slice turned −under 0.05°") never changes
+   their height and moves the gauge below them — not even in the middle of a drag on the gauge. */
+.hd-map-block .hd-map-read { flex-direction: column; gap: 2px; }
 .hd-map-read b { color: var(--text); font-weight: 500; }
 .hd-map-note { margin: 4px 14px 12px; font-size: 12px; line-height: 1.4; color: var(--muted); }
 
