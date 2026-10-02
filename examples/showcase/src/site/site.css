@@ -106,6 +106,12 @@ html.hz body {
   font-weight: 600;
 }
 .hz-btn--primary:hover { background: linear-gradient(180deg, #fbefcf, #e9d39f); }
+/* Pressed (a clock running), the primary button keeps its fill and its dark text, and gains a ring. */
+.hz-btn--primary[aria-pressed='true'] {
+  background: linear-gradient(180deg, #f5e7bf, #e2c98d);
+  color: #1a1408;
+  box-shadow: 0 0 0 2px var(--ink-0), 0 0 0 4px var(--slice);
+}
 .hz-btn--quiet { border-color: transparent; background: transparent; color: var(--text-soft); padding: 0 12px; }
 /* A link styled as a button keeps the button's colour and loses the link's underline. */
 .hz a.hz-btn { text-decoration: none; }
