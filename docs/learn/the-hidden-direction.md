@@ -59,8 +59,8 @@ and says what that state is under its title.
    slice. Follow it: on the map, its footprint is still there.
 2. **[One block, many slices](https://nikilp.github.io/holotope.js/spatial-4d-turn.html#cuts).**
    The block never moves. Turn your slice and watch the cut change, then lift
-   the shadow. Tap a coloured face to follow that face across the slice and the
-   shadow.
+   the shadow. Tap a coloured face, or press *Follow a face*, to follow that
+   face across the slice and the shadow.
 3. **[A collision you cannot see](https://nikilp.github.io/holotope.js/spatial-4d-contact.html#collision).**
    A box is struck by a ball your slice cannot show. The map shows where the
    ball is.
@@ -102,6 +102,10 @@ causes, and the page names which one applies:
 - **Not drawn.** The body is in your slice by the library's test, but the
   renderer was given nothing to draw. The scenes here never reach this case, but
   it is named so that it is never mistaken for absence.
+
+A small marker with a dashed tag is not a cut. It marks where the ball touches
+your slice. In chapters I and II it can also mark a near miss: the point where
+your slice would first touch the ball.
 
 ## Keyboard, touch and motion
 
