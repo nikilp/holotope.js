@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CHAPTERS, createExperience, type ChapterId } from '../../src/hidden-direction/experience.js';
 import {
   EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, distance, eventLine, hint, planeNote,
-  derivedReading, pivotLine, plainReading, replayLine, side, signedReading, strikeLine, type Cause, type StrikeObservation
+  derivedReading, pivotLine, plainReading, replayLine, side, signedReading, stateAfterBlow, strikeLine, type Cause, type StrikeObservation
 } from '../../src/hidden-direction/copy.js';
 import { homeCamera } from '../../src/hidden-direction/stage.js';
 import type { Meeting } from '../../src/hidden-direction/worlds.js';
@@ -54,12 +54,14 @@ const BOOL = [true, false] as const;
  */
 const HINT_MODELS = BOOL.flatMap((ballInSlice) => BOOL.flatMap((playing) => BOOL.flatMap((orbitMeets) =>
   BOOL.flatMap((outOfReach) => BOOL.flatMap((studyOpen) => BOOL.flatMap((struck) => BOOL.flatMap((spinning) =>
-    BOOL.flatMap((boxInSlice) => BOOL.flatMap((offCentre) => STRIKES.map((strike) =>
-      ({ ballInSlice, playing, orbitMeets, outOfReach, studyOpen, struck, spinning, boxInSlice, offCentre, strike })))))))))));
+    BOOL.flatMap((boxInSlice) => BOOL.flatMap((boxReachable) => BOOL.flatMap((ballReachable) => BOOL.flatMap((offCentre) =>
+      STRIKES.map((strike) => ({
+        ballInSlice, playing, orbitMeets, outOfReach, studyOpen, struck, spinning, boxInSlice, boxReachable, ballReachable, offCentre, strike
+      })))))))))))));
 
 const STATUSES = ['present', 'tangent', 'outside'] as const;
 const FRAMES = ['in', 'partial', 'out', null] as const;
-const KINDS = ['appeared', 'entered', 'vanished', 'crossed', 'touching'] as const;
+const KINDS = ['appeared', 'entered', 'face', 'vanished', 'crossed', 'touching'] as const;
 const CAUSES: readonly Cause[] = [
   { kind: 'orbit' }, { kind: 'physics' }, { kind: 'slice' }, { kind: 'replay', step: 0 }, { kind: 'replay', step: 73 },
   { kind: 'launch', name: 'B' }
@@ -92,15 +94,18 @@ function subsetsOf(marks: readonly Mark[]): Set<Mark>[] {
   return out;
 }
 
-/** Every hint, over every chapter id, mark subset and model state. */
-const HINTS = (() => {
-  const out = new Set<string>();
+/** Every hint, per chapter id, over every mark subset and model state — computed once. */
+const HINTS_BY_CHAPTER = (() => {
+  const by = new Map<string, Set<string>>();
   const subsets = subsetsOf(MARKS);
   for (const id of [...CHAPTERS.map((c) => c.id), 'elsewhere']) {
+    const out = new Set<string>();
     for (const seen of subsets) for (const model of HINT_MODELS) out.add(hint(id, seen, model));
+    by.set(id, out);
   }
-  return out;
+  return by;
 })();
+const HINTS = new Set([...HINTS_BY_CHAPTER.values()].flatMap((s) => [...s]));
 
 /** Every sentence the copy module can produce, from its own inputs. */
 function copyCensus(): string[] {
@@ -120,6 +125,7 @@ function copyCensus(): string[] {
   }
   for (const gap of GAPS) for (const replayedTo of [null, 73]) out.add(strikeLine(gap, replayedTo));
   for (const cause of CAUSES) if (cause.kind === 'replay' || cause.kind === 'launch') out.add(replayLine(cause));
+  for (const kind of KINDS) for (const gap of GAPS) for (const name of NAMES) for (const meeting of MEETINGS) out.add(stateAfterBlow(kind, name, gap, meeting));
   for (const name of NAMES) {
     for (const status of STATUSES) {
       for (const gap of GAPS) {
@@ -218,20 +224,16 @@ const INTUITION = /intuition|see in 4D|see four dimensions|visuali[sz]e 4D/i;
 
 describe('the census is the whole copy', () => {
   it('covers every chapter, every model state and every mark subset, and reaches every hint branch', () => {
-    // 7 chapter ids × 2^11 subsets × 2 048 model states; distinct sentences collapse far below that.
-    // Counted by hand from copy.ts: arrival 7, cuts 4; collision 8 — the blow seen with the ball in the slice
-    // once (one such observation in the census) and beyond it twice (two); spin 8, three of them — “Watch the
-    // box.”, “Press play and watch the box.” and the out-of-reach line — shared with collision; turning 3,
-    // default 2: twenty-nine distinct sentences.
-    expect(HINT_MODELS).toHaveLength(2048);
-    expect(HINTS.size).toBe(29);
+    // 7 chapter ids × 2^11 subsets × 8 192 model states; distinct sentences collapse far below that.
+    // Counted by hand from copy.ts: arrival 8 (the vanish hint, with the ball in reach and out of it); cuts 4;
+    // collision 8 — the blow seen with the ball in the slice once (one such observation in the census) and
+    // beyond it twice (two); spin 9, three of them — “Watch the box.”, “Press play and watch the box.” and the
+    // out-of-reach line — shared with collision; turning 3; default 2: thirty-one distinct sentences.
+    expect(HINT_MODELS).toHaveLength(8192);
+    expect(HINTS.size).toBe(31);
     // Per chapter, so that a branch lost behind a sentence another chapter shares is still seen.
-    const per = (id: string): number => {
-      const out = new Set<string>();
-      for (const seen of subsetsOf(MARKS)) for (const model of HINT_MODELS) out.add(hint(id, seen, model));
-      return out.size;
-    };
-    expect(['arrival', 'cuts', 'collision', 'spin', 'turning', 'free', 'elsewhere'].map(per)).toEqual([7, 4, 8, 8, 3, 2, 2]);
+    expect(['arrival', 'cuts', 'collision', 'spin', 'turning', 'free', 'elsewhere'].map((id) => HINTS_BY_CHAPTER.get(id)!.size))
+      .toEqual([8, 4, 8, 9, 3, 2, 2]);
     expect(CHAPTERS.map((c) => c.id)).toEqual(['arrival', 'cuts', 'collision', 'spin', 'turning', 'free']);
   }, 30_000);
 
@@ -711,7 +713,7 @@ describe('signed readings never print a signed zero', () => {
   });
 
   it('a derived reading — a normal component, an extent — is zero within 10⁻¹², and otherwise the signed reading', () => {
-    // At a turn of exactly 90° the normal's w component is cos 90° in floating point.
+    // At a turn of exactly 90° the normal's w component comes out of the rotor transport as 2.2·10⁻¹⁶ (2⁻⁵²).
     expect(derivedReading(Math.cos(Math.PI / 2), 3)).toBe('0.000');
     expect(derivedReading(-2.220446049250313e-16, 3)).toBe('0.000');
     expect(derivedReading(-1e-12, 3)).toBe('−under 0.0005');

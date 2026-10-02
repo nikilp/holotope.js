@@ -70,7 +70,8 @@ export const AT_ZERO = 1e-12;
 /**
  * A signed reading of a value the page derives rather than one you set — a component of the slice's
  * normal, a body's extent across the slice. Within AT_ZERO of zero it is zero: at a turn of exactly 90°
- * the normal's w component is cos 90° = 6·10⁻¹⁷ in floating point, which is no displacement at all.
+ * the normal's w component comes out of the library's rotor transport as 2.2·10⁻¹⁶ (2⁻⁵²), which is no
+ * displacement at all.
  */
 export function derivedReading(value: number, places: number): string {
   return signedReading(Math.abs(value) < AT_ZERO ? 0 : value, places);
@@ -250,19 +251,33 @@ function causeClause(cause: Cause): string {
  * boundary and now passes through: it did not appear, since the slice met it already.
  */
 export function eventLine(
-  kind: 'appeared' | 'entered' | 'vanished' | 'crossed' | 'touching', name: string, gap: number, cause: Cause, meeting: Meeting
+  kind: 'appeared' | 'entered' | 'face' | 'vanished' | 'crossed' | 'touching', name: string, gap: number, cause: Cause, meeting: Meeting
 ): string {
   const by = causeClause(cause);
   const it = name.toLowerCase();
   switch (kind) {
     case 'appeared': return `${name} appeared — ${by}, and now your slice cuts it.`;
     case 'entered': return `${name} now passes through your slice — ${by}, and its cut is drawn.`;
+    case 'face': return `${name} now meets your slice only on its boundary — ${by}. The meeting is ${meetingPhrase(meeting, true)}, and its cut is drawn.`;
     case 'vanished': return `${name} vanished from your slice — ${by}; the ${it} now lies ${side(gap)} of your slice. It has not gone.`;
     case 'crossed': return `${name} is still not in your slice — ${by}; the ${it} now lies ${side(gap)} of your slice.`;
     case 'touching':
       if (meeting.kind === 'boundary' && meeting.body === 'ball') return `${name} is touching your slice at a single point — ${by}. Only a marker is drawn.`;
       return `${name} now meets your slice only on its boundary — ${by}. The meeting is ${meetingPhrase(meeting, true)}; nothing is drawn for it.`;
   }
+}
+
+/**
+ * What a body's change in the same step as the blow left it as, in a few words: the blow's line has said
+ * what happened, so the cause is not repeated.
+ */
+export function stateAfterBlow(
+  kind: 'appeared' | 'entered' | 'face' | 'vanished' | 'crossed' | 'touching', name: string, gap: number, meeting: Meeting
+): string {
+  if (kind === 'vanished' || kind === 'crossed') return `The ${name.toLowerCase()} now lies ${side(gap)} of your slice.`;
+  if (kind === 'touching' && meeting.kind === 'boundary' && meeting.body === 'ball') return `${name} is touching your slice at a single point.`;
+  if (kind === 'touching' || kind === 'face') return `${name} now meets your slice only on its boundary.`;
+  return `${name} is in your slice.`;
 }
 
 /** A replay or a fresh launch that changed nothing else in the picture, said as itself. */
@@ -328,6 +343,10 @@ interface HintModel {
   readonly spinning: boolean;
   /** The box is drawn in the slice in front. */
   readonly boxInSlice: boolean;
+  /** Some offset within the slider's reach, along the normal in front, meets the box. */
+  readonly boxReachable: boolean;
+  /** Some offset within the slider's reach, along the normal in front, meets the ball. */
+  readonly ballReachable: boolean;
   /** The launch in front lands its blow off-centre. */
   readonly offCentre: boolean;
   /** The latest blow you saw in this run, with the slice you saw it with; null before one. */
@@ -347,7 +366,11 @@ export function hint(chapter: string, seen: Seen, now: HintModel): string {
     case 'arrival':
       if (!seen.has('played')) return 'Press play. The ball follows a prescribed orbit that takes it through the fourth direction.';
       if (seen.has('found') && now.ballInSlice) return 'Found it: your slice moved to the ball. The ball moves only along its prescribed orbit; your slice moves only when you move it.';
-      if (seen.has('vanished') && !now.ballInSlice) return 'It vanished — it has not gone. Pause, then follow it: drag the bright line on the gauge beside the picture toward the ball’s bar, or press ↑ or ↓. The hidden plane shows where it is.';
+      if (seen.has('vanished') && !now.ballInSlice) {
+        return now.ballReachable
+          ? 'It vanished — it has not gone. Pause, then follow it: drag the bright line on the gauge beside the picture toward the ball’s bar, or press ↑ or ↓. The hidden plane shows where it is.'
+          : 'It vanished — it has not gone, but turned as it is, your slice cannot slide to it. Turn your slice back toward its footprint on the hidden plane, or press ← or →.';
+      }
       if (now.ballInSlice) return 'There it is, in your slice. It is the same rigid ball throughout; only where your slice cuts it changes.';
       if (!now.orbitMeets) return 'Its orbit never meets your slice as it stands. Slide or turn your slice back toward its footprint on the map.';
       if (!now.playing) return 'Press play: the ball’s orbit carries it through your slice.';
@@ -374,7 +397,11 @@ export function hint(chapter: string, seen: Seen, now: HintModel): string {
       if (now.outOfReach) return 'Both bodies have carried on beyond your slice’s reach. Replay to just after the blow to look again.';
       if (!now.spinning) return 'This launch’s blow is central, so the box does not turn. Launch B lands it off-centre.';
       if (!seen.has('frozen')) return 'Freeze, and the shadow lifts: the box is turning in a plane your slice cannot show.';
-      if (!now.boxInSlice) return 'The box is turning beyond your slice now. Slide your slice back to it to watch its slice change width as it turns.';
+      if (!now.boxInSlice) {
+        return now.boxReachable
+          ? 'The box is turning beyond your slice now. Slide your slice back to it to watch its slice change width as it turns.'
+          : 'The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane, or replay to just after the blow, to watch its slice change width as it turns.';
+      }
       return 'Its slice changes width as it turns; the box itself is rigid. Chapter V turns the same box by hand.';
     case 'turning':
       if (!seen.has('studied')) return 'Drag the angle, or press play for the prescribed turn.';

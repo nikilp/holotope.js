@@ -220,7 +220,12 @@ describe('a replay is narrated as a replay; a step of the clock as motion', () =
     // A frame holds two steps; step back until the box is in the slice again — one or two presses.
     for (let k = 0; k < 3 && box(x).status === 'outside'; k++) press(x, 'hd-step-back');
     expect(box(x).status).not.toBe('outside');
-    expect(x.view().event).toBe(`Box appeared — the run was replayed from launch to step ${steps(x)}, and now your slice cuts it.`);
+    // The struck box moves 1/90 per step, so 90 steps after the blow its +w face lies on the untilted slice, within
+    // 10⁻⁹: there the meeting is that face, and the line says so; a step earlier the slice passes through it.
+    const onFace = box(x).meeting.kind === 'boundary';
+    expect(x.view().event).toBe(onFace
+      ? `Box now meets your slice only on its boundary — the run was replayed from launch to step ${steps(x)}. The meeting is its +w face, a solid cuboid, and its cut is drawn.`
+      : `Box appeared — the run was replayed from launch to step ${steps(x)}, and now your slice cuts it.`);
     press(x, 'hd-step');
     expect(x.view().event).toBe('Box vanished from your slice — it moved; the box now lies kata of your slice. It has not gone.');
     x.dispose();
@@ -336,6 +341,90 @@ describe('the blow’s line stands over what else changes in the same action', (
     expect(x.view().event).toMatch(/^The box was struck/);
     x.dispatch({ type: 'jump-after' });
     expect(x.view().event).toMatch(/^Replayed from launch to step 73, the blow: the box was struck there/);
+    x.dispose();
+  });
+});
+
+describe('hints that send you somewhere check that you can get there', () => {
+  it('chapter IV: the box turning beyond the slider’s reach is not sent a slide; the hint names a turn or the replay', () => {
+    const x = createExperience('spin');
+    playUntil(x, () => steps(x) >= 120);
+    press(x, 'hd-freeze');
+    playUntil(x, () => steps(x) >= 450);
+    const b = box(x);
+    expect([b.drawn, b.reachable]).toEqual([0, false]);
+    expect(x.view().hint).toBe('The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane, or replay to just after the blow, to watch its slice change width as it turns.');
+    x.dispose();
+  });
+
+  it('chapter I: a ball turned out of the slider’s reach is not sent to the gauge; the hint names a turn', () => {
+    const x = createExperience('arrival');
+    press(x, 'hd-play');
+    for (let k = 0; k < 900 && x.view().bodies.find((q) => q.id === 'companion')!.drawn === 0; k++) x.dispatch({ type: 'tick', seconds: 1 / 60 });
+    press(x, 'hd-play');
+    for (let k = 0; k < 9; k++) x.dispatch({ type: 'cut-turn-nudge', delta: 10 });
+    const ball = x.view().bodies.find((q) => q.id === 'companion')!;
+    expect([ball.status, ball.reachable]).toEqual(['outside', false]);
+    expect(x.view().hint).toBe('It vanished — it has not gone, but turned as it is, your slice cannot slide to it. Turn your slice back toward its footprint on the hidden plane, or press ← or →.');
+    x.dispose();
+  });
+});
+
+describe('“Found it” is for the ball your slice brought in, and nothing else', () => {
+  it('chapter I: the block passing into the slice with the ball already in it earns no credit', () => {
+    const x = createExperience('arrival');
+    x.dispatch(INSTRUMENTS.gauge.act(-1.6));
+    press(x, 'hd-play');
+    for (let k = 0; k < 900 && x.view().bodies.find((q) => q.id === 'companion')!.drawn === 0; k++) x.dispatch({ type: 'tick', seconds: 1 / 60 });
+    press(x, 'hd-play');
+    expect(x.view().hint).toMatch(/^There it is/);
+    x.dispatch({ type: 'cut-nudge', delta: 0.02 });
+    expect(x.view().event).toBe('Block now passes through your slice — you moved your slice, and its cut is drawn.');
+    expect(x.view().hint).not.toMatch(/Found it/);
+    x.dispose();
+  });
+});
+
+describe('what changes with the blow is said after it', () => {
+  it('a box leaving the slice in the frame of the blow is said after the blow’s line; stepped one at a time, by its own line', () => {
+    // At 0.983 the box's top is 0.98889 at step 73 and 0.97778 at step 74: it leaves one step after the blow.
+    const played = createExperience('collision');
+    played.dispatch(INSTRUMENTS.gauge.act(0.983));
+    playUntil(played, () => steps(played) >= 74);
+    expect(box(played).status).toBe('outside');
+    expect(played.view().event).toMatch(/^The box was struck by something your slice cannot show: the ball, then 0\.0\d ana of your slice\. The box now lies kata of your slice\.$/);
+    played.dispose();
+    const stepped = createExperience('collision');
+    stepped.dispatch(INSTRUMENTS.gauge.act(0.983));
+    press(stepped, 'hd-jump');
+    press(stepped, 'hd-step');
+    expect(stepped.view().event).toMatch(/^The box was struck by something your slice cannot show/);
+    press(stepped, 'hd-step');
+    expect(stepped.view().event).toBe('Box vanished from your slice — it moved; the box now lies kata of your slice. It has not gone.');
+    stepped.dispose();
+  });
+});
+
+describe('a face drawn from the kata side is said as a face', () => {
+  it('a jump from the box’s −w face to its +w face is a boundary meeting both times, not a passage through', () => {
+    const x = createExperience('collision');
+    x.dispatch(INSTRUMENTS.gauge.act(-1));
+    expect(x.view().event).toContain('now meets your slice only on its boundary');
+    x.dispatch(INSTRUMENTS.gauge.act(1));
+    expect(x.view().event).toBe('Box now meets your slice only on its boundary — you moved your slice. The meeting is its +w face, a solid cuboid, and its cut is drawn.');
+    x.dispose();
+  });
+});
+
+describe('the world button already in front changes nothing', () => {
+  it('pressing it keeps the line on screen', () => {
+    const x = createExperience('free');
+    press(x, 'hd-play');
+    for (let k = 0; k < 900 && !(x.view().event ?? '').includes('vanished'); k++) x.dispatch({ type: 'tick', seconds: 1 / 60 });
+    press(x, 'hd-play');
+    const before = x.view();
+    press(x, 'hd-world-turn');
+    expect([x.view().event, x.view().eventId]).toEqual([before.event, before.eventId]);
     x.dispose();
   });
 });
