@@ -421,6 +421,16 @@ export function createApp(root: HTMLElement): void {
       const top = ((1 - v.y) / 2) * r.height;
       tags.push(`<span class="hd-tag" style="left:${left}px;top:${top}px;--c:${b.colour}">${b.name}</span>`);
     }
+    // A marker is not a cut: it is tagged where it is drawn, for as long as it is drawn.
+    for (const b of roots) {
+      if (b.markerAt === null) continue;
+      const v = new Vector3(b.markerAt[0], b.markerAt[1], b.markerAt[2]).project(stage.camera);
+      if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) continue;
+      const left = ((v.x + 1) / 2) * r.width;
+      const top = ((1 - v.y) / 2) * r.height;
+      const what = b.marker === 'touch' ? 'touching point' : 'nearest point — not a cut';
+      tags.push(`<span class="hd-tag hd-tag--marker" style="left:${left}px;top:${top}px;--c:${b.colour}">${b.name} · ${what}</span>`);
+    }
     el.labels.innerHTML = tags.join('');
   }
 

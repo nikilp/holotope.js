@@ -82,6 +82,7 @@ describe('the ball on its prescribed orbit appears and vanishes as events, at th
         expect(Math.abs(w), 'independently outside').toBeGreaterThan(ORBIT_RADIUS);
         const gap = w > 0 ? w - ORBIT_RADIUS : w + ORBIT_RADIUS;
         const sideOfGap = gap > 0 ? 'ana' : 'kata';
+        // The line stays up while the clock runs on, so it names no marker (the caption and the picture's tag do).
         expect(v.event).toBe(`Ball vanished from your slice — it moved along its prescribed orbit, out to the ${sideOfGap} side. It has not gone.`);
         said.push({ line: v.event!, now, side: sideOfGap });
       } else {

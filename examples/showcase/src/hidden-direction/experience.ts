@@ -8,7 +8,8 @@ import { BOX, DEFAULT_SETTINGS, PRESETS, type PresetId } from '../spatial-4d-con
 import { STUDY_PLANES, type StudyMode } from '../spatial-4d-contact/study.js';
 import { ContactWorld, TurnWorld, type BodyReading } from './worlds.js';
 import {
-  GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, eventLine, hint, planeNote, pivotLine, strikeLine
+  EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, eventLine, hint,
+  planeNote, pivotLine, strikeLine
 } from './copy.js';
 import { FaceShadow } from './identity.js';
 import { PLANE_EXTENT, chordOf, lineOf } from './plane.js';
@@ -210,7 +211,7 @@ export function createExperience(start: ChapterId = 'arrival') {
 
   function apply(): void {
     turnWorld.apply(turnKnife);
-    faceShadow.show(world === 'turn' ? faceFocus : null, faceFocus === null ? null : block.faces[faceFocus]?.colour ?? null);
+    faceShadow.show(world === 'turn' ? faceFocus : null);
     contactWorld.apply(contactKnife);
     contactWorld.study.update();
     turnWorld.context.setVisible(shadow && world === 'turn');
@@ -238,10 +239,18 @@ export function createExperience(start: ChapterId = 'arrival') {
         // Credit the visitor only for an appearance their own slice move caused.
         if (lastCause === 'slice') seen.add('found');
       }
+      // Event lines stay on screen while the clock runs on, so they say nothing about a marker that may
+      // already be gone; the caption and the picture's own tag say what a marker is while it is there.
       else if (now === 'outside') { event = { line: eventLine('vanished', b.name, b.gap, lastCause), at: ++sequence }; seen.add('vanished'); }
       else if (now === 'tangent') event = { line: eventLine('touching', b.name, b.gap, lastCause), at: ++sequence };
     }
     lastStatus = next;
+  }
+
+  /** A sentence, then what any marker on screen for this body means. */
+  function withNote(sentence: string, b: BodyReading): string {
+    const note = drawingNote(b.marker, b.hollow);
+    return note ? `${sentence} ${note}` : sentence;
   }
 
   function readBodies(): BodyReading[] {
@@ -414,8 +423,8 @@ export function createExperience(start: ChapterId = 'arrival') {
       return {
         id: b.id, name: b.name, colour: b.colour, status: b.status, drawn: b.drawn,
         low: b.low, high: b.high, gap: b.gap, frame, focused: focus === b.id,
-        caption: caption(b.name, b.status, b.gap, b.drawn),
-        reason: absentReason(b.name, b.status, b.gap, frame, reachTarget(b.low, b.high) !== null, b.drawn),
+        caption: [caption(b.name, b.status, b.gap, b.drawn), drawingNote(b.marker, b.hollow)].filter(Boolean).join('. '),
+        reason: withNote(absentReason(b.name, b.status, b.gap, frame, reachTarget(b.low, b.high) !== null, b.drawn), b),
         reachable: reachTarget(b.low, b.high) !== null,
         footprint: b.footprint,
         drawnBound: b.drawnBound
@@ -424,7 +433,7 @@ export function createExperience(start: ChapterId = 'arrival') {
     const visible = bodies.filter((b) => b.drawn > 0 && b.frame !== 'out');
     const empty = !studyOpen && bodies.length > 0 && visible.length === 0
       ? {
-          headline: 'Nothing is drawn — and nothing has gone.',
+          headline: EMPTY_HEADLINE,
           reasons: bodies.map((b) => ({ id: b.id, line: b.reason, colour: b.colour })),
           // A view action for what the slice misses; a camera-only turn for what the camera misses. Nothing else.
           recoveries: bodies.flatMap((b) => {

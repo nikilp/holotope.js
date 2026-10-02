@@ -1,3 +1,5 @@
+import { GRAZE_EPSILON } from '../spatial-4d-turn/section.js';
+
 /**
  * Every sentence the experience says about the world, as functions of the
  * model's own numbers. Rules, held by `copy.test.ts`:
@@ -51,7 +53,7 @@ export function absentReason(
 ): string {
   if (status === 'tangent') {
     return `${name} touches your slice only along its boundary (within 10⁻⁹). The cut there is a face, an edge or `
-      + 'a point, and the renderer draws solids only — so nothing appears, though nothing is missing.';
+      + 'a point, not a solid, and the renderer draws solids only — so no cut is drawn, though nothing is missing.';
   }
   if (status === 'outside') {
     return `${name} is not in your slice. All of it lies ${distance(gap)} ${side(gap)} of your slice — still there, `
@@ -65,6 +67,21 @@ export function absentReason(
   if (frame === 'out') return `${name} is in your slice, but outside the camera’s view.`;
   return `${name} is in your slice.`;
 }
+
+/**
+ * What a small marker or a hollow ball in the picture means, so that neither is
+ * read as a cut. The markers and the hollow drawing are the section modules'
+ * display conventions; this says which one is on screen.
+ */
+export function drawingNote(marker: 'touch' | 'nearest' | null, hollow: boolean): string {
+  if (marker === 'touch') return 'The small marker is the point where it touches.';
+  if (marker === 'nearest') return 'The small marker is where your slice would first touch it — not a cut.';
+  if (hollow) return `It is cut within ${GRAZE_EPSILON} of its edge, so it is drawn hollow; the cut is still a solid ball.`;
+  return '';
+}
+
+/** The empty view's headline: true whether or not a marker is on screen. */
+export const EMPTY_HEADLINE = 'Your slice cuts nothing in view — and nothing has gone.';
 
 /** The short line that defines the gauge, once. */
 export const GAUGE_LEGEND = 'Each bar is a body’s extent across your slice; the line is your slice. '

@@ -34,7 +34,12 @@ export function faceEdges(complex: CellComplex, cubeOrdinal: number): [number, n
   return out;
 }
 
-/** A highlight of one face's shadow: its edges, projected by the shadow's own map. */
+/**
+ * A highlight of one face's shadow: its edges, projected by the shadow's own map.
+ * Drawn in the slice's colour and over everything, because the shadow is all of
+ * the body flattened onto your view, and the solid cut would otherwise hide the
+ * very face it is cut from.
+ */
 export class FaceShadow {
   readonly object: LineSegments;
   private readonly geometry = new BufferGeometry();
@@ -42,19 +47,18 @@ export class FaceShadow {
   private edges: [number, number][] = [];
 
   constructor(private readonly complex: CellComplex, private readonly projection: ChartProjection) {
-    this.material = new LineBasicMaterial({ color: '#f1dfae', transparent: true, opacity: 0.95, depthWrite: false });
+    this.material = new LineBasicMaterial({ color: '#f1dfae', transparent: true, opacity: 0.95, depthWrite: false, depthTest: false });
     this.geometry.setAttribute('position', new BufferAttribute(new Float32Array(12 * 2 * 3), 3));
     this.object = new LineSegments(this.geometry, this.material);
     this.object.name = 'shadow:face-highlight';
     this.object.visible = false;
-    this.object.renderOrder = 3;
+    this.object.renderOrder = 10;
   }
 
   /** Show one face (by cube ordinal), or none. */
-  show(cubeOrdinal: number | null, colour: string | null): void {
+  show(cubeOrdinal: number | null): void {
     if (cubeOrdinal === null) { this.object.visible = false; this.edges = []; return; }
     this.edges = faceEdges(this.complex, cubeOrdinal);
-    if (colour) this.material.color.set(colour);
     this.update();
     this.object.visible = true;
   }

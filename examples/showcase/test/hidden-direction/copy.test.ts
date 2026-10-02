@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHAPTERS, createExperience, type ChapterId } from '../../src/hidden-direction/experience.js';
 import {
-  GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, distance, eventLine, hint, planeNote,
+  EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, distance, eventLine, hint, planeNote,
   pivotLine, side, strikeLine
 } from '../../src/hidden-direction/copy.js';
 import { homeCamera } from '../../src/hidden-direction/stage.js';
@@ -72,6 +72,8 @@ function copyCensus(): string[] {
   out.add(PLANE_LEGEND);
   out.add(planeNote(true));
   out.add(planeNote(false));
+  out.add(EMPTY_HEADLINE);
+  for (const marker of ['touch', 'nearest', null] as const) for (const hollow of [true, false]) out.add(drawingNote(marker, hollow));
   for (const d of [0, 1e-13, 0.8, -0.8, 1e-6]) out.add(pivotLine(d));
   for (const kind of KINDS) for (const cause of CAUSES) for (const gap of GAPS) for (const name of NAMES) out.add(eventLine(kind, name, gap, cause));
   for (const gap of GAPS) out.add(strikeLine(gap));
@@ -352,9 +354,13 @@ describe('nothing present prints as 0.00', () => {
     x.dispatch({ type: 'cut-offset', value: 0.2 - 1e-6 });
     const ball = x.view().bodies.find((b) => b.id === 'companion')!;
     expect(ball.status).toBe('outside');
-    expect(ball.caption).toBe('Ball — not in your slice: under 0.005 ana of it');
+    // A millionth is inside the section module's 0.02 graze band, so it draws the nearest point small;
+    // the caption and the reason say what that marker is.
+    expect(ball.caption).toBe('Ball — not in your slice: under 0.005 ana of it. '
+      + 'The small marker is where your slice would first touch it — not a cut.');
     expect(ball.reason).toBe('Ball is not in your slice. All of it lies under 0.005 ana of your slice — still there, '
-      + 'just elsewhere along the direction your slice cannot show.');
+      + 'just elsewhere along the direction your slice cannot show. '
+      + 'The small marker is where your slice would first touch it — not a cut.');
     x.dispose();
   });
 

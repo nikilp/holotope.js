@@ -101,6 +101,7 @@
   border: 1px solid var(--slice-glow);
   text-align: center;
 }
+.hd-tag--marker { transform: translate(-50%, 60%); font-weight: 500; color: var(--text-soft); border-style: dashed; }
 .hd-event.is-new { animation: hd-arrive 380ms var(--ease); }
 @keyframes hd-arrive { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 

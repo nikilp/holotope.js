@@ -200,7 +200,7 @@ describe('picking a drawn triangle names the face it was cut from', () => {
     x.dispose();
   });
 
-  it('focusing a picked face names it from its geometry, and the label, the highlight and the slice share its colour', () => {
+  it('focusing a picked face names it from its geometry; the label and the slice share its colour, and its shadow is drawn in the slice’s colour over the solid', () => {
     const x = createExperience('cuts');
     const complex = x.block.complex!;
     for (const [t, o] of [[0, 0], [60, 0.2]] as const) {
@@ -215,8 +215,12 @@ describe('picking a drawn triangle names the face it was cut from', () => {
         const colours = (x.block.object as Mesh).geometry.getAttribute('color') as BufferAttribute;
         const rgb = rgbOf(face!.colour);
         for (let c = 0; c < 3; c++) expect(colours.getComponent(3 * p, c), `${t}° triangle ${p}: slice colour`).toBeCloseTo(rgb[c]!, 6);
-        expect(`#${(x.faceShadow.object.material as LineBasicMaterial).color.getHexString()}`, `${t}° triangle ${p}: highlight colour`)
-          .toBe(face!.colour);
+        // The highlight is not the face's colour: the block's own shadow lines are drawn in the body's
+        // colour, and the solid cut would hide the face it is cut from. It is the slice's colour, untested
+        // against depth, so it stays visible over the solid.
+        const highlight = x.faceShadow.object.material as LineBasicMaterial;
+        expect(`#${highlight.color.getHexString()}`, `${t}° triangle ${p}: highlight colour`).toBe('#f1dfae');
+        expect(highlight.depthTest, `${t}° triangle ${p}: drawn over the solid`).toBe(false);
       }
     }
     x.dispose();

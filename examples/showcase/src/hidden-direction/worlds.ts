@@ -52,6 +52,16 @@ export interface BodyReading {
   readonly drawnBound: { readonly centre: readonly [number, number, number]; readonly radius: number } | null;
   /** The body flattened onto the x–w plane along y and z, from the same corners or centre as low/high. */
   readonly footprint: Footprint;
+  /**
+   * A small marker the section modules draw that is not a cut: the point where a ball touches the
+   * slice ('touch'), or, for the turning world's ball on a near miss, where the slice would first
+   * touch it ('nearest'). Null when no marker is drawn.
+   */
+  readonly marker: 'touch' | 'nearest' | null;
+  /** Where that marker is drawn, in chart coordinates: the foot of the perpendicular from the ball's centre. */
+  readonly markerAt: readonly [number, number, number] | null;
+  /** The turning world's ball, cut within the graze band of its edge, is drawn hollow (a display convention). */
+  readonly hollow: boolean;
 }
 
 /**
@@ -78,6 +88,12 @@ function gapOf(low: number, high: number, offset: number): number {
   if (offset < low) return low - offset;
   if (offset > high) return high - offset;
   return 0;
+}
+
+/** The foot of the perpendicular from a point to the slice, in chart coordinates — the library's own projection. */
+function footOf(slice: HyperplaneSliceN, point: readonly number[]): [number, number, number] {
+  const c = slice.projectPointToChart(point).coordinates;
+  return [c[0] ?? 0, c[1] ?? 0, c[2] ?? 0];
 }
 
 /** World-frame bound of a drawn Object3D (identity-posed products only), or null when it draws nothing. */
@@ -146,11 +162,16 @@ export class TurnWorld {
         high = h + r;
         footprint = ballFootprint(centre, r);
       }
+      const marker = p.complex !== null ? null : p.status === 'tangent' ? 'touch' : p.status === 'outside' && p.grazing ? 'nearest' : null;
       return {
         id: p.id, name: displayName(p.id, p.name), colour: p.colour, status: p.status, drawn: p.primitiveCount,
         low, high, gap: gapOf(low, high, this.slice.offset), object: p.object,
         drawnBound: p.primitiveCount > 0 ? drawnBoundOf(p.object) : null,
-        footprint
+        footprint,
+        // As the section product draws it: a touch point when tangent, a nearest point on a near miss.
+        marker,
+        markerAt: marker === null ? null : footOf(this.slice, p.position4()!),
+        hollow: p.complex === null && p.status === 'present' && p.grazing
       };
     });
   }
@@ -234,14 +255,21 @@ export class ContactWorld {
         id: 'box', name: BOX.name, colour: BOX.colour, status: boxView.status, drawn: boxView.primitiveCount,
         low: box.low, high: box.high, gap: gapOf(box.low, box.high, this.slice.offset), object: boxView.object,
         drawnBound: boxView.primitiveCount > 0 ? drawnBoundOf(boxView.object) : null,
-        footprint: polytopeFootprint(corners)
+        footprint: polytopeFootprint(corners),
+        marker: null,
+        markerAt: null,
+        hollow: false
       },
       {
         id: 'ball', name: BALL.name, colour: BALL.colour, status: ballView.status, drawn: ballView.primitiveCount,
         low: h - BALL.radius, high: h + BALL.radius, gap: gapOf(h - BALL.radius, h + BALL.radius, this.slice.offset),
         object: ballView.object,
         drawnBound: ballView.primitiveCount > 0 ? drawnBoundOf(ballView.object) : null,
-        footprint: ballFootprint(centre, BALL.radius)
+        footprint: ballFootprint(centre, BALL.radius),
+        // The contact page's ball view marks only the touching point; it draws nothing for a near miss.
+        marker: ballView.status === 'tangent' ? 'touch' : null,
+        markerAt: ballView.status === 'tangent' ? footOf(this.slice, centre) : null,
+        hollow: false
       }
     ];
   }

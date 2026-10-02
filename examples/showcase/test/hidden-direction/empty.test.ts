@@ -60,7 +60,7 @@ describe('outside the cut: each body is beyond the slice, said with its side and
     x.dispatch({ type: 'cut-offset', value: 1.6 });
     const v = x.view();
     expect(v.empty).not.toBeNull();
-    expect(v.empty!.headline).toBe('Nothing is drawn — and nothing has gone.');
+    expect(v.empty!.headline).toBe('Your slice cuts nothing in view — and nothing has gone.');
     const box = v.bodies.find((b) => b.id === 'box')!;
     const ball = v.bodies.find((b) => b.id === 'ball')!;
     expect([box.status, box.drawn, ball.status, ball.drawn]).toEqual(['outside', 0, 'outside', 0]);
@@ -356,4 +356,56 @@ describe('renderer omission does not occur in the shipped scenes', () => {
     expect(seen.other).toBeGreaterThan(1000);
     expect(wrong).toEqual([]);
   }, 20_000);
+});
+
+describe('a marker on screen is named, and never read as a cut', () => {
+  /**
+   * The section modules draw two small things that are not cuts: the point where
+   * a ball touches the slice, and, for the turning world's ball on a near miss
+   * (within the 0.02 graze band), the point where the slice would first touch it.
+   * The page must name a marker exactly when one is drawn. The oracle is the
+   * drawn scene graph itself: the ball product's second child is that marker mesh.
+   */
+  it('turning world: over a full orbit at three offsets, the caption names a marker exactly when the marker mesh is visible', () => {
+    const x = createExperience('cuts');
+    const ball = x.worlds.turn.products.find((p) => p.complex === null)!;
+    const marker = ball.object.children[1]!;
+    let named = 0;
+    let drawnMarkers = 0;
+    for (const offset of [0, 0.19, 0.205]) {
+      x.dispatch({ type: 'cut-offset', value: offset });
+      for (let k = 0; k < 720; k++) {
+        x.dispatch({ type: 'orbit-phase', degrees: k / 2 });
+        const reading = x.view().bodies.find((b) => b.id === 'companion')!;
+        const says = /small marker/.test(reading.caption);
+        expect(says, `offset ${offset}, phase ${k / 2}°: caption “${reading.caption}”`).toBe(marker.visible);
+        // The picture's tag stands on the marker itself: the reading's markerAt is the marker mesh's position.
+        const raw = x.worlds.turn.bodies().find((b) => b.id === 'companion')!;
+        expect(raw.markerAt !== null, `offset ${offset}, phase ${k / 2}°: a tag exactly when a marker is drawn`).toBe(marker.visible);
+        if (raw.markerAt !== null) {
+          for (let c = 0; c < 3; c++) expect(raw.markerAt[c]).toBeCloseTo(marker.position.getComponent(c), 12);
+        }
+        if (marker.visible) {
+          drawnMarkers++;
+          expect(reading.drawn, 'a marker is never counted as a drawn cut').toBe(0);
+          expect(reading.caption).not.toMatch(/in your slice(?!:)/);
+        }
+        if (says) named++;
+      }
+    }
+    // Not a vacuous sweep: the grid reaches near misses.
+    expect(drawnMarkers).toBeGreaterThan(0);
+    expect(named).toBe(drawnMarkers);
+    x.dispose();
+  });
+
+  it('the empty headline stays true with a marker on screen: the slice cuts nothing in view', () => {
+    // Chapter III at the top of the slider's reach: both bodies outside, nothing cut.
+    const x = createExperience('collision');
+    x.dispatch({ type: 'cut-offset', value: 1.6 });
+    const v = x.view();
+    expect(v.empty!.headline).toBe('Your slice cuts nothing in view — and nothing has gone.');
+    expect(v.bodies.every((b) => b.drawn === 0)).toBe(true);
+    x.dispose();
+  });
 });

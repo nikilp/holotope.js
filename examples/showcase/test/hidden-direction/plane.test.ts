@@ -323,7 +323,7 @@ describe('the map agrees with the library about membership', () => {
     const v = x.view();
     const ball = v.bodies.find((b) => b.id === 'ball')!;
     expect(ball.status).toBe('tangent');
-    expect(ball.caption).toBe('Ball — touching your slice, only along its boundary');
+    expect(ball.caption).toBe('Ball — touching your slice, only along its boundary. The small marker is the point where it touches.');
     expect(v.plane.footprints.find((f) => f.id === 'ball')!.chord, 'the map shows the touch the caption names').not.toBeNull();
     x.dispose();
   });
