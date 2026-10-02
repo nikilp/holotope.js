@@ -2,7 +2,8 @@ import '../site/site.css';
 import './hidden-direction.css';
 import { Mesh, Raycaster, Vector2, Vector3, type Material, type MeshStandardMaterial, type Object3D } from 'three';
 import { CHAPTERS, createExperience, type Action, type ChapterId } from './experience.js';
-import { BUTTONS, INSTRUMENTS, chapterAction, keyAction } from './bindings.js';
+import { BUTTONS, INSTRUMENTS, chapterAction, keyAction, sliderKey, type CameraKey } from './bindings.js';
+import { signedReading } from './copy.js';
 import { anaRegion, lineSegment, type Footprint } from './plane.js';
 import { createStage } from './stage.js';
 
@@ -61,6 +62,15 @@ export function createApp(root: HTMLElement): void {
     paint();
   };
   const recentre = (): void => { stage.recentre(); paint(); };
+  /** The camera's keys: the page's camera only, never the model. */
+  const moveCamera = (k: CameraKey): void => {
+    if (k === 'camera') stage.recentre();
+    else if (k === 'orbit-left') stage.orbit(Math.PI / 12);
+    else if (k === 'orbit-right') stage.orbit(-Math.PI / 12);
+    else if (k === 'zoom-in') stage.zoom(0.85);
+    else stage.zoom(1 / 0.85);
+    paint();
+  };
 
   /* ---------- buttons: exactly the binding table ---------- */
   for (const b of BUTTONS) {
@@ -91,12 +101,20 @@ export function createApp(root: HTMLElement): void {
     const t = (clientY - r.top) / r.height; // 0 at top (ana), 1 at bottom (kata)
     return GAUGE_RANGE - t * 2 * GAUGE_RANGE;
   };
+  // A press on a bar singles its body out (the bars are redrawn every frame of a running clock, so the
+  // press is read where it lands, at once); a press anywhere else starts a drag that slides the slice.
+  el.gaugeSvg.addEventListener('pointerdown', (e) => {
+    const bar = (e.target as Element | null)?.closest?.('g.bar') as SVGGElement | null;
+    if (!bar) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const id = bar.dataset.body ?? null;
+    send({ type: 'focus', body: view.bodies.find((b) => b.id === id)?.focused ? null : id });
+  });
   drag(el.gauge, () => true, (e) => send(INSTRUMENTS.gauge.act(gaugeValueAt(e.clientY))));
   el.gauge.addEventListener('keydown', (e) => {
-    const step = e.shiftKey ? 0.2 : 0.02;
-    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); send({ type: 'cut-nudge', delta: step }); }
-    if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); send({ type: 'cut-nudge', delta: -step }); }
-    if (e.key === 'Home') { e.preventDefault(); send(INSTRUMENTS.gauge.act(0)); }
+    const a = sliderKey('gauge', e.key, e.shiftKey);
+    if (a) { e.preventDefault(); send(a); }
   });
 
   /* ---------- the hidden-plane map: its bright ends turn the slice, anywhere else slides it ---------- */
@@ -136,10 +154,8 @@ export function createApp(root: HTMLElement): void {
   }, mapMove);
   el.map.addEventListener('keydown', (e) => {
     if (!view.plane.movable) return;
-    const step = e.shiftKey ? 10 : 1;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); send({ type: 'cut-turn-nudge', delta: step }); }
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); send({ type: 'cut-turn-nudge', delta: -step }); }
-    if (e.key === 'Home') { e.preventDefault(); send(INSTRUMENTS.turn.act(0)); }
+    const a = sliderKey('map', e.key, e.shiftKey);
+    if (a) { e.preventDefault(); send(a); }
   });
 
   /* ---------- the study's angle: a full turn ---------- */
@@ -150,10 +166,8 @@ export function createApp(root: HTMLElement): void {
   };
   drag(el.studyAngle, () => true, (e) => send(INSTRUMENTS.studyAngle.act(studyAngleAt(e.clientX, e.clientY))));
   el.studyAngle.addEventListener('keydown', (e) => {
-    const step = e.shiftKey ? 10 : 1;
-    const now = view.study?.degrees ?? 0;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); send(INSTRUMENTS.studyAngle.act(Math.min(360, now + step))); }
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); send(INSTRUMENTS.studyAngle.act(Math.max(0, now - step))); }
+    const a = sliderKey('studyAngle', e.key, e.shiftKey, view.study?.degrees ?? 0);
+    if (a) { e.preventDefault(); send(a); }
   });
 
   /* ---------- keys anywhere else ---------- */
@@ -166,7 +180,7 @@ export function createApp(root: HTMLElement): void {
     const a = keyAction(e.key, e.shiftKey, context());
     if (a === null) return;
     e.preventDefault();
-    if (a === 'camera') { recentre(); return; }
+    if (typeof a === 'string') { moveCamera(a); return; }
     send(a);
   });
 
@@ -204,6 +218,7 @@ export function createApp(root: HTMLElement): void {
   /* ---------- painting the view model ---------- */
   let shownEvent = 0;
   let shownChapter: string | null = null;
+  let shownOffer: string | null = null;
   function paint(): void {
     view = x.view(stage.camera);
     const scene = view.studyOpen ? 'study' : view.world;
@@ -261,14 +276,14 @@ export function createApp(root: HTMLElement): void {
     const turned = view.cut.degrees;
     const slid = view.cut.offset;
     el.dialValue.textContent = `${turned.toFixed(1)}°`;
-    el.offsetValue.textContent = `${slid >= 0 ? '+' : '−'}${Math.abs(slid).toFixed(2)}`;
+    el.offsetValue.textContent = signedReading(slid, 2);
     el.map.setAttribute('aria-valuenow', turned.toFixed(1));
     el.map.setAttribute('aria-valuetext', view.plane.movable
       ? `slice turned ${turned.toFixed(1)} degrees in the x–w plane, slid ${slid.toFixed(2)} along its normal`
       : 'slice fixed at w = 0 in this scene');
     el.map.setAttribute('aria-disabled', String(!view.plane.movable));
     el.gauge.setAttribute('aria-valuenow', view.cut.offset.toFixed(2));
-    el.gauge.setAttribute('aria-valuetext', `slice at ${view.cut.offset.toFixed(2)} along its normal; `
+    el.gauge.setAttribute('aria-valuetext', `slice at ${signedReading(view.cut.offset, 2)} along its normal; `
       + view.bodies.map((b) => b.caption).join('; '));
     el.face.hidden = view.face === null;
     if (view.face) el.face.innerHTML = `<span class="hz-swatch" style="background:${view.face.colour}"></span><span>The ${view.face.name} face — solid where your slice cuts it, bright lines for all of it in the shadow.</span>`;
@@ -297,9 +312,9 @@ export function createApp(root: HTMLElement): void {
       return li;
     });
     if (rows.some((li, i) => el.bodies.children[i] !== li) || el.bodies.children.length !== rows.length) el.bodies.replaceChildren(...rows);
-    el.numbers.innerHTML = `<div><span>slice normal</span><span class="hz-num">(${view.cut.normal.map((v) => v.toFixed(3)).join(', ')})</span></div>`
-      + `<div><span>offset along it</span><span class="hz-num">${view.cut.offset.toFixed(3)}</span></div>`
-      + view.bodies.map((b) => `<div><span>${b.name} across your slice</span><span class="hz-num">${b.low.toFixed(2)} … ${b.high.toFixed(2)}</span></div>`).join('');
+    el.numbers.innerHTML = `<div><span>slice normal</span><span class="hz-num">(${view.cut.normal.map((v) => signedReading(v, 3)).join(', ')})</span></div>`
+      + `<div><span>offset along it</span><span class="hz-num">${signedReading(view.cut.offset, 3)}</span></div>`
+      + view.bodies.map((b) => `<div><span>${b.name} across your slice</span><span class="hz-num">${signedReading(b.low, 2)} … ${signedReading(b.high, 2)}</span></div>`).join('');
 
     paintGauge();
     paintMap();
@@ -339,14 +354,6 @@ export function createApp(root: HTMLElement): void {
       + `<line x1="0" x2="${W}" y1="${line}" y2="${line}" class="slice-line"/>`
       + `<circle cx="${W - 7}" cy="${line}" r="6" class="slice-knob"/>`
       + '</svg>';
-    for (const g of Array.from(el.gaugeSvg.querySelectorAll<SVGGElement>('g.bar'))) {
-      g.addEventListener('pointerdown', (e: PointerEvent) => { e.stopPropagation(); });
-      g.addEventListener('click', (e: MouseEvent) => {
-        e.stopPropagation();
-        const id = g.dataset.body ?? null;
-        send({ type: 'focus', body: view.bodies.find((b) => b.id === id)?.focused ? null : id });
-      });
-    }
   }
 
   /** The hidden plane: footprints, the line of your slice, the chord it cuts through each, and the ana side. */
@@ -422,8 +429,7 @@ export function createApp(root: HTMLElement): void {
       if (b.drawnBound === null) continue;
       const v = new Vector3(b.drawnBound.centre[0], b.drawnBound.centre[1] + b.drawnBound.radius, b.drawnBound.centre[2]).project(stage.camera);
       if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) continue;
-      const left = ((v.x + 1) / 2) * r.width;
-      const top = ((1 - v.y) / 2) * r.height;
+      const [left, top] = clampTag(((v.x + 1) / 2) * r.width, ((1 - v.y) / 2) * r.height, 44, r);
       tags.push(`<span class="hd-tag" style="left:${left}px;top:${top}px;--c:${b.colour}">${b.name}</span>`);
     }
     // A marker is not a cut: it is tagged where it is drawn, for as long as it is drawn.
@@ -431,8 +437,7 @@ export function createApp(root: HTMLElement): void {
       if (b.markerAt === null) continue;
       const v = new Vector3(b.markerAt[0], b.markerAt[1], b.markerAt[2]).project(stage.camera);
       if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) continue;
-      const left = ((v.x + 1) / 2) * r.width;
-      const top = ((1 - v.y) / 2) * r.height;
+      const [left, top] = clampTag(((v.x + 1) / 2) * r.width, ((1 - v.y) / 2) * r.height, 120, r);
       const what = b.marker === 'touch' ? 'touching point' : 'nearest point — not a cut';
       tags.push(`<span class="hd-tag hd-tag--marker" style="left:${left}px;top:${top}px;--c:${b.colour}">${b.name} · ${what}</span>`);
     }
@@ -442,15 +447,24 @@ export function createApp(root: HTMLElement): void {
   function paintEmpty(): void {
     const e = view.empty;
     el.empty.hidden = e === null;
-    if (!e) return;
+    if (!e) { shownOffer = null; return; }
     el.emptyHead.textContent = e.headline;
     el.emptyList.innerHTML = e.reasons.map((r) => `<li><span class="hz-swatch" style="background:${r.colour}"></span><span>${r.line}</span></li>`).join('');
-    el.emptyActions.replaceChildren(...e.recoveries.map((rec) => {
+    // Rebuilt only when the offer changes, so a button stays put — and clickable — while a clock runs.
+    const offer = e.recoveries.map((r) => r.label).join('\n');
+    if (offer === shownOffer) return;
+    shownOffer = offer;
+    el.emptyActions.replaceChildren(...e.recoveries.map((rec, i) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'hz-btn';
       button.textContent = rec.label;
-      button.addEventListener('click', () => { if (rec.frame) { stage.frame(rec.frame.centre, rec.frame.radius); paint(); } else send(rec.action); });
+      button.addEventListener('click', () => {
+        // Act on the recovery as it stands now, not as it stood when the button was made.
+        const now = view.empty?.recoveries[i];
+        if (!now || now.label !== rec.label) return;
+        if (now.frame) { stage.frame(now.frame.centre, now.frame.radius); paint(); } else send(now.action);
+      });
       return button;
     }));
   }
@@ -485,6 +499,11 @@ export function createApp(root: HTMLElement): void {
   window.addEventListener('resize', () => paint());
   paint();
   requestAnimationFrame(frame);
+}
+
+/** Keep a centred tag of about `halfWidth` inside the picture, so a name is never clipped at its edge. */
+function clampTag(left: number, top: number, halfWidth: number, r: DOMRect): [number, number] {
+  return [Math.min(Math.max(left, halfWidth + 6), r.width - halfWidth - 6), Math.min(Math.max(top, 40), r.height - 12)];
 }
 
 /** Pointer drag on an instrument: pointer capture, so a drag that leaves the instrument keeps steering it. */

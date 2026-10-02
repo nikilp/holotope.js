@@ -82,7 +82,7 @@ export const CHAPTERS: readonly ChapterSpec[] = [
   },
   {
     id: 'free', numeral: '∞', title: 'Explore freely', world: 'turn',
-    setup: 'Everything stays where you left it; every instrument is unlocked.',
+    setup: 'Everything stays where you left it. Choose a world to use every instrument in it; the turning scene keeps its fixed slice.',
     invite: 'Choose a world, slide and turn your slice, run the clocks, lift the shadow.'
   }
 ];
@@ -236,12 +236,17 @@ export function createExperience(start: ChapterId = 'arrival') {
       if (now === 'present') {
         event = { line: eventLine('appeared', b.name, b.gap, lastCause), at: ++sequence };
         seen.add('appeared');
-        // Credit the visitor only for an appearance their own slice move caused.
+        // Credit the visitor only for an appearance their own slice move caused, and only for the latest one.
         if (lastCause === 'slice') seen.add('found');
+        else seen.delete('found');
       }
       // Event lines stay on screen while the clock runs on, so they say nothing about a marker that may
       // already be gone; the caption and the picture's own tag say what a marker is while it is there.
-      else if (now === 'outside') { event = { line: eventLine('vanished', b.name, b.gap, lastCause), at: ++sequence }; seen.add('vanished'); }
+      else if (now === 'outside') {
+        event = { line: eventLine('vanished', b.name, b.gap, lastCause), at: ++sequence };
+        seen.add('vanished');
+        seen.delete('found');
+      }
       else if (now === 'tangent') event = { line: eventLine('touching', b.name, b.gap, lastCause), at: ++sequence };
     }
     lastStatus = next;
@@ -369,7 +374,8 @@ export function createExperience(start: ChapterId = 'arrival') {
       case 'study-pause': contactWorld.study.setPlaying(false); break;
       case 'tick': {
         const s = Math.min(Math.max(action.seconds, 0), MAX_TICK_S);
-        if (orbitPlaying) turnKnife = setPhase(turnKnife, turnKnife.phase + (2 * Math.PI * s) / ORBIT_PERIOD_S);
+        // Every clock advances only with its world in front: a clock is never moved out of sight.
+        if (orbitPlaying && world === 'turn') turnKnife = setPhase(turnKnife, turnKnife.phase + (2 * Math.PI * s) / ORBIT_PERIOD_S);
         if (physicsPlaying && world === 'contact' && !studyOpen) {
           accumulator += s;
           let steps = 0;
@@ -413,6 +419,24 @@ export function createExperience(start: ChapterId = 'arrival') {
     return inner ? 'in' : 'partial';
   }
 
+  /**
+   * The ways back from an empty view. A view action for what the slice misses, a camera-only turn
+   * for what the camera misses. Only when neither can help — the struck bodies have carried on
+   * beyond the slider's reach — a replay of the physics clock, from launch, said as such.
+   */
+  function recoveriesFor(bodies: readonly { id: string; name: string; drawn: number; frame: 'in' | 'partial' | 'out' | null; reachable: boolean; drawnBound: BodyReading['drawnBound'] }[]) {
+    const out: { label: string; action: Action | null; frame: BodyReading['drawnBound'] }[] = [];
+    for (const b of bodies) {
+      if (b.drawn > 0 && b.frame === 'out') out.push({ label: `Turn the camera to the ${b.name.toLowerCase()}`, action: null, frame: b.drawnBound });
+      else if (b.reachable) out.push({ label: `Slide your slice to the ${b.name.toLowerCase()}`, action: { type: 'cut-to', body: b.id }, frame: null });
+    }
+    if (out.length === 0 && world === 'contact' && !studyOpen && contactWorld.sim.impacts > 0) {
+      out.push({ label: 'Replay to just after the blow', action: { type: 'jump-after' }, frame: null });
+      out.push({ label: 'Replay the launch', action: { type: 'replay' }, frame: null });
+    }
+    return out;
+  }
+
   /** The whole picture the page renders, from the model. */
   function view(camera: PerspectiveCamera | null = null) {
     const spec = CHAPTERS.find((c) => c.id === chapter)!;
@@ -435,13 +459,7 @@ export function createExperience(start: ChapterId = 'arrival') {
       ? {
           headline: EMPTY_HEADLINE,
           reasons: bodies.map((b) => ({ id: b.id, line: b.reason, colour: b.colour })),
-          // A view action for what the slice misses; a camera-only turn for what the camera misses. Nothing else.
-          recoveries: bodies.flatMap((b) => {
-            const out: { label: string; action: Action | null; frame: BodyReading['drawnBound'] }[] = [];
-            if (b.drawn > 0 && b.frame === 'out') out.push({ label: `Turn the camera to the ${b.name.toLowerCase()}`, action: null, frame: b.drawnBound });
-            else if (b.reachable) out.push({ label: `Slide your slice to the ${b.name.toLowerCase()}`, action: { type: 'cut-to', body: b.id }, frame: null });
-            return out;
-          })
+          recoveries: recoveriesFor(bodies)
         }
       : null;
     const physics = world === 'contact' && !studyOpen;
@@ -473,7 +491,10 @@ export function createExperience(start: ChapterId = 'arrival') {
         ballInSlice,
         playing: world === 'turn' ? orbitPlaying : physicsPlaying,
         orbitMeets: orbitCache.meets,
-        strike: physics && contactWorld.sim.impacts > 0 ? strikeWhere : null
+        strike: physics && contactWorld.sim.impacts > 0 ? strikeWhere : null,
+        // Nothing in view and only a replay can bring a body back.
+        outOfReach: empty !== null && empty.recoveries.every((r) => r.action !== null && kindOf(r.action) === 'time'),
+        studyOpen
       }),
       face: faceFocus === null || world !== 'turn' ? null : { ordinal: faceFocus, name: block.faces[faceFocus]!.name, colour: block.faces[faceFocus]!.colour },
       /** The source faces the slice cuts now, for following one without a pointer. */

@@ -479,3 +479,21 @@ describe('the prior states are what their names say', () => {
     expect(contact.worlds.contact.sim.impacts).toBeGreaterThan(0);
   });
 });
+
+describe('a clock is never moved out of sight', () => {
+  it('the orbit, left playing, holds still while the collision is in front, and runs again when its world returns', () => {
+    const x = createExperience('free');
+    x.dispatch({ type: 'play' });
+    const ball = x.worlds.turn.products.find((p) => p.id === 'companion')!;
+    x.dispatch({ type: 'tick', seconds: 0.05 });
+    x.dispatch({ type: 'world', world: 'contact' });
+    const held = ball.position4()!.slice();
+    for (let k = 0; k < 10; k++) x.dispatch({ type: 'tick', seconds: 0.05 });
+    expect(ball.position4()).toEqual(held);
+    x.dispatch({ type: 'world', world: 'turn' });
+    x.dispatch({ type: 'tick', seconds: 0.05 });
+    expect(ball.position4()).not.toEqual(held);
+    x.dispose();
+  });
+});
+

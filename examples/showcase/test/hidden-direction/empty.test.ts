@@ -409,3 +409,49 @@ describe('a marker on screen is named, and never read as a cut', () => {
     x.dispose();
   });
 });
+
+describe('an empty view that only a replay can mend says so, and offers the replay', () => {
+  /**
+   * Chapter III left playing: after the blow the box moves kata at 4/3 and the
+   * ball ana at 2/3, so within a few seconds both lie beyond the slider's reach
+   * (±1.6) and no slide or camera turn can bring either back. The empty view
+   * then offers the physics clock's own replays, and the hint says why.
+   */
+  it('left playing, chapter III ends empty with no body in reach; the recoveries are the two replays, and the first one mends it', () => {
+    const x = createExperience('collision');
+    x.dispatch({ type: 'play' });
+    let v = x.view();
+    let slideOffered = false;
+    const stranded = () => v.empty !== null && v.bodies.every((b) => !b.reachable);
+    for (let k = 0; k < 1200 && !stranded(); k++) {
+      x.dispatch({ type: 'tick', seconds: 1 / 60 });
+      v = x.view();
+      // On the way, while a body is still within reach, the empty view offers the slide, not a replay.
+      if (v.empty !== null && v.bodies.some((b) => b.reachable)) {
+        slideOffered = true;
+        expect(v.empty.recoveries.every((r) => r.action?.type === 'cut-to')).toBe(true);
+      }
+    }
+    expect(slideOffered, 'the view empties first with a body still in reach').toBe(true);
+    expect(v.empty, 'then nothing is in reach').not.toBeNull();
+    expect(v.bodies.every((b) => b.status === 'outside' && !b.reachable)).toBe(true);
+    expect(v.empty!.recoveries.map((r) => r.label)).toEqual(['Replay to just after the blow', 'Replay the launch']);
+    expect(v.empty!.recoveries.map((r) => r.action)).toEqual([{ type: 'jump-after' }, { type: 'replay' }]);
+    expect(v.hint).toBe('Both bodies have carried on beyond your slice’s reach. Replay to just after the blow to look again.');
+    x.dispatch(v.empty!.recoveries[0]!.action!);
+    v = x.view();
+    expect(x.worlds.contact.sim.impacts).toBe(1);
+    expect(v.clock.playing).toBe(false);
+    expect(v.empty).toBeNull();
+    x.dispose();
+  });
+
+  it('a slide or a camera turn is offered first whenever either can help: no replay is offered before the blow', () => {
+    const x = createExperience('collision');
+    x.dispatch({ type: 'cut-offset', value: 1.6 });
+    const labels = x.view().empty!.recoveries.map((r) => r.label);
+    expect(labels).toEqual(['Slide your slice to the box']);
+    x.dispose();
+  });
+});
+

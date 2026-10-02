@@ -1,11 +1,12 @@
 /**
  * The hidden plane, seen from outside.
  *
- * Everything this experience moves through the fourth direction moves in ONE
- * plane, the x–w plane: the slice turns in it (`TURN_PLANE`), the ball's drop
- * and the off-centre spin happen in it, and the turning scene's "through w"
- * mode turns the box in it. So a map of that plane can show the slice and the
- * bodies together, from a viewpoint no 3D observer has.
+ * The slice turns in the x–w plane (`TURN_PLANE`), and so does most of what
+ * moves through the fourth direction here: the contact world's drop and its
+ * off-centre spin, and the turning scene's "through w" mode. The turning
+ * world's ball orbits in the z–w plane instead; its x never changes, so on
+ * this map its footprint moves along w only. A map of the x–w plane can show
+ * the slice and the bodies together, from a viewpoint no 3D observer has.
  *
  * ## Why the map can be trusted
  *

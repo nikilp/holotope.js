@@ -27,6 +27,19 @@ export function distance(value: number): string {
   return a.toFixed(2);
 }
 
+/**
+ * A signed reading at a fixed number of places that never prints a signed zero:
+ * exactly zero prints "0", and a non-zero value that would round to zero prints
+ * its bound ("+under 0.005"). Used for the slice's offset and the numbers panel.
+ */
+export function signedReading(value: number, places: number): string {
+  if (value === 0) return (0).toFixed(places);
+  const sign = value > 0 ? '+' : '−';
+  const shown = Math.abs(value).toFixed(places);
+  if (Number(shown) === 0) return `${sign}under ${(0.5 * 10 ** -places).toFixed(places + 1)}`;
+  return `${sign}${shown}`;
+}
+
 /** Which side of your slice a signed gap lies on. */
 export function side(gap: number): 'ana' | 'kata' {
   return gap > 0 ? 'ana' : 'kata';
@@ -149,6 +162,10 @@ interface HintModel {
   readonly orbitMeets: boolean;
   /** Where the ball was at this launch's blow — in the slice or beyond it — or null before the blow. */
   readonly strike: 'seen' | 'hidden' | null;
+  /** The view is empty and only a replay of the clock can bring a body back into reach. */
+  readonly outOfReach: boolean;
+  /** The separate turning scene is in front, where your slice is fixed. */
+  readonly studyOpen: boolean;
 }
 
 /**
@@ -159,7 +176,7 @@ export function hint(chapter: string, seen: Seen, now: HintModel): string {
   switch (chapter) {
     case 'arrival':
       if (!seen.has('played')) return 'Press play. The ball follows a prescribed orbit that takes it through the fourth direction.';
-      if (seen.has('found') && now.ballInSlice) return 'Found it. You moved your slice, not the ball: on the map its footprint stayed put while your line came to it.';
+      if (seen.has('found') && now.ballInSlice) return 'Found it: your slice moved to the ball. The ball moves only along its prescribed orbit; your slice moves only when you move it.';
       if (seen.has('vanished') && !now.ballInSlice) return 'It vanished — it has not gone. Pause, then follow it: drag your bright line on the map toward its footprint, or press ↑ or ↓.';
       if (now.ballInSlice) return 'There it is, in your slice. It is the same rigid ball throughout; only where your slice cuts it changes.';
       if (!now.orbitMeets) return 'Its orbit never meets your slice as it stands. Slide or turn your slice back toward its footprint on the map.';
@@ -172,12 +189,14 @@ export function hint(chapter: string, seen: Seen, now: HintModel): string {
       return 'Now drag the picture. Turning the camera changes where you look from — never what your slice cuts.';
     case 'collision':
       if (!seen.has('struck')) return seen.has('played') ? 'Watch the box.' : 'Press play and watch the box.';
+      if (now.outOfReach) return 'Both bodies have carried on beyond your slice’s reach. Replay to just after the blow to look again.';
       if (now.strike === 'seen') return 'This time the ball was in your slice when it struck. Freeze an instant to compare the slice with the shadow.';
       if (!seen.has('turned') && !seen.has('shadow')) return 'Find the cause: look at the hidden plane, or lift the shadow.';
       if (now.strike === 'hidden') return 'The ball was beyond your slice, along w. Freeze an instant to compare the slice with the shadow.';
       return 'Replay the launch, or step to the blow, and find what struck the box.';
     case 'spin':
       if (!seen.has('struck')) return seen.has('played') ? 'Watch the box.' : 'Press play. The blow lands off-centre.';
+      if (now.outOfReach) return 'Both bodies have carried on beyond your slice’s reach. Replay to just after the blow to look again.';
       if (!seen.has('frozen')) return 'Freeze, and the shadow lifts: the box is turning in a plane your slice cannot show.';
       return 'Its slice changes width as it turns; the box itself is rigid. Chapter V turns the same box by hand.';
     case 'turning':
@@ -185,6 +204,7 @@ export function hint(chapter: string, seen: Seen, now: HintModel): string {
       if (!seen.has('compared')) return 'Switch to the ordinary turn: the same box, turned within your slice.';
       return 'Both are turns of one rigid box. Only the turn through w changes what your fixed slice cuts.';
     default:
-      return 'Every instrument is unlocked. Switch worlds, slide and turn your slice, run the clocks.';
+      if (now.studyOpen) return 'This is the turning scene, where your slice is fixed. Choose a world to slide and turn your slice.';
+      return 'Every instrument is open here. Switch worlds, slide and turn your slice, run the clocks.';
   }
 }

@@ -64,6 +64,10 @@ export interface Stage {
   recentre(): void;
   /** Turn the camera to look at a sphere in the chart, from the home direction. Camera only. */
   frame(centre: readonly [number, number, number], radius: number): void;
+  /** Turn the camera about its target, around the vertical, by an angle in radians. Camera only. */
+  orbit(radians: number): void;
+  /** Bring the camera nearer (factor < 1) or farther (> 1), within its limits. Camera only. */
+  zoom(factor: number): void;
   onCameraMove(listener: () => void): void;
   dispose(): void;
 }
@@ -134,6 +138,17 @@ export function createStage(host: HTMLElement, reducedMotion: boolean): Stage {
       const distance = Math.min(controls.maxDistance, Math.max(controls.minDistance, (radius * 1.6) / Math.sin(half)));
       controls.target.copy(target);
       camera.position.copy(target).addScaledVector(home, distance);
+      controls.update();
+    },
+    orbit: (radians) => {
+      const offset = camera.position.clone().sub(controls.target).applyAxisAngle(new Vector3(0, 1, 0), radians);
+      camera.position.copy(controls.target).add(offset);
+      controls.update();
+    },
+    zoom: (factor) => {
+      const offset = camera.position.clone().sub(controls.target);
+      const length = Math.min(controls.maxDistance, Math.max(controls.minDistance, offset.length() * factor));
+      camera.position.copy(controls.target).add(offset.setLength(length));
       controls.update();
     },
     onCameraMove: (listener) => { listeners.push(listener); },

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CHAPTERS, createExperience, type ChapterId } from '../../src/hidden-direction/experience.js';
 import {
   EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, distance, eventLine, hint, planeNote,
-  pivotLine, side, strikeLine
+  pivotLine, side, signedReading, strikeLine
 } from '../../src/hidden-direction/copy.js';
 import { homeCamera } from '../../src/hidden-direction/stage.js';
 
@@ -38,7 +38,8 @@ type Mark = (typeof MARKS)[number];
 
 /** Every model state a hint may read: ball drawn or not, clock running or not, orbit meeting the slice or not, and where the blow came from. */
 const HINT_MODELS = [true, false].flatMap((ballInSlice) => [true, false].flatMap((playing) => [true, false].flatMap((orbitMeets) =>
-  (['seen', 'hidden', null] as const).map((strike) => ({ ballInSlice, playing, orbitMeets, strike })))));
+  [true, false].flatMap((outOfReach) => [true, false].flatMap((studyOpen) =>
+    (['seen', 'hidden', null] as const).map((strike) => ({ ballInSlice, playing, orbitMeets, strike, outOfReach, studyOpen })))))));
 
 const STATUSES = ['present', 'tangent', 'outside'] as const;
 const FRAMES = ['in', 'partial', 'out', null] as const;
@@ -173,14 +174,14 @@ const INTUITION = /intuition|see in 4D|see four dimensions|visuali[sz]e 4D/i;
 
 describe('the census is the whole copy', () => {
   it('covers every chapter, every model state and every mark subset, and reaches every hint branch', () => {
-    // 7 chapter ids × 2^12 subsets × 24 model states; distinct sentences collapse far below that.
+    // 7 chapter ids × 2^12 subsets × 96 model states; distinct sentences collapse far below that.
     const hints = new Set<string>();
     for (const id of [...CHAPTERS.map((c) => c.id), 'elsewhere']) {
       for (const seen of subsetsOf(MARKS)) for (const model of HINT_MODELS) hints.add(hint(id, seen, model));
     }
-    // Counted by hand from copy.ts: arrival 7, cuts 4, collision 6, spin 4 (one of them, “Watch the box.”,
-    // shared with collision), turning 3, default 1 — twenty-four distinct sentences.
-    expect(hints.size).toBe(24);
+    // Counted by hand from copy.ts: arrival 7, cuts 4, collision 7, spin 5 (two of them — “Watch the box.”
+    // and the out-of-reach line — shared with collision), turning 3, default 2: twenty-six distinct sentences.
+    expect(hints.size).toBe(26);
     expect(CHAPTERS.map((c) => c.id)).toEqual(['arrival', 'cuts', 'collision', 'spin', 'turning', 'free']);
   });
 
@@ -510,7 +511,29 @@ describe('every hint stays true however the chapter was reached', () => {
     const v = x.view();
     expect(v.bodies.find((b) => b.id === 'companion')!.drawn).toBeGreaterThan(0);
     expect(v.event).toBe('Ball appeared — it moved along its prescribed orbit, and now your slice cuts it.');
-    expect(v.hint).not.toMatch(/You moved your slice, not the ball/);
+    expect(v.hint).not.toMatch(/Found it/);
+    x.dispose();
+  });
+
+  it('a ball the visitor found, then lost, and the orbit brought back, is not credited to the visitor', () => {
+    // Find it by sliding (the slice's move brings it in), play: the orbit carries it out and back.
+    const x = createExperience('arrival');
+    x.dispatch({ type: 'cut-offset', value: 0.5 });
+    const ball = () => x.view().bodies.find((b) => b.id === 'companion')!;
+    expect(ball().drawn).toBeGreaterThan(0);
+    x.dispatch({ type: 'play' });
+    expect(x.view().hint).toMatch(/^Found it/);
+    let left = false;
+    let back = false;
+    for (let k = 0; k < 1500 && !back; k++) {
+      x.dispatch({ type: 'tick', seconds: 1 / 60 });
+      if (ball().drawn === 0) left = true;
+      else if (left) back = true;
+    }
+    expect(left && back, 'the orbit took the ball out and brought it back').toBe(true);
+    const v = x.view();
+    expect(v.event).toBe('Ball appeared — it moved along its prescribed orbit, and now your slice cuts it.');
+    expect(v.hint).not.toMatch(/Found it/);
     x.dispose();
   });
 
@@ -527,7 +550,9 @@ describe('every hint stays true however the chapter was reached', () => {
       const c = ball.position4()!;
       expect(Math.abs(n.reduce((s, v, i) => s + v * c[i]!, 0)) - 0.72).toBeGreaterThan(1.6);
     }
-    expect(x.view().hint).not.toMatch(/about to cross your line/);
+    // The promise is the hidden-plane line "will cross your line"; it must not be made here.
+    expect(x.view().hint).not.toMatch(/cross your line/);
+    expect(x.view().hint).toMatch(/never meets your slice/);
     x.dispose();
   });
 
@@ -542,6 +567,43 @@ describe('every hint stays true however the chapter was reached', () => {
     const v = x.view();
     expect(v.event).toBe('The box was struck — by the ball, then in your slice.');
     expect(v.hint).not.toMatch(/beyond your slice/);
+    x.dispose();
+  });
+});
+
+describe('signed readings never print a signed zero', () => {
+  it('prints zero as zero, a value that rounds to zero as its bound with its sign, and anything else signed', () => {
+    expect(signedReading(0, 2)).toBe('0.00');
+    expect(signedReading(-0.003, 2)).toBe('−under 0.005');
+    expect(signedReading(0.003, 2)).toBe('+under 0.005');
+    expect(signedReading(-0.0004, 3)).toBe('−under 0.0005');
+    expect(signedReading(6.123233995736766e-17, 3)).toBe('+under 0.0005');
+    expect(signedReading(-1.6, 2)).toBe('−1.60');
+    expect(signedReading(0.4, 2)).toBe('+0.40');
+    for (const v of [-0.0049, -0.001, -1e-12, -0.00049]) {
+      for (const places of [2, 3]) expect(signedReading(v, places)).not.toMatch(/[−-]0\.0+$/);
+    }
+  });
+});
+
+describe('free exploration says what it lets you do, wherever it is entered', () => {
+  it('entered from the turning scene, the hint says the slice is fixed there, and no sentence calls every instrument unlocked', () => {
+    const x = createExperience('turning');
+    x.dispatch({ type: 'chapter', id: 'free' });
+    const v = x.view();
+    expect(v.studyOpen).toBe(true);
+    expect(v.plane.movable).toBe(false);
+    expect(v.hint).toBe('This is the turning scene, where your slice is fixed. Choose a world to slide and turn your slice.');
+    expect(v.chapter.setup).not.toMatch(/every instrument is unlocked/);
+    expect(v.chapter.setup).toContain('the turning scene keeps its fixed slice');
+    x.dispose();
+  });
+
+  it('entered from a world with a movable slice, the hint says every instrument is open', () => {
+    const x = createExperience('collision');
+    x.dispatch({ type: 'chapter', id: 'free' });
+    expect(x.view().plane.movable).toBe(true);
+    expect(x.view().hint).toBe('Every instrument is open here. Switch worlds, slide and turn your slice, run the clocks.');
     x.dispose();
   });
 });

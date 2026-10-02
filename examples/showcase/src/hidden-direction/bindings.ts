@@ -1,10 +1,14 @@
 import type { Action, ChapterId } from './experience.js';
 
 /**
- * Every control the page has, and what it does — DOM-free, so the tests run
- * the very functions the page attaches. The page binds nothing that is not in
- * this table (`app.ts` attaches by iterating it), and the markup census in the
- * tests holds the HTML to exactly these ids.
+ * Every control in the page's markup, and what it does — DOM-free, so the tests
+ * run the very functions the page attaches. `app.ts` attaches the buttons by
+ * iterating this table and the instruments' drags and keys through `INSTRUMENTS`
+ * and `sliderKey`; the markup census in the tests holds the HTML to exactly
+ * these ids. The page also sends actions from controls it generates, each
+ * defined by the view model: the chapter rail (`chapterAction`), the empty
+ * view's recoveries, the single-out toggles, the gauge's bars, and a pick in
+ * the picture (a face's ordinal).
  *
  * `kind` says what the control may touch:
  *   view    — the observer: the slice, the shadow, the focus. Never a clock.
@@ -77,16 +81,54 @@ export const INSTRUMENTS = {
   studyAngle: { id: 'hd-study-angle', kind: 'study' as const, act: (degrees: number): Action => ({ type: 'study-angle', degrees }) }
 } as const;
 
+/**
+ * Keys on a focused instrument (each is a slider). Right and Up raise the value,
+ * Left and Down lower it, Shift makes the step ten times larger, Home returns it
+ * to zero. The gauge slides the slice, the map turns it, the study's dial turns
+ * the box (from its current angle `now`, within 0°–360°).
+ */
+export function sliderKey(instrument: 'gauge' | 'map' | 'studyAngle', key: string, shift: boolean, now = 0): Action | null {
+  const up = key === 'ArrowUp' || key === 'ArrowRight';
+  const down = key === 'ArrowDown' || key === 'ArrowLeft';
+  if (instrument === 'gauge') {
+    const step = shift ? 0.2 : 0.02;
+    if (up) return { type: 'cut-nudge', delta: step };
+    if (down) return { type: 'cut-nudge', delta: -step };
+    if (key === 'Home') return INSTRUMENTS.gauge.act(0);
+    return null;
+  }
+  const step = shift ? 10 : 1;
+  if (instrument === 'map') {
+    if (up) return { type: 'cut-turn-nudge', delta: step };
+    if (down) return { type: 'cut-turn-nudge', delta: -step };
+    if (key === 'Home') return INSTRUMENTS.turn.act(0);
+    return null;
+  }
+  if (up) return INSTRUMENTS.studyAngle.act(Math.min(360, now + step));
+  if (down) return INSTRUMENTS.studyAngle.act(Math.max(0, now - step));
+  if (key === 'Home') return INSTRUMENTS.studyAngle.act(0);
+  return null;
+}
+
 /** Chapter buttons are generated from the chapter list; each establishes its chapter. */
 export const chapterAction = (id: ChapterId): Action => ({ type: 'chapter', id });
+
+/** What a key may do to the camera — the page's, not the model's. */
+export type CameraKey = 'camera' | 'orbit-left' | 'orbit-right' | 'zoom-in' | 'zoom-out';
 
 /**
  * Keys, when no text field has focus. Arrows move the slice — left/right turn
  * it, up/down slide it ana/kata — and Shift makes the step ten times larger.
+ * Q and E turn the camera about the scene, + and − bring it nearer or farther,
+ * C brings it home: camera only, never the model.
  */
-export function keyAction(key: string, shift: boolean, context: ControlContext): Action | 'camera' | null {
+export function keyAction(key: string, shift: boolean, context: ControlContext): Action | CameraKey | null {
   const k = shift ? 10 : 1;
   switch (key) {
+    case 'q': case 'Q': return 'orbit-left';
+    case 'e': case 'E': return 'orbit-right';
+    case '+': case '=': return 'zoom-in';
+    case '-': case '_': return 'zoom-out';
     case 'ArrowLeft': return { type: 'cut-turn-nudge', delta: -1 * k };
     case 'ArrowRight': return { type: 'cut-turn-nudge', delta: 1 * k };
     case 'ArrowUp': return { type: 'cut-nudge', delta: 0.02 * k };

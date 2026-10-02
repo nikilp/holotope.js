@@ -3,7 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { VecN } from '@holotope/core';
-import { BUTTONS, INSTRUMENTS, chapterAction, keyAction, nextFace } from '../../src/hidden-direction/bindings.js';
+import { BUTTONS, INSTRUMENTS, chapterAction, keyAction, nextFace, sliderKey } from '../../src/hidden-direction/bindings.js';
 import { CHAPTERS, createExperience, kindOf, type Action, type ChapterId } from '../../src/hidden-direction/experience.js';
 import { PRESETS, impactStepOf } from '../../src/spatial-4d-contact/simulation.js';
 import viteConfig from '../../vite.config.js';
@@ -563,7 +563,7 @@ describe('a fixed slice is fixed to every control, keys included', () => {
     for (const k of ['ArrowLeft', 'ArrowUp', 'r']) {
       for (const shift of [false, true]) {
         const a = keyAction(k, shift, contextOf(x));
-        if (a !== null && a !== 'camera') x.dispatch(a);
+        if (a !== null && typeof a !== 'string') x.dispatch(a);
       }
     }
     expect(slices()).toEqual(before);
@@ -698,3 +698,57 @@ describe('every chapter is reachable by hash', () => {
     expect(appCode).toContain('if(/^[1-6]$/.test(e.key)){send(chapterAction(CHAPTER_IDS[Number(e.key)-1]!));return;}');
   });
 });
+
+describe('keys on a focused instrument, and the camera keys: literal tables', () => {
+  it('the gauge slides the slice: ↑/→ raise, ↓/← lower, Shift ten times, Home to zero', () => {
+    expect(sliderKey('gauge', 'ArrowUp', false)).toEqual({ type: 'cut-nudge', delta: 0.02 });
+    expect(sliderKey('gauge', 'ArrowRight', true)).toEqual({ type: 'cut-nudge', delta: 0.2 });
+    expect(sliderKey('gauge', 'ArrowDown', false)).toEqual({ type: 'cut-nudge', delta: -0.02 });
+    expect(sliderKey('gauge', 'ArrowLeft', true)).toEqual({ type: 'cut-nudge', delta: -0.2 });
+    expect(sliderKey('gauge', 'Home', false)).toEqual({ type: 'cut-offset', value: 0 });
+    expect(sliderKey('gauge', 'x', false)).toBeNull();
+  });
+
+  it('the map turns the slice: ↑/→ raise, ↓/← lower, Shift ten times, Home to zero', () => {
+    expect(sliderKey('map', 'ArrowRight', false)).toEqual({ type: 'cut-turn-nudge', delta: 1 });
+    expect(sliderKey('map', 'ArrowUp', true)).toEqual({ type: 'cut-turn-nudge', delta: 10 });
+    expect(sliderKey('map', 'ArrowLeft', false)).toEqual({ type: 'cut-turn-nudge', delta: -1 });
+    expect(sliderKey('map', 'Home', false)).toEqual({ type: 'cut-turn', degrees: 0 });
+    expect(sliderKey('map', 'End', false)).toBeNull();
+  });
+
+  it('the study dial turns the box from where it is, within 0°–360°', () => {
+    expect(sliderKey('studyAngle', 'ArrowRight', false, 40)).toEqual({ type: 'study-angle', degrees: 41 });
+    expect(sliderKey('studyAngle', 'ArrowDown', true, 40)).toEqual({ type: 'study-angle', degrees: 30 });
+    expect(sliderKey('studyAngle', 'ArrowUp', true, 355)).toEqual({ type: 'study-angle', degrees: 360 });
+    expect(sliderKey('studyAngle', 'ArrowLeft', true, 4)).toEqual({ type: 'study-angle', degrees: 0 });
+    expect(sliderKey('studyAngle', 'Home', false, 200)).toEqual({ type: 'study-angle', degrees: 0 });
+  });
+
+  it('each slider key executes through the controller and is a view (gauge, map) or study (dial) action', () => {
+    const turn = createExperience('cuts');
+    turn.dispatch(sliderKey('gauge', 'ArrowUp', true)!);
+    turn.dispatch(sliderKey('map', 'ArrowRight', true)!);
+    expect(turn.view().cut.offset).toBeCloseTo(0.2, 12);
+    expect(turn.view().cut.degrees).toBeCloseTo(10, 12);
+    expect(kindOf(sliderKey('gauge', 'ArrowUp', false)!)).toBe('view');
+    expect(kindOf(sliderKey('map', 'ArrowUp', false)!)).toBe('view');
+    turn.dispose();
+    const study = createExperience('turning');
+    study.dispatch(sliderKey('studyAngle', 'ArrowRight', true, study.view().study!.degrees)!);
+    expect(study.view().study!.degrees).toBeCloseTo(10, 12);
+    expect(kindOf(sliderKey('studyAngle', 'ArrowUp', false, 0)!)).toBe('study');
+    study.dispose();
+  });
+
+  it('Q, E, + and − move the camera only: they return camera keys, never actions', () => {
+    const idle = { playing: false, shadowOn: false, studyPlaying: false, facesCut: [], face: null };
+    expect(keyAction('q', false, idle)).toBe('orbit-left');
+    expect(keyAction('E', false, idle)).toBe('orbit-right');
+    expect(keyAction('+', false, idle)).toBe('zoom-in');
+    expect(keyAction('=', false, idle)).toBe('zoom-in');
+    expect(keyAction('-', false, idle)).toBe('zoom-out');
+    expect(keyAction('c', false, idle)).toBe('camera');
+  });
+});
+
