@@ -160,12 +160,23 @@ It composes the modules above and adds no geometry or physics of its own.
   y and z: the convex hull of its posed corners, or a disc. The slice is the
   line n·q = offset. While the normal n lies in the x–w plane, n·p reads only
   x and w, so the slice meets a body exactly when the line meets its
-  footprint. The map uses the sectioner's 10⁻⁹ tolerance and draws no line for
-  a normal with a y or z component.
+  footprint. Whether the map draws a chord is decided by the library's own
+  status for the body; the footprint gives the chord its shape, with the
+  sectioner's 10⁻⁹ tolerance. Used alone, the footprint arithmetic rounds
+  differently from the library's ball classifier, and so disagrees with it
+  within a few ulps of the tolerance band's edge. The map draws no line for a
+  normal with a y or z component.
 - **Words as functions of the model.** `copy.ts` writes every sentence from
   the model's numbers. An empty view names one of four causes: outside the
-  slice, touching only along the boundary, outside the camera's view, or not
-  drawn. Where a recovery exists, it moves only the slice or only the
+  slice, meeting the slice only on the body's boundary, outside the camera's
+  view, or not drawn. A boundary meeting is described by three separate facts:
+  whether the slice meets the body, which is the library's status; what the
+  meeting is and its dimension, read from the posed corners within 10⁻⁹ and
+  called "not established" when the corners leave it open; and what was drawn.
+  At the turning scene's kata limit, the slice lies on the block's −w face, a
+  solid 4.4 × 2.6 × 1.6 cuboid. Nothing is drawn there, because the sectioner
+  cuts only cells with a corner strictly kata of the slice. At the ana limit,
+  the +w face is drawn. Where a recovery exists, it moves only the slice or only the
   camera. When the struck bodies have carried on beyond the slider's reach, the
   view instead offers a replay of the physics clock from the launch.
 
@@ -178,8 +189,11 @@ pages:
   the page says so and offers a camera-only recovery.
 - **Phone layout.** On a narrow screen the picture stays pinned while the
   instruments scroll beneath it.
-- **Small distances.** A body in the slice never prints 0.00 or −0.00; a
-  distance under 0.005 prints as "under 0.005".
+- **Small distances.** A body in the slice never prints 0.00, and no reading
+  prints a signed zero: a non-zero value under the last place prints as its
+  bound ("under 0.005"), and an exact zero prints without a sign. A keyboard
+  step, or a slide to a body, that comes within 10⁻¹² of zero lands on zero; a
+  drag is kept as given.
 - **Absence wording.** One vocabulary describes absence, and the clock line
   says when it is paused.
 
@@ -248,16 +262,26 @@ These pins read the shipped page and module text. They prove the code says
 something, not that it runs: the repository has no DOM test environment.
 Behaviour in a browser needs genuine input.
 
-The Hidden Direction's suite holds 759 tests in 11 files. They drive the
+The Hidden Direction's suite holds 795 tests in 13 files. They drive the
 controller through the same entry point the page uses, and their oracles are
-independent: fresh instances, closed forms and literals.
+independent: fresh instances, closed forms and literals. They do not drive the
+page's own wiring of controls to that entry point (`app.ts`), which needs a
+browser. That wiring was checked by genuine input in a browser, outside this
+suite.
 
 - **Kind boundaries.** Every action variant is applied from seven prior
   states, and the state the action's kind must not touch is compared bitwise.
 - **Chapter setup.** Each chapter, entered from messy states, gives the same
   view, internals and continuation as a fresh chapter.
-- **The map against the library.** Over 29 750 readings, the map draws a chord
-  exactly when the library says a body is not outside the slice.
+- **The map against the library.** The map draws a chord exactly when the
+  library says a body is not outside the slice. This holds by construction,
+  and it is checked over 29 750 readings and at the band-edge case that
+  separates the two roundings.
+- **What a slice meets.** Both of the turning scene's reference limits are
+  read with the dimensions of the meeting and with what was drawn. So are
+  turned and posed faces of the contact box, and a touching ball.
+- **Replays and blows.** Strike hints, replays and new launches are driven
+  through the page's own button bindings, at retained offsets.
 - **Identity, absence and the observer.** The tests cover face identity across
   the slice and the shadow, the four empty-view causes and their recoveries,
   and the observer note read from the live slice. The note is also pinned on

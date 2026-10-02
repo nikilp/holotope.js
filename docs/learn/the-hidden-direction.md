@@ -13,8 +13,9 @@ check it yourself, is in
 The world has four directions: x, y, z and w. Your screen shows a **slice** of
 it — the three-dimensional set of points where a hyperplane crosses the world —
 drawn in solid colour. A body appears only where the slice cuts it, so a body
-can vanish from the picture without going anywhere: it has moved, or the slice
-has, along a direction the slice cannot show.
+can vanish from the picture and still be there: either it moved, or you moved
+the slice, along a direction the slice cannot show. A body can also be cut and
+simply outside the camera's view. The page says which of these happened.
 
 Two words name that direction once, against your slice. **Ana** is the side the
 slice's normal points to; **kata** is the other side. They never mean up or down
@@ -48,20 +49,23 @@ Two shadows that overlap are not touching.
 
 Hold Shift with an arrow key for a step ten times larger. Moving the slice or the
 camera never changes the world: no body moves because of it, and no clock starts,
-stops or steps.
+stops or steps. When a body vanishes, the line in the picture says what moved —
+the body, or your slice — and on which side of your slice the body now lies.
 
 ## The chapters
 
 Each chapter sets up its stated starting state in full, whatever you did before,
-and says what that state is under its title.
+and says what that state is under its title. The camera is the one thing a
+chapter leaves alone: it stays where you left it, and *Re-centre camera* or C
+brings it home.
 
 1. **[Something passes through](https://nikilp.github.io/holotope.js/spatial-4d-turn.html#arrival).**
    Press play. A ball follows a prescribed orbit through w and leaves your
    slice. Follow it: on the map, its footprint is still there.
 2. **[One block, many slices](https://nikilp.github.io/holotope.js/spatial-4d-turn.html#cuts).**
    The block never moves. Turn your slice and watch the cut change, then lift
-   the shadow. Tap a coloured face, or press *Follow a face*, to follow that
-   face across the slice and the shadow.
+   the shadow. Click or tap a coloured face, or press *Follow a face*, to follow
+   that face across the slice and the shadow.
 3. **[A collision you cannot see](https://nikilp.github.io/holotope.js/spatial-4d-contact.html#collision).**
    A box is struck by a ball your slice cannot show. The map shows where the
    ball is.
@@ -70,7 +74,8 @@ and says what that state is under its title.
    the map, the box's footprint turns.
 5. **[Turn the object, not the slice](https://nikilp.github.io/holotope.js/spatial-4d-contact.html#turning).**
    A separate scene turns the same box by hand while your slice stays fixed at
-   w = 0. Compare a turn through w with an ordinary turn.
+   w = 0. Compare a turn through w with an ordinary turn. Entering this chapter
+   pauses the collision's clock; nothing else of the collision changes.
 
 **[Explore freely](https://nikilp.github.io/holotope.js/spatial-4d-turn.html#free)**
 leaves everything where it is. Choose a world, and every instrument is yours in
@@ -82,7 +87,9 @@ it; the turning scene keeps its fixed slice.
   involved: no force acts, and nothing is integrated.
 - **The physics clock** runs the collision in fixed steps of 1/120 s. It only
   steps forward. *Step −1*, *Just before the blow* and *Replay launch* each build
-  a fresh run from the launch; nothing is rewound.
+  a fresh run from the launch; nothing is rewound, and the picture says it was
+  a replay, not that anything moved. Each guided chapter, chapter V included,
+  starts with this clock paused.
 - **The prescribed turn** in chapter V is a separate scene with its own angle and
   slice. It reads and writes nothing of the collision.
 
@@ -97,9 +104,16 @@ causes, and the page names which one applies:
   stated distance. *Slide your slice to it* moves the slice if the slider can
   reach it. If the struck bodies have carried on beyond the slider's reach,
   *Replay to just after the blow* replays the physics clock from the launch.
-- **Touching your slice.** The slice meets the body only along its boundary,
-  within 10⁻⁹. Such a cut is a face, an edge or a point, and only solids are
-  drawn.
+- **Meeting your slice only on its boundary.** Within 10⁻⁹, your slice lies on
+  part of the body's surface. That part can still be solid. At the slider's kata
+  limit, −1.6, your slice lies on the block's whole −w face, a 4.4 × 2.6 × 1.6
+  cuboid. A turned slice can meet the contact box in a flat rectangle, and a
+  ball only ever touches at a single point. Nothing is drawn for such a meeting
+  when the body lies on the ana side of your slice. This is the convention of
+  the library's sectioner, not a property of the meeting: it cuts only the cells
+  that have a corner strictly kata of your slice, and it counts a corner on the
+  slice as ana. From the kata side the same kind of meeting is drawn: at +1.6,
+  the block's +w face. The page says what the meeting is and what was drawn.
 - **Outside the camera's view.** The body is in your slice but out of frame.
   *Turn the camera to it* moves the camera only.
 - **Not drawn.** The body is in your slice by the library's test, but the
@@ -107,21 +121,28 @@ causes, and the page names which one applies:
   it is named so that it is never mistaken for absence.
 
 A small marker with a dashed tag is not a cut. It marks where the ball touches
-your slice. In chapters I and II it can also mark a near miss: the point where
-your slice would first touch the ball.
+your slice. In the world of the block and the orbiting ball (chapters I and II,
+and free exploration) it can also mark a near miss: the point where your slice
+would first touch the ball.
 
 ## Keyboard, touch and motion
 
-Every control can be reached and used from the keyboard; only panning the
-camera sideways needs a pointer. Tab reaches every control. The map, the gauge
-and the box's dial are sliders: the arrow keys move them and Home returns each
-to zero. Elsewhere the arrows turn and slide the slice, Space plays or pauses,
-`.` and `,` step the physics clock, S lifts the shadow, F freezes, R resets the
-slice, Q and E turn the camera, + and − zoom it, C brings it home and 1–6
-choose a chapter. On a phone, the
-picture stays pinned at the top while you scroll to the instruments. If your
-system asks for reduced motion, the camera stops gliding and the transitions
-are removed.
+Tab reaches every control, and every button, slider and disclosure works from
+the keyboard. The map, the gauge and the box's dial are sliders: while one has
+focus, its arrow keys move it and Home returns it to zero. Every other key works
+the same with or without an instrument focused: the arrows turn and slide the
+slice, Space plays or pauses, `.` and `,` step the physics clock, S lifts the
+shadow, F freezes, R resets the slice, and 1–6 choose a chapter. The camera has
+fewer keys than the pointer. Q and E turn it about the vertical, + and − bring
+it nearer or farther, and C brings it home. Tilting it up or down, and panning
+it, need a pointer.
+
+On a phone held upright, the picture stays pinned at the top while you scroll
+to the instruments; held sideways, the picture stays pinned on the left and the
+card scrolls beside it. On a touch screen, every button, slider, disclosure and
+link on these two pages is at least 44 pixels tall. These sizes were measured in
+emulation, not on a device. If your system asks for reduced motion, the camera
+stops gliding and the transitions are removed.
 
 ## What this is not
 
