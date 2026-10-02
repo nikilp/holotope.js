@@ -47,8 +47,11 @@ const IN_PLANE = 1e-12;
 
 /**
  * The sectioner's own tolerance, mirrored by the section modules: a point within it of the slice is
- * ON the slice. The map uses the same band, so it never disagrees with the library about whether a
- * body touches the slice.
+ * ON the slice. The map uses the same band to shape a chord. Whether there IS a chord is the
+ * library's status, passed in as `meets`: this arithmetic rounds differently from the library's ball
+ * classifier (it sums n_x c_x + n_w c_w − d; the library sums −d and then four products), so on its
+ * own it disagrees within a few ulps of the band's edge — found in review, 782 of 972 868 readings
+ * probed ulp by ulp around every edge, none in 4 400 random ones, all on the balls.
  */
 const ON_LINE = ON_PLANE_EPSILON;
 
@@ -129,14 +132,21 @@ export function lineSegment(line: Line, extent: number = PLANE_EXTENT): [Point, 
 /**
  * Where the line crosses a footprint: the slice's cut of that body, flattened
  * onto the map. Null when they do not meet; a zero-length chord when they meet
- * only at a boundary point. Meeting is decided with the sectioner's tolerance:
- * a corner within it of the line is on the line.
+ * only at a boundary point.
+ *
+ * `meets`, when given, is the library's word on whether the slice meets the
+ * body, and it decides: no chord when it says no, and at least the nearest
+ * point when it says yes, even where this arithmetic, rounding differently,
+ * would say otherwise within an ulp of the band's edge. Without it, meeting is
+ * decided here with the sectioner's tolerance: a corner within it of the line
+ * is on the line.
  */
-export function chordOf(footprint: Footprint, line: Line): [Point, Point] | null {
+export function chordOf(footprint: Footprint, line: Line, meets?: boolean): [Point, Point] | null {
+  if (meets === false) return null;
   const d = along(line);
   if (footprint.kind === 'disc') {
     const s = line.n[0] * footprint.centre[0] + line.n[1] * footprint.centre[1] - line.offset;
-    if (Math.abs(s) > footprint.radius + ON_LINE) return null;
+    if (meets === undefined && Math.abs(s) > footprint.radius + ON_LINE) return null;
     const half = Math.sqrt(Math.max(0, footprint.radius ** 2 - s ** 2));
     const m: Point = [footprint.centre[0] - s * line.n[0], footprint.centre[1] - s * line.n[1]];
     return [[m[0] - half * d[0], m[1] - half * d[1]], [m[0] + half * d[0], m[1] + half * d[1]]];
@@ -154,7 +164,18 @@ export function chordOf(footprint: Footprint, line: Line): [Point, Point] | null
       hits.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]);
     }
   }
-  if (hits.length === 0) return null;
+  if (hits.length === 0) {
+    if (meets !== true) return null;
+    // The library says the slice meets it: the corner nearest the line, put on the line.
+    let best = pts[0]!;
+    let bestS = Number.POSITIVE_INFINITY;
+    for (const p of pts) {
+      const s = line.n[0] * p[0] + line.n[1] * p[1] - line.offset;
+      if (Math.abs(s) < Math.abs(bestS)) { best = p; bestS = s; }
+    }
+    const at: Point = [best[0] - bestS * line.n[0], best[1] - bestS * line.n[1]];
+    return [at, at];
+  }
   const key = (p: Point): number => p[0] * d[0] + p[1] * d[1];
   hits.sort((p, q) => key(p) - key(q));
   return [hits[0]!, hits[hits.length - 1]!];

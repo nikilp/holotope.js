@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { CHAPTERS, createExperience, type ChapterId } from '../../src/hidden-direction/experience.js';
 import {
   EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, distance, eventLine, hint, planeNote,
-  pivotLine, side, signedReading, strikeLine
+  pivotLine, plainReading, side, signedReading, strikeLine, type Cause, type StrikeObservation
 } from '../../src/hidden-direction/copy.js';
 import { homeCamera } from '../../src/hidden-direction/stage.js';
+import type { Meeting } from '../../src/hidden-direction/worlds.js';
 
 /**
  * The copy's truth rules, held over every sentence the experience can say.
@@ -13,7 +14,8 @@ import { homeCamera } from '../../src/hidden-direction/stage.js';
  * title, setup and invitation; every hint for every chapter, every subset of
  * the visitor's marks and both states of the ball; every legend and note; and
  * every caption, reason, event, strike and clock line over all statuses,
- * frames, causes and a spread of signed gaps that includes the rounding edges.
+ * frames, causes, kinds of meeting and a spread of signed gaps that includes
+ * the rounding edges.
  * A second census reads the sentences the controller actually composes from
  * the model along a scripted tour of all six chapters.
  *
@@ -33,18 +35,47 @@ import { homeCamera } from '../../src/hidden-direction/stage.js';
 /* ------------------------------------------------------------------------ */
 
 /** Every mark the visitor can leave — the `Seen` type's members, written out. */
-const MARKS = ['played', 'appeared', 'found', 'vanished', 'struck', 'turned', 'slid', 'shadow', 'frozen', 'studied', 'compared', 'faced'] as const;
+const MARKS = ['played', 'appeared', 'found', 'vanished', 'turned', 'slid', 'shadow', 'frozen', 'studied', 'compared', 'faced'] as const;
 type Mark = (typeof MARKS)[number];
 
-/** Every model state a hint may read: ball drawn or not, clock running or not, orbit meeting the slice or not, and where the blow came from. */
-const HINT_MODELS = [true, false].flatMap((ballInSlice) => [true, false].flatMap((playing) => [true, false].flatMap((orbitMeets) =>
-  [true, false].flatMap((outOfReach) => [true, false].flatMap((studyOpen) =>
-    (['seen', 'hidden', null] as const).map((strike) => ({ ballInSlice, playing, orbitMeets, strike, outOfReach, studyOpen })))))));
+/** Blows seen: none; the ball in an untilted slice at +1.50; 1.0056 ana of the slice at 0; 0.3 kata of a turned slice. */
+const STRIKES: readonly (StrikeObservation | null)[] = [
+  null,
+  { step: 73, gap: 0, offset: 1.5000002351981934, degrees: 0 },
+  { step: 73, gap: 1.00555555555556, offset: 0, degrees: 0 },
+  { step: 74, gap: -0.3, offset: 0.2, degrees: -13.9 }
+];
+
+const BOOL = [true, false] as const;
+/**
+ * Every model state a hint may read: ball drawn or not, clock running or not, orbit meeting the slice or
+ * not, out of reach or not, the turning scene open or not, the run struck or not, the box turning or not,
+ * the launch off-centre or not, and each kind of blow seen.
+ */
+const HINT_MODELS = BOOL.flatMap((ballInSlice) => BOOL.flatMap((playing) => BOOL.flatMap((orbitMeets) =>
+  BOOL.flatMap((outOfReach) => BOOL.flatMap((studyOpen) => BOOL.flatMap((struck) => BOOL.flatMap((spinning) =>
+    BOOL.flatMap((offCentre) => STRIKES.map((strike) =>
+      ({ ballInSlice, playing, orbitMeets, outOfReach, studyOpen, struck, spinning, offCentre, strike }))))))))));
 
 const STATUSES = ['present', 'tangent', 'outside'] as const;
 const FRAMES = ['in', 'partial', 'out', null] as const;
-const KINDS = ['appeared', 'vanished', 'touching', 'struck'] as const;
-const CAUSES = ['orbit', 'physics', 'slice'] as const;
+const KINDS = ['appeared', 'vanished', 'crossed', 'touching'] as const;
+const CAUSES: readonly Cause[] = [
+  { kind: 'orbit' }, { kind: 'physics' }, { kind: 'slice' }, { kind: 'replay', step: 0 }, { kind: 'replay', step: 73 },
+  { kind: 'launch', name: 'B' }
+];
+/** Every kind of meeting, with each side the rest of the body can lie on, at the reachable boxes' own side lengths. */
+const MEETINGS: readonly Meeting[] = [
+  { kind: 'none' }, { kind: 'through' }, { kind: 'unsettled' },
+  ...(['ana', 'kata'] as const).flatMap((rest): Meeting[] => [
+    { kind: 'boundary', body: 'box', dim: 3, sides: [4.4, 2.6, 1.6], face: rest === 'ana' ? '−w' : '+w', rest },
+    { kind: 'boundary', body: 'box', dim: 3, sides: [2.4, 1.8, 1.4], face: null, rest },
+    { kind: 'boundary', body: 'box', dim: 2, sides: [1.8, 1.4], face: null, rest },
+    { kind: 'boundary', body: 'box', dim: 1, sides: [1.4], face: null, rest },
+    { kind: 'boundary', body: 'box', dim: 0, sides: [], face: null, rest },
+    { kind: 'boundary', body: 'ball', dim: 0, sides: [], face: null, rest }
+  ])
+];
 const NAMES = ['Ball', 'Box', 'Block'] as const;
 /** Signed gaps, including both sides of the 0.005 rounding edge and values far below it. */
 const NONZERO_GAPS = [
@@ -61,13 +92,21 @@ function subsetsOf(marks: readonly Mark[]): Set<Mark>[] {
   return out;
 }
 
+/** Every hint, over every chapter id, mark subset and model state. */
+const HINTS = (() => {
+  const out = new Set<string>();
+  const subsets = subsetsOf(MARKS);
+  for (const id of [...CHAPTERS.map((c) => c.id), 'elsewhere']) {
+    for (const seen of subsets) for (const model of HINT_MODELS) out.add(hint(id, seen, model));
+  }
+  return out;
+})();
+
 /** Every sentence the copy module can produce, from its own inputs. */
 function copyCensus(): string[] {
   const out = new Set<string>();
   for (const c of CHAPTERS) { out.add(c.title); out.add(c.setup); out.add(c.invite); }
-  for (const id of [...CHAPTERS.map((c) => c.id), 'elsewhere']) {
-    for (const seen of subsetsOf(MARKS)) for (const model of HINT_MODELS) out.add(hint(id, seen, model));
-  }
+  for (const h of HINTS) out.add(h);
   out.add(GAUGE_LEGEND);
   out.add(SHADOW_LEGEND);
   out.add(PLANE_LEGEND);
@@ -76,14 +115,18 @@ function copyCensus(): string[] {
   out.add(EMPTY_HEADLINE);
   for (const marker of ['touch', 'nearest', null] as const) for (const hollow of [true, false]) out.add(drawingNote(marker, hollow));
   for (const d of [0, 1e-13, 0.8, -0.8, 1e-6]) out.add(pivotLine(d));
-  for (const kind of KINDS) for (const cause of CAUSES) for (const gap of GAPS) for (const name of NAMES) out.add(eventLine(kind, name, gap, cause));
-  for (const gap of GAPS) out.add(strikeLine(gap));
+  for (const kind of KINDS) for (const cause of CAUSES) for (const gap of GAPS) for (const name of NAMES) {
+    for (const meeting of MEETINGS) out.add(eventLine(kind, name, gap, cause, meeting));
+  }
+  for (const gap of GAPS) for (const replayedTo of [null, 73]) out.add(strikeLine(gap, replayedTo));
   for (const name of NAMES) {
     for (const status of STATUSES) {
       for (const gap of GAPS) {
         for (const drawn of [0, 1]) {
-          out.add(caption(name, status, gap, drawn));
-          for (const frame of FRAMES) for (const reachable of [true, false]) out.add(absentReason(name, status, gap, frame, reachable, drawn));
+          for (const meeting of MEETINGS) {
+            out.add(caption(name, status, gap, drawn, meeting));
+            for (const frame of FRAMES) for (const reachable of [true, false]) out.add(absentReason(name, status, gap, frame, reachable, drawn, meeting));
+          }
         }
       }
     }
@@ -174,14 +217,13 @@ const INTUITION = /intuition|see in 4D|see four dimensions|visuali[sz]e 4D/i;
 
 describe('the census is the whole copy', () => {
   it('covers every chapter, every model state and every mark subset, and reaches every hint branch', () => {
-    // 7 chapter ids × 2^12 subsets × 96 model states; distinct sentences collapse far below that.
-    const hints = new Set<string>();
-    for (const id of [...CHAPTERS.map((c) => c.id), 'elsewhere']) {
-      for (const seen of subsetsOf(MARKS)) for (const model of HINT_MODELS) hints.add(hint(id, seen, model));
-    }
-    // Counted by hand from copy.ts: arrival 7, cuts 4, collision 7, spin 5 (two of them — “Watch the box.”
-    // and the out-of-reach line — shared with collision), turning 3, default 2: twenty-six distinct sentences.
-    expect(hints.size).toBe(26);
+    // 7 chapter ids × 2^11 subsets × 1 024 model states; distinct sentences collapse far below that.
+    // Counted by hand from copy.ts: arrival 7, cuts 4; collision 8 — the blow seen with the ball in the slice
+    // once (one such observation in the census) and beyond it twice (two); spin 7, three of them — “Watch the
+    // box.”, “Press play and watch the box.” and the out-of-reach line — shared with collision; turning 3,
+    // default 2: twenty-eight distinct sentences.
+    expect(HINT_MODELS).toHaveLength(1024);
+    expect(HINTS.size).toBe(28);
     expect(CHAPTERS.map((c) => c.id)).toEqual(['arrival', 'cuts', 'collision', 'spin', 'turning', 'free']);
   });
 
@@ -335,16 +377,18 @@ describe('nothing present prints as 0.00', () => {
     for (const gap of NONZERO_GAPS) {
       for (const name of NAMES) {
         for (const status of STATUSES) {
-          for (const drawn of [0, 1]) {
-            expect(caption(name, status, gap, drawn)).not.toMatch(ZERO_PRINTED);
+          for (const drawn of [0, 1]) for (const meeting of MEETINGS) {
+            expect(caption(name, status, gap, drawn, meeting)).not.toMatch(ZERO_PRINTED);
             for (const frame of FRAMES) for (const reachable of [true, false]) {
-              expect(absentReason(name, status, gap, frame, reachable, drawn)).not.toMatch(ZERO_PRINTED);
+              expect(absentReason(name, status, gap, frame, reachable, drawn, meeting)).not.toMatch(ZERO_PRINTED);
             }
           }
         }
-        for (const kind of KINDS) for (const cause of CAUSES) expect(eventLine(kind, name, gap, cause)).not.toMatch(ZERO_PRINTED);
+        for (const kind of KINDS) for (const cause of CAUSES) for (const meeting of MEETINGS) {
+          expect(eventLine(kind, name, gap, cause, meeting)).not.toMatch(ZERO_PRINTED);
+        }
       }
-      expect(strikeLine(gap), `${gap}`).not.toMatch(ZERO_PRINTED);
+      for (const replayedTo of [null, 73]) expect(strikeLine(gap, replayedTo), `${gap}`).not.toMatch(ZERO_PRINTED);
       expect(pivotLine(gap), `${gap}`).not.toMatch(ZERO_PRINTED);
     }
   });
@@ -424,73 +468,96 @@ describe('prescribed motion is called prescribed; physics is called physics', ()
     }
   });
 
-  it('an orbit event says prescribed orbit; a physics event does not', () => {
-    expect(eventLine('appeared', 'Ball', 0, 'orbit')).toContain('prescribed orbit');
-    expect(eventLine('vanished', 'Ball', 0.3, 'physics')).not.toMatch(/prescribed/i);
-    expect(eventLine('vanished', 'Ball', 0.3, 'slice')).toContain('your slice moved');
+  it('an orbit event says prescribed orbit; a physics event does not; a slice event says you moved your slice', () => {
+    const through: Meeting = { kind: 'through' };
+    expect(eventLine('appeared', 'Ball', 0, { kind: 'orbit' }, through)).toContain('prescribed orbit');
+    expect(eventLine('vanished', 'Ball', 0.3, { kind: 'physics' }, { kind: 'none' })).not.toMatch(/prescribed/i);
+    expect(eventLine('vanished', 'Ball', 0.3, { kind: 'slice' }, { kind: 'none' })).toContain('you moved your slice');
+  });
+
+  it('a replay or a fresh launch is said as one, never as motion', () => {
+    for (const cause of [{ kind: 'replay', step: 0 }, { kind: 'replay', step: 73 }, { kind: 'launch', name: 'B' }] as const) {
+      for (const kind of KINDS) for (const meeting of MEETINGS) {
+        const line = eventLine(kind, 'Box', 0.3, cause, meeting);
+        expect(line).toMatch(/replayed from launch to step \d+|launch B was started afresh, at step 0/);
+        expect(line).not.toMatch(/\bit moved\b|prescribed orbit|you moved/);
+      }
+    }
+    expect(eventLine('appeared', 'Box', 0, { kind: 'replay', step: 0 }, { kind: 'through' }))
+      .toBe('Box appeared — the run was replayed from launch to step 0, and now your slice cuts it.');
+    expect(strikeLine(0, 73)).toBe('Replayed from launch to step 73, the blow: the box was struck there — by the ball, then in your slice.');
   });
 });
+
+const THROUGH: Meeting = { kind: 'through' };
+const NONE: Meeting = { kind: 'none' };
+const BALL_POINT: Meeting = { kind: 'boundary', body: 'ball', dim: 0, sides: [], face: null, rest: 'ana' };
 
 describe('the four ways a body can fail to appear are never merged', () => {
   it('present and drawn, present but drawn as nothing, touching, and outside are four different captions', () => {
     const four = [
-      caption('Ball', 'present', 0, 1),
-      caption('Ball', 'present', 0, 0),
-      caption('Ball', 'tangent', 0, 0),
-      caption('Ball', 'outside', 0.3, 0)
+      caption('Ball', 'present', 0, 1, THROUGH),
+      caption('Ball', 'present', 0, 0, THROUGH),
+      caption('Ball', 'tangent', 0, 0, BALL_POINT),
+      caption('Ball', 'outside', 0.3, 0, NONE)
     ];
     expect(new Set(four).size).toBe(4);
     expect(four).toEqual([
       'Ball — in your slice',
       'Ball — in your slice, but the renderer drew nothing for it',
-      'Ball — touching your slice, only along its boundary',
+      'Ball — touching your slice at a single point; nothing drawn',
       'Ball — not in your slice: 0.30 ana of it'
     ]);
-    expect(caption('Ball', 'outside', -0.3, 0)).toBe('Ball — not in your slice: 0.30 kata of it');
+    expect(caption('Ball', 'outside', -0.3, 0, NONE)).toBe('Ball — not in your slice: 0.30 kata of it');
   });
 
   it('present, omitted, touching, outside and out of the camera are five different reasons', () => {
     const five = [
-      absentReason('Ball', 'present', 0, 'in', true, 1),
-      absentReason('Ball', 'present', 0, 'in', true, 0),
-      absentReason('Ball', 'tangent', 0, null, true, 0),
-      absentReason('Ball', 'outside', 0.3, null, true, 0),
-      absentReason('Ball', 'present', 0, 'out', true, 1)
+      absentReason('Ball', 'present', 0, 'in', true, 1, THROUGH),
+      absentReason('Ball', 'present', 0, 'in', true, 0, THROUGH),
+      absentReason('Ball', 'tangent', 0, null, true, 0, BALL_POINT),
+      absentReason('Ball', 'outside', 0.3, null, true, 0, NONE),
+      absentReason('Ball', 'present', 0, 'out', true, 1, THROUGH)
     ];
     expect(new Set(five).size).toBe(5);
   });
 
   it('the renderer omission never says “not in your slice”, and blames the picture, not the world', () => {
     for (const frame of FRAMES) for (const reachable of [true, false]) {
-      const r = absentReason('Ball', 'present', 0, frame, reachable, 0);
+      const r = absentReason('Ball', 'present', 0, frame, reachable, 0, THROUGH);
       expect(r).not.toContain('not in your slice');
       expect(r).toContain('renderer');
       expect(r).toContain('not an absence in the world');
     }
-    expect(caption('Ball', 'present', 0, 0)).not.toContain('not in your slice');
-    expect(caption('Ball', 'present', 0, 0)).toContain('renderer');
+    expect(caption('Ball', 'present', 0, 0, THROUGH)).not.toContain('not in your slice');
+    expect(caption('Ball', 'present', 0, 0, THROUGH)).toContain('renderer');
   });
 
   it('the outside text names a side and a distance; it says when the slider cannot reach', () => {
-    const r = absentReason('Ball', 'outside', -0.3, null, true, 0);
+    const r = absentReason('Ball', 'outside', -0.3, null, true, 0, NONE);
     expect(r).toContain('0.30 kata of your slice');
     expect(r).not.toContain('cannot slide that far');
-    expect(absentReason('Ball', 'outside', 2.2, null, false, 0)).toContain('2.20 ana of your slice');
-    expect(absentReason('Ball', 'outside', 2.2, null, false, 0)).toContain('Your slice cannot slide that far along this normal.');
+    expect(absentReason('Ball', 'outside', 2.2, null, false, 0, NONE)).toContain('2.20 ana of your slice');
+    expect(absentReason('Ball', 'outside', 2.2, null, false, 0, NONE)).toContain('Your slice cannot slide that far along this normal.');
   });
 
-  it('the touching text names the boundary and the 10⁻⁹ tolerance', () => {
-    const r = absentReason('Ball', 'tangent', 0, null, true, 0);
-    expect(r).toContain('boundary');
-    expect(r).toContain('10⁻⁹');
-    expect(r).toContain('nothing is missing');
-    expect(caption('Ball', 'tangent', 0, 0)).toContain('boundary');
+  it('a touching ball is a single point, within 10⁻⁹, with only its marker drawn', () => {
+    const r = absentReason('Ball', 'tangent', 0, null, true, 0, BALL_POINT);
+    expect(r).toBe('Ball touches your slice at a single point, within 10⁻⁹. A single point has no volume, so only a marker is drawn.');
+  });
+
+  it('no sentence calls the cut of a touching body anything but what its meeting is', () => {
+    // The old rule, "a face, an edge or a point, not a solid … the renderer draws solids only", was false at
+    // the block's −w face (a solid cuboid) and false for what is drawn (a flat 2-face is drawn from the kata side).
+    for (const s of [...COPY, ...TOUR.keys()]) {
+      expect(s).not.toMatch(/not a solid|draws solids only|nothing solid is drawn|face, an edge or a point|only along its boundary/);
+    }
   });
 
   it('a body drawn but outside the camera says so, and only then', () => {
-    expect(absentReason('Box', 'present', 0, 'out', true, 4)).toBe('Box is in your slice, but outside the camera’s view.');
+    expect(absentReason('Box', 'present', 0, 'out', true, 4, THROUGH)).toBe('Box is in your slice, but outside the camera’s view.');
     for (const frame of ['in', 'partial', null] as const) {
-      expect(absentReason('Box', 'present', 0, frame, true, 4)).not.toContain('outside the camera');
+      expect(absentReason('Box', 'present', 0, frame, true, 4, THROUGH)).not.toContain('outside the camera');
     }
   });
 });
@@ -556,6 +623,56 @@ describe('every hint stays true however the chapter was reached', () => {
     x.dispose();
   });
 
+  it('the orbit’s reach is decided as the continuous orbit decides it, a ten-millionth either side of tangency', () => {
+    // The closed form, from the scene's authored orbit: the arm (0, 0, 0, 0.92) turns in z–w about
+    // (3.6, 1.05, 0, 0), so for a normal n in the x–w plane n·c(φ) = 3.6 n_x + 0.92 n_w cos φ, and the
+    // orbit meets the slice n·p = d exactly when d lies within r + 10⁻⁹ of [3.6 n_x − 0.92|n_w|, 3.6 n_x + 0.92|n_w|].
+    // The controller samples 720 phases. A sampling that misses the extremes at φ = 0 and π fails at the
+    // edges; one that steps a full ball's diameter fails in the middle (the review's RV4, eight samples,
+    // keeps both extremes and steps less than a diameter, so it decides the same and is not caught here).
+    const R = 0.72;
+    const EPS = 1e-9;
+    const NEVER = 'Its orbit never meets your slice as it stands. Slide or turn your slice back toward its footprint on the map.';
+    const PLAY = 'Press play: the ball’s orbit carries it through your slice.';
+    let probes = 0;
+    const v0 = (x: Experience) => x.view();
+    for (const deg of [10, 15, 20, -10, -15, -20]) {
+      const probe = (d: number, phase: number): string => {
+        const x = createExperience('arrival');
+        x.dispatch({ type: 'play' });
+        x.dispatch({ type: 'pause' });
+        // Reach the probe without the ball ever being in the slice, so no vanish is remembered: park the slice
+        // at 90°, where n·c = −3.6 at every phase, set the phase and the offset there, then turn in one step.
+        x.dispatch({ type: 'cut-turn', degrees: 90 });
+        if (phase !== 0) x.dispatch({ type: 'orbit-phase', degrees: phase });
+        x.dispatch({ type: 'cut-offset', value: d });
+        x.dispatch({ type: 'cut-turn', degrees: deg });
+        expect(v0(x).hint, `${deg}° at ${d}: nothing vanished on the way`).not.toMatch(/vanished/);
+        const v = x.view();
+        expect(v.bodies.find((b) => b.id === 'companion')!.drawn, `${deg}° at ${d}`).toBe(0);
+        expect(x.worlds.turn.slice.offset).toBe(d);
+        x.dispose();
+        probes++;
+        return v.hint;
+      };
+      const x = createExperience('arrival');
+      x.dispatch({ type: 'cut-turn', degrees: deg });
+      const n = Array.from(x.worlds.turn.slice.normal.data);
+      x.dispose();
+      const lo = 3.6 * n[0]! - 0.92 * Math.abs(n[3]!) - R - EPS;
+      const hi = 3.6 * n[0]! + 0.92 * Math.abs(n[3]!) + R + EPS;
+      const edge = deg > 0 ? hi : lo;
+      const inward = deg > 0 ? -1 : 1;
+      expect(Math.abs(edge), `${deg}°: the edge is within reach`).toBeLessThan(1.5);
+      // At φ = 90° the ball sits at n·c = 3.6 n_x, far from either edge.
+      expect(probe(edge + inward * 1e-7, 90), `${deg}° just inside`).toBe(PLAY);
+      expect(probe(edge - inward * 1e-7, 90), `${deg}° just outside`).toBe(NEVER);
+      // The middle of the orbit's sweep, met only between the extremes; at φ = 0 the ball is 0.92|n_w| > r away.
+      expect(probe(3.6 * n[0]!, 0), `${deg}° in the middle`).toBe(PLAY);
+    }
+    expect(probes).toBe(18);
+  });
+
   it('a blow struck with the ball in the slice is not said to come from beyond it', () => {
     // Slide the slice to w = 1.2: at the blow the ball's centre is near w = 1.5,
     // radius 0.5, so the ball is in the slice and the strike line says so.
@@ -582,6 +699,23 @@ describe('signed readings never print a signed zero', () => {
     expect(signedReading(0.4, 2)).toBe('+0.40');
     for (const v of [-0.0049, -0.001, -1e-12, -0.00049]) {
       for (const places of [2, 3]) expect(signedReading(v, places)).not.toMatch(/[−-]0\.0+$/);
+    }
+  });
+
+  it('a plain reading — an ARIA value or an unsigned readout — is a valid number with no negative zero', () => {
+    expect(plainReading(-6.938893903907228e-18, 2)).toBe('0.00');
+    expect(plainReading(-3.1805546814635168e-15, 1)).toBe('0.0');
+    expect(plainReading(-0.04, 1)).toBe('0.0');
+    expect(plainReading(-0, 2)).toBe('0.00');
+    expect(plainReading(-12.34, 1)).toBe('-12.3');
+    expect(plainReading(1.6, 2)).toBe('1.60');
+    for (const v of [-1e-300, -1e-12, -0.004, -0.049, 0, -0, 1e-12, -13.9, 45, 359.96]) {
+      for (const places of [0, 1, 2, 3]) {
+        const s = plainReading(v, places);
+        expect(s, `${v} at ${places}`).toMatch(/^-?\d+(\.\d+)?$/);
+        expect(Number.isFinite(Number(s)), s).toBe(true);
+        expect(s.startsWith('-') && Number(s) === 0, `${v} at ${places}: ${s}`).toBe(false);
+      }
     }
   });
 });

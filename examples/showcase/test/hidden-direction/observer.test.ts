@@ -261,3 +261,61 @@ describe('the pin itself', () => {
     expect(flat(stripComments('const note =\n  observerNote(\n    distanceFromPivot(slice));')).includes(LIVE_CALL)).toBe(true);
   });
 });
+
+describe('keyboard steps that come back to zero land on zero; a drag is never snapped', () => {
+  // The review's N2.4 and C6: three steps up and three down left the offset at −6.9·10⁻¹⁸ and the dial at
+  // −0.0°. A step that brings the offset or the turn back within 10⁻¹² of zero now lands on zero exactly,
+  // so every readout prints zero without a sign and agrees with the pivot note.
+  const keys = { playing: false, shadowOn: false, studyPlaying: false, facesCut: [], face: null };
+  const send = (x: Experience, key: string, shift: boolean, times: number): void => {
+    for (let k = 0; k < times; k++) x.dispatch(keyAction(key, shift, keys) as Action);
+  };
+
+  it('the review’s sequences, ↑↑↑↓↓↓ and Shift+→ ×3 then Shift+← ×3, leave the offset and the turn at exactly +0', () => {
+    for (const start of ['cuts', 'collision'] as const) {
+      const x = createExperience(start);
+      send(x, 'ArrowUp', false, 3);
+      send(x, 'ArrowDown', false, 3);
+      expect(Object.is(frontSlice(x).offset, 0), `${start}: offset ${frontSlice(x).offset}`).toBe(true);
+      send(x, 'ArrowRight', true, 3);
+      send(x, 'ArrowLeft', true, 3);
+      const v = x.view(null);
+      expect(Object.is(v.cut.degrees, 0), `${start}: turn ${v.cut.degrees}`).toBe(true);
+      expect(v.cut.normal).toEqual([0, 0, 0, 1]);
+      expect(v.cut.pivot).toContain(PIVOTS);
+      x.dispose();
+    }
+  });
+
+  it('longer and mixed sequences that sum to zero land on zero too, by the arrows and by the focused instruments’ own keys', () => {
+    const x = createExperience('cuts');
+    const seqs: [string, boolean, number][][] = [
+      [['ArrowUp', true, 4], ['ArrowDown', false, 40]],
+      [['ArrowDown', false, 7], ['ArrowUp', false, 2], ['ArrowUp', false, 5]],
+      [['ArrowRight', false, 17], ['ArrowLeft', true, 1], ['ArrowLeft', false, 7]],
+      [['ArrowLeft', true, 2], ['ArrowRight', false, 20]]
+    ];
+    for (const seq of seqs) {
+      for (const [key, shift, times] of seq) send(x, key, shift, times);
+      const v = x.view(null);
+      expect([Object.is(v.cut.offset, 0), Object.is(v.cut.degrees, 0)], JSON.stringify(seq)).toEqual([true, true]);
+    }
+    x.dispose();
+  });
+
+  it('a small displacement made on purpose is kept, and steps around it do not erase it', () => {
+    const x = createExperience('cuts');
+    x.dispatch({ type: 'cut-offset', value: 0.003 });
+    send(x, 'ArrowUp', false, 3);
+    send(x, 'ArrowDown', false, 3);
+    expect(frontSlice(x).offset).toBeCloseTo(0.003, 15);
+    expect(x.view(null).cut.pivot).toContain('is under 0.005 from the centre point');
+    x.dispatch({ type: 'cut-offset', value: 1e-13 });
+    expect(frontSlice(x).offset, 'a drag is never snapped').toBe(1e-13);
+    // And the note agrees with the readouts: not through the centre point, by under 0.005.
+    expect(x.view(null).cut.pivot).toContain('is under 0.005 from the centre point');
+    x.dispatch({ type: 'cut-turn', degrees: -0.04 });
+    expect(x.view(null).cut.degrees).toBeCloseTo(-0.04, 12);
+    x.dispose();
+  });
+});

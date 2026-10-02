@@ -386,8 +386,8 @@ describe('each setup sentence is true of the state its chapter establishes', () 
     expect(v.cut.pivot).toContain('passes through the centre point');
   });
 
-  it('turning: "The collision keeps its state, untouched" — on entry, and while the scene turns', () => {
-    expect(setupOf('turning')).toContain('The collision keeps its state, untouched.');
+  it('turning: "Entering pauses the collision’s clock; nothing else of the collision changes" — on entry, and while the scene turns', () => {
+    expect(setupOf('turning')).toContain('Entering pauses the collision’s clock; nothing else of the collision changes.');
     // While the scene is in front, the clock keys still reach the controller —
     // space plays and pauses, '.' and ',' step — so they are taken here too.
     const inScene: Action[] = [
@@ -404,6 +404,19 @@ describe('each setup sentence is true of the state its chapter establishes', () 
       run(x, inScene);
       expect(x.worlds.contact.sim, `${prior.name}: still the same simulation`).toBe(sim);
       expect(physics(x), `${prior.name}: while the scene turns`).toEqual(before);
+      // The clock is paused — said in the setup — and stays paused when the collision is in front again.
+      x.dispatch({ type: 'chapter', id: 'free' });
+      x.dispatch({ type: 'world', world: 'contact' });
+      expect(x.view().clock.kind, prior.name).toBe('physics');
+      expect(x.view().clock.playing, `${prior.name}: paused`).toBe(false);
+      expect(physics(x), `${prior.name}: back in front`).toEqual(before);
+    }
+  });
+
+  it('every guided chapter says the camera is as you left it, and free exploration says everything is', () => {
+    for (const c of CHAPTERS) {
+      if (c.id === 'free') expect(c.setup).toContain('Everything stays where you left it.');
+      else expect(c.setup, c.id).toMatch(/ Camera as you left it\.$/);
     }
   });
 });

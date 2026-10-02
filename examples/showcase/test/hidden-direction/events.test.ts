@@ -83,7 +83,8 @@ describe('the ball on its prescribed orbit appears and vanishes as events, at th
         const gap = w > 0 ? w - ORBIT_RADIUS : w + ORBIT_RADIUS;
         const sideOfGap = gap > 0 ? 'ana' : 'kata';
         // The line stays up while the clock runs on, so it names no marker (the caption and the picture's tag do).
-        expect(v.event).toBe(`Ball vanished from your slice — it moved along its prescribed orbit, out to the ${sideOfGap} side. It has not gone.`);
+        // The side is the ball's, in a clause of its own.
+        expect(v.event).toBe(`Ball vanished from your slice — it moved along its prescribed orbit; the ball now lies ${sideOfGap} of your slice. It has not gone.`);
         said.push({ line: v.event!, now, side: sideOfGap });
       } else {
         said.push({ line: v.event ?? '', now, side: null });
@@ -99,29 +100,30 @@ describe('the ball on its prescribed orbit appears and vanishes as events, at th
 });
 
 describe('a view action that moves the ball in or out names your slice, not the orbit', () => {
-  it('sliding to the ball says your slice moved; sliding back says it left to the ana side; the orbit never moved', () => {
+  it('sliding to the ball says you moved your slice; sliding back kata-ward says the ball now lies ana of it; the orbit never moved', () => {
     const x = createExperience('arrival');
     const ball = x.worlds.turn.products.find((p) => p.id === 'companion')!;
     const start = ball.position4();
     // At phase 0 the ball spans w ∈ [0.92 − 0.72, 0.92 + 0.72] = [0.2, 1.64].
     x.dispatch({ type: 'cut-offset', value: 0.5 });
-    expect(x.view().event).toBe('Ball appeared — your slice moved, and now your slice cuts it.');
+    expect(x.view().event).toBe('Ball appeared — you moved your slice, and now your slice cuts it.');
     expect(ball.position4()).toEqual(start);
+    // The slice moved kata-ward, so the ball is left ana of it: the side is the ball's, never the slice's move.
     x.dispatch({ type: 'cut-offset', value: 0 });
-    expect(x.view().event).toBe('Ball vanished from your slice — your slice moved, out to the ana side. It has not gone.');
+    expect(x.view().event).toBe('Ball vanished from your slice — you moved your slice; the ball now lies ana of your slice. It has not gone.');
     expect(ball.position4()).toEqual(start);
     x.dispose();
   });
 
-  it('with the ball half an orbit on, at w = −0.92, the slide in and out names kata', () => {
+  it('with the ball half an orbit on, at w = −0.92, sliding ana-ward away from it says the ball now lies kata of it', () => {
     const x = createExperience('arrival');
     x.dispatch({ type: 'orbit-phase', degrees: 180 });
-    // Both before and after, the ball is outside: nothing to say.
-    expect(x.view().event).toBeNull();
+    // Outside before and after, but on the other side now, without having met the slice: said, with the ball's side.
+    expect(x.view().event).toBe('Ball is still not in your slice — it moved along its prescribed orbit; the ball now lies kata of your slice.');
     x.dispatch({ type: 'cut-offset', value: -0.5 });
-    expect(x.view().event).toBe('Ball appeared — your slice moved, and now your slice cuts it.');
+    expect(x.view().event).toBe('Ball appeared — you moved your slice, and now your slice cuts it.');
     x.dispatch({ type: 'cut-offset', value: 0 });
-    expect(x.view().event).toBe('Ball vanished from your slice — your slice moved, out to the kata side. It has not gone.');
+    expect(x.view().event).toBe('Ball vanished from your slice — you moved your slice; the ball now lies kata of your slice. It has not gone.');
     x.dispose();
   });
 });

@@ -10,8 +10,9 @@ import { BALL, BOX, PRESETS } from '../../src/spatial-4d-contact/simulation.js';
  * apart:
  *
  * 1. outside the cut — the body lies wholly to one side of the slice;
- * 2. tangent — the slice meets the body only along its boundary, and the
- *    renderer draws solids only;
+ * 2. tangent — the slice meets the body only on its boundary, and the
+ *    sectioner, by its convention for a slice lying on a boundary, emits
+ *    nothing for it (the meeting itself can be a solid 3-face);
  * 3. outside the camera — the body is cut and drawn, but the camera looks
  *    elsewhere;
  * 4. renderer omission — the library places the body in the slice and the
@@ -134,8 +135,8 @@ describe('outside the cut: each body is beyond the slice, said with its side and
   });
 });
 
-describe('tangent: the slice touches the box only along its boundary', () => {
-  it('turned 30° and slid to the box’s least height across the slice, the box is touching, draws nothing, and the empty view says why', () => {
+describe('tangent: the slice meets the box only on its boundary', () => {
+  it('turned 30° and slid to the box’s least height across the slice, the box meets it in a flat rectangle, draws nothing, and the empty view says why', () => {
     const x = createExperience('collision');
     x.dispatch({ type: 'cut-turn', degrees: 30 });
     const n = Array.from(x.worlds.contact.slice.normal.data);
@@ -164,11 +165,14 @@ describe('tangent: the slice touches the box only along its boundary', () => {
     const ball = v.bodies.find((b) => b.id === 'ball')!;
     expect(box.status).toBe('tangent');
     expect(box.drawn).toBe(0);
-    expect(box.caption).toBe('Box — touching your slice, only along its boundary');
-    expect(box.reason).toContain('only along its boundary');
-    expect(box.reason).toContain('the renderer draws solids only');
+    // A turn in x–w leaves the box's y and z axes in the slice: the meeting is its 2-face spanned by them, 1.8 × 1.4.
+    expect(box.meeting).toEqual({ kind: 'boundary', body: 'box', dim: 2, sides: [1.8, 1.4], face: null, rest: 'ana' });
+    expect(box.caption).toBe('Box — meets your slice only on its boundary: a flat 1.80 × 1.40 rectangle, with no thickness; nothing drawn');
+    expect(box.reason).toContain('Box meets your slice only on its boundary, within 10⁻⁹: a flat 1.80 × 1.40 rectangle');
+    expect(box.reason).toContain('counts a corner on your slice as ana');
+    expect(box.reason).not.toMatch(/not a solid|draws solids only/);
     expect(box.reason).not.toContain('not in your slice');
-    expect(v.event).toBe('Box is touching your slice — only along its boundary, so nothing solid is drawn.');
+    expect(v.event).toBe('Box now meets your slice only on its boundary — you moved your slice. The meeting is a flat rectangle, with no thickness; nothing is drawn for it.');
     expect(ball.drawn).toBe(0);
     expect(v.empty).not.toBeNull();
     expect(v.empty!.reasons.find((r) => r.id === 'box')!.line).toBe(box.reason);
@@ -263,7 +267,7 @@ describe('slicing alone cannot take the block out of the turning world’s slice
     x.dispose();
   });
 
-  it('the one empty view slicing reaches there is that touch, and it is said as a touch, not an absence', () => {
+  it('the one empty view slicing reaches there is that meeting, said as the solid face it is, not an absence', () => {
     const x = createExperience('cuts');
     x.dispatch({ type: 'cut-offset', value: -REACH });
     const v = x.view();
@@ -271,7 +275,7 @@ describe('slicing alone cannot take the block out of the turning world’s slice
     expect(block.status).toBe('tangent');
     expect(v.empty).not.toBeNull();
     const line = v.empty!.reasons.find((r) => r.id === 'block')!.line;
-    expect(line).toContain('touches your slice only along its boundary');
+    expect(line).toContain('Block meets your slice only on its boundary, within 10⁻⁹: its −w face, a solid 4.40 × 2.60 × 1.60 cuboid.');
     expect(line).not.toContain('not in your slice');
     x.dispose();
   });

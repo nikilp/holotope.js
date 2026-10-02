@@ -323,9 +323,38 @@ describe('the map agrees with the library about membership', () => {
     const v = x.view();
     const ball = v.bodies.find((b) => b.id === 'ball')!;
     expect(ball.status).toBe('tangent');
-    expect(ball.caption).toBe('Ball — touching your slice, only along its boundary. The small marker is the point where it touches.');
+    expect(ball.caption).toBe('Ball — touching your slice at a single point; nothing drawn. The small marker is the point where it touches.');
     expect(v.plane.footprints.find((f) => f.id === 'ball')!.chord, 'the map shows the touch the caption names').not.toBeNull();
     x.dispose();
+  });
+
+  it('the review’s pinned band-edge case: the library says outside, the footprint arithmetic alone says touching — the map follows the library', () => {
+    // N1.1: the map's |s| = n_x c_x + n_w c_w − d and the library's |d| − r round differently. Here the
+    // library's |d| − r − 10⁻⁹ is +8.3·10⁻¹⁷ (outside) while the map's |s| is r + 10⁻⁹ exactly.
+    const x = createExperience('arrival');
+    x.dispatch({ type: 'orbit-phase', degrees: 342.95044778846204 });
+    x.dispatch({ type: 'cut-turn', degrees: 31.149118370376527 });
+    x.dispatch({ type: 'cut-offset', value: -0.3894070408150282 });
+    const v = x.view();
+    const ball = v.bodies.find((b) => b.id === 'companion')!;
+    expect(ball.status).toBe('outside');
+    const foot = v.plane.footprints.find((f) => f.id === 'companion')!;
+    expect(foot.chord, 'no chord where the library says the slice misses').toBeNull();
+    expect(chordOf(foot.footprint, v.plane.line!), 'the arithmetic alone would draw a touch here').not.toBeNull();
+    x.dispose();
+  });
+
+  it('where the library says the slice meets a body and the arithmetic, a few ulps out, says not, the map still draws the nearest point', () => {
+    const line = lineOf([0, 0, 0, 1], 0)!;
+    const disc: Footprint = { kind: 'disc', centre: [1, 0.5 + 2e-9], radius: 0.5 };
+    expect(chordOf(disc, line)).toBeNull();
+    expect(chordOf(disc, line, true)).toEqual([[1, 0], [1, 0]]);
+    expect(chordOf(disc, line, false)).toBeNull();
+    const square: Footprint = { kind: 'polygon', points: [[0, 2e-9], [1, 2e-9], [1, 1], [0, 1]] };
+    expect(chordOf(square, line)).toBeNull();
+    const touch = chordOf(square, line, true)!;
+    expect(touch[0]).toEqual(touch[1]);
+    expect(Math.abs(touch[0][1])).toBeLessThan(1e-15);
   });
 
   it('every chord lies on the line, in order along it, and ends on its footprint’s boundary', () => {

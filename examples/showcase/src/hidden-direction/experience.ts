@@ -8,8 +8,8 @@ import { BOX, DEFAULT_SETTINGS, PRESETS, type PresetId } from '../spatial-4d-con
 import { STUDY_PLANES, type StudyMode } from '../spatial-4d-contact/study.js';
 import { ContactWorld, TurnWorld, type BodyReading } from './worlds.js';
 import {
-  EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, eventLine, hint,
-  planeNote, pivotLine, strikeLine
+  AT_ZERO, EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, eventLine,
+  hint, planeNote, pivotLine, side, strikeLine, type Cause, type StrikeObservation
 } from './copy.js';
 import { FaceShadow } from './identity.js';
 import { PLANE_EXTENT, chordOf, lineOf } from './plane.js';
@@ -26,7 +26,8 @@ import { PLANE_EXTENT, chordOf, lineOf } from './plane.js';
  *   lifted, a body is singled out. The world's state — the orbit phase, the
  *   physics simulation, the prescribed turn's angle — is never touched.
  * - **time** — a clock moves: the prescribed orbit, or the physics clock, which
- *   only ever steps forward or replays from launch.
+ *   only ever steps forward or replays from launch. A replay is narrated as a
+ *   replay, never as motion: nothing moved to get there.
  * - **study** — the separate prescribed-turn scene; it reads and writes nothing
  *   of the collision or the slice.
  * - **chapter** — establishes a chapter's stated state in full, whatever came
@@ -38,6 +39,8 @@ import { PLANE_EXTENT, chordOf, lineOf } from './plane.js';
 
 const rad = (deg: number): number => (deg * Math.PI) / 180;
 const deg = (r: number): number => (r * 180) / Math.PI;
+/** A slice position the page computes: exactly zero when it comes within AT_ZERO of zero. */
+const landed = (v: number): number => (Math.abs(v) < AT_ZERO ? 0 : v);
 
 export type ChapterId = 'arrival' | 'cuts' | 'collision' | 'spin' | 'turning' | 'free';
 export type WorldKind = 'turn' | 'contact';
@@ -56,28 +59,30 @@ interface ChapterSpec {
 export const CHAPTERS: readonly ChapterSpec[] = [
   {
     id: 'arrival', numeral: 'I', title: 'Something passes through', world: 'turn',
-    setup: 'Slice untilted, through the centre point. The ball’s orbit at its start, paused.',
+    setup: 'Slice untilted, through the centre point. The ball’s orbit at its start, paused. Camera as you left it.',
     invite: 'Your view is a slice of a four-dimensional world. Let the ball pass through it.'
   },
   {
     id: 'cuts', numeral: 'II', title: 'One block, many slices', world: 'turn',
-    setup: 'Slice untilted, through the centre point. The ball’s orbit at its start, paused.',
+    setup: 'Slice untilted, through the centre point. The ball’s orbit at its start, paused. Camera as you left it.',
     invite: 'The block never moves. Turn your slice and watch what it cuts — then turn the camera, and watch what it doesn’t.'
   },
   {
     id: 'collision', numeral: 'III', title: 'A collision you cannot see', world: 'contact',
-    setup: 'Slice untilted, through the centre point. Launch A, physics clock at 0, paused.',
+    setup: 'Slice untilted, through the centre point. Launch A, physics clock at 0, paused. Camera as you left it.',
     invite: 'Press play and watch the box.'
   },
   {
     id: 'spin', numeral: 'IV', title: 'A spin in a hidden plane', world: 'contact',
-    setup: 'Slice untilted, through the centre point. Launch B — the same drop, 0.8 to the side — clock at 0, paused.',
+    setup: 'Slice untilted, through the centre point. Launch B — the same drop, 0.8 to the side — clock at 0, paused. '
+      + 'Camera as you left it.',
     invite: 'Press play. The blow lands off-centre.'
   },
   {
     id: 'turning', numeral: 'V', title: 'Turn the object, not the slice', world: 'contact',
     setup: 'A separate scene: the same box, turned by a prescribed angle through the fourth direction, starting at 0°. '
-      + 'The slice is fixed at w = 0. The collision keeps its state, untouched.',
+      + 'The slice is fixed at w = 0. Entering pauses the collision’s clock; nothing else of the collision changes. '
+      + 'Camera as you left it.',
     invite: 'Drag the angle. The box is rigid; your fixed slice meets different parts of it.'
   },
   {
@@ -162,6 +167,13 @@ const ORBIT_SAMPLES = 720;
  * Whether the ball's prescribed orbit meets the slice at some phase: its centre, by the scene's own
  * `positionAt`, within the radius of the slice (with the sectioner's tolerance). A hint may then say
  * the ball will come; otherwise it must not.
+ *
+ * Sampled, and the sampling's limit is this: the orbit turns in the z–w plane, so for a normal in the
+ * x–w plane n·c(φ) = 3.6 n_x + 0.92 n_w cos φ. Its extremes, at φ = 0 and π, are among the samples,
+ * and neighbouring samples differ in n·c by less than 0.009, far under the ball's diameter, so the
+ * samples decide as the continuous orbit does, up to rounding. Any sampling that keeps both extremes
+ * and steps less than a diameter decides the same — eight samples do (the review's RV4 is equivalent);
+ * one that misses the extremes does not, within a few millionths of tangency (`copy.test.ts`).
  */
 function orbitMeets(slice: { signedDistance(p: readonly number[]): number }): boolean {
   for (let k = 0; k < ORBIT_SAMPLES; k++) {
@@ -172,6 +184,9 @@ function orbitMeets(slice: { signedDistance(p: readonly number[]): number }): bo
 }
 
 interface EventNote { readonly line: string; readonly at: number }
+
+/** Below this, in every bivector coefficient, the box is not turning (the central blow leaves it at zero). */
+const SPIN_EPSILON = 1e-12;
 
 export function createExperience(start: ChapterId = 'arrival') {
   const turnWorld = new TurnWorld();
@@ -186,7 +201,7 @@ export function createExperience(start: ChapterId = 'arrival') {
   const block = turnWorld.products.find((p) => p.complex !== null)!;
   const faceShadow = new FaceShadow(block.complex!, turnWorld.context.projection);
   turnWorld.root.add(faceShadow.object);
-  type Mark = 'played' | 'appeared' | 'found' | 'vanished' | 'struck' | 'turned' | 'slid' | 'shadow' | 'frozen' | 'studied' | 'compared' | 'faced';
+  type Mark = 'played' | 'appeared' | 'found' | 'vanished' | 'turned' | 'slid' | 'shadow' | 'frozen' | 'studied' | 'compared' | 'faced';
   const seen = new Set<Mark>();
 
   // Clocks.
@@ -200,9 +215,11 @@ export function createExperience(start: ChapterId = 'arrival') {
   let event: EventNote | null = null;
   let sequence = 0;
   let lastStatus = new Map<string, string>();
-  let lastCause: 'orbit' | 'physics' | 'slice' = 'slice';
-  /** Where the ball was at the latest blow: in the slice, or beyond it. Null until a blow in this launch. */
-  let strikeWhere: 'seen' | 'hidden' | null = null;
+  let lastCause: Cause = { kind: 'slice' };
+  /** The latest blow you saw in this run, with the slice you saw it with. Null until one is shown. */
+  let strike: StrikeObservation | null = null;
+  /** A replay in this action landed on the blow and said so; that line stands over the status changes it caused. */
+  let strikeSaid = false;
   /** Whether the orbit meets the turning world's slice, cached against the slice it was computed for. */
   let orbitCache: { theta: number; offset: number; meets: boolean } | null = null;
 
@@ -222,32 +239,34 @@ export function createExperience(start: ChapterId = 'arrival') {
     contactWorld.study.views.object.visible = world === 'contact' && studyOpen;
   }
 
-  /** Notice changes in the picture and say what the model did. */
+  /** Notice changes in the picture and say what did them. */
   function notice(): void {
     const bodies = readBodies();
     const next = new Map<string, string>();
     for (const b of bodies) {
       const key = `${world}:${b.id}`;
       // A body the library places in the slice but the renderer draws nothing for is neither "appeared" nor "vanished".
-      const now = b.status !== 'present' ? b.status : b.drawn > 0 ? 'present' : 'omitted';
+      // A body outside is keyed by its side as well, so that one which changes sides without meeting the slice is said.
+      const now = b.status === 'outside' ? `outside:${side(b.gap)}` : b.status === 'tangent' ? 'tangent' : b.drawn > 0 ? 'present' : 'omitted';
       next.set(key, now);
       const before = lastStatus.get(key);
-      if (before === undefined || before === now) continue;
+      if (before === undefined || before === now || strikeSaid) continue;
       if (now === 'present') {
-        event = { line: eventLine('appeared', b.name, b.gap, lastCause), at: ++sequence };
+        event = { line: eventLine('appeared', b.name, b.gap, lastCause, b.meeting), at: ++sequence };
         seen.add('appeared');
         // Credit the visitor only for an appearance their own slice move caused, and only for the latest one.
-        if (lastCause === 'slice') seen.add('found');
+        if (lastCause.kind === 'slice') seen.add('found');
         else seen.delete('found');
       }
       // Event lines stay on screen while the clock runs on, so they say nothing about a marker that may
       // already be gone; the caption and the picture's own tag say what a marker is while it is there.
-      else if (now === 'outside') {
-        event = { line: eventLine('vanished', b.name, b.gap, lastCause), at: ++sequence };
-        seen.add('vanished');
+      else if (now.startsWith('outside')) {
+        const crossed = before.startsWith('outside');
+        event = { line: eventLine(crossed ? 'crossed' : 'vanished', b.name, b.gap, lastCause, b.meeting), at: ++sequence };
+        if (!crossed) seen.add('vanished');
         seen.delete('found');
       }
-      else if (now === 'tangent') event = { line: eventLine('touching', b.name, b.gap, lastCause), at: ++sequence };
+      else if (now === 'tangent') event = { line: eventLine('touching', b.name, b.gap, lastCause, b.meeting), at: ++sequence };
     }
     lastStatus = next;
   }
@@ -271,10 +290,10 @@ export function createExperience(start: ChapterId = 'arrival') {
     event = null;
     seen.clear();
     // "Everything stays where you left it": free exploration keeps the focus and the followed face too.
-    if (id === 'free') { lastCause = 'slice'; apply(); lastStatus = new Map(); notice(); return; }
+    if (id === 'free') { lastCause = { kind: 'slice' }; apply(); lastStatus = new Map(); notice(); return; }
     focus = null;
     faceFocus = null;
-    strikeWhere = null;
+    strike = null;
     world = spec.world;
     shadow = false;
     orbitPlaying = false;
@@ -297,38 +316,65 @@ export function createExperience(start: ChapterId = 'arrival') {
     notice();
   }
 
+  /**
+   * The blow is on screen now: record where the ball is against the slice it is seen with, and say so.
+   * `replayedTo` is the step a replay from launch landed on, when that is how the blow came to be shown.
+   */
+  function observeStrike(replayedTo: number | null): void {
+    apply();
+    const ball = contactWorld.bodies().find((b) => b.id === 'ball')!;
+    strike = { step: contactWorld.sim.steps, gap: ball.gap, offset: contactKnife.offset, degrees: deg(contactKnife.theta) };
+    event = { line: strikeLine(ball.gap, replayedTo), at: ++sequence };
+  }
+
   /** Step the physics clock n fixed steps; a blow is described at the very step it lands, with the ball where it was then. */
   function stepPhysics(n: number): void {
     for (let k = 0; k < n; k++) {
       const before = contactWorld.sim.impacts;
       contactWorld.step();
-      if (contactWorld.sim.impacts > before) {
-        apply();
-        const ball = contactWorld.bodies().find((b) => b.id === 'ball')!;
-        event = { line: strikeLine(ball.gap), at: ++sequence };
-        strikeWhere = ball.gap === 0 ? 'seen' : 'hidden';
-        seen.add('struck');
-      }
+      if (contactWorld.sim.impacts > before) observeStrike(null);
     }
+  }
+
+  /**
+   * A replay from launch to a step. It is narrated as a replay; if it lands on the blow, the blow is shown
+   * afresh with the slice you have now, and recorded so. Before the blow there is nothing to remember.
+   */
+  function replayTo(steps: number): void {
+    physicsPlaying = false;
+    accumulator = 0;
+    contactWorld.replayTo(steps);
+    lastCause = { kind: 'replay', step: contactWorld.sim.steps };
+    if (contactWorld.sim.impacts === 0) strike = null;
+    else if (contactWorld.sim.steps === contactWorld.impactStep()) { observeStrike(contactWorld.sim.steps); strikeSaid = true; }
+  }
+
+  /** Whether the box is turning now, from the simulation's own angular velocity. */
+  function boxSpinning(): boolean {
+    return contactWorld.sim.state('box').angularVelocity.some((c) => Math.abs(c) > SPIN_EPSILON);
   }
 
   function dispatch(action: Action): void {
     if (studyOpen && SLICE_ACTIONS.has(action.type)) return;
     if (COLLISION_CLOCK_ACTIONS.has(action.type) && (world !== 'contact' || studyOpen)) return;
-    lastCause = kindOf(action) === 'view' ? 'slice' : world === 'turn' ? 'orbit' : 'physics';
+    // What changes the picture: the slice, the orbit, the physics clock — or a replay, which says so itself.
+    lastCause = kindOf(action) === 'view' ? { kind: 'slice' } : world === 'turn' ? { kind: 'orbit' } : { kind: 'physics' };
+    strikeSaid = false;
     mark(action);
     switch (action.type) {
       case 'chapter': enter(action.id); return;
       case 'world': world = action.world; studyOpen = false; break;
       case 'cut-offset': setKnife(setOffset(knife(), action.value)); break;
-      case 'cut-nudge': setKnife(setOffset(knife(), knife().offset + action.delta)); break;
+      // A keyboard step, like any position the page computes, lands on zero when it comes within AT_ZERO
+      // of it; a drag is never snapped.
+      case 'cut-nudge': setKnife(setOffset(knife(), landed(knife().offset + action.delta))); break;
       case 'cut-turn': setKnife(setTheta(knife(), rad(action.degrees))); break;
-      case 'cut-turn-nudge': setKnife(setTheta(knife(), knife().theta + rad(action.delta))); break;
+      case 'cut-turn-nudge': setKnife(setTheta(knife(), landed(knife().theta + rad(action.delta)))); break;
       case 'cut-reset': setKnife({ ...knife(), theta: 0, offset: 0 }); break;
       case 'cut-to': {
         const b = readBodies().find((x) => x.id === action.body);
         const target = b ? reachTarget(b.low, b.high) : null;
-        if (target !== null) setKnife(setOffset(knife(), target));
+        if (target !== null) setKnife(setOffset(knife(), landed(target)));
         break;
       }
       case 'shadow': shadow = action.on; break;
@@ -354,19 +400,25 @@ export function createExperience(start: ChapterId = 'arrival') {
         break;
       // The collision's clock: only reached with the collision in front (refused above otherwise).
       case 'step': physicsPlaying = false; stepPhysics(1); break;
-      case 'step-back': physicsPlaying = false; contactWorld.replayTo(contactWorld.sim.steps - 1); break;
+      case 'step-back': replayTo(contactWorld.sim.steps - 1); break;
       case 'jump-touch': {
         const n = contactWorld.impactStep();
-        if (n !== null) { physicsPlaying = false; contactWorld.replayTo(n - 1); }
+        if (n !== null) replayTo(n - 1);
         break;
       }
       case 'jump-after': {
         const n = contactWorld.impactStep();
-        if (n !== null) { physicsPlaying = false; contactWorld.replayTo(n); }
+        if (n !== null) replayTo(n);
         break;
       }
-      case 'replay': physicsPlaying = false; accumulator = 0; strikeWhere = null; contactWorld.launch(contactWorld.presetId); break;
-      case 'preset': physicsPlaying = false; accumulator = 0; strikeWhere = null; contactWorld.launch(action.id); break;
+      case 'replay':
+        physicsPlaying = false; accumulator = 0; strike = null; contactWorld.launch(contactWorld.presetId);
+        lastCause = { kind: 'replay', step: 0 };
+        break;
+      case 'preset':
+        physicsPlaying = false; accumulator = 0; strike = null; contactWorld.launch(action.id);
+        lastCause = { kind: 'launch', name: PRESETS.find((p) => p.id === action.id)!.name.charAt(0) };
+        break;
       case 'orbit-phase': turnKnife = setPhase(turnKnife, rad(action.degrees)); break;
       case 'study-mode': contactWorld.study.setMode(action.mode); break;
       case 'study-angle': contactWorld.study.setPlaying(false); contactWorld.study.setAngle(rad(action.degrees)); break;
@@ -447,8 +499,9 @@ export function createExperience(start: ChapterId = 'arrival') {
       return {
         id: b.id, name: b.name, colour: b.colour, status: b.status, drawn: b.drawn,
         low: b.low, high: b.high, gap: b.gap, frame, focused: focus === b.id,
-        caption: [caption(b.name, b.status, b.gap, b.drawn), drawingNote(b.marker, b.hollow)].filter(Boolean).join('. '),
-        reason: withNote(absentReason(b.name, b.status, b.gap, frame, reachTarget(b.low, b.high) !== null, b.drawn), b),
+        meeting: b.meeting,
+        caption: [caption(b.name, b.status, b.gap, b.drawn, b.meeting), drawingNote(b.marker, b.hollow)].filter(Boolean).join('. '),
+        reason: withNote(absentReason(b.name, b.status, b.gap, frame, reachTarget(b.low, b.high) !== null, b.drawn, b.meeting), b),
         reachable: reachTarget(b.low, b.high) !== null,
         footprint: b.footprint,
         drawnBound: b.drawnBound
@@ -483,15 +536,19 @@ export function createExperience(start: ChapterId = 'arrival') {
     const cutSlice = studyOpen ? study.slice : slice;
     // The map: the slice in front as a line on the x–w plane, and every body's footprint with the line's chord through it.
     const line = lineOf(Array.from(cutSlice.normal.data), cutSlice.offset);
+    // Whether the line crosses a footprint is the library's status; the footprint arithmetic only shapes the chord.
     const footprints = studyOpen
-      ? [{ id: 'study-box', name: BOX.name, colour: BOX.colour, footprint: contactWorld.studyFootprint() }]
-      : bodies.map((b) => ({ id: b.id, name: b.name, colour: b.colour, footprint: b.footprint }));
+      ? [{ id: 'study-box', name: BOX.name, colour: BOX.colour, footprint: contactWorld.studyFootprint(), meets: study.views.box.status !== 'outside' }]
+      : bodies.map((b) => ({ id: b.id, name: b.name, colour: b.colour, footprint: b.footprint, meets: b.status !== 'outside' }));
     return {
       hint: hint(chapter, seen, {
         ballInSlice,
         playing: world === 'turn' ? orbitPlaying : physicsPlaying,
         orbitMeets: orbitCache.meets,
-        strike: physics && contactWorld.sim.impacts > 0 ? strikeWhere : null,
+        struck: physics && contactWorld.sim.impacts > 0,
+        spinning: physics && boxSpinning(),
+        offCentre: physics && contactWorld.presetId === 'off-centre',
+        strike: physics && contactWorld.sim.impacts > 0 ? strike : null,
         // Nothing in view and only a replay can bring a body back.
         outOfReach: empty !== null && empty.recoveries.every((r) => r.action !== null && kindOf(r.action) === 'time'),
         studyOpen
@@ -522,7 +579,7 @@ export function createExperience(start: ChapterId = 'arrival') {
         movable: !studyOpen,
         legend: PLANE_LEGEND,
         note: planeNote(studyOpen),
-        footprints: footprints.map((f) => ({ ...f, chord: line === null ? null : chordOf(f.footprint, line) }))
+        footprints: footprints.map(({ meets, ...f }) => ({ ...f, chord: line === null ? null : chordOf(f.footprint, line, meets) }))
       },
       event: event === null ? null : event.line,
       eventId: event === null ? 0 : event.at,
