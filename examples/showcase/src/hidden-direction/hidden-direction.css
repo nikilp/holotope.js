@@ -6,8 +6,9 @@
  * card, and the camera's own button. "In the camera's view" means inside the
  * camera's frustum: on a short screen the event line can cover part of the
  * picture's top edge. `app.ts` moves a name tag from under it, or from the
- * camera's controls, to the first clear place below its body or below the line;
- * if neither is clear the tag stays where it was.
+ * camera's controls, to the first clear place inside the picture: below its
+ * body, below the line, or above the controls; if none is clear the tag stays
+ * where it was.
  */
 
 .hd {
@@ -117,6 +118,7 @@
 /* A tag that would sit under the event line moves below its body, or, failing that, just below the line. */
 .hd-tag.hd-tag--below { transform: translate(-50%, 50%); }
 .hd-tag.hd-tag--clear { transform: translate(-50%, 0); }
+.hd-tag.hd-tag--above { transform: translate(-50%, -100%); }
 .hd-event.is-new { animation: hd-arrive 380ms var(--ease); }
 @keyframes hd-arrive { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 

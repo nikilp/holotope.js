@@ -458,16 +458,20 @@ export function createApp(root: HTMLElement): void {
     }
     el.labels.innerHTML = tags.join('');
     // No text over text: a tag under the camera's controls, or under the event line while one is shown, tries
-    // below its body, then just below the line, and takes the first place clear of both.
+    // below its body, just below the line, then just above the controls, and takes the first place inside the
+    // picture that is clear of both.
     const line = el.event.hidden ? null : el.event.getBoundingClientRect();
-    const blocks = line ? [line, el.camera.getBoundingClientRect()] : [el.camera.getBoundingClientRect()];
-    const clear = (t: DOMRect): boolean => blocks.every((o) => t.right <= o.left || t.left >= o.right || t.bottom <= o.top || t.top >= o.bottom);
+    const controls = el.camera.getBoundingClientRect();
+    const blocks = line ? [line, controls] : [controls];
+    const clear = (t: DOMRect): boolean => t.top >= r.top && t.bottom <= r.bottom && t.left >= r.left && t.right <= r.right
+      && blocks.every((o) => t.right <= o.left || t.left >= o.right || t.bottom <= o.top || t.top >= o.bottom);
     for (const tag of Array.from(el.labels.querySelectorAll<HTMLElement>('.hd-tag'))) {
       if (clear(tag.getBoundingClientRect())) continue;
       const original = tag.style.top;
       const places: [string, string][] = [
         ...(tag.dataset.below !== undefined ? [['hd-tag--below', `${tag.dataset.below}px`] as [string, string]] : []),
-        ...(line ? [['hd-tag--clear', `${line.bottom - r.top + 6}px`] as [string, string]] : [])
+        ...(line ? [['hd-tag--clear', `${line.bottom - r.top + 6}px`] as [string, string]] : []),
+        ['hd-tag--above', `${controls.top - r.top - 6}px`]
       ];
       let placed = false;
       for (const [cls, top] of places) {
