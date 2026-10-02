@@ -9,7 +9,7 @@ import { stripComments } from './source-pins.js';
  * DOM in this repository. They hold that every control has a listener, and
  * that the page never writes a body — motion comes from `sim.step()`, and
  * every jump in time is a fresh `ContactSimulation` replayed from launch. The
- * behaviour is checked in a browser, with genuine input.
+ * behaviour needs a browser and genuine input.
  *
  * Three kinds of control, kept apart here as in the page:
  * - TIME — Play, Step ±1, Jump, Reset, presets: step, replay or relaunch.

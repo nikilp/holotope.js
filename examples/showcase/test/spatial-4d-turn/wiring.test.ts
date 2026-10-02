@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
  *
  * What it proves, exactly: that the listener TEXT is present in the executable
  * source. Not that it runs, and not that the handler is right — the in-browser
- * checks with genuine input are that. Comments are stripped
+ * checks with genuine input would be. Comments are stripped
  * first, because the previous version accepted a listener that survived only
  * inside a comment (found in review).
  */

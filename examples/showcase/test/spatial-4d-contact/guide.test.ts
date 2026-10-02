@@ -11,7 +11,7 @@ import { stripComments } from './source-pins.js';
  * same simulation, its landmarks are found by stepping rather than predicted,
  * and every action says which of the three things it touches — the observer,
  * the clock, or the separate study — and touches only that. Source pins are
- * labelled as such; genuine input is checked in a browser, not here.
+ * labelled as such; behaviour needs a browser and genuine input.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));

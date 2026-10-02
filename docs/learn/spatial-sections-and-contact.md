@@ -55,9 +55,10 @@ view reads the simulation and writes nothing back:
 - the readout.
 
 Moving the knife, toggling the projection or orbiting the camera never touches
-a body. Every change of simulation time is a fresh simulation: a launch, or a
-replay of the same launch for a fixed number of steps. The page never poses a
-body or rewinds a velocity. The rotation study is a separate scene with its own
+a body. *Play* and *Step +1* advance the simulation by its own fixed step. Every
+other change of simulation time builds a fresh simulation: a reset launches it
+again, and *Step −1* and the jumps replay the same launch for a fixed number of
+steps. The page never poses a body or rewinds a velocity. The rotation study is a separate scene with its own
 slice, angle and clock, labelled "prescribed turn — not a physics simulation".
 
 ## What the two pages demonstrate
@@ -65,15 +66,18 @@ slice, angle and clock, labelled "prescribed turn — not a physics simulation".
 **Turn through the same object**
 
 - A section of a rigid, unmoving object changes shape only because the section
-  moves. Along the turned x axis its half-length is min(2.2/|cos θ|, 1.6/|sin θ|).
+  moves. At zero offset, along the turned x axis, its half-length is
+  min(2.2/|cos θ|, 1.6/|sin θ|).
   It is widest where the two bounds meet, at |tan θ| = 1.6/2.2 (about 36.03°),
   and that is also where the bounding faces swap from the x faces to the w faces.
 - Faces keep their identity. Each drawn triangle is traced back to the source
   cube it came from, and picking names that face.
-- An empty section is told apart from a miss. A knife lying exactly on a face
-  touches the block without drawing a solid, and the page says which face and
-  why. A knife clear of the block reports the nearest corner's distance and
-  side.
+- An empty section is told apart from a miss. A knife lying exactly on the −w
+  face touches the block and draws nothing, and the page says so. On the +w
+  face the sectioner's boundary convention draws that face instead. A knife
+  clear of the block would report the nearest corner's distance and side. The
+  turn page's offset range never clears the block, so only the tests reach that
+  state; the contact page reaches it when the box leaves the cut.
 - The observer's side is read from the sign of the signed distance, not assumed.
 - The projection context is the whole block's edges in the same chart as the
   section. It is context, not contact: overlap in projection is not overlap in R⁴.
@@ -108,12 +112,12 @@ These pages compose existing capabilities. They do not extend the library.
 | library capability, used here | projection and picking: `ProjectedEdges3D`, `representationHitFromSectionChart` | `@holotope/three` |
 | library capability, used here | rigid motion and contact: `RigidBody4.fromMassProperties`, `PhysicsWorld4`, `ContactPipeline4.stepWorld`, `glomeHyperboxContact4`, and the contact constraints the pipeline builds and solves | `@holotope/physics` |
 | library capability, not used here | continuous collision: `ContactPipeline4.stepWorldContinuous`, linear and rigid casts with time of impact | [Collision queries](./physics/collision#linear-casts-and-time-of-impact) |
-| library capability, not used here | joints, constraint rows and blocks, motors | [Joints, constraints, and motors](./physics/constraints) |
+| library capability, not used here | joints, motors, and constraint rows or blocks authored by the caller (the contact solver builds point-constraint rows internally; the pages author none) | [Joints, constraints, and motors](./physics/constraints) |
 | library capability, not used here | snapshots, traces and replay of compiled experiment documents | [Experiment documents](./experiment-documents#snapshots-traces-and-honest-replay) |
 | library capability, not used here | multi-point contact patches and persistent contact identity for hyperboxes | [Contact generation and response](./physics/contact#hyperbox-contact-patches) |
 | bounded example | the two scenes, the two presets, one impact per run | the pages |
 | bounded example | the page's own replay, `ContactSimulation.atStep`: a fresh simulation stepped again from launch. It is page composition, not the experiment-document replay above | `src/spatial-4d-contact/simulation.ts` |
-| exploratory composition | `ChartProjection`, a `DisplayMap3D` adapter whose methods only call `projectPointToChart`; face naming from cube corners; the mirrored sectioner tolerance (`ON_PLANE_EPSILON = 1e-9`) | `src/spatial-4d-turn/` |
+| exploratory composition | `ChartProjection`, a `DisplayMap3D` adapter whose methods only call `projectPointToChart`; face naming from cube corners; the mirrored sectioner tolerance (`ON_PLANE_EPSILON = 1e-9`, in both pages) | `src/spatial-4d-turn/`, `src/spatial-4d-contact/views.ts` |
 | proposal, not implemented | let `HyperplaneSliceN` serve as a `DisplayMap3D` (or add a slice chart projection), and export the sectioner's tolerance instead of mirroring it | — |
 
 The pages do not use or validate continuous collision, joints or experiment
@@ -141,8 +145,9 @@ evidence for none of them.
 - Preset A: ball at (0, 0, 0, 2.7), velocity (0, 0, 0, −2).
 - Preset B: ball at (0.8, 0, 0, 2.7), same velocity.
 
-In both presets the ball's surface reaches the box's +w face exactly at step 72
-(t = 0.600 s), and the impulse is applied at step 73 (t = 0.608 s). The rotation
+In both presets the ball's surface reaches the box's +w face at step 72
+(t = 0.600 s, gap 4.4e−15), and the impulse is applied at step 73
+(t = 0.608 s). The rotation
 study's x–w face transition is at tan α = 1.0/1.2, about 39.81°.
 
 ## Reproducing the evidence
@@ -183,47 +188,62 @@ Behaviour in a browser needs genuine input.
 ## Limits and open questions
 
 - **Prepared scenes, discrete stepping.**
-  - The contact page steps discretely. It uses neither continuous collision nor
-    any multi-body scene: two bodies, one impact per run, no gravity, friction,
+  - The contact page steps discretely and does not use continuous collision.
+    Its scene is two bodies and one impact per run, with no gravity, friction,
     stacking or third body. That says nothing about general multi-body
     robustness or continuous-collision coverage.
   - Zero penetration at detection is a coincidence of the authored gap: the
     touch falls exactly on a step boundary.
-  - At these speeds the ball moves about 0.0167 per step, about 3% of its
-    radius, so tunnelling is not reachable here. That is a property of these
+  - At speed 2 and a step of 1/120 s the ball moves 0.0167 per step, 3.3% of
+    its radius, so tunnelling is not reachable here. That figure follows from
+    the scene's constants; no test asserts it, and it is a property of these
     scenes, not of discrete stepping.
-- **A body is not contained in a section.** In stage A only the two centres lie
-  in the x = 0 section. The box spans 2.4 in x and the ball 1.0, so each extends
-  beyond the cut. The section of a 4D solid is not the solid.
+- **A body is not contained in a section.** In stage A both centres lie in the
+  x = 0 section, so the cut passes through the middle of each. Neither body is
+  contained in it: the box spans 2.4 in x and the ball 1.0. The section of a 4D
+  solid is not the solid. Stage A also assumes the offset is 0: its knife action
+  turns the knife to 90° but keeps any offset already set.
 - **The containment check is a spot-check.** A test sweeps the stage texts, the
   guided script and the page markup with patterns for wording that claims a
-  body is contained in the section. Those patterns are subject- and voice-limited.
+  body is contained in the section. It does not scan prose the page generates
+  at runtime. Those patterns are subject- and voice-limited.
   Phrasings such as "the section contains both bodies" or "the ball lies wholly
   within this cut" pass them. The substantive guard is the positive pinning of
   the exact required sentences, on top of asserted scene geometry.
-- **Presentation notes, kept as they are:**
+- **Presentation notes, kept as they are.** The narrow-width notes come from
+  desktop-browser emulation at 375 px, not a phone:
   - On the contact page, below 880 px the stage is not sticky, so it scrolls
-    out of view under the lower controls, and two checkboxes are 13 px.
-  - The turn page has had no phone-width pass at all.
+    out of view under the lower controls. Its two checkboxes are 13 px, the
+    browser default.
+  - On the turn page at 375 px, the default camera clips the block's right side
+    and can leave the ball out of frame while the readout says it is in the
+    section. The stage and the controls do not fit on screen together.
+  - On the contact page, after *Pause* the time note still reads "Playing:
+    fixed steps from the wall clock."
+  - On the turn page, *Reset section* also returns the ball's phase to 0 and
+    stops *Play*.
   - Stage B says "While paused…", but arriving at stage B does not pause the
     clock. Its first action, *Jump to the first touch*, does.
   - One idea has three words: the stage asks until both bodies are "gone from
     the cut", while the readout calls the box "absent" and the ball "hidden".
   - Small negative distances display as −0.00.
-- **Three kinds of number, three roles.**
+- **Numbers with distinct roles.**
   - Membership in the cut is a geometric predicate, |signed distance| ≤ 1e−9,
     never a rounded display. A point at 0.004 displays as 0.00 and is not in
     the cut.
   - Drawn buffers are Float32, so values read back from them are held to 1e−5.
-  - Restitution is enforced to nine places. The worst |1 − e| observed across
-    the tried settings was 4.4e−16. That is a measurement of the builds it ran
-    on, not a portability guarantee.
+  - Restitution is enforced to nine places. Contact-point |1 − e| was also
+    measured across 108 settings: both presets × dt {1/120, 1/240, 1/480,
+    1/1200, 1/12000, 1/120000} × substeps {1, 2, 4} × solver iterations
+    {8, 16, 32}. The worst was 4.4e−16, at preset B, dt 1/480, 1 substep and 8
+    iterations. That is a measurement of the build it ran on, not a portability
+    guarantee, and no test asserts it.
   - The graze band (0.02) and the ball's three circles are display
     conventions, not geometry.
 - **Tolerances are mirrored.** The sectioner's tolerance is copied, not read,
   because the library does not export it.
-- **States no preset reaches.** "Overlapping", "unsupported here" and the
-  ambiguous-interior query state are labelled but never reached.
+- **States no preset reaches.** "Overlapping", and "unsupported here" (the
+  query's ambiguous-interior state), are labelled but never reached.
 - **Open design.** A knife turning in two planes at once is not designed. The
   page steps by wall-clock accumulation, at most eight fixed steps per frame, so
   two sessions can differ in how many steps have run at a given moment. The
@@ -234,8 +254,9 @@ Behaviour in a browser needs genuine input.
 A short task for a reviewer with only this repository:
 
 1. **Reproduce the reference collision.** Run the commands above. On the contact
-   page, choose preset A and press *Play*. Confirm the outcome: the impulse at
-   step 73; the ball leaving at +2/3 and the box at −4/3 along w; no spin.
+   page, choose preset A, press *Jump to the first touch*, then *Step +1*.
+   Confirm: the touch at step 72; the impulse at step 73; the ball leaving at
+   +2/3 and the box at −4/3 along w; no spin.
    Compare with `examples/showcase/test/spatial-4d-contact/simulation.test.ts`,
    section 2.
 2. **Change the observer without changing the bodies.** Pause just after the
@@ -243,13 +264,14 @@ A short task for a reviewer with only this repository:
    camera, and confirm that no position or velocity in the readout moved.
    `views.test.ts` holds the same claim bitwise across 180 steps. Check that the
    probe moved something, or the claim is vacuous.
-3. **Inspect the hidden-plane spin.** Choose preset B and *Jump to just after
-   the impact*. Read the box's spin in the x–w plane and the conserved total.
+3. **Inspect the hidden-plane spin.** In guided stage E, choose preset B and
+   *Jump to just after the impact*. Read the box's spin in the x–w plane and the conserved total.
    Then open the rotation study and compare a prescribed x–w turn with the
    collision's.
 4. **Attack the limits above.** For example:
-   - start the ball at w = 2.66 instead of 2.7 and look at penetration at
-     detection;
+   - start the ball at w = 2.66 instead of 2.7, which needs an edit to the
+     presets in `src/spatial-4d-contact/simulation.ts`, and look at penetration
+     at detection;
    - write a containment sentence the patterns miss;
    - arrive at stage B with the clock running;
    - load either page at 375 px wide.
