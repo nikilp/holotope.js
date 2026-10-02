@@ -3,7 +3,9 @@
  * wide screen: the words (the chapter card), the picture (your slice), and your
  * slice's own instruments (the hidden plane and the gauge). Nothing covers the
  * picture except what the picture is about — its event line, its empty-view
- * card, and the camera's own button — so "in the camera's view" means visible.
+ * card, and the camera's own button. "In the camera's view" means inside the
+ * camera's frustum: on a short screen the event line can cover part of the
+ * picture's top edge, though never a name tag (`app.ts` moves a tag from under it).
  */
 
 .hd {
@@ -44,11 +46,14 @@
 }
 .hd-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .hd-secondary .hz-btn { min-height: 36px; padding: 0 13px; font-size: 13px; }
-/* On a touch screen every control is a full tap target. */
+/* On a touch screen every control and every link on these pages is a full tap target. */
 @media (pointer: coarse) {
   .hd-secondary .hz-btn, .hd .hd-cam-btn, .hd .hd-chapter, .hd .hd-single, .hd .hd-empty .hz-btn { min-height: var(--tap); }
   .hd .hd-single { padding: 0 14px; }
   .hd .hd-more summary { min-height: var(--tap); display: flex; align-items: center; }
+  .hd .hd-bar { padding-top: 0; padding-bottom: 0; }
+  .hd .hd-bar .hz-mark, .hd .hd-bar nav a, .hd .hd-more .hd-links a { min-height: var(--tap); display: inline-flex; align-items: center; }
+  .hd .hz-skip:focus { min-height: var(--tap); display: inline-flex; align-items: center; }
 }
 .hd-face { font-size: 13px; color: var(--text-soft); display: flex; gap: 8px; align-items: baseline; }
 .hd-clock { display: flex; gap: 4px 10px; flex-wrap: wrap; align-items: baseline; font-size: 12.5px; color: var(--muted); margin-top: auto !important; padding-top: 4px; }
@@ -107,6 +112,9 @@
   text-align: center;
 }
 .hd-tag--marker { transform: translate(-50%, 60%); font-weight: 500; color: var(--text-soft); border-style: dashed; }
+/* A tag that would sit under the event line moves below its body, or, failing that, just below the line. */
+.hd-tag.hd-tag--below { transform: translate(-50%, 50%); }
+.hd-tag.hd-tag--clear { transform: translate(-50%, 0); }
 .hd-event.is-new { animation: hd-arrive 380ms var(--ease); }
 @keyframes hd-arrive { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
@@ -184,7 +192,7 @@
   scrollbar-width: thin;
 }
 .hd-chapter {
-  display: inline-flex; align-items: baseline; gap: 8px; flex: none;
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
   min-height: var(--tap); padding: 0 14px;
   border-radius: 999px; border: 1px solid var(--hair);
   background: transparent; color: var(--text-soft);
@@ -203,8 +211,10 @@
 
 /*
  * Narrow screens: the picture stays in view (sticky at the top) with the
- * gauge beside it, ana still up; the chapters, the card and the hidden plane
- * scroll beneath it, so every instrument can be used while you watch.
+ * gauge beside it, ana still up, and its colour key above it; the card, the
+ * chapters and the hidden plane scroll beneath it, so every instrument can be
+ * used while you watch. The card comes before the chapters, so that its first
+ * action is on the first screen.
  */
 @media (max-width: 999px) {
   .hd { height: auto; min-height: 100vh; grid-template-rows: auto auto; }
@@ -217,13 +227,15 @@
   .hd-stage { grid-column: 1; grid-row: 1; border-radius: 0 0 18px 18px; border-top: 0; box-shadow: 0 0 0 10px var(--ink-0); }
   .hd-panel { display: contents; }
   .hd-gauge-col { grid-column: 2; grid-row: 1; flex: none; min-height: 250px; background: var(--ink-1); border-radius: 0 0 14px 14px; border-top: 0; box-shadow: 0 0 0 10px var(--ink-0); }
-  .hd-gauge-col .hd-panel-head, .hd-gauge-keys { display: none; }
+  .hd-gauge-col .hd-panel-head { display: none; }
+  .hd-gauge-keys { margin: 6px 4px 0; flex-direction: column; gap: 2px; font-size: 10px; line-height: 1.2; }
+  .hd-gauge-keys span { gap: 4px; }
   .hd-gauge { margin: 4px 2px 6px; }
   .hd-gauge-svg { inset: 18px 2px; }
   .hd-gauge-end { font-size: 10px; letter-spacing: 0.08em; }
-  .hd-chapters { grid-column: 1 / -1; grid-row: 2; }
+  .hd-card { grid-column: 1 / -1; grid-row: 2; overflow: visible; padding: 16px 16px 12px; }
+  .hd-chapters { grid-column: 1 / -1; grid-row: 3; }
   .hd-chapter { min-height: 40px; padding: 0 12px; font-size: 13px; }
-  .hd-card { grid-column: 1 / -1; grid-row: 3; overflow: visible; padding: 16px 16px 12px; }
   .hd-card h1 { font-size: 26px; }
   .hd-map-block { grid-column: 1 / -1; grid-row: 4; display: grid; grid-template-columns: minmax(150px, 46%) 1fr; grid-template-rows: auto auto 1fr; align-items: start; }
   .hd-map-block .hd-panel-head { grid-column: 1 / -1; }
@@ -245,10 +257,32 @@
   .hd-card h1 { font-size: 23px; }
   .hd-invite { font-size: 16px; line-height: 1.4; }
   .hd-hint { min-height: 0; }
+  .hd-event { font-size: 12px; line-height: 1.3; padding: 6px 10px; max-width: calc(100% - 16px); top: 6px; }
 }
 /* The separate turning scene has no gauge and a longer stated setup: a shorter pinned picture keeps its first action on the first screen. */
 @media (max-width: 999px) {
   .hd[data-world='study'] .hd-stage { grid-column: 1 / -1; height: 34vh; height: 34svh; min-height: 200px; }
+}
+/*
+ * Landscape phones: too short for the picture above the card. The picture and
+ * its gauge stay pinned on the left, as tall as the screen allows; the card,
+ * the chapters and the hidden plane scroll on the right, so the first action is
+ * on the first screen. Nothing asks you to turn the phone.
+ */
+@media (max-width: 999px) and (max-height: 540px) and (orientation: landscape) {
+  .hd-main { grid-template-columns: minmax(0, 1fr) 54px minmax(250px, 47%); grid-template-rows: auto auto auto 1fr; align-items: start; gap: 8px 8px; padding-bottom: 10px; }
+  .hd-stage, .hd-gauge-col { grid-row: 1 / span 4; top: 6px; height: calc(100vh - 56px); height: calc(100svh - 56px); min-height: 0; }
+  .hd-stage { border-radius: 16px; border-top: 1px solid var(--hair); box-shadow: none; }
+  .hd-gauge-col { border-radius: 14px; border-top: 1px solid var(--hair); box-shadow: none; }
+  .hd-card { grid-column: 3; grid-row: 1; padding: 8px 12px 10px; gap: 6px; }
+  .hd-card h1 { font-size: 21px; }
+  .hd-setup { font-size: 12px; margin-top: -4px !important; }
+  .hd-invite { font-size: 14.5px; line-height: 1.35; }
+  .hd-hint { font-size: 13px; }
+  .hd-chapters { grid-column: 3; grid-row: 2; flex-wrap: wrap; overflow: visible; }
+  .hd-map-block { grid-column: 3; grid-row: 3; }
+  .hd-study-block { grid-column: 3; grid-row: 4; }
+  .hd[data-world='study'] .hd-stage { grid-column: 1 / 3; height: calc(100vh - 56px); height: calc(100svh - 56px); min-height: 0; }
 }
 @media (max-width: 560px) {
   /* Both pages stay one tap away in the card's "What exactly am I seeing?" links. */

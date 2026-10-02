@@ -3,7 +3,7 @@ import './hidden-direction.css';
 import { Mesh, Raycaster, Vector2, Vector3, type Material, type MeshStandardMaterial, type Object3D } from 'three';
 import { CHAPTERS, createExperience, type Action, type ChapterId } from './experience.js';
 import { BUTTONS, INSTRUMENTS, chapterAction, keyAction, sliderKey, type CameraKey } from './bindings.js';
-import { signedReading } from './copy.js';
+import { plainReading, signedReading } from './copy.js';
 import { anaRegion, lineSegment, type Footprint } from './plane.js';
 import { createStage } from './stage.js';
 
@@ -47,7 +47,8 @@ export function createApp(root: HTMLElement): void {
     shadowLegend: $('hd-shadow-legend'), gaugeLegend: $('hd-gauge-legend'), planeLegend: $('hd-plane-legend'),
     numbers: $('hd-numbers'), gauge: $('hd-gauge'), gaugeKeys: $('hd-gauge-keys'), gaugeSvg: $('hd-gauge-svg'), map: $('hd-map'), mapSvg: $('hd-map-svg'),
     mapNote: $('hd-map-note'), dialValue: $('hd-dial-value'), offsetValue: $('hd-offset-value'),
-    studyAngle: $('hd-study-angle'), studySvg: $('hd-study-svg'), studyValue: $('hd-study-value'), face: $('hd-face')
+    studyAngle: $('hd-study-angle'), studySvg: $('hd-study-svg'), studyValue: $('hd-study-value'), face: $('hd-face'),
+    camera: root.querySelector<HTMLElement>('.hd-camera')!
   };
 
   let view = x.view(stage.camera);
@@ -171,9 +172,12 @@ export function createApp(root: HTMLElement): void {
   });
 
   /* ---------- keys anywhere else ---------- */
+  // A focused instrument takes its own keys first and marks them handled; every other key, on an
+  // instrument or anywhere else, reaches the page's shortcuts. Never both: an arrow acts once.
   window.addEventListener('keydown', (e) => {
     const t = e.target as HTMLElement | null;
-    if (t && (t.closest('input, textarea, select, [contenteditable]') || t.closest('[role="slider"]'))) return;
+    if (e.defaultPrevented) return;
+    if (t && t.closest('input, textarea, select, [contenteditable]')) return;
     if (t && (e.key === ' ' || e.key === 'Enter') && t.closest('button, a, summary')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (/^[1-6]$/.test(e.key)) { send(chapterAction(CHAPTER_IDS[Number(e.key) - 1]!)); return; }
@@ -275,14 +279,15 @@ export function createApp(root: HTMLElement): void {
     el.mapNote.textContent = view.plane.note;
     const turned = view.cut.degrees;
     const slid = view.cut.offset;
-    el.dialValue.textContent = `${turned.toFixed(1)}°`;
+    // Readouts never print a signed zero; ARIA values stay plain numbers, with no negative zero.
+    el.dialValue.textContent = `${signedReading(turned, 1)}°`;
     el.offsetValue.textContent = signedReading(slid, 2);
-    el.map.setAttribute('aria-valuenow', turned.toFixed(1));
+    el.map.setAttribute('aria-valuenow', plainReading(turned, 1));
     el.map.setAttribute('aria-valuetext', view.plane.movable
-      ? `slice turned ${turned.toFixed(1)} degrees in the x–w plane, slid ${slid.toFixed(2)} along its normal`
+      ? `slice turned ${signedReading(turned, 1)} degrees in the x–w plane, slid ${signedReading(slid, 2)} along its normal`
       : 'slice fixed at w = 0 in this scene');
     el.map.setAttribute('aria-disabled', String(!view.plane.movable));
-    el.gauge.setAttribute('aria-valuenow', view.cut.offset.toFixed(2));
+    el.gauge.setAttribute('aria-valuenow', plainReading(view.cut.offset, 2));
     el.gauge.setAttribute('aria-valuetext', `slice at ${signedReading(view.cut.offset, 2)} along its normal; `
       + view.bodies.map((b) => b.caption).join('; '));
     el.face.hidden = view.face === null;
@@ -410,9 +415,9 @@ export function createApp(root: HTMLElement): void {
     if (!view.study) return;
     const cx = 60; const cy = 60; const r = 46;
     const a = (view.study.degrees * Math.PI) / 180;
-    el.studyValue.textContent = `${view.study.degrees.toFixed(1)}°`;
-    el.studyAngle.setAttribute('aria-valuenow', view.study.degrees.toFixed(1));
-    el.studyAngle.setAttribute('aria-valuetext', `box turned ${view.study.degrees.toFixed(1)} degrees; ${view.study.description}`);
+    el.studyValue.textContent = `${plainReading(view.study.degrees, 1)}°`;
+    el.studyAngle.setAttribute('aria-valuenow', plainReading(view.study.degrees, 1));
+    el.studyAngle.setAttribute('aria-valuetext', `box turned ${plainReading(view.study.degrees, 1)} degrees; ${view.study.description}`);
     el.studySvg.innerHTML = `<svg viewBox="0 0 120 120" width="100%" height="100%" aria-hidden="true">`
       + `<circle cx="${cx}" cy="${cy}" r="${r}" class="arc"/>`
       + `<line x1="${cx}" y1="${cy}" x2="${cx + r * Math.sin(a)}" y2="${cy - r * Math.cos(a)}" class="hand"/>`
@@ -420,17 +425,23 @@ export function createApp(root: HTMLElement): void {
       + '</svg>';
   }
 
-  /** Name tags beside each drawn body, from its drawn bound; never on a body that is not drawn. */
+  /**
+   * Name tags beside each drawn body, from its drawn bound; never on a body that is not drawn, and never
+   * under the event line — a tag that would sit there moves below its body, or just below the line.
+   */
   function paintLabels(): void {
     const r = stage.canvas.getBoundingClientRect();
     const tags: string[] = [];
     const roots = view.world === 'turn' ? x.worlds.turn.bodies() : view.studyOpen ? [] : x.worlds.contact.bodies();
     for (const b of roots) {
       if (b.drawnBound === null) continue;
-      const v = new Vector3(b.drawnBound.centre[0], b.drawnBound.centre[1] + b.drawnBound.radius, b.drawnBound.centre[2]).project(stage.camera);
+      const [cx, cy, cz] = b.drawnBound.centre;
+      const v = new Vector3(cx, cy + b.drawnBound.radius, cz).project(stage.camera);
       if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) continue;
       const [left, top] = clampTag(((v.x + 1) / 2) * r.width, ((1 - v.y) / 2) * r.height, 44, r);
-      tags.push(`<span class="hd-tag" style="left:${left}px;top:${top}px;--c:${b.colour}">${b.name}</span>`);
+      const u = new Vector3(cx, cy - b.drawnBound.radius, cz).project(stage.camera);
+      const [, below] = clampTag(((u.x + 1) / 2) * r.width, ((1 - u.y) / 2) * r.height, 44, r);
+      tags.push(`<span class="hd-tag" data-below="${below}" style="left:${left}px;top:${top}px;--c:${b.colour}">${b.name}</span>`);
     }
     // A marker is not a cut: it is tagged where it is drawn, for as long as it is drawn.
     for (const b of roots) {
@@ -442,6 +453,28 @@ export function createApp(root: HTMLElement): void {
       tags.push(`<span class="hd-tag hd-tag--marker" style="left:${left}px;top:${top}px;--c:${b.colour}">${b.name} · ${what}</span>`);
     }
     el.labels.innerHTML = tags.join('');
+    if (el.event.hidden) return;
+    // No text over text: a tag under the event line tries below its body, then just below the line, and
+    // takes the first place clear of both the line and the camera's controls.
+    const line = el.event.getBoundingClientRect();
+    const blocks = [line, el.camera.getBoundingClientRect()];
+    const clear = (t: DOMRect): boolean => blocks.every((o) => t.right <= o.left || t.left >= o.right || t.bottom <= o.top || t.top >= o.bottom);
+    for (const tag of Array.from(el.labels.querySelectorAll<HTMLElement>('.hd-tag'))) {
+      if (clear(tag.getBoundingClientRect())) continue;
+      const original = tag.style.top;
+      const places: [string, string][] = [
+        ...(tag.dataset.below !== undefined ? [['hd-tag--below', `${tag.dataset.below}px`] as [string, string]] : []),
+        ['hd-tag--clear', `${line.bottom - r.top + 6}px`]
+      ];
+      let placed = false;
+      for (const [cls, top] of places) {
+        tag.classList.add(cls);
+        tag.style.top = top;
+        if (clear(tag.getBoundingClientRect())) { placed = true; break; }
+        tag.classList.remove(cls);
+      }
+      if (!placed) tag.style.top = original;
+    }
   }
 
   function paintEmpty(): void {
