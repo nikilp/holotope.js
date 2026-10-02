@@ -15,6 +15,9 @@
 - docs/learn/cookbook.md — verified task-oriented snippets.
 - docs/learn/representation-provenance.md — what a pick can and cannot recover.
 - docs/learn/representation-claims.md — reading a pick as one claim instead of two fields.
+- docs/learn/spatial-sections-and-contact.md — two showcase pages (spatial-4d-turn,
+  spatial-4d-contact): a section turned through rigid R4 objects, and one discrete
+  contact read through it; what they demonstrate, their tests, and their limits.
 - docs/learn/physics/ — rigid mechanics, contact capability boundaries, and RN XPBD
   (index page maps the seven task pages).
 

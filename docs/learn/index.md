@@ -27,6 +27,7 @@ traceability comes from a second map retained during construction.
 
 - [Representation provenance](./representation-provenance) — what a pick can and cannot recover
 - [Provenance-driven decorations](./couplings) — assigning parameters from retained source identity
+- [Turning a section, and contact through the hidden direction](./spatial-sections-and-contact) — two showcase pages that keep one R4 source behind every view: what changes only the observer, and how to find a cause the cut cannot show
 
 ## Mechanics
 

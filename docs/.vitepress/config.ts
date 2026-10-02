@@ -148,7 +148,11 @@ export default defineConfig({
           items: [
             { text: 'Representation provenance', link: '/learn/representation-provenance' },
             { text: 'What a pick may claim', link: '/learn/representation-claims' },
-            { text: 'Provenance-driven decorations', link: '/learn/couplings' }
+            { text: 'Provenance-driven decorations', link: '/learn/couplings' },
+            {
+              text: 'Turning a section, and contact',
+              link: '/learn/spatial-sections-and-contact'
+            }
           ]
         },
         {

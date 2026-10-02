@@ -160,6 +160,7 @@ explains why a projected mesh is never the source object — then work from
 | [Mechanics](docs/learn/physics/) | Mass, rigid bodies, collision, contact, constraints, XPBD |
 | [Exact constructions](docs/learn/theory/model-sets.md) | Cut-and-project, [E8 folding](docs/learn/theory/e8-folding.md), [fields](docs/learn/theory/implicit-fields.md), [spectra](docs/learn/theory/spectral-analysis.md) |
 | [Provenance-driven decorations](docs/learn/couplings.md) | Assigning parameters from retained source identity |
+| [Turning a section, and contact](docs/learn/spatial-sections-and-contact.md) | Two showcase pages that read one R4 source through a section you can turn, and find a collision's cause the cut cannot show |
 
 [`llms.txt`](llms.txt) is the concise AI-assistant context file.
 
