@@ -1,168 +1,114 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="hz">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Holotope.js — Interaction through the hidden direction</title>
-    <style>
-      :root { color-scheme: dark; --ink: #e9e8e4; --muted: #99a0aa; --rule: #2c3138; --card: #171a1f; }
-      * { box-sizing: border-box; }
-      body { margin: 0; background: #0d0f12; color: var(--ink);
-        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-      header { padding: 16px 20px 8px; }
-      h1 { margin: 0 0 4px; font-size: 1.15rem; }
-      header p { margin: 0; color: var(--muted); font-size: 0.88rem; max-width: 78ch; }
-      main { display: grid; grid-template-columns: minmax(0,1fr) 360px; gap: 16px; padding: 10px 20px 20px; }
-      @media (max-width: 880px) { main { grid-template-columns: minmax(0,1fr); } }
-      #stage { height: min(60vh, 560px); min-height: 300px; border: 1px solid var(--rule);
-        border-radius: 10px; overflow: hidden; background: #101216; position: sticky; top: 8px; }
-      @media (max-width: 880px) { #stage { position: static; height: min(48vh, 420px); } }
-      #stage canvas { display: block; width: 100%; height: 100%; }
-      #panel { display: grid; gap: 12px; align-content: start; min-width: 0; }
-      .control { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 11px 13px; min-width: 0; }
-      .control h3, #readout h3, .control summary { margin: 0 0 6px; font-size: 0.78rem; text-transform: uppercase;
-        letter-spacing: 0.06em; color: var(--muted); }
-      .control summary { cursor: pointer; }
-      .control label { display: flex; justify-content: space-between; font-weight: 600; gap: 10px; }
-      .control label.choice, .control label.toggle { justify-content: flex-start; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; }
-      .control label.choice input, .control label.toggle input { margin: 0; }
-      .control input[type=range] { width: 100%; margin-top: 8px; }
-      .control input[type=range]:disabled { opacity: 0.35; }
-      .control p { margin: 6px 0 0; color: var(--muted); font-size: 0.82rem; }
-      .buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-      button { font: inherit; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 7px;
-        background: var(--card); color: var(--ink); cursor: pointer; min-height: 36px; }
-      button:hover { border-color: var(--ink); }
-      button:disabled { opacity: 0.4; cursor: default; }
-      #play[aria-pressed="true"], #study-play[aria-pressed="true"] { border-color: #6fd3a2; color: #6fd3a2; }
-      #readout, #study-readout { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 11px 13px; }
-      #study-readout { margin-top: 8px; padding: 8px 10px; }
-      .row { display: flex; justify-content: space-between; gap: 10px; color: var(--muted);
-        font-size: 0.84rem; padding: 2px 0; flex-wrap: wrap; }
-      .row code { color: var(--ink); font: 0.92em ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .object { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-        padding: 8px 0 4px; border-top: 1px solid var(--rule); margin-top: 8px; }
-      .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
-      .status { font-size: 0.85rem; }
-      .object.present .status { color: #6fd3a2; }
-      .object.tangent .status { color: #e6c15c; }
-      .object.outside { opacity: 0.8; }
-      .object.outside .status { color: #e0806f; }
-      .object small, .contact small { color: var(--muted); font-size: 0.78rem; flex: 1 1 100%; }
-      .object code, .contact code { font: 0.85em ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); }
-      .contact { border-top: 1px solid var(--rule); margin-top: 8px; padding-top: 8px; font-size: 0.84rem; display: grid; gap: 3px; }
-      .contact .state { font-weight: 600; }
-      .contact.separated .state { color: var(--muted); }
-      .contact.touching .state, .contact.overlapping .state { color: #e6c15c; }
-      .contact.unsupported .state { color: #e0806f; }
-      .pivot { margin: 0; font-size: 0.82rem; }
-      .pivot.on { color: #6fd3a2; }
-      .pivot.off { color: #e6c15c; }
-      #time, #time-note { font-variant-numeric: tabular-nums; }
-      #time-note { color: #cfd4da; }
-      #context-note, #study-note, #guide-text { line-height: 1.45; }
-      .guide h4 { margin: 8px 0 4px; font-size: 0.95rem; }
-      .guide .ask { margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid #6f9ff0; background: #12161c; color: var(--ink); font-size: 0.86rem; }
-      .guide-action.view { border-color: #4f6f9f; }
-      .guide-action.time { border-color: #9f7a3f; }
-      .guide-action.study { border-color: #6f8f5f; }
-      .legend { color: var(--muted); font-size: 0.76rem; margin-top: 6px; }
-      .legend b { color: var(--ink); font-weight: 600; }
-      #study-landmarks button { font-size: 0.82rem; padding: 6px 9px; }
-      .study-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; background: #3a2f16; color: #f3c55a; font-size: 0.76rem; font-weight: 600; letter-spacing: 0.02em; }
-      :focus-visible { outline: 2px solid #6f9ff0; outline-offset: 2px; }
-      .crumbs { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
-      .crumbs a { color: var(--muted); }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Holotope.js — The Hidden Direction: a collision you cannot see</title>
+    <meta name="description" content="Your screen is a slice of a four-dimensional world. Follow what vanishes, find a cause your slice cannot show, and tell turning the slice from turning the object." />
   </head>
-  <body>
-    <header>
-      <nav class="crumbs"><a href="./index.html">← all examples</a> · <a href="./spatial-4d-turn.html">before this: turn through the same object</a> · <a href="./docs/learn/spatial-sections-and-contact">how to read these pages</a></nav>
-      <h1>Interaction through the hidden direction</h1>
-      <p>
-        A box and a ball in four-dimensional space, both free to move, both solid to each other. You
-        see one three-dimensional slice — a knife through 4D — and, if you ask for it, the faint
-        projection of the whole objects. Press <b>Play</b>: the ball is launched once along w, the
-        direction the slice cannot show, and everything after that is integration and contact in
-        the released physics — no path, no script. The question: when something you cannot see in
-        this cut changes the motion of something you can, how do you find the cause? <b>Turn</b> the
-        knife toward w, or show the projection. A guided sequence below walks the question through
-        five short stages; every control it touches says whether it moves the observer or the clock.
-      </p>
+  <body class="hz hd" data-start="collision">
+    <a class="hz-sr hz-skip" href="#hd-card">Skip to the chapter</a>
+    <header class="hz-bar hd-bar">
+      <a class="hz-mark" href="./index.html" aria-label="Holotope atlas">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="#ece8df" stroke-width="1.5"/><line x1="1" y1="13" x2="23" y2="11" stroke="#f1dfae" stroke-width="2"/></svg>
+        <b>Holotope</b>
+      </a>
+      <span class="hd-where">The Hidden Direction</span>
+      <nav aria-label="Site">
+        <a href="./index.html">Atlas</a>
+        <a href="./docs/learn/the-hidden-direction">How to explore</a>
+        <a href="./docs/learn/spatial-sections-and-contact">How it works</a>
+        <a href="./spatial-4d-contact-classic.html">Classic instrument</a>
+      </nav>
     </header>
-    <main>
-      <div id="stage"></div>
-      <div id="panel">
-        <details class="control guide" id="guide" open>
-          <summary>Guided exploration (optional)</summary>
-          <h4 id="guide-title"></h4>
-          <p id="guide-text"></p>
-          <p class="ask" id="guide-ask"></p>
-          <div class="buttons" id="guide-actions"></div>
-          <div class="buttons">
-            <button type="button" id="guide-prev">◂ Previous stage</button>
-            <button type="button" id="guide-next">Next stage ▸</button>
-          </div>
-          <p class="legend"><b>view only</b> moves the observer; <b>changes simulation time</b> replays, steps or relaunches the world; <b>separate scene</b> opens the prescribed study.</p>
+    <main class="hd-main">
+      <section id="hd-card" class="hd-card hz-glass" aria-labelledby="hd-title" tabindex="-1">
+        <p class="hz-kicker" id="hd-numeral"></p>
+        <h1 class="hz-display" id="hd-title"></h1>
+        <p class="hd-setup" id="hd-setup"></p>
+        <p class="hd-invite" id="hd-invite"></p>
+        <p class="hd-hint" id="hd-hint" aria-live="polite"></p>
+        <div class="hd-actions">
+          <button type="button" id="hd-play" class="hz-btn hz-btn--primary" data-for="turn contact" aria-pressed="false">Play</button>
+          <button type="button" id="hd-step-back" class="hz-btn" data-for="contact" title="Replays from launch to the previous step">Step −1</button>
+          <button type="button" id="hd-step" class="hz-btn" data-for="contact" title="One fixed step of the physics clock">Step +1</button>
+          <button type="button" id="hd-jump" class="hz-btn" data-for="contact" title="Replays from launch to the step before the blow">Just before the blow</button>
+          <button type="button" id="hd-study-play" class="hz-btn hz-btn--primary" data-for="study" aria-pressed="false">Play the turn</button>
+          <button type="button" id="hd-study-xw" class="hz-btn" data-for="study" aria-pressed="false">Through w (x–w)</button>
+          <button type="button" id="hd-study-xy" class="hz-btn" data-for="study" aria-pressed="false">Ordinary (x–y)</button>
+        </div>
+        <div class="hd-actions hd-secondary">
+          <button type="button" id="hd-freeze" class="hz-btn" data-for="turn contact study" title="Stops every clock where it stands and lifts the shadow">Freeze &amp; compare</button>
+          <button type="button" id="hd-shadow" class="hz-btn" data-for="turn contact study" aria-pressed="false">Lift the shadow</button>
+          <button type="button" id="hd-reset-cut" class="hz-btn" data-for="turn contact" title="Your slice back to untilted, through the centre point; no clock moves">Reset slice</button>
+          <button type="button" id="hd-face-next" class="hz-btn" data-for="turn" title="Follows the next face your slice cuts — solid in the slice, bright lines in the shadow">Follow a face</button>
+          <button type="button" id="hd-replay" class="hz-btn" data-for="contact" title="A fresh launch: the physics clock back to 0">Replay launch</button>
+        </div>
+        <div class="hd-actions hd-secondary" data-for="contact">
+          <span class="hz-kicker">Launch</span>
+          <button type="button" id="hd-preset-a" class="hz-btn" aria-pressed="false">A · central</button>
+          <button type="button" id="hd-preset-b" class="hz-btn" aria-pressed="false">B · off-centre</button>
+        </div>
+        <div class="hd-actions hd-secondary" data-for="free">
+          <span class="hz-kicker">World</span>
+          <button type="button" id="hd-world-turn" class="hz-btn" aria-pressed="false">Block &amp; orbiting ball</button>
+          <button type="button" id="hd-world-contact" class="hz-btn" aria-pressed="false">Box &amp; ball, with physics</button>
+        </div>
+        <p class="hd-face" id="hd-face" hidden></p>
+        <p class="hd-clock"><span id="hd-clock-name"></span><span id="hd-clock" class="hz-num"></span></p>
+        <details class="hd-more">
+          <summary>What exactly am I seeing?</summary>
+          <ul id="hd-bodies"></ul>
+          <p id="hd-pivot"></p>
+          <p id="hd-plane-legend"></p>
+          <p id="hd-gauge-legend"></p>
+          <p id="hd-shadow-legend"></p>
+          <div id="hd-numbers" class="hd-numbers"></div>
+          <p class="hd-links"><a href="./docs/learn/the-hidden-direction">How to explore</a><a href="./docs/learn/spatial-sections-and-contact">How it works, with the evidence</a><a href="./spatial-4d-contact-classic.html">The classic instrument</a></p>
         </details>
-        <div class="control">
-          <h3>Collision — time</h3>
-          <label class="choice" for="preset-central"><input type="radio" name="preset" id="preset-central" checked /> A. Central impact along w</label>
-          <label class="choice" for="preset-off-centre"><input type="radio" name="preset" id="preset-off-centre" /> B. Off-centre impact</label>
-          <p id="preset-note"></p>
-          <div class="buttons">
-            <button type="button" id="play" aria-pressed="false">Play</button>
-            <button type="button" id="step-back" title="Replays from launch to the previous step">Step −1</button>
-            <button type="button" id="step">Step +1</button>
-            <button type="button" id="jump-touch" title="Replays from launch to the step before the impulse">Jump to first touch</button>
-            <button type="button" id="reset">Reset</button>
-          </div>
-          <p>simulation time <code id="time">0.000 s · step 0</code> · fixed step 1/120 s, 2 substeps</p>
-          <p id="time-note"></p>
+      </section>
+
+      <div id="hd-stage" class="hd-stage" role="region" aria-label="Your three-dimensional slice of a four-dimensional world">
+        <div id="hd-labels" class="hd-labels" aria-hidden="true"></div>
+        <p id="hd-event" class="hd-event" role="status" aria-live="polite" hidden></p>
+        <div id="hd-empty" class="hd-empty hz-glass" role="region" aria-labelledby="hd-empty-head" hidden>
+          <h2 id="hd-empty-head"></h2>
+          <ul id="hd-empty-list"></ul>
+          <div id="hd-empty-actions" class="hd-actions"></div>
         </div>
-        <div class="control">
-          <h3>Knife — section orientation (view only)</h3>
-          <label for="turn">Turn (x–w plane) <span id="turn-value">0.0°</span></label>
-          <input type="range" id="turn" step="0.5" value="0" />
-          <label for="offset">Section offset <span id="offset-value">0.00</span></label>
-          <input type="range" id="offset" step="0.01" value="0" />
-          <p id="pivot-note" class="pivot on"></p>
-          <p id="knife-note">The knife moves only the picture: the bodies never feel it. Dragging the view walks around the cut.</p>
+        <div class="hd-camera">
+          <span class="hd-cam-hint" aria-hidden="true">Drag to turn the camera — it never changes what your slice cuts</span>
+          <button type="button" id="hd-recentre" class="hz-btn hd-cam-btn" title="The camera back home; nothing in the world moves">Re-centre camera</button>
         </div>
-        <div class="control">
-          <label class="toggle" for="context"><input type="checkbox" id="context" /> Show projection context (view only)</label>
-          <p id="context-note" hidden></p>
-        </div>
-        <div class="control">
-          <label class="toggle" for="study"><input type="checkbox" id="study" /> Rotation study <span class="study-badge">prescribed turn — not a physics simulation</span></label>
-          <p>A centred rigid box with a prescribed orientation, a fixed section at w = 0, no translation and no collision. Its own object angle and clock; the collision keeps its state while the study is open.</p>
-          <div id="study-controls" hidden>
-            <h3>Object angle</h3>
-            <label class="choice" for="study-ordinary"><input type="radio" name="study-mode" id="study-ordinary" checked /> Ordinary turn — x–y plane, inside the section</label>
-            <label class="choice" for="study-fourth"><input type="radio" name="study-mode" id="study-fourth" /> Turn through the fourth direction — x–w plane</label>
-            <label for="study-angle">Object angle <span id="study-angle-value">0.0°</span></label>
-            <input type="range" id="study-angle" step="0.5" value="0" min="0" max="360" />
-            <div class="buttons">
-              <button type="button" id="study-play" aria-pressed="false">Play</button>
-              <label class="choice" for="study-rate-slow"><input type="radio" name="study-rate" id="study-rate-slow" checked /> slow</label>
-              <label class="choice" for="study-rate-normal"><input type="radio" name="study-rate" id="study-rate-normal" /> normal</label>
-              <button type="button" id="study-reset">Reset angle</button>
-            </div>
-            <h3>Landmarks</h3>
-            <div class="buttons" id="study-landmarks"></div>
-            <p id="study-change"></p>
-            <p id="study-note"></p>
-            <div id="study-readout"></div>
-          </div>
-        </div>
-        <div class="buttons">
-          <button type="button" id="reset-view">Reset view (camera only)</button>
-        </div>
-        <div id="readout"></div>
       </div>
+
+      <div class="hd-panel">
+        <div class="hd-map-block hz-glass" data-for="turn contact study">
+          <p class="hz-kicker hd-panel-head">The hidden plane</p>
+          <div id="hd-map" class="hd-map" role="slider" tabindex="0" aria-label="Your slice, seen from outside in the x–w plane — drag the bright ends to turn it, drag elsewhere to slide it" aria-valuemin="-90" aria-valuemax="90" aria-valuenow="0"><div id="hd-map-svg" class="hd-map-svg"></div></div>
+          <p class="hd-map-read"><span>slice turned <b id="hd-dial-value" class="hz-num"></b></span><span>slid <b id="hd-offset-value" class="hz-num"></b></span></p>
+          <p class="hd-map-note" id="hd-map-note"></p>
+        </div>
+        <div class="hd-gauge-col hz-glass" data-for="turn contact">
+          <p class="hz-kicker hd-panel-head">Across your slice</p>
+          <p class="hd-gauge-keys" id="hd-gauge-keys" aria-hidden="true"></p>
+          <div id="hd-gauge" class="hd-gauge" role="slider" tabindex="0" aria-orientation="vertical" aria-label="Your slice across the hidden direction — drag the bright line to slide it" aria-valuemin="-1.6" aria-valuemax="1.6" aria-valuenow="0">
+            <span class="hd-gauge-end top" aria-hidden="true">ana ↑</span>
+            <div id="hd-gauge-svg" class="hd-gauge-svg"></div>
+            <span class="hd-gauge-end bottom" aria-hidden="true">kata ↓</span>
+          </div>
+        </div>
+        <div class="hd-study-block hz-glass" data-for="study">
+          <p class="hz-kicker hd-panel-head">Turn the box</p>
+          <div id="hd-study-angle" class="hd-study" role="slider" tabindex="0" aria-label="The prescribed turn of the box" aria-valuemin="0" aria-valuemax="360" aria-valuenow="0"><div id="hd-study-svg"></div></div>
+          <p class="hd-map-read"><span>box turned <b id="hd-study-value" class="hz-num"></b></span></p>
+        </div>
+      </div>
+
+      <nav id="hd-chapters" class="hd-chapters" aria-label="Chapters"></nav>
     </main>
     <script type="module">
-      import { createApp } from './src/spatial-4d-contact/main.ts';
+      import { createApp } from './src/hidden-direction/app.ts';
       createApp(document.body);
     </script>
   </body>

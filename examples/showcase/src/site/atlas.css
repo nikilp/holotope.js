@@ -1,0 +1,103 @@
+/* The atlas: one flagship, then every study grouped by what it shows. */
+
+.atlas-bar { max-width: 1240px; margin: 0 auto; }
+.atlas main { max-width: 1240px; margin: 0 auto; padding: 8px 20px 64px; }
+
+/* ---------- the flagship ---------- */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 22px 40px;
+  align-items: center;
+  padding: 28px 0 44px;
+}
+.hero-copy { display: grid; gap: 18px; }
+.hero h1 { font-size: clamp(40px, 5.2vw, 64px); }
+.hero .lede { margin: 0; font: 400 clamp(18px, 1.6vw, 21px)/1.55 var(--serif); color: var(--text); max-width: 34em; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.hero-picture {
+  position: relative; display: block;
+  border-radius: 22px; overflow: hidden;
+  border: 1px solid var(--hair);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  aspect-ratio: 16 / 9;
+  background: #070a10;
+}
+.hero-picture img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 600ms var(--ease); }
+.hero-picture:hover img { transform: scale(1.015); }
+.hero-picture::after {
+  content: 'Your slice'; position: absolute; left: 16px; bottom: 14px;
+  font: 600 11px/1 var(--sans); letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--slice); background: rgba(8, 11, 17, 0.66); padding: 7px 10px; border-radius: 999px;
+}
+
+/* The chapters, as a table of contents under the picture and the words. */
+.chapter-list {
+  grid-column: 1 / -1;
+  list-style: none; margin: 8px 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+}
+.chapter-list a {
+  display: grid; grid-template-columns: 30px 1fr; gap: 4px 10px; align-items: baseline;
+  height: 100%; box-sizing: border-box;
+  padding: 14px 16px; border-radius: var(--radius);
+  border: 1px solid var(--hair);
+  text-decoration: none; color: var(--text-soft);
+  transition: border-color 160ms var(--ease), background 160ms var(--ease);
+}
+.chapter-list a:hover { border-color: var(--slice-glow); background: rgba(255, 255, 255, 0.03); color: var(--text); }
+.chapter-list .n { font: 500 17px/1 var(--serif); color: var(--slice); }
+.chapter-list .t { font: 500 16px/1.3 var(--serif); color: var(--text); }
+.chapter-list .s { grid-column: 2; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.hero-note { grid-column: 1 / -1; margin: 0; font-size: 13.5px; color: var(--muted); }
+
+/* ---------- the atlas ---------- */
+.atlas-head { display: grid; gap: 12px; padding: 34px 0 6px; border-top: 1px solid var(--hair); }
+.atlas-head h2 { font-size: 34px; }
+.atlas-head p { margin: 0; max-width: 46em; color: var(--text-soft); }
+.atlas-jump { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.atlas-jump a { text-decoration: none; }
+
+.group { padding-top: 34px; scroll-margin-top: 16px; }
+.group > header { display: grid; gap: 6px; margin-bottom: 16px; }
+.group h3 { margin: 0; font: 500 22px/1.2 var(--serif); }
+.group > header p { margin: 0; max-width: 52em; font-size: 14px; color: var(--muted); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 16px; }
+.card {
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--hair);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01));
+  text-decoration: none;
+  transition: border-color 160ms var(--ease), transform 200ms var(--ease);
+}
+.hz .card { color: var(--text-soft); }
+.card:hover { border-color: var(--slice-glow); transform: translateY(-2px); }
+.card .preview { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #05070b; border-bottom: 1px solid var(--hair); }
+.card .body { display: grid; gap: 8px; padding: 16px 18px 18px; }
+.card h4 { margin: 0; font: 500 18px/1.25 var(--serif); color: var(--text); }
+.card p { margin: 0; font-size: 13.5px; line-height: 1.55; }
+.card .tags { font: 11.5px/1.5 var(--mono); color: var(--faint); }
+.card.wide { grid-column: 1 / -1; flex-direction: row; }
+.card.wide .preview { width: 58%; aspect-ratio: auto; min-height: 280px; border-bottom: 0; border-right: 1px solid var(--hair); }
+.card.wide .body { align-self: center; padding: 24px 26px; }
+.card.wide h4 { font-size: 22px; }
+.card.text-only .body { padding-top: 18px; }
+
+.atlas-foot { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--hair); display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13.5px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; gap: 24px; padding-top: 12px; }
+  .chapter-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero-picture { order: -1; }
+  .card.wide { flex-direction: column; }
+  .card.wide .preview { width: 100%; min-height: 0; aspect-ratio: 16 / 9; border-right: 0; border-bottom: 1px solid var(--hair); }
+}
+@media (max-width: 560px) {
+  .atlas main { padding: 4px 16px 48px; }
+  .chapter-list { grid-template-columns: 1fr; gap: 8px; }
+  .atlas-bar nav a.optional { display: none; }
+  .hero-actions .hz-btn { flex: 1 1 auto; }
+}

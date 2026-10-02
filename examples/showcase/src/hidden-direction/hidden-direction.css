@@ -1,0 +1,245 @@
+/*
+ * The Hidden Direction. Three places, never stacked on top of one another on a
+ * wide screen: the words (the chapter card), the picture (your slice), and your
+ * slice's own instruments (the hidden plane and the gauge). Nothing covers the
+ * picture except what the picture is about — its event line, its empty-view
+ * card, and the camera's own button — so "in the camera's view" means visible.
+ */
+
+.hd {
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.hd-bar { position: relative; z-index: 6; }
+.hd-bar .hd-where { font: 500 15px/1 var(--serif); color: var(--text-soft); padding-left: 12px; border-left: 1px solid var(--hair); }
+.hz-skip:focus { position: fixed; left: 12px; top: 12px; width: auto; height: auto; clip: auto; z-index: 10; padding: 8px 12px; background: var(--ink-2); border-radius: 8px; }
+
+.hd-main {
+  display: grid;
+  grid-template-columns: clamp(300px, 26vw, 370px) minmax(0, 1fr) clamp(220px, 18vw, 252px);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px 14px;
+  padding: 0 20px 12px;
+  min-height: 0;
+}
+
+/* ---------- the card: the chapter, the one thing to try, the actions for it ---------- */
+.hd-card {
+  grid-column: 1; grid-row: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 20px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+  scrollbar-width: thin;
+}
+.hd-card > * { margin: 0; }
+.hd-card h1 { font-size: 31px; }
+.hd-setup { font-size: 12.5px; color: var(--muted); margin-top: -6px !important; line-height: 1.45; }
+.hd-invite { font: 400 17px/1.5 var(--serif); color: var(--text); }
+.hd-hint {
+  font-size: 14px; color: var(--slice); min-height: 2.6em;
+  padding-left: 12px; border-left: 2px solid var(--slice-glow);
+}
+.hd-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.hd-secondary .hz-btn { min-height: 36px; padding: 0 13px; font-size: 13px; }
+@media (pointer: coarse) { .hd-secondary .hz-btn { min-height: var(--tap); } }
+.hd-face { font-size: 13px; color: var(--text-soft); display: flex; gap: 8px; align-items: baseline; }
+.hd-clock { display: flex; gap: 4px 10px; flex-wrap: wrap; align-items: baseline; font-size: 12.5px; color: var(--muted); margin-top: auto !important; padding-top: 4px; }
+.hd-clock .hz-num { color: var(--text); }
+
+.hd-more { border-top: 1px solid var(--hair); padding-top: 6px; }
+.hd-more summary { cursor: pointer; color: var(--text-soft); font-size: 13px; padding: 6px 0; }
+.hd-more p, .hd-more li { font-size: 13px; color: var(--text-soft); margin: 6px 0; }
+.hd-more ul { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 6px; }
+.hd-more li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.hd-single { background: transparent; cursor: pointer; margin-left: auto; }
+.hd-single[aria-pressed='true'] { border-color: var(--slice); color: var(--text); }
+.hd-numbers div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); padding: 2px 0; }
+.hd-more .hd-links { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; }
+
+/* ---------- the stage: your slice, full size ---------- */
+.hd-stage {
+  position: relative;
+  grid-column: 2; grid-row: 1;
+  min-height: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  background: #070a10;
+}
+.hd-stage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+.hd-stage::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 62%, rgba(0, 0, 0, 0.42));
+}
+
+.hd-labels { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.hd-tag {
+  position: absolute;
+  transform: translate(-50%, -150%);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 600 12px/1.3 var(--sans);
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: rgba(8, 11, 17, 0.72);
+  border: 1px solid color-mix(in srgb, var(--c) 65%, transparent);
+  white-space: nowrap;
+}
+
+.hd-event {
+  position: absolute; z-index: 2;
+  top: 14px; left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: min(620px, calc(100% - 28px));
+  margin: 0; padding: 9px 16px;
+  border-radius: 18px;
+  font: 500 14px/1.4 var(--sans);
+  color: var(--text);
+  background: rgba(10, 13, 20, 0.84);
+  border: 1px solid var(--slice-glow);
+  text-align: center;
+}
+.hd-event.is-new { animation: hd-arrive 380ms var(--ease); }
+@keyframes hd-arrive { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+.hd-empty {
+  position: absolute; z-index: 3;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(500px, calc(100% - 32px));
+  max-height: calc(100% - 32px); overflow: auto;
+  padding: 18px 20px;
+}
+.hd-empty h2 { font: 500 21px/1.25 var(--serif); margin: 0 0 10px; }
+.hd-empty ul { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; color: var(--text-soft); font-size: 14px; }
+.hd-empty li { display: flex; gap: 10px; align-items: baseline; }
+
+.hd-camera {
+  position: absolute; z-index: 2; right: 12px; bottom: 12px;
+  display: flex; gap: 10px; align-items: center;
+}
+.hd-cam-hint { font: 500 12px/1.3 var(--sans); color: var(--muted); background: rgba(8, 11, 17, 0.6); padding: 6px 10px; border-radius: 999px; }
+.hd-cam-btn { min-height: 36px; padding: 0 14px; font-size: 13px; background: rgba(8, 11, 17, 0.7); }
+
+/* ---------- the panel: your slice's own instruments ---------- */
+.hd-panel { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.hd-panel-head { margin: 0; padding: 12px 14px 0; }
+.hd-map-block, .hd-study-block { flex: none; display: flex; flex-direction: column; }
+.hd-map { position: relative; margin: 8px 10px 0; aspect-ratio: 1; cursor: grab; touch-action: none; border-radius: 14px; }
+.hd-map.is-fixed { cursor: default; }
+.hd-map-svg { position: absolute; inset: 0; }
+.hd-map .map-bg { fill: rgba(255, 255, 255, 0.02); stroke: var(--hair); }
+.hd-map .axis { stroke: var(--hair); stroke-dasharray: 3 4; }
+.hd-map .axis-label { fill: var(--muted); font: 600 11px var(--sans); font-style: italic; }
+.hd-map .ana { fill: rgba(241, 223, 174, 0.085); }
+.hd-map .reach { stroke: rgba(241, 223, 174, 0.18); stroke-dasharray: 2 5; }
+.hd-map .foot { fill-opacity: 0.22; stroke-opacity: 0.85; stroke-width: 1.25; }
+.hd-map .foot.is-focus { fill-opacity: 0.4; stroke-width: 2; }
+.hd-map .slice-line { stroke: var(--slice); stroke-width: 2; filter: drop-shadow(0 0 4px var(--slice-glow)); }
+.hd-map .chord { stroke-width: 5; stroke-linecap: round; }
+.hd-map .ana-arrow { stroke: var(--slice); stroke-width: 1.5; opacity: 0.8; }
+.hd-map .arrow-head { fill: var(--slice); }
+.hd-map .ana-label { fill: var(--slice); font: 600 10px var(--sans); letter-spacing: 0.08em; opacity: 0.9; }
+.hd-map .knob { fill: var(--slice); stroke: #1a1408; stroke-width: 1.5; cursor: grab; }
+.hd-map .centre { fill: var(--text-soft); }
+.hd-map-read { margin: 8px 14px 0; display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.hd-map-read b { color: var(--text); font-weight: 500; }
+.hd-map-note { margin: 4px 14px 12px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+
+.hd-gauge-col { flex: 1; min-height: 200px; display: flex; flex-direction: column; }
+.hd-gauge { position: relative; flex: 1; margin: 6px 6px 8px; cursor: ns-resize; touch-action: none; border-radius: 12px; }
+.hd-gauge-svg { position: absolute; inset: 20px 6px; }
+.hd-gauge-svg svg { display: block; overflow: visible; }
+.hd-gauge-end { position: absolute; left: 0; right: 0; text-align: center; font: 600 11px/1 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.hd-gauge-end.top { top: 4px; }
+.hd-gauge-end.bottom { bottom: 4px; }
+.hd-gauge .reach { fill: rgba(241, 223, 174, 0.04); stroke: rgba(241, 223, 174, 0.12); }
+.hd-gauge .slice-line { stroke: var(--slice); stroke-width: 2.5; filter: drop-shadow(0 0 6px var(--slice-glow)); }
+.hd-gauge .slice-knob { fill: var(--slice); }
+.hd-gauge .bar { cursor: pointer; }
+.hd-gauge .bar.is-focus rect { stroke: var(--slice); stroke-width: 2; }
+.hd-gauge-keys { margin: 6px 14px 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-soft); }
+.hd-gauge-keys span { display: inline-flex; gap: 6px; align-items: center; }
+.hd-gauge .over { fill: var(--text); font: 700 12px var(--sans); }
+
+.hd-study { width: 132px; height: 132px; margin: 10px auto 0; cursor: grab; touch-action: none; }
+.hd-study .arc { fill: none; stroke: var(--hair-strong); stroke-width: 2; }
+.hd-study .hand { stroke: var(--slice); stroke-width: 2.5; }
+.hd-study .knob { fill: var(--slice); }
+.hd-study-block .hd-map-read { margin-bottom: 12px; justify-content: center; }
+
+/* ---------- the chapter rail ---------- */
+.hd-chapters {
+  grid-column: 1 / -1; grid-row: 2;
+  display: flex; gap: 6px; overflow-x: auto;
+  scrollbar-width: thin;
+}
+.hd-chapter {
+  display: inline-flex; align-items: baseline; gap: 8px; flex: none;
+  min-height: var(--tap); padding: 0 14px;
+  border-radius: 999px; border: 1px solid var(--hair);
+  background: transparent; color: var(--text-soft);
+  font: 500 14px/1 var(--sans); cursor: pointer; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.hd-chapter:hover { border-color: var(--hair-strong); color: var(--text); }
+.hd-chapter[aria-current='step'] { border-color: var(--slice); color: var(--text); background: rgba(241, 223, 174, 0.08); }
+.hd-chapter-numeral { font: 500 15px/1 var(--serif); color: var(--slice); }
+
+/* ---------- short desktop windows: the card scrolls, the map shrinks ---------- */
+@media (min-width: 1000px) and (max-height: 760px) {
+  .hd-card h1 { font-size: 26px; }
+  .hd-map { margin-left: 22px; margin-right: 22px; }
+}
+
+/*
+ * Narrow screens: the picture stays in view (sticky at the top) with the
+ * gauge beside it, ana still up; the chapters, the card and the hidden plane
+ * scroll beneath it, so every instrument can be used while you watch.
+ */
+@media (max-width: 999px) {
+  .hd { height: auto; min-height: 100vh; grid-template-rows: auto auto; }
+  .hd-main { grid-template-columns: minmax(0, 1fr) 64px; grid-template-rows: auto; gap: 10px 8px; padding: 0 10px 16px; }
+  .hd-stage, .hd-gauge-col {
+    position: sticky; top: 0; z-index: 4;
+    height: 46vh; height: 46svh; min-height: 250px;
+  }
+  /* The pinned picture is opaque to its edges: what scrolls beneath never shows through the gaps. */
+  .hd-stage { grid-column: 1; grid-row: 1; border-radius: 0 0 18px 18px; border-top: 0; box-shadow: 0 0 0 10px var(--ink-0); }
+  .hd-panel { display: contents; }
+  .hd-gauge-col { grid-column: 2; grid-row: 1; flex: none; min-height: 250px; background: var(--ink-1); border-radius: 0 0 14px 14px; border-top: 0; box-shadow: 0 0 0 10px var(--ink-0); }
+  .hd-gauge-col .hd-panel-head, .hd-gauge-keys { display: none; }
+  .hd-gauge { margin: 4px 2px 6px; }
+  .hd-gauge-svg { inset: 18px 2px; }
+  .hd-gauge-end { font-size: 10px; letter-spacing: 0.08em; }
+  .hd-chapters { grid-column: 1 / -1; grid-row: 2; }
+  .hd-chapter { min-height: 40px; padding: 0 12px; font-size: 13px; }
+  .hd-card { grid-column: 1 / -1; grid-row: 3; overflow: visible; padding: 16px 16px 12px; }
+  .hd-card h1 { font-size: 26px; }
+  .hd-map-block { grid-column: 1 / -1; grid-row: 4; display: grid; grid-template-columns: minmax(150px, 46%) 1fr; grid-template-rows: auto auto 1fr; align-items: start; }
+  .hd-map-block .hd-panel-head { grid-column: 1 / -1; }
+  .hd-map { grid-column: 1; grid-row: 2 / 4; margin: 8px 10px 12px; }
+  .hd-map-block .hd-map-read { grid-column: 2; grid-row: 2; flex-direction: column; margin: 10px 12px 0 4px; font-size: 14px; }
+  .hd-map-block .hd-map-note { grid-column: 2; grid-row: 3; margin: 8px 12px 12px 4px; }
+  .hd-study-block { grid-column: 1 / -1; grid-row: 5; }
+  .hd-cam-hint { display: none; }
+  .hd-camera { right: 8px; bottom: 8px; }
+  .hd-event { top: 8px; font-size: 13px; padding: 7px 12px; }
+  .hd-bar { padding: 10px 12px; gap: 10px; }
+  .hd-bar .hd-where { display: none; }
+  .hd-bar nav a { padding: 8px 7px; font-size: 13px; }
+}
+/* Short phones: a shorter picture and a tighter card head, so the chapter's first action is on the first screen. */
+@media (max-width: 999px) and (max-height: 760px) {
+  .hd-stage, .hd-gauge-col { height: 38vh; height: 38svh; min-height: 220px; }
+  .hd-card { gap: 9px; padding-top: 12px; }
+  .hd-card h1 { font-size: 23px; }
+  .hd-invite { font-size: 16px; line-height: 1.4; }
+  .hd-hint { min-height: 0; }
+}
+@media (max-width: 560px) {
+  /* Both pages stay one tap away in the card's "What exactly am I seeing?" links. */
+  .hd-bar nav a[href*='spatial-sections-and-contact'], .hd-bar nav a[href$='-classic.html'] { display: none; }
+  .hd-cam-btn { min-height: 34px; padding: 0 11px; font-size: 12px; }
+}

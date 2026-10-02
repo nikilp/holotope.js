@@ -19,7 +19,7 @@ import { stripComments } from './source-pins.js';
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const html = readFileSync(join(here, '..', '..', 'spatial-4d-contact.html'), 'utf8');
+const html = readFileSync(join(here, '..', '..', 'spatial-4d-contact-classic.html'), 'utf8');
 const main = readFileSync(join(here, '..', '..', 'src', 'spatial-4d-contact', 'main.ts'), 'utf8');
 
 const flat = (source: string): string => source.replace(/\s+/g, '');

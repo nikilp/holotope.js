@@ -16,7 +16,7 @@ import { stripComments } from './source-pins.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const guideScript = readFileSync(join(here, '..', '..', 'src', 'spatial-4d-contact', 'GUIDE.md'), 'utf8');
-const html = readFileSync(join(here, '..', '..', 'spatial-4d-contact.html'), 'utf8');
+const html = readFileSync(join(here, '..', '..', 'spatial-4d-contact-classic.html'), 'utf8');
 
 const preset = (id: Preset['id']): Preset => PRESETS.find((p) => p.id === id)!;
 const snapshot = (sim: ContactSimulation) => ({

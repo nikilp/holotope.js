@@ -1,0 +1,141 @@
+/*
+ * Holotope's public design language — shared by the atlas and the redesigned
+ * experiences. Pages that have not adopted it are unaffected: nothing here
+ * styles a bare element outside `.hz` roots, except the page background and
+ * type of documents that opt in with <html class="hz">.
+ *
+ * Roles, not decoration:
+ *   --slice      the cut you look through: the one bright line in every instrument
+ *   --block/--ball, the face palette: a body's identity, the same in every view
+ *   --ink-*      the stage; panels sit on it like glass, never in front of the picture
+ */
+
+:root {
+  --ink-0: #05070b;
+  --ink-1: #0a0e15;
+  --ink-2: #111723;
+  --glass: rgba(12, 16, 24, 0.66);
+  --glass-strong: rgba(12, 16, 24, 0.86);
+  --hair: rgba(214, 224, 245, 0.13);
+  --hair-strong: rgba(214, 224, 245, 0.26);
+  --text: #ece8df;
+  --text-soft: #c9c6bf;
+  --muted: #8e97a8;
+  --faint: #5d6678;
+  --slice: #f1dfae;
+  --slice-glow: rgba(241, 223, 174, 0.35);
+  --focus: #f1dfae;
+  --block: #4c7ff0;
+  --ball: #e0883a;
+  --good: #8fd9a8;
+  --warn: #f0c27a;
+
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --tap: 44px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  color-scheme: dark;
+}
+
+html.hz { background: var(--ink-0); }
+html.hz body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 700px at 70% -10%, rgba(80, 110, 170, 0.16), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(170, 120, 60, 0.10), transparent 60%),
+    var(--ink-0);
+  color: var(--text);
+  font: 16px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.hz a { color: var(--text); text-decoration-color: var(--hair-strong); text-underline-offset: 3px; }
+.hz a:hover { text-decoration-color: var(--slice); }
+
+/* Type. Serif for what a thing is; small caps for what kind of thing; sans for everything you act on. */
+.hz-display { font-family: var(--serif); font-weight: 500; letter-spacing: 0.005em; line-height: 1.12; margin: 0; }
+.hz-kicker {
+  font: 600 11px/1.3 var(--sans);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hz-num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.92em; }
+.hz-muted { color: var(--muted); }
+
+/* Focus is always visible, and always the slice's colour. */
+.hz :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+
+/* Glass panels sit beside the picture, never over the thing being looked at. */
+.hz-glass {
+  background: var(--glass);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* Buttons: pills with a generous target; the primary one carries the slice's light. */
+.hz-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--tap); padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid var(--hair-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: 500 14px/1 var(--sans);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 160ms var(--ease), border-color 160ms var(--ease), transform 160ms var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.hz-btn:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--slice-glow); }
+.hz-btn:active { transform: translateY(1px); }
+.hz-btn[aria-pressed='true'] { background: rgba(241, 223, 174, 0.14); border-color: var(--slice); }
+.hz-btn[disabled] { opacity: 0.45; cursor: default; }
+.hz-btn--primary {
+  background: linear-gradient(180deg, #f5e7bf, #e2c98d);
+  color: #1a1408;
+  border-color: transparent;
+  font-weight: 600;
+}
+.hz-btn--primary:hover { background: linear-gradient(180deg, #fbefcf, #e9d39f); }
+.hz-btn--quiet { border-color: transparent; background: transparent; color: var(--text-soft); padding: 0 12px; }
+/* A link styled as a button keeps the button's colour and loses the link's underline. */
+.hz a.hz-btn { text-decoration: none; }
+.hz a.hz-btn--primary { color: #1a1408; }
+.hz-btn--quiet:hover { background: rgba(255, 255, 255, 0.06); }
+
+.hz-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--hair); color: var(--text-soft);
+  font: 500 12px/1.4 var(--sans);
+}
+.hz-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+
+/* The site bar: one line, over the picture, out of the way. */
+.hz-bar {
+  display: flex; align-items: center; gap: 18px;
+  padding: 14px 20px;
+  font: 500 14px/1 var(--sans);
+}
+.hz-mark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+.hz-mark svg { width: 22px; height: 22px; }
+.hz-mark b { font: 500 19px/1 var(--serif); letter-spacing: 0.01em; }
+.hz-bar nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.hz-bar nav a { padding: 8px 12px; border-radius: 999px; text-decoration: none; color: var(--text-soft); }
+.hz-bar nav a:hover, .hz-bar nav a[aria-current='page'] { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+
+.hz [hidden], html.hz [hidden] { display: none !important; }
+.hz-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hz *, .hz *::before, .hz *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; animation-iteration-count: 1 !important; }
+}

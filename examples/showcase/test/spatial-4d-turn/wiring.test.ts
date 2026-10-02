@@ -22,7 +22,7 @@ import { describe, expect, it } from 'vitest';
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const html = readFileSync(join(here, '..', '..', 'spatial-4d-turn.html'), 'utf8');
+const html = readFileSync(join(here, '..', '..', 'spatial-4d-turn-classic.html'), 'utf8');
 const main = readFileSync(join(here, '..', '..', 'src', 'spatial-4d-turn', 'main.ts'), 'utf8');
 
 /**

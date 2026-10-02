@@ -39,6 +39,8 @@ export default defineConfig({
       // to constrain it. It is still served by `vite dev` for that work.
       input: {
         index: local('./index.html'),
+        // The gallery as it stood before the atlas redesign, kept reachable from the atlas footer.
+        atlasClassic: local('./atlas-classic.html'),
         // Scene 3 of the guided ladder, built as an experimental route while its
         // taste gate is open. Deliberately absent from the gallery in
         // `index.html` until that review says it belongs there.
@@ -70,6 +72,9 @@ export default defineConfig({
         rigidBody4: local('./rigid-body4.html'),
         spatial4dTurn: local('./spatial-4d-turn.html'),
         spatial4dContact: local('./spatial-4d-contact.html'),
+        // The accepted instruments The Hidden Direction was built from, unchanged, at their own routes.
+        spatial4dTurnClassic: local('./spatial-4d-turn-classic.html'),
+        spatial4dContactClassic: local('./spatial-4d-contact-classic.html'),
         akn: local('./akn.html')
       }
     }

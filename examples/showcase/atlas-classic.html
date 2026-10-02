@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Holotope.js — Showcase (previous gallery)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #0a0a12;
+        color: #8fa3c8;
+        font: 15px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 48px 24px 64px;
+      }
+      h1 {
+        color: #d7e3ff;
+        font-size: 28px;
+        margin: 0 0 4px;
+      }
+      .tagline {
+        margin: 0 0 8px;
+      }
+      .links {
+        margin: 0 0 36px;
+        font-size: 13px;
+      }
+      a {
+        color: #7fd4ff;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        display: block;
+        padding: 18px 20px;
+        overflow: hidden;
+        background: rgba(16, 18, 30, 0.85);
+        border: 1px solid #26304a;
+        border-radius: 10px;
+        transition: border-color 0.15s ease;
+      }
+      .card:hover {
+        border-color: #7fd4ff;
+        text-decoration: none;
+      }
+      .card h2 {
+        color: #d7e3ff;
+        font-size: 16px;
+        margin: 0 0 6px;
+      }
+      .preview {
+        display: block;
+        width: calc(100% + 40px);
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+        margin: -18px -20px 16px;
+        background: #05050d;
+        border-bottom: 1px solid #26304a;
+        transition: filter 0.15s ease, transform 0.2s ease;
+      }
+      .card:hover .preview {
+        filter: saturate(1.12) brightness(1.06);
+        transform: scale(1.012);
+      }
+      .card p {
+        margin: 0 0 10px;
+        font-size: 13px;
+        color: #8fa3c8;
+      }
+      .card.feature {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.8fr);
+        padding: 0;
+      }
+      .card.feature .preview {
+        width: 100%;
+        height: 100%;
+        min-height: 300px;
+        aspect-ratio: auto;
+        margin: 0;
+        border-right: 1px solid #26304a;
+        border-bottom: 0;
+      }
+      .card-body {
+        align-self: center;
+        padding: 24px;
+      }
+      .card.feature h2 {
+        font-size: 19px;
+      }
+      .tags {
+        font-size: 11px;
+        color: #5c6f96;
+      }
+      .intro {
+        max-width: 640px;
+        margin: 0 0 8px;
+      }
+      .intro strong {
+        color: #d7e3ff;
+      }
+      h2.section {
+        color: #5c6f96;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        margin: 28px 0 10px;
+      }
+      .section-intro {
+        max-width: 760px;
+        margin: -2px 0 12px;
+        color: #6f83a8;
+        font-size: 13px;
+      }
+      @media (max-width: 760px) {
+        main {
+          padding: 28px 16px 40px;
+        }
+        h1 {
+          font-size: 22px;
+        }
+        .card.feature {
+          grid-template-columns: 1fr;
+        }
+        .card.feature .preview {
+          height: auto;
+          min-height: 0;
+          aspect-ratio: 16 / 9;
+          border-right: 0;
+          border-bottom: 1px solid #26304a;
+        }
+        .card-body {
+          padding: 18px 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Holotope.js</h1>
+      <p class="tagline">N-dimensional geometry for TypeScript.</p>
+      <p class="links"><a href="https://github.com/nikilp/holotope.js">GitHub</a> · This is the previous gallery, kept as it was; <a href="./index.html">the current atlas</a> links the same pages.</p>
+
+      <p class="intro">
+        Holotope keeps an authoritative N-dimensional source behind every lower-dimensional view.
+        Projections, sections, interactions, and simulations remain explicitly connected, so a
+        visible point can retain its source identity without pretending that a many-to-one view has
+        a unique inverse. Start with the workbench; the pages below it are focused capability and
+        mathematical studies built on the same framework.
+      </p>
+
+      <h2 class="section">Start here</h2>
+      <div class="grid">
+        <a class="card feature" href="./dimension-bridge.html">
+          <img class="preview" src="./previews/dimension-bridge.jpg" alt="One selected four-dimensional material point traced through three linked representations" />
+          <div class="card-body">
+            <h2>Source → representations → interaction → simulation</h2>
+            <p>
+              One R4 body feeds a perspective view, a coordinate-subspace view, and an exact affine
+              section. Select any view to retain the same source-backed material point, constrain it
+              on explicit R4 topology, then follow it through torque-free motion without making a
+              visible representation authoritative.
+            </p>
+            <span class="tags">RepresentationHitN · SourceEdgeCoordinateN · CoordinateProjection · RigidBody4</span>
+          </div>
+        </a>
+      </div>
+
+      <h2 class="section">Framework capabilities</h2>
+      <p class="section-intro">
+        These pages isolate the reusable bridge: explicit representation products, source-space
+        mechanics and scene state, plus GPU paths checked against auditable Float64 CPU results.
+      </p>
+      <div class="grid">
+        <a class="card" href="./mechanics-workbench.html">
+          <img class="preview" src="./previews/mechanics-workbench.jpg" alt="A deforming four-dimensional material shown simultaneously as a perspective projection, coordinate view, and exact section" />
+          <h2>Dimensional mechanics workbench</h2>
+          <p>
+            Advance one traced XPBD material in source space, write it back to its topology-bearing
+            complex, and derive three live observations. Pick any surface to retain the same source
+            simplex across projection and exact section; compare the full R4 interior with an
+            embedded R3 control whose hidden coordinate remains exactly zero.
+          </p>
+          <span class="tags">XpbdWorldN · source-resolved picking · cross-view incidence · signed R4 measure</span>
+        </a>
+        <a class="card" href="./tesseract.html">
+          <img class="preview" src="./previews/tesseract.jpg" alt="A projected tesseract beside its solid three-dimensional cross-section" />
+          <h2>Foundation — projection &amp; cross-section</h2>
+          <p>
+            One 4D object, two render products: a perspective-projected wireframe and the exact
+            cross-section where the tesseract meets a hyperplane. Pick the section to trace its
+            visible triangle back to the source 4D cell; Alt-drag rotates the source through hidden
+            planes.
+          </p>
+          <span class="tags">ProjectedEdges3D · SlicedComplex3D · Rotor4 · DragRotation4D</span>
+        </a>
+        <a class="card" href="./rigid-body4.html">
+          <img class="preview" src="./previews/rigid-body4.png" alt="An anisotropic four-dimensional rigid body leaving projected pose traces as it tumbles" loading="lazy" decoding="async" />
+          <h2>Source-space mechanics in R⁴</h2>
+          <p>
+            Compare an embedded three-dimensional intermediate-axis flip with motion across all
+            six rotation planes of R⁴. Momentum-primary integration exposes energy, momentum, and
+            Spin(4) orthogonality signals while the projected body evolves.
+          </p>
+          <span class="tags">RigidBody4 · bivector momentum · principal-plane inertia · fixed-step binding</span>
+        </a>
+        <a class="card" href="./scene.html">
+          <img class="preview" src="./previews/scene.jpg" alt="A central 4D scene hierarchy surrounded by hundreds of instanced polychora" loading="lazy" decoding="async" />
+          <h2>Scene graph &amp; instancing</h2>
+          <p>
+            A 4D hierarchy — moons orbiting a planet orbiting in 4D, rotor transforms composing
+            down the tree — over a field of hundreds of instanced 16-cells rendered in a single
+            draw call.
+          </p>
+          <span class="tags">SceneN · ObjectN · ProjectedEdgesInstancedGPU</span>
+        </a>
+        <a class="card" href="./gpu.html">
+          <img class="preview" src="./previews/gpu.jpg" alt="A dense orange GPU-projected 600-cell wireframe" loading="lazy" decoding="async" />
+          <h2>GPU projection (WebGPU / TSL)</h2>
+          <p>
+            The 600-cell projected 4D→3D in the vertex shader: geometry uploads once, each frame
+            changes only a mat4 uniform. Toggle the CPU golden path on top to verify they coincide.
+          </p>
+          <span class="tags">ProjectedEdgesGPU · TSL positionNode · WebGPURenderer</span>
+        </a>
+        <a class="card" href="./compute.html">
+          <img class="preview" src="./previews/compute.jpg" alt="Matching GPU and CPU cross-sections of a 120-cell" loading="lazy" decoding="async" />
+          <h2>GPU compute slicing</h2>
+          <p>
+            The 120-cell's 4320 tetrahedra are intersected with a hyperplane in a WGSL compute
+            shader. The CPU golden path renders beside it with live count and area comparison.
+          </p>
+          <span class="tags">SlicedComplexGPU · WGSL compute · storage buffers</span>
+        </a>
+      </div>
+
+      <h2 class="section">Sections, observers &amp; contact in R⁴</h2>
+      <p class="section-intro">
+        Two linked pages about watching R⁴ through a three-dimensional section: what changes when
+        only the observer moves, and how to find the cause of a collision the cut cannot show.
+        <a href="./docs/learn/spatial-sections-and-contact">How to read them</a> covers what they
+        demonstrate, how to reproduce their evidence, and their limits.
+      </p>
+      <div class="grid">
+        <a class="card" href="./spatial-4d-turn-classic.html">
+          <h2>Turn through the same object</h2>
+          <p>
+            A hyperbox that never moves and a small glome on a stated kinematic orbit, seen through a
+            knife you tilt in the x–w plane and slide along its normal. Faces are named from the
+            source geometry, an empty section is told apart from a miss, and an optional projection
+            of the whole block shows what the cut leaves out.
+          </p>
+          <span class="tags">HyperplaneSliceN · Rotor4 · SectionChart3D · ProjectedEdges3D</span>
+        </a>
+        <a class="card" href="./spatial-4d-contact-classic.html">
+          <h2>Interaction through the hidden direction</h2>
+          <p>
+            A box and a ball in R⁴, both dynamic, one impact per run, stepped by the released contact
+            pipeline. The ball arrives along w, the direction the section cannot show; a guided
+            sequence keeps moving the observer apart from moving the clock, and a prescribed rotation
+            study shows why a rigid turn through w changes what the cut meets.
+          </p>
+          <span class="tags">ContactPipeline4 · RigidBody4 · glomeHyperboxContact4 · replay from launch</span>
+        </a>
+      </div>
+
+      <h2 class="section">Exact polytope construction</h2>
+      <div class="grid">
+        <a class="card" href="./polychora.html">
+          <img class="preview" src="./previews/polychora.jpg" alt="The six regular four-dimensional polychora and their cross-sections" loading="lazy" decoding="async" />
+          <h2>All six regular polychora</h2>
+          <p>
+            The complete set — 5-cell, tesseract, 16-cell, 24-cell, 120-cell, and 600-cell —
+            projected through an orbiting 4D camera, with their live cross-sections below.
+          </p>
+          <span class="tags">CameraN · create120Cell · create600Cell · create24Cell</span>
+        </a>
+        <a class="card" href="./wythoff.html">
+          <img class="preview" src="./previews/wythoff.jpg" alt="A Wythoff polychoron wireframe and its colored cross-section" loading="lazy" decoding="async" />
+          <h2>Wythoff explorer — uniform polychora</h2>
+          <p>
+            Ring the mirrors of a Coxeter diagram and the uniform polychoron appears — every
+            combination of A4, B4, D4, F4, and H4 built exactly from group cosets, up to the
+            omnitruncated 120-cell, plus the snub 24-cell and grand antiprism.
+          </p>
+          <span class="tags">createWythoffPolytope · FaceLattice · exact tetToCell</span>
+        </a>
+      </div>
+
+      <h2 class="section">Exact model sets &amp; folding</h2>
+      <div class="grid">
+        <a class="card" href="./e8.html">
+          <img class="preview" src="./previews/e8.jpg" alt="Two cyan E8 to H4 wireframe embeddings shown side by side" loading="lazy" decoding="async" />
+          <h2>E8 → H4 — two conjugate 4-spaces</h2>
+          <p>
+            The 240 exact E8 roots as icosians, read through the two real embeddings of ℤ[φ].
+            Two concentric 600-cells exchange radii while exact edge provenance separates their
+            skeleton, folded chords, and inter-shell struts. Switch on the canonical window to reveal
+            the exact two-shell Elser–Sloane germ.
+          </p>
+          <span class="tags">icosianE8Data · createFoldedE8Roots · Rotor4Track</span>
+        </a>
+        <a class="card" href="./elser-sloane.html">
+          <img class="preview" src="./previews/elser-sloane.jpg" alt="Paired physical and internal views of an Elser–Sloane section" loading="lazy" decoding="async" />
+          <h2>Elser–Sloane — exact 3D sections</h2>
+          <p>
+            Complete E8 norm shells pass through the 720-vertex canonical window, then an exact
+            constant-coordinate section reveals the theorem-backed icosahedral 3-space. Physical and
+            internal views share lattice provenance and the φ-inflation image.
+          </p>
+          <span class="tags">E8 norm shells · exact f₄ section · integer inflation</span>
+        </a>
+        <a class="card" href="./ammann-beenker.html">
+          <img class="preview" src="./previews/ammann-beenker.jpg" alt="An eightfold Ammann–Beenker patch beside its octagonal window" loading="lazy" decoding="async" />
+          <h2>Ammann–Beenker — octagonal model set</h2>
+          <p>
+            Project Z⁴ through a regular octagonal window to obtain an eightfold quasiperiodic
+            patch. The paired physical/internal view exposes exact star-map symmetry and
+            silver-mean inflation.
+          </p>
+          <span class="tags">Z[√2] · octagonal window · exact inflation automorphism</span>
+        </a>
+        <a class="card" href="./penrose.html">
+          <img class="preview" src="./previews/penrose.jpg" alt="A colored Penrose rhombus tiling beside its pentagonal windows" loading="lazy" decoding="async" />
+          <h2>Penrose — four pentagonal windows</h2>
+          <p>
+            A cyclotomic ℤ⁴ module whose sum class routes each internal coordinate through one of
+            four exact pentagons. Exact phason presets expose local rearrangements, the singular
+            centered cut, and all seven geometric vertex stars.
+          </p>
+          <span class="tags">Z[φ] · C₅ routing · exact multi-window phasons</span>
+        </a>
+        <a class="card" href="./akn.html">
+          <img class="preview" src="./previews/akn.jpg" alt="A three-dimensional icosahedral model set and its internal window" loading="lazy" decoding="async" />
+          <h2>AKN — 3D icosahedral model set</h2>
+          <p>
+            A primitive Z⁶ lattice viewed through paired golden 3-spaces. The physical quasicrystal
+            and its internal rhombic-triacontahedral window retain the same exact provenance.
+          </p>
+          <span class="tags">Z[φ] · 30-facet window · exact 3-fold/5-fold symmetry</span>
+        </a>
+      </div>
+
+      <h2 class="section">Mathematical studies — curves &amp; flows</h2>
+      <div class="grid">
+        <a class="card" href="./duoprisms.html">
+          <img class="preview" src="./previews/duoprisms.jpg" alt="Projected duoprism wireframes with a solid cross-section" loading="lazy" decoding="async" />
+          <h2>Duoprisms</h2>
+          <p>
+            The product of two polygons — a p-gon in the xy plane times a q-gon in the zw plane,
+            every vertex on the Clifford torus. Adjust p and q live and watch the sections morph.
+          </p>
+          <span class="tags">createDuoprism · SlicedComplex3D · Clifford rotation</span>
+        </a>
+        <a class="card" href="./knots.html">
+          <img class="preview" src="./previews/knots.jpg" alt="A projected Clifford torus knot traced as linked curves" loading="lazy" decoding="async" />
+          <h2>Clifford torus knots</h2>
+          <p>
+            (p, q) torus knots living flat on the Clifford torus in S³ — the duoprism's vertex
+            path made continuous. Set the two spins equal and the double rotation slides the
+            knot along itself.
+          </p>
+          <span class="tags">createCliffordCurve · createDuoprism · isoclinic rotation</span>
+        </a>
+        <a class="card" href="./hopf.html">
+          <img class="preview" src="./previews/hopf.jpg" alt="A multicolored family of linked Hopf fibers" loading="lazy" decoding="async" />
+          <h2>Hopf fibration</h2>
+          <p>
+            S³ as a bundle of linked circles over S² — each fiber colored by its base point,
+            stereographically projected so every circle stays a circle. The isoclinic spin
+            slides the entire 3-sphere along its own fibers.
+          </p>
+          <span class="tags">createHopfFiber · stereographic projection · isoclinic flow</span>
+        </a>
+      </div>
+
+      <h2 class="section">Inspectable implicit fields</h2>
+      <div class="grid">
+        <a class="card" href="./quaternion-julia.html">
+          <img class="preview" src="./previews/quaternion-julia.jpg" alt="A detailed purple ray-marched quaternion Julia slice" loading="lazy" decoding="async" />
+          <h2>Quaternion Julia — adaptive 3D slices</h2>
+          <p>
+            Evaluate q↦q²+c as a deterministic field on R⁴ and ray-march its restriction to an
+            affine 3-flat. The inspectable sampled mesh remains available beside the adaptive view.
+          </p>
+          <span class="tags">ImplicitField4 · RaymarchedQuaternionJulia3D · CPU↔GPU differential</span>
+        </a>
+        <a class="card" href="./bicomplex-julia.html">
+          <img class="preview" src="./previews/bicomplex-julia.jpg" alt="A layered cyan and magenta bicomplex Julia product surface" loading="lazy" decoding="async" />
+          <h2>Bicomplex Julia — product slices</h2>
+          <p>
+            An exact idempotent basis splits one four-dimensional quadratic field into two complex
+            Julia records. Choose the factors, then ray-march or sample an affine 3-flat through
+            their product geometry.
+          </p>
+          <span class="tags">C⊕C product law · RaymarchedBicomplexJulia3D · CPU↔GPU differential</span>
+        </a>
+        <a class="card" href="./platonic-brots.html">
+          <img class="preview" src="./previews/platonic-brots.jpg" alt="A bright tetrahedral escape-time solid within sampled field layers" loading="lazy" decoding="async" />
+          <h2>Platonic brots — escape-time solids</h2>
+          <p>
+            Three parameter-space slices of the tricomplex Mandelbrot set collapse exactly to a
+            regular octahedron, tetrahedron, and cube. Exact theorem meshes sit inside sampled
+            divergence-time layers from the same quadratic algorithm.
+          </p>
+          <span class="tags">tricomplex idempotents · exact halfspaces · escape-time certificates</span>
+        </a>
+      </div>
+
+    </main>
+  </body>
+</html>

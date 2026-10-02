@@ -1,0 +1,517 @@
+import { Frustum, Matrix4, Sphere, Vector3, type PerspectiveCamera } from 'three';
+import {
+  OFFSET_LIMIT, TURN_LIMIT, distanceFromPivot, setOffset, setPhase, setTheta, type TurnState
+} from '../spatial-4d-turn/turn-state.js';
+import { SCENE, positionAt, type GlomeObject } from '../spatial-4d-turn/scene.js';
+import { ON_PLANE_EPSILON } from '../spatial-4d-turn/section.js';
+import { BOX, DEFAULT_SETTINGS, PRESETS, type PresetId } from '../spatial-4d-contact/simulation.js';
+import { STUDY_PLANES, type StudyMode } from '../spatial-4d-contact/study.js';
+import { ContactWorld, TurnWorld, type BodyReading } from './worlds.js';
+import {
+  GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, eventLine, hint, planeNote, pivotLine, strikeLine
+} from './copy.js';
+import { FaceShadow } from './identity.js';
+import { PLANE_EXTENT, chordOf, lineOf } from './plane.js';
+
+/**
+ * The Hidden Direction — one experience over the spatial pages' tested
+ * modules. This controller holds every piece of state the page shows and is
+ * the only thing the page's controls call (`dispatch`). It is DOM-free, so the
+ * tests drive exactly the path the page drives.
+ *
+ * ## Four kinds of action, kept apart
+ *
+ * - **view** — the observer moves: the slice slides or turns, the shadow is
+ *   lifted, a body is singled out. The world's state — the orbit phase, the
+ *   physics simulation, the prescribed turn's angle — is never touched.
+ * - **time** — a clock moves: the prescribed orbit, or the physics clock, which
+ *   only ever steps forward or replays from launch.
+ * - **study** — the separate prescribed-turn scene; it reads and writes nothing
+ *   of the collision or the slice.
+ * - **chapter** — establishes a chapter's stated state in full, whatever came
+ *   before, and says so.
+ *
+ * The camera is the page's, not the controller's: orbiting the view is a pure
+ * presentation change and appears here only as an input to framing.
+ */
+
+const rad = (deg: number): number => (deg * Math.PI) / 180;
+const deg = (r: number): number => (r * 180) / Math.PI;
+
+export type ChapterId = 'arrival' | 'cuts' | 'collision' | 'spin' | 'turning' | 'free';
+export type WorldKind = 'turn' | 'contact';
+
+interface ChapterSpec {
+  readonly id: ChapterId;
+  readonly numeral: string;
+  readonly title: string;
+  readonly world: WorldKind;
+  /** The stated state the chapter establishes — said to the visitor, and established in full. */
+  readonly setup: string;
+  /** One line under the title: what to try first. */
+  readonly invite: string;
+}
+
+export const CHAPTERS: readonly ChapterSpec[] = [
+  {
+    id: 'arrival', numeral: 'I', title: 'Something passes through', world: 'turn',
+    setup: 'Slice untilted, through the centre point. The ball’s orbit at its start, paused.',
+    invite: 'Your view is a slice of a four-dimensional world. Let the ball pass through it.'
+  },
+  {
+    id: 'cuts', numeral: 'II', title: 'One block, many slices', world: 'turn',
+    setup: 'Slice untilted, through the centre point. The ball’s orbit at its start, paused.',
+    invite: 'The block never moves. Turn your slice and watch what it cuts — then turn the camera, and watch what it doesn’t.'
+  },
+  {
+    id: 'collision', numeral: 'III', title: 'A collision you cannot see', world: 'contact',
+    setup: 'Slice untilted, through the centre point. Launch A, physics clock at 0, paused.',
+    invite: 'Press play and watch the box.'
+  },
+  {
+    id: 'spin', numeral: 'IV', title: 'A spin in a hidden plane', world: 'contact',
+    setup: 'Slice untilted, through the centre point. Launch B — the same drop, 0.8 to the side — clock at 0, paused.',
+    invite: 'Press play. The blow lands off-centre.'
+  },
+  {
+    id: 'turning', numeral: 'V', title: 'Turn the object, not the slice', world: 'contact',
+    setup: 'A separate scene: the same box, turned by a prescribed angle through the fourth direction, starting at 0°. '
+      + 'The slice is fixed at w = 0. The collision keeps its state, untouched.',
+    invite: 'Drag the angle. The box is rigid; your fixed slice meets different parts of it.'
+  },
+  {
+    id: 'free', numeral: '∞', title: 'Explore freely', world: 'turn',
+    setup: 'Everything stays where you left it; every instrument is unlocked.',
+    invite: 'Choose a world, slide and turn your slice, run the clocks, lift the shadow.'
+  }
+];
+
+export type ActionKind = 'view' | 'time' | 'study' | 'chapter';
+
+export type Action =
+  | { readonly type: 'chapter'; readonly id: ChapterId }
+  | { readonly type: 'world'; readonly world: WorldKind }
+  | { readonly type: 'cut-offset'; readonly value: number }
+  | { readonly type: 'cut-nudge'; readonly delta: number }
+  | { readonly type: 'cut-turn'; readonly degrees: number }
+  | { readonly type: 'cut-turn-nudge'; readonly delta: number }
+  | { readonly type: 'cut-reset' }
+  | { readonly type: 'cut-to'; readonly body: string }
+  | { readonly type: 'shadow'; readonly on: boolean }
+  | { readonly type: 'focus'; readonly body: string | null }
+  | { readonly type: 'focus-face'; readonly ordinal: number | null }
+  | { readonly type: 'play' }
+  | { readonly type: 'pause' }
+  | { readonly type: 'step' }
+  | { readonly type: 'step-back' }
+  | { readonly type: 'jump-touch' }
+  | { readonly type: 'jump-after' }
+  | { readonly type: 'replay' }
+  | { readonly type: 'preset'; readonly id: PresetId }
+  | { readonly type: 'orbit-phase'; readonly degrees: number }
+  | { readonly type: 'freeze' }
+  | { readonly type: 'study-mode'; readonly mode: StudyMode }
+  | { readonly type: 'study-angle'; readonly degrees: number }
+  | { readonly type: 'study-play' }
+  | { readonly type: 'study-pause' }
+  | { readonly type: 'tick'; readonly seconds: number };
+
+/** What each action is allowed to touch. `play`/`pause` move the clock of the scene in front. */
+export function kindOf(action: Action): ActionKind {
+  switch (action.type) {
+    case 'chapter': case 'world': return 'chapter';
+    case 'cut-offset': case 'cut-nudge': case 'cut-turn': case 'cut-turn-nudge': case 'cut-reset': case 'cut-to':
+    case 'shadow': case 'focus': case 'focus-face':
+    // Freeze stops every clock where it stands and lifts the shadow: no state moves, so it is a view action.
+    case 'freeze':
+      return 'view';
+    case 'study-mode': case 'study-angle': case 'study-play': case 'study-pause':
+      return 'study';
+    default:
+      return 'time';
+  }
+}
+
+/** Seconds per revolution of the ball's prescribed orbit while playing — the accepted page's period. */
+const ORBIT_PERIOD_S = 12;
+/** Most physics steps per frame, and the longest frame the clocks will credit — the accepted page's limits. */
+const MAX_STEPS_PER_TICK = 8;
+const MAX_TICK_S = 0.1;
+
+/** Where the slice must sit to cut a body, within the slider's reach — or null if no reachable offset meets it. */
+function reachTarget(low: number, high: number): number | null {
+  const target = Math.min(Math.max((low + high) / 2, -OFFSET_LIMIT), OFFSET_LIMIT);
+  return target >= low && target <= high ? target : null;
+}
+
+/** Actions that move your slice. Refused while the turning scene is in front: there the slice is fixed at w = 0. */
+const SLICE_ACTIONS: ReadonlySet<Action['type']> = new Set(['cut-offset', 'cut-nudge', 'cut-turn', 'cut-turn-nudge', 'cut-reset', 'cut-to']);
+/**
+ * Actions that move the collision's clock. Refused unless the collision is in front, so that a clock is
+ * never moved out of sight — the turning scene in particular promises to leave the collision as it is.
+ */
+const COLLISION_CLOCK_ACTIONS: ReadonlySet<Action['type']> = new Set(['step', 'step-back', 'jump-touch', 'jump-after', 'replay', 'preset']);
+
+/** The turning scene's ball, looked up as the section modules look it up. */
+const COMPANION = SCENE.find((o) => o.id === 'companion') as GlomeObject;
+/** Phases sampled to decide whether the ball's prescribed orbit ever meets a slice. */
+const ORBIT_SAMPLES = 720;
+
+/**
+ * Whether the ball's prescribed orbit meets the slice at some phase: its centre, by the scene's own
+ * `positionAt`, within the radius of the slice (with the sectioner's tolerance). A hint may then say
+ * the ball will come; otherwise it must not.
+ */
+function orbitMeets(slice: { signedDistance(p: readonly number[]): number }): boolean {
+  for (let k = 0; k < ORBIT_SAMPLES; k++) {
+    const c = positionAt(COMPANION, (2 * Math.PI * k) / ORBIT_SAMPLES);
+    if (Math.abs(slice.signedDistance(c)) <= COMPANION.radius + ON_PLANE_EPSILON) return true;
+  }
+  return false;
+}
+
+interface EventNote { readonly line: string; readonly at: number }
+
+export function createExperience(start: ChapterId = 'arrival') {
+  const turnWorld = new TurnWorld();
+  const contactWorld = new ContactWorld();
+
+  // Observer state — the slice in each world, the shadow, the focus. Never touched by time.
+  let turnKnife: TurnState = { theta: 0, offset: 0, phase: 0 };
+  let contactKnife: TurnState = { theta: 0, offset: 0, phase: 0 };
+  let shadow = false;
+  let focus: string | null = null;
+  let faceFocus: number | null = null;
+  const block = turnWorld.products.find((p) => p.complex !== null)!;
+  const faceShadow = new FaceShadow(block.complex!, turnWorld.context.projection);
+  turnWorld.root.add(faceShadow.object);
+  type Mark = 'played' | 'appeared' | 'found' | 'vanished' | 'struck' | 'turned' | 'slid' | 'shadow' | 'frozen' | 'studied' | 'compared' | 'faced';
+  const seen = new Set<Mark>();
+
+  // Clocks.
+  let orbitPlaying = false;
+  let physicsPlaying = false;
+  let accumulator = 0;
+  let studyOpen = false;
+
+  let chapter: ChapterId = start;
+  let world: WorldKind = 'turn';
+  let event: EventNote | null = null;
+  let sequence = 0;
+  let lastStatus = new Map<string, string>();
+  let lastCause: 'orbit' | 'physics' | 'slice' = 'slice';
+  /** Where the ball was at the latest blow: in the slice, or beyond it. Null until a blow in this launch. */
+  let strikeWhere: 'seen' | 'hidden' | null = null;
+  /** Whether the orbit meets the turning world's slice, cached against the slice it was computed for. */
+  let orbitCache: { theta: number; offset: number; meets: boolean } | null = null;
+
+  const knife = (): TurnState => (world === 'turn' ? turnKnife : contactKnife);
+  const setKnife = (k: TurnState): void => { if (world === 'turn') turnKnife = k; else contactKnife = k; };
+
+  function apply(): void {
+    turnWorld.apply(turnKnife);
+    faceShadow.show(world === 'turn' ? faceFocus : null, faceFocus === null ? null : block.faces[faceFocus]?.colour ?? null);
+    contactWorld.apply(contactKnife);
+    contactWorld.study.update();
+    turnWorld.context.setVisible(shadow && world === 'turn');
+    contactWorld.views.context.setVisible(shadow && world === 'contact' && !studyOpen);
+    contactWorld.study.views.context.visible = shadow && studyOpen;
+    turnWorld.root.visible = world === 'turn';
+    contactWorld.root.visible = world === 'contact' && !studyOpen;
+    contactWorld.study.views.object.visible = world === 'contact' && studyOpen;
+  }
+
+  /** Notice changes in the picture and say what the model did. */
+  function notice(): void {
+    const bodies = readBodies();
+    const next = new Map<string, string>();
+    for (const b of bodies) {
+      const key = `${world}:${b.id}`;
+      // A body the library places in the slice but the renderer draws nothing for is neither "appeared" nor "vanished".
+      const now = b.status !== 'present' ? b.status : b.drawn > 0 ? 'present' : 'omitted';
+      next.set(key, now);
+      const before = lastStatus.get(key);
+      if (before === undefined || before === now) continue;
+      if (now === 'present') {
+        event = { line: eventLine('appeared', b.name, b.gap, lastCause), at: ++sequence };
+        seen.add('appeared');
+        // Credit the visitor only for an appearance their own slice move caused.
+        if (lastCause === 'slice') seen.add('found');
+      }
+      else if (now === 'outside') { event = { line: eventLine('vanished', b.name, b.gap, lastCause), at: ++sequence }; seen.add('vanished'); }
+      else if (now === 'tangent') event = { line: eventLine('touching', b.name, b.gap, lastCause), at: ++sequence };
+    }
+    lastStatus = next;
+  }
+
+  function readBodies(): BodyReading[] {
+    if (world === 'turn') return turnWorld.bodies();
+    if (studyOpen) return [];
+    return contactWorld.bodies();
+  }
+
+  /** Establish a chapter's stated state in full. Nothing from an earlier chapter survives unless the chapter says so. */
+  function enter(id: ChapterId): void {
+    chapter = id;
+    const spec = CHAPTERS.find((c) => c.id === id)!;
+    event = null;
+    seen.clear();
+    // "Everything stays where you left it": free exploration keeps the focus and the followed face too.
+    if (id === 'free') { lastCause = 'slice'; apply(); lastStatus = new Map(); notice(); return; }
+    focus = null;
+    faceFocus = null;
+    strikeWhere = null;
+    world = spec.world;
+    shadow = false;
+    orbitPlaying = false;
+    physicsPlaying = false;
+    accumulator = 0;
+    studyOpen = false;
+    contactWorld.study.setPlaying(false);
+    if (id === 'arrival' || id === 'cuts') {
+      turnKnife = { theta: 0, offset: 0, phase: 0 };
+    } else if (id === 'collision' || id === 'spin') {
+      contactKnife = { theta: 0, offset: 0, phase: 0 };
+      contactWorld.launch(id === 'collision' ? 'central' : 'off-centre');
+    } else if (id === 'turning') {
+      studyOpen = true;
+      contactWorld.study.reset();
+      contactWorld.study.setMode('fourth');
+    }
+    apply();
+    lastStatus = new Map();
+    notice();
+  }
+
+  /** Step the physics clock n fixed steps; a blow is described at the very step it lands, with the ball where it was then. */
+  function stepPhysics(n: number): void {
+    for (let k = 0; k < n; k++) {
+      const before = contactWorld.sim.impacts;
+      contactWorld.step();
+      if (contactWorld.sim.impacts > before) {
+        apply();
+        const ball = contactWorld.bodies().find((b) => b.id === 'ball')!;
+        event = { line: strikeLine(ball.gap), at: ++sequence };
+        strikeWhere = ball.gap === 0 ? 'seen' : 'hidden';
+        seen.add('struck');
+      }
+    }
+  }
+
+  function dispatch(action: Action): void {
+    if (studyOpen && SLICE_ACTIONS.has(action.type)) return;
+    if (COLLISION_CLOCK_ACTIONS.has(action.type) && (world !== 'contact' || studyOpen)) return;
+    lastCause = kindOf(action) === 'view' ? 'slice' : world === 'turn' ? 'orbit' : 'physics';
+    mark(action);
+    switch (action.type) {
+      case 'chapter': enter(action.id); return;
+      case 'world': world = action.world; studyOpen = false; break;
+      case 'cut-offset': setKnife(setOffset(knife(), action.value)); break;
+      case 'cut-nudge': setKnife(setOffset(knife(), knife().offset + action.delta)); break;
+      case 'cut-turn': setKnife(setTheta(knife(), rad(action.degrees))); break;
+      case 'cut-turn-nudge': setKnife(setTheta(knife(), knife().theta + rad(action.delta))); break;
+      case 'cut-reset': setKnife({ ...knife(), theta: 0, offset: 0 }); break;
+      case 'cut-to': {
+        const b = readBodies().find((x) => x.id === action.body);
+        const target = b ? reachTarget(b.low, b.high) : null;
+        if (target !== null) setKnife(setOffset(knife(), target));
+        break;
+      }
+      case 'shadow': shadow = action.on; break;
+      case 'focus': focus = action.body; break;
+      case 'focus-face': faceFocus = world === 'turn' ? action.ordinal : null; break;
+      case 'play':
+        if (world === 'turn') orbitPlaying = true;
+        else if (studyOpen) contactWorld.study.setPlaying(true);
+        else physicsPlaying = true;
+        break;
+      case 'pause':
+        orbitPlaying = false;
+        physicsPlaying = false;
+        accumulator = 0;
+        contactWorld.study.setPlaying(false);
+        break;
+      case 'freeze':
+        orbitPlaying = false;
+        physicsPlaying = false;
+        accumulator = 0;
+        contactWorld.study.setPlaying(false);
+        shadow = true;
+        break;
+      // The collision's clock: only reached with the collision in front (refused above otherwise).
+      case 'step': physicsPlaying = false; stepPhysics(1); break;
+      case 'step-back': physicsPlaying = false; contactWorld.replayTo(contactWorld.sim.steps - 1); break;
+      case 'jump-touch': {
+        const n = contactWorld.impactStep();
+        if (n !== null) { physicsPlaying = false; contactWorld.replayTo(n - 1); }
+        break;
+      }
+      case 'jump-after': {
+        const n = contactWorld.impactStep();
+        if (n !== null) { physicsPlaying = false; contactWorld.replayTo(n); }
+        break;
+      }
+      case 'replay': physicsPlaying = false; accumulator = 0; strikeWhere = null; contactWorld.launch(contactWorld.presetId); break;
+      case 'preset': physicsPlaying = false; accumulator = 0; strikeWhere = null; contactWorld.launch(action.id); break;
+      case 'orbit-phase': turnKnife = setPhase(turnKnife, rad(action.degrees)); break;
+      case 'study-mode': contactWorld.study.setMode(action.mode); break;
+      case 'study-angle': contactWorld.study.setPlaying(false); contactWorld.study.setAngle(rad(action.degrees)); break;
+      case 'study-play': contactWorld.study.setPlaying(true); break;
+      case 'study-pause': contactWorld.study.setPlaying(false); break;
+      case 'tick': {
+        const s = Math.min(Math.max(action.seconds, 0), MAX_TICK_S);
+        if (orbitPlaying) turnKnife = setPhase(turnKnife, turnKnife.phase + (2 * Math.PI * s) / ORBIT_PERIOD_S);
+        if (physicsPlaying && world === 'contact' && !studyOpen) {
+          accumulator += s;
+          let steps = 0;
+          while (accumulator >= DEFAULT_SETTINGS.dt && steps < MAX_STEPS_PER_TICK) { accumulator -= DEFAULT_SETTINGS.dt; steps++; }
+          // A slow frame slows the clock rather than leaving a backlog to be paid later in a burst.
+          if (steps === MAX_STEPS_PER_TICK) accumulator = Math.min(accumulator, DEFAULT_SETTINGS.dt);
+          if (steps > 0) stepPhysics(steps);
+        }
+        if (studyOpen) contactWorld.study.advance(s);
+        break;
+      }
+    }
+    apply();
+    notice();
+  }
+
+  /** Remember what the visitor did, for the chapter's next hint. */
+  function mark(action: Action): void {
+    switch (action.type) {
+      case 'play': seen.add(studyOpen ? 'studied' : 'played'); break;
+      case 'cut-turn': case 'cut-turn-nudge': seen.add('turned'); break;
+      case 'cut-offset': case 'cut-nudge': case 'cut-to': seen.add('slid'); break;
+      case 'shadow': if (action.on) seen.add('shadow'); break;
+      case 'freeze': seen.add('frozen'); seen.add('shadow'); break;
+      case 'focus-face': if (action.ordinal !== null) seen.add('faced'); break;
+      case 'study-angle': case 'study-play': seen.add('studied'); break;
+      case 'study-mode': if (action.mode === 'ordinary') seen.add('compared'); break;
+      default: break;
+    }
+  }
+
+  /** Where each drawn body lies against the camera's view volume. */
+  function frameOf(b: BodyReading, camera: PerspectiveCamera | null): 'in' | 'partial' | 'out' | null {
+    if (camera === null || b.drawnBound === null) return null;
+    camera.updateMatrixWorld();
+    const frustum = new Frustum().setFromProjectionMatrix(new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const c = new Vector3(...b.drawnBound.centre);
+    const sphere = new Sphere(c, b.drawnBound.radius);
+    if (!frustum.intersectsSphere(sphere)) return 'out';
+    const inner = frustum.planes.every((p) => p.distanceToPoint(c) >= b.drawnBound!.radius);
+    return inner ? 'in' : 'partial';
+  }
+
+  /** The whole picture the page renders, from the model. */
+  function view(camera: PerspectiveCamera | null = null) {
+    const spec = CHAPTERS.find((c) => c.id === chapter)!;
+    const k = knife();
+    const slice = world === 'turn' ? turnWorld.slice : contactWorld.slice;
+    const bodies = readBodies().map((b) => {
+      const frame = frameOf(b, camera);
+      return {
+        id: b.id, name: b.name, colour: b.colour, status: b.status, drawn: b.drawn,
+        low: b.low, high: b.high, gap: b.gap, frame, focused: focus === b.id,
+        caption: caption(b.name, b.status, b.gap, b.drawn),
+        reason: absentReason(b.name, b.status, b.gap, frame, reachTarget(b.low, b.high) !== null, b.drawn),
+        reachable: reachTarget(b.low, b.high) !== null,
+        footprint: b.footprint,
+        drawnBound: b.drawnBound
+      };
+    });
+    const visible = bodies.filter((b) => b.drawn > 0 && b.frame !== 'out');
+    const empty = !studyOpen && bodies.length > 0 && visible.length === 0
+      ? {
+          headline: 'Nothing is drawn — and nothing has gone.',
+          reasons: bodies.map((b) => ({ id: b.id, line: b.reason, colour: b.colour })),
+          // A view action for what the slice misses; a camera-only turn for what the camera misses. Nothing else.
+          recoveries: bodies.flatMap((b) => {
+            const out: { label: string; action: Action | null; frame: BodyReading['drawnBound'] }[] = [];
+            if (b.drawn > 0 && b.frame === 'out') out.push({ label: `Turn the camera to the ${b.name.toLowerCase()}`, action: null, frame: b.drawnBound });
+            else if (b.reachable) out.push({ label: `Slide your slice to the ${b.name.toLowerCase()}`, action: { type: 'cut-to', body: b.id }, frame: null });
+            return out;
+          })
+        }
+      : null;
+    const physics = world === 'contact' && !studyOpen;
+    const study = contactWorld.study;
+    const { dt, substeps } = DEFAULT_SETTINGS;
+    const clock = world === 'turn'
+      ? { kind: 'orbit' as const, name: clockName('orbit', dt, substeps), playing: orbitPlaying, readout: `orbit at ${deg(turnKnife.phase).toFixed(0)}°` }
+      : physics
+        ? {
+            kind: 'physics' as const, name: clockName('physics', dt, substeps), playing: physicsPlaying,
+            readout: `${contactWorld.sim.time.toFixed(3)} s · step ${contactWorld.sim.steps}`
+              + (physicsPlaying ? '' : ' · paused')
+          }
+        : { kind: 'study' as const, name: clockName('study', dt, substeps), playing: study.playing, readout: `${study.angleDegrees().toFixed(1)}° in the ${STUDY_PLANES[study.mode].label} plane` };
+    const preset = PRESETS.find((p) => p.id === contactWorld.presetId)!;
+    const ballInSlice = bodies.some((b) => (b.id === 'companion' || b.id === 'ball') && b.drawn > 0);
+    if (orbitCache === null || orbitCache.theta !== turnKnife.theta || orbitCache.offset !== turnKnife.offset) {
+      orbitCache = { theta: turnKnife.theta, offset: turnKnife.offset, meets: orbitMeets(turnWorld.slice) };
+    }
+    // The slice in front: the turning scene's own, fixed at w = 0, while it is open; otherwise the world's.
+    const cutSlice = studyOpen ? study.slice : slice;
+    // The map: the slice in front as a line on the x–w plane, and every body's footprint with the line's chord through it.
+    const line = lineOf(Array.from(cutSlice.normal.data), cutSlice.offset);
+    const footprints = studyOpen
+      ? [{ id: 'study-box', name: BOX.name, colour: BOX.colour, footprint: contactWorld.studyFootprint() }]
+      : bodies.map((b) => ({ id: b.id, name: b.name, colour: b.colour, footprint: b.footprint }));
+    return {
+      hint: hint(chapter, seen, {
+        ballInSlice,
+        playing: world === 'turn' ? orbitPlaying : physicsPlaying,
+        orbitMeets: orbitCache.meets,
+        strike: physics && contactWorld.sim.impacts > 0 ? strikeWhere : null
+      }),
+      face: faceFocus === null || world !== 'turn' ? null : { ordinal: faceFocus, name: block.faces[faceFocus]!.name, colour: block.faces[faceFocus]!.colour },
+      /** The source faces the slice cuts now, for following one without a pointer. */
+      facesCut: world === 'turn' ? Array.from(block.presentFaces).sort((a, b) => a - b) : [],
+      chapter: { id: spec.id, numeral: spec.numeral, title: spec.title, setup: spec.setup, invite: spec.invite },
+      world,
+      studyOpen,
+      cut: {
+        degrees: studyOpen ? 0 : deg(k.theta), offset: cutSlice.offset,
+        turnLimit: deg(TURN_LIMIT), offsetLimit: OFFSET_LIMIT,
+        normal: Array.from(cutSlice.normal.data),
+        pivot: pivotLine(distanceFromPivot(cutSlice))
+      },
+      bodies,
+      empty,
+      clock,
+      preset: physics ? { id: preset.id, name: preset.name } : null,
+      impacts: physics ? contactWorld.sim.impacts : 0,
+      shadow: { on: shadow, legend: SHADOW_LEGEND },
+      gauge: GAUGE_LEGEND,
+      plane: {
+        line,
+        extent: PLANE_EXTENT,
+        /** The slice can be turned and slid from the map only where it is yours to move. */
+        movable: !studyOpen,
+        legend: PLANE_LEGEND,
+        note: planeNote(studyOpen),
+        footprints: footprints.map((f) => ({ ...f, chord: line === null ? null : chordOf(f.footprint, line) }))
+      },
+      event: event === null ? null : event.line,
+      eventId: event === null ? 0 : event.at,
+      study: studyOpen ? { mode: study.mode, degrees: study.angleDegrees(), description: study.describe() } : null
+    };
+  }
+
+  enter(start);
+
+  return {
+    dispatch,
+    view,
+    /** The scene graph roots the page adds to its viewport. */
+    roots: [turnWorld.root, contactWorld.root, contactWorld.study.views.object],
+    /** Read-only handles for verification: the same objects the page renders. */
+    worlds: { turn: turnWorld, contact: contactWorld },
+    faceShadow,
+    /** The turning world's block section, for picking a face in the picture. */
+    block,
+    dispose(): void { faceShadow.dispose(); turnWorld.dispose(); contactWorld.dispose(); }
+  };
+}

@@ -220,14 +220,15 @@ describe('source-linked sheet — withheld from the built gallery', () => {
     ).map((entry) => entry.slice(entry.lastIndexOf('/') + 1)).sort();
 
     expect(built).toEqual([
-      'akn.html', 'ammann-beenker.html', 'bicomplex-julia.html', 'compute.html',
+      'akn.html', 'ammann-beenker.html', 'atlas-classic.html', 'bicomplex-julia.html', 'compute.html',
       'dimension-bridge.html', 'duoprisms.html', 'e8.html', 'elser-sloane.html',
       'flatland.html', 'gpu.html', 'hopf.html', 'index.html', 'knots.html',
       'mechanics-workbench.html', 'nd-contact.html', 'penrose.html',
       'physics-browser.html', 'platonic-brots.html', 'playground.html',
       'polychora.html', 'polytope-browser.html', 'product-browser.html',
       'provenance-browser.html', 'quaternion-julia.html', 'rigid-body4.html',
-      'scene.html', 'spatial-4d-contact.html', 'spatial-4d-turn.html',
+      'scene.html', 'spatial-4d-contact-classic.html', 'spatial-4d-contact.html',
+      'spatial-4d-turn-classic.html', 'spatial-4d-turn.html',
       'tesseract.html', 'wythoff.html'
     ]);
     expect(built).not.toContain('source-linked-sheet.html');
@@ -246,7 +247,10 @@ describe('source-linked sheet — withheld from the built gallery', () => {
     const linked = [...new Set(
       [...gallery.matchAll(/href="\.\/([a-z0-9-]+\.html)"/g)].map((match) => match[1]!)
     )].sort();
-    expect(linked.length).toBe(22);
+    // 26: the twenty studies, both Hidden Direction entries, both classic
+    // instruments they were built from, the previous gallery, and the atlas's
+    // own mark linking home.
+    expect(linked.length).toBe(26);
     expect(linked.filter((page) => !built.includes(page))).toEqual([]);
     expect(linked).not.toContain('source-linked-sheet.html');
   });

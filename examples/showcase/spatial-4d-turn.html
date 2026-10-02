@@ -1,135 +1,114 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="hz">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Holotope.js — Turn through the same object</title>
-    <style>
-      :root { color-scheme: dark; --ink: #e9e8e4; --muted: #99a0aa; --rule: #2c3138; --card: #171a1f; }
-      * { box-sizing: border-box; }
-      body { margin: 0; background: #0d0f12; color: var(--ink);
-        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-      header { padding: 16px 20px 8px; }
-      h1 { margin: 0 0 4px; font-size: 1.15rem; }
-      header p { margin: 0; color: var(--muted); font-size: 0.88rem; max-width: 78ch; }
-      main { display: grid; grid-template-columns: minmax(0,1fr) 330px; gap: 16px; padding: 10px 20px 20px; }
-      @media (max-width: 880px) { main { grid-template-columns: minmax(0,1fr); } }
-      #stage { height: min(68vh, 620px); min-height: 340px; border: 1px solid var(--rule);
-        border-radius: 10px; overflow: hidden; background: #101216; }
-      #stage canvas { display: block; width: 100%; height: 100%; }
-      #panel { display: grid; gap: 14px; align-content: start; }
-      .control { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 11px 13px; }
-      .control label { display: flex; justify-content: space-between; font-weight: 600; gap: 10px; }
-      .control input[type=range] { width: 100%; margin-top: 8px; }
-      .control p { margin: 6px 0 0; color: var(--muted); font-size: 0.82rem; }
-      .control label.toggle { justify-content: flex-start; align-items: center; gap: 8px; cursor: pointer; }
-      .control label.toggle input { margin: 0; }
-      #context-note { line-height: 1.45; }
-      .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
-      button { font: inherit; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 7px;
-        background: var(--card); color: var(--ink); cursor: pointer; min-height: 36px; }
-      button:hover { border-color: var(--ink); }
-      #play[aria-pressed="true"] { border-color: #6fd3a2; color: #6fd3a2; }
-      .control .buttons { margin-top: 6px; }
-      #readout { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 11px 13px; }
-      .row { display: flex; justify-content: space-between; gap: 10px; color: var(--muted);
-        font-size: 0.84rem; padding: 2px 0; }
-      .row code { color: var(--ink); font: 0.92em ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .object { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-        padding: 8px 0 4px; border-top: 1px solid var(--rule); margin-top: 8px; }
-      .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
-      .status { font-size: 0.85rem; }
-      .object.present .status { color: #6fd3a2; }
-      .object.tangent .status, .object.grazing .status { color: #e6c15c; }
-      .object.outside { opacity: 0.72; }
-      .object.outside .status { color: #e0806f; }
-      .object small { color: var(--muted); font-size: 0.78rem; }
-      .kind { flex: 1 1 100%; }
-      .pivot { margin: 0; font-size: 0.82rem; }
-      .pivot.on { color: #6fd3a2; }
-      .pivot.off { color: #e6c15c; }
-      .control h3, #readout h3 { margin: 0 0 6px; font-size: 0.78rem; text-transform: uppercase;
-        letter-spacing: 0.06em; color: var(--muted); }
-      .face { display: flex; align-items: center; gap: 8px; font-size: 0.84rem; padding: 2px 0; }
-      .face code { min-width: 2.2em; font: 0.95em ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .face span:last-child { color: var(--muted); }
-      .face.present span:last-child { color: #6fd3a2; }
-      .face.absent { opacity: 0.6; }
-      .cut { margin: 8px 0 0; color: var(--muted); font-size: 0.8rem; }
-      .graze { flex: 1 1 100%; color: #e6c15c; }
-      .why { flex: 1 1 100%; color: var(--ink); opacity: 0.85; font-size: 0.8rem; line-height: 1.4; }
-      /* Two label rows, far enough apart that the band's label and a tick's
-         label cannot run into each other on a narrow track. */
-      .marks { position: relative; height: 44px; margin-top: 2px; }
-      .mark-band { position: absolute; top: 3px; height: 5px; border-radius: 3px; background: #e0883a; opacity: 0.8; }
-      .mark-tick { position: absolute; top: 0; width: 3px; height: 11px; border-radius: 1px;
-        background: linear-gradient(to right, #f2806f 50%, #f3c55a 50%); transform: translateX(-50%); }
-      .mark-tick.block { background: #7a9bd6; }
-      .mark-label.hidden-label { visibility: hidden; }
-      .mark-label.quiet { color: var(--muted); font-style: italic; }
-      .mark-label { position: absolute; top: 10px; font-size: 0.66rem; color: #e0883a;
-        transform: translateX(-50%); white-space: nowrap; }
-      .mark-label.below { top: 28px; color: var(--muted); }
-      #picked p { margin: 0; font-size: 0.86rem; }
-      #picked .hint { color: var(--muted); }
-      :focus-visible { outline: 2px solid #6f9ff0; outline-offset: 2px; }
-      .crumbs { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
-      .crumbs a { color: var(--muted); }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Holotope.js — The Hidden Direction: something passes through</title>
+    <meta name="description" content="Your screen is a slice of a four-dimensional world. Follow what vanishes, find a cause your slice cannot show, and tell turning the slice from turning the object." />
   </head>
-  <body>
-    <header>
-      <nav class="crumbs"><a href="./index.html">← all examples</a> · <a href="./spatial-4d-contact.html">next: interaction through the hidden direction</a> · <a href="./docs/learn/spatial-sections-and-contact">how to read these pages</a></nav>
-      <h1>Turn through the same object</h1>
-      <p>
-        A block and a small ball in four-dimensional space, seen through a three-dimensional
-        slice — a knife through 4D; the cut surface is what the screen shows. The block never
-        moves. The ball can: press <b>Play</b> and it circles a fixed point in 4D along a
-        stated path — no force, no physics — while the knife stays where you left it.
-        <b>Turn</b> tilts the knife. <b>Offset</b> slides it sideways. Dragging the view only
-        walks around the cut. The two objects never touch or affect each other.
-      </p>
+  <body class="hz hd" data-start="arrival">
+    <a class="hz-sr hz-skip" href="#hd-card">Skip to the chapter</a>
+    <header class="hz-bar hd-bar">
+      <a class="hz-mark" href="./index.html" aria-label="Holotope atlas">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="#ece8df" stroke-width="1.5"/><line x1="1" y1="13" x2="23" y2="11" stroke="#f1dfae" stroke-width="2"/></svg>
+        <b>Holotope</b>
+      </a>
+      <span class="hd-where">The Hidden Direction</span>
+      <nav aria-label="Site">
+        <a href="./index.html">Atlas</a>
+        <a href="./docs/learn/the-hidden-direction">How to explore</a>
+        <a href="./docs/learn/spatial-sections-and-contact">How it works</a>
+        <a href="./spatial-4d-turn-classic.html">Classic instrument</a>
+      </nav>
     </header>
-    <main>
-      <div id="stage"></div>
-      <div id="panel">
-        <div class="control">
-          <label for="turn">Turn (x–w plane) <span id="turn-value">0.0°</span></label>
-          <input type="range" id="turn" step="0.5" value="0" />
-          <div id="turn-marks" class="marks" aria-hidden="true"></div>
-          <p id="pivot-note" class="pivot on"></p>
+    <main class="hd-main">
+      <section id="hd-card" class="hd-card hz-glass" aria-labelledby="hd-title" tabindex="-1">
+        <p class="hz-kicker" id="hd-numeral"></p>
+        <h1 class="hz-display" id="hd-title"></h1>
+        <p class="hd-setup" id="hd-setup"></p>
+        <p class="hd-invite" id="hd-invite"></p>
+        <p class="hd-hint" id="hd-hint" aria-live="polite"></p>
+        <div class="hd-actions">
+          <button type="button" id="hd-play" class="hz-btn hz-btn--primary" data-for="turn contact" aria-pressed="false">Play</button>
+          <button type="button" id="hd-step-back" class="hz-btn" data-for="contact" title="Replays from launch to the previous step">Step −1</button>
+          <button type="button" id="hd-step" class="hz-btn" data-for="contact" title="One fixed step of the physics clock">Step +1</button>
+          <button type="button" id="hd-jump" class="hz-btn" data-for="contact" title="Replays from launch to the step before the blow">Just before the blow</button>
+          <button type="button" id="hd-study-play" class="hz-btn hz-btn--primary" data-for="study" aria-pressed="false">Play the turn</button>
+          <button type="button" id="hd-study-xw" class="hz-btn" data-for="study" aria-pressed="false">Through w (x–w)</button>
+          <button type="button" id="hd-study-xy" class="hz-btn" data-for="study" aria-pressed="false">Ordinary (x–y)</button>
         </div>
-        <div class="control">
-          <label for="offset">Section offset <span id="offset-value">0.00</span></label>
-          <input type="range" id="offset" step="0.01" value="0" />
-          <div id="offset-marks" class="marks" aria-hidden="true"></div>
-          <p>Slides the section along its current normal. This is not a second turn.
-            Marks on each slider are for the other slider’s current value.</p>
+        <div class="hd-actions hd-secondary">
+          <button type="button" id="hd-freeze" class="hz-btn" data-for="turn contact study" title="Stops every clock where it stands and lifts the shadow">Freeze &amp; compare</button>
+          <button type="button" id="hd-shadow" class="hz-btn" data-for="turn contact study" aria-pressed="false">Lift the shadow</button>
+          <button type="button" id="hd-reset-cut" class="hz-btn" data-for="turn contact" title="Your slice back to untilted, through the centre point; no clock moves">Reset slice</button>
+          <button type="button" id="hd-face-next" class="hz-btn" data-for="turn" title="Follows the next face your slice cuts — solid in the slice, bright lines in the shadow">Follow a face</button>
+          <button type="button" id="hd-replay" class="hz-btn" data-for="contact" title="A fresh launch: the physics clock back to 0">Replay launch</button>
         </div>
-        <div class="control">
-          <label for="phase">Ball along its path <span id="phase-value">0°</span></label>
-          <input type="range" id="phase" min="0" max="359" step="1" value="0" />
-          <div id="phase-marks" class="marks" aria-hidden="true"></div>
-          <div class="buttons"><button type="button" id="play" aria-pressed="false">Play</button></div>
-          <p>The ball circles a fixed point in 4D, in the z–w plane. How much of that circle lies
-            within the knife’s reach depends on where the knife is: about 57% at the reference, none
-            at a quarter turn with no offset. Marks are for the current turn and offset.</p>
+        <div class="hd-actions hd-secondary" data-for="contact">
+          <span class="hz-kicker">Launch</span>
+          <button type="button" id="hd-preset-a" class="hz-btn" aria-pressed="false">A · central</button>
+          <button type="button" id="hd-preset-b" class="hz-btn" aria-pressed="false">B · off-centre</button>
         </div>
-        <div class="control">
-          <label class="toggle" for="context"><input type="checkbox" id="context" /> Show projection context</label>
-          <p id="context-note" hidden></p>
+        <div class="hd-actions hd-secondary" data-for="free">
+          <span class="hz-kicker">World</span>
+          <button type="button" id="hd-world-turn" class="hz-btn" aria-pressed="false">Block &amp; orbiting ball</button>
+          <button type="button" id="hd-world-contact" class="hz-btn" aria-pressed="false">Box &amp; ball, with physics</button>
         </div>
-        <div class="buttons">
-          <button type="button" id="reset-section">Reset section</button>
-          <button type="button" id="reset-view">Reset view</button>
+        <p class="hd-face" id="hd-face" hidden></p>
+        <p class="hd-clock"><span id="hd-clock-name"></span><span id="hd-clock" class="hz-num"></span></p>
+        <details class="hd-more">
+          <summary>What exactly am I seeing?</summary>
+          <ul id="hd-bodies"></ul>
+          <p id="hd-pivot"></p>
+          <p id="hd-plane-legend"></p>
+          <p id="hd-gauge-legend"></p>
+          <p id="hd-shadow-legend"></p>
+          <div id="hd-numbers" class="hd-numbers"></div>
+          <p class="hd-links"><a href="./docs/learn/the-hidden-direction">How to explore</a><a href="./docs/learn/spatial-sections-and-contact">How it works, with the evidence</a><a href="./spatial-4d-turn-classic.html">The classic instrument</a></p>
+        </details>
+      </section>
+
+      <div id="hd-stage" class="hd-stage" role="region" aria-label="Your three-dimensional slice of a four-dimensional world">
+        <div id="hd-labels" class="hd-labels" aria-hidden="true"></div>
+        <p id="hd-event" class="hd-event" role="status" aria-live="polite" hidden></p>
+        <div id="hd-empty" class="hd-empty hz-glass" role="region" aria-labelledby="hd-empty-head" hidden>
+          <h2 id="hd-empty-head"></h2>
+          <ul id="hd-empty-list"></ul>
+          <div id="hd-empty-actions" class="hd-actions"></div>
         </div>
-        <div id="readout"></div>
-        <div id="faces" class="control"></div>
-        <div id="picked" class="control"></div>
+        <div class="hd-camera">
+          <span class="hd-cam-hint" aria-hidden="true">Drag to turn the camera — it never changes what your slice cuts</span>
+          <button type="button" id="hd-recentre" class="hz-btn hd-cam-btn" title="The camera back home; nothing in the world moves">Re-centre camera</button>
+        </div>
       </div>
+
+      <div class="hd-panel">
+        <div class="hd-map-block hz-glass" data-for="turn contact study">
+          <p class="hz-kicker hd-panel-head">The hidden plane</p>
+          <div id="hd-map" class="hd-map" role="slider" tabindex="0" aria-label="Your slice, seen from outside in the x–w plane — drag the bright ends to turn it, drag elsewhere to slide it" aria-valuemin="-90" aria-valuemax="90" aria-valuenow="0"><div id="hd-map-svg" class="hd-map-svg"></div></div>
+          <p class="hd-map-read"><span>slice turned <b id="hd-dial-value" class="hz-num"></b></span><span>slid <b id="hd-offset-value" class="hz-num"></b></span></p>
+          <p class="hd-map-note" id="hd-map-note"></p>
+        </div>
+        <div class="hd-gauge-col hz-glass" data-for="turn contact">
+          <p class="hz-kicker hd-panel-head">Across your slice</p>
+          <p class="hd-gauge-keys" id="hd-gauge-keys" aria-hidden="true"></p>
+          <div id="hd-gauge" class="hd-gauge" role="slider" tabindex="0" aria-orientation="vertical" aria-label="Your slice across the hidden direction — drag the bright line to slide it" aria-valuemin="-1.6" aria-valuemax="1.6" aria-valuenow="0">
+            <span class="hd-gauge-end top" aria-hidden="true">ana ↑</span>
+            <div id="hd-gauge-svg" class="hd-gauge-svg"></div>
+            <span class="hd-gauge-end bottom" aria-hidden="true">kata ↓</span>
+          </div>
+        </div>
+        <div class="hd-study-block hz-glass" data-for="study">
+          <p class="hz-kicker hd-panel-head">Turn the box</p>
+          <div id="hd-study-angle" class="hd-study" role="slider" tabindex="0" aria-label="The prescribed turn of the box" aria-valuemin="0" aria-valuemax="360" aria-valuenow="0"><div id="hd-study-svg"></div></div>
+          <p class="hd-map-read"><span>box turned <b id="hd-study-value" class="hz-num"></b></span></p>
+        </div>
+      </div>
+
+      <nav id="hd-chapters" class="hd-chapters" aria-label="Chapters"></nav>
     </main>
     <script type="module">
-      import { createApp } from './src/spatial-4d-turn/main.ts';
+      import { createApp } from './src/hidden-direction/app.ts';
       createApp(document.body);
     </script>
   </body>
