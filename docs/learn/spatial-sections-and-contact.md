@@ -1,8 +1,9 @@
 # Turning a section, and contact through the hidden direction
 
 Two linked showcase pages about watching R⁴ through a three-dimensional
-section. The first turns and slides the section through objects that never
-move. The second launches a ball at a box along w, the one direction the
+section. The first turns and slides the section through a block that never
+moves and a small glome that moves only along a prescribed orbit, with no
+physics. The second launches a ball at a box along w, the one direction the
 reference section cannot show, and asks how to find the cause of a collision
 you cannot see in the cut.
 
@@ -201,8 +202,15 @@ Behaviour in a browser needs genuine input.
 - **A body is not contained in a section.** In stage A both centres lie in the
   x = 0 section, so the cut passes through the middle of each. Neither body is
   contained in it: the box spans 2.4 in x and the ball 1.0. The section of a 4D
-  solid is not the solid. Stage A also assumes the offset is 0: its knife action
-  turns the knife to 90° but keeps any offset already set.
+  solid is not the solid.
+- **The guided stages assume the offset is 0.** Stage A's action turns the knife
+  to 90° and stage D's turns it back to 0°, but each sets only the turn and
+  keeps any offset already set. Replaying a preset keeps the knife as well.
+  Stage B asks you to move the offset, so restore it to 0 before you follow
+  stage A's "x = 0" or stage D's reference view. Otherwise their claims do not
+  hold. For example, with the offset left at +1.6, the ball's centre is at
+  w = 1.5 at the first touch, so stage D's knife cuts the ball in a sphere of
+  radius 0.49, although the stage says the ball never appears.
 - **The containment check is a spot-check.** A test sweeps the stage texts, the
   guided script and the page markup with patterns for wording that claims a
   body is contained in the section. It does not scan prose the page generates
