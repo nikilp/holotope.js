@@ -15,9 +15,13 @@
 - docs/learn/cookbook.md — verified task-oriented snippets.
 - docs/learn/representation-provenance.md — what a pick can and cannot recover.
 - docs/learn/representation-claims.md — reading a pick as one claim instead of two fields.
-- docs/learn/spatial-sections-and-contact.md — two showcase pages (spatial-4d-turn,
-  spatial-4d-contact): a section turned through rigid R4 objects, and one discrete
-  contact read through it; what they demonstrate, their tests, and their limits.
+- docs/learn/spatial-sections-and-contact.md — two showcase pages (now the classic
+  instruments, spatial-4d-turn-classic and spatial-4d-contact-classic): a section
+  turned through rigid R4 objects, and one discrete contact read through it; what
+  they demonstrate, their tests, and their limits. Their former routes open The
+  Hidden Direction, a guided experience composed from the same modules
+  (examples/showcase/src/hidden-direction/; visitor guide
+  docs/learn/the-hidden-direction.md).
 - docs/learn/physics/ — rigid mechanics, contact capability boundaries, and RN XPBD
   (index page maps the seven task pages).
 

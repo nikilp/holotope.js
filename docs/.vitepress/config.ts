@@ -149,6 +149,7 @@ export default defineConfig({
             { text: 'Representation provenance', link: '/learn/representation-provenance' },
             { text: 'What a pick may claim', link: '/learn/representation-claims' },
             { text: 'Provenance-driven decorations', link: '/learn/couplings' },
+            { text: 'The Hidden Direction — how to explore', link: '/learn/the-hidden-direction' },
             {
               text: 'Turning a section, and contact',
               link: '/learn/spatial-sections-and-contact'

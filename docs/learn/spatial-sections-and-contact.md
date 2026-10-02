@@ -7,14 +7,18 @@ physics. The second launches a ball at a box along w, the one direction the
 reference section cannot show, and asks how to find the cause of a collision
 you cannot see in the cut.
 
+The two pages are now the **classic instruments**. Their former routes open
+[The Hidden Direction](#the-hidden-direction), a guided experience built on the
+same modules; the classic pages are unchanged at their own routes.
+
 - **Turn through the same object** —
-  [live](https://nikilp.github.io/holotope.js/spatial-4d-turn.html); page
-  `examples/showcase/spatial-4d-turn.html`, modules
+  [live](https://nikilp.github.io/holotope.js/spatial-4d-turn-classic.html); page
+  `examples/showcase/spatial-4d-turn-classic.html`, modules
   `examples/showcase/src/spatial-4d-turn/`, tests
   `examples/showcase/test/spatial-4d-turn/`.
 - **Interaction through the hidden direction** —
-  [live](https://nikilp.github.io/holotope.js/spatial-4d-contact.html); page
-  `examples/showcase/spatial-4d-contact.html`, modules
+  [live](https://nikilp.github.io/holotope.js/spatial-4d-contact-classic.html); page
+  `examples/showcase/spatial-4d-contact-classic.html`, modules
   `examples/showcase/src/spatial-4d-contact/`, tests
   `examples/showcase/test/spatial-4d-contact/`. Its five guided stages are
   also written out as a script, `examples/showcase/src/spatial-4d-contact/GUIDE.md`.
@@ -125,6 +129,58 @@ The pages do not use or validate continuous collision, joints or experiment
 replay. Those exist in the library, with their own tests; these two scenes are
 evidence for none of them.
 
+## The Hidden Direction
+
+The former routes now open a guided experience built on these modules:
+`spatial-4d-turn.html` opens at chapter I and `spatial-4d-contact.html` at
+chapter III, and `#arrival`, `#cuts`, `#collision`, `#spin`, `#turning` or
+`#free` opens either page at that chapter. The
+[visitor guide](./the-hidden-direction) explains the controls. Sources are in
+`examples/showcase/src/hidden-direction/`, and tests in
+`examples/showcase/test/hidden-direction/`.
+
+It composes the modules above and adds no geometry or physics of its own.
+
+- **One owner per scene.** `worlds.ts` holds one instance each of the turning
+  scene's section products and projection context, and of the contact page's
+  `ContactSimulation`, `SceneViews` and `RotationStudy`. It calls only their
+  public functions.
+- **Actions sorted by what they may touch.** `experience.ts` is the one entry
+  point every control uses. Each action is one of four kinds. A *view* action
+  moves the slice, the shadow or the focus, and never the simulation, the
+  orbit or the study. A *time* action moves a clock. A *study* action moves
+  only the separate turning scene. A *chapter* action establishes its stated
+  turn, offset, launch and phase in full. Nothing carries over from an earlier
+  chapter, unlike the classic guided stages (see the limits below). While the
+  turning scene is open, slice actions and the collision's clock are refused.
+- **The hidden plane.** `plane.ts` flattens each body onto the x–w plane along
+  y and z: the convex hull of its posed corners, or a disc. The slice is the
+  line n·q = offset. While the normal n lies in the x–w plane, n·p reads only
+  x and w, so the slice meets a body exactly when the line meets its
+  footprint. The map uses the sectioner's 10⁻⁹ tolerance and draws no line for
+  a normal with a y or z component.
+- **Words as functions of the model.** `copy.ts` writes every sentence from
+  the model's numbers. An empty view names one of four causes: outside the
+  slice, touching only along the boundary, outside the camera's view, or not
+  drawn. Where a recovery exists, it moves only the slice or only the
+  camera.
+
+At the new routes it resolves these presentation notes from the classic
+pages:
+
+- **Camera framing.** The home frame keeps every section the turning scene can
+  draw in view, on a sampled grid of turns, offsets and orbit phases at aspect
+  ratios from 0.56 (phones) to 2.2. When the struck box drifts out of frame,
+  the page says so and offers a camera-only recovery.
+- **Phone layout.** On a narrow screen the picture stays pinned while the
+  instruments scroll beneath it.
+- **Small distances.** A body in the slice never prints 0.00 or −0.00; a
+  distance under 0.005 prints as "under 0.005".
+- **Absence wording.** One vocabulary describes absence, and the clock line
+  says when it is paused.
+
+The classic pages are unchanged, and their notes below still hold for them.
+
 ## Reference scenes
 
 **Turn.**
@@ -159,13 +215,15 @@ From a checkout of this repository:
 pnpm install --frozen-lockfile
 pnpm build
 pnpm exec vitest run examples/showcase/test/spatial-4d-turn examples/showcase/test/spatial-4d-contact
+pnpm exec vitest run examples/showcase/test/hidden-direction
 pnpm --filter @holotope/showcase typecheck
 pnpm --filter @holotope/showcase dev
 ```
 
 `pnpm build` comes first because the test lane resolves `@holotope/physics` from
-its build. With the dev server running, open `/spatial-4d-turn.html` and
-`/spatial-4d-contact.html`.
+its build. With the dev server running, open `/spatial-4d-turn-classic.html`
+and `/spatial-4d-contact-classic.html` for the classic pages, and
+`/spatial-4d-turn.html` and `/spatial-4d-contact.html` for The Hidden Direction.
 
 The two suites hold 199 tests in 13 files: 87 for the turn page and 112 for the
 contact page. By kind:
@@ -185,6 +243,23 @@ contact page. By kind:
 These pins read the shipped page and module text. They prove the code says
 something, not that it runs: the repository has no DOM test environment.
 Behaviour in a browser needs genuine input.
+
+The Hidden Direction's suite holds 745 tests in 11 files. They drive the
+controller through the same entry point the page uses, and their oracles are
+independent: fresh instances, closed forms and literals.
+
+- **Kind boundaries.** Every action variant is applied from seven prior
+  states, and the state the action's kind must not touch is compared bitwise.
+- **Chapter setup.** Each chapter, entered from messy states, gives the same
+  view, internals and continuation as a fresh chapter.
+- **The map against the library.** Over 29 750 readings, the map draws a chord
+  exactly when the library says a body is not outside the slice.
+- **Identity, absence and the observer.** The tests cover face identity across
+  the slice and the shadow, the four empty-view causes and their recoveries,
+  and the observer note read from the live slice. The note is also pinned on
+  the classic contact page, which previously had no test for it.
+- **The authored contract, by literal.** These include the restitution of 1,
+  the friction of 0, the settings and the presets.
 
 ## Limits and open questions
 
