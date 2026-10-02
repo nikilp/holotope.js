@@ -43,11 +43,12 @@ Two shadows that overlap are not touching.
 | --- | --- | --- |
 | **the slice, along its normal** | drag the bright line on the gauge, or anywhere on the map; ↑ ↓ | which part of the world is cut |
 | **the slice, by turning it** | drag a bright end of the line on the map; ← → | the direction of the cut, in the x–w plane |
-| **the camera** | drag the picture; *Re-centre camera* or C | where you look from; never what is cut |
+| **the camera** | drag the picture; Q and E turn it, + and − bring it nearer or farther, *Re-centre camera* or C brings it home | where you look from; never what is cut |
 | **the object** | chapter V only: drag the box's angle | the box, in a separate scene, by a prescribed turn |
 
 Hold Shift with an arrow key for a step ten times larger. Moving the slice or the
-camera never changes the world: no body moves and no clock runs.
+camera never changes the world: no body moves because of it, and no clock starts,
+stops or steps.
 
 ## The chapters
 
@@ -72,7 +73,8 @@ and says what that state is under its title.
    w = 0. Compare a turn through w with an ordinary turn.
 
 **[Explore freely](https://nikilp.github.io/holotope.js/spatial-4d-turn.html#free)**
-leaves everything where it is and unlocks every instrument in both worlds.
+leaves everything where it is. Choose a world, and every instrument is yours in
+it; the turning scene keeps its fixed slice.
 
 ## Three clocks
 
@@ -93,7 +95,8 @@ causes, and the page names which one applies:
 
 - **Outside your slice.** The body lies wholly to one side, ana or kata, at a
   stated distance. *Slide your slice to it* moves the slice if the slider can
-  reach it.
+  reach it. If the struck bodies have carried on beyond the slider's reach,
+  *Replay to just after the blow* replays the physics clock from the launch.
 - **Touching your slice.** The slice meets the body only along its boundary,
   within 10⁻⁹. Such a cut is a face, an edge or a point, and only solids are
   drawn.
@@ -109,10 +112,13 @@ your slice would first touch the ball.
 
 ## Keyboard, touch and motion
 
-Everything can be done from the keyboard. Tab reaches every control. The map
-and the gauge are sliders that respond to the arrow keys, and Home returns
-each to zero. Space plays or pauses, `.` and `,` step the physics clock, S lifts the
-shadow, F freezes, R resets the slice and 1–6 choose a chapter. On a phone, the
+Every control can be reached and used from the keyboard; only panning the
+camera sideways needs a pointer. Tab reaches every control. The map, the gauge
+and the box's dial are sliders: the arrow keys move them and Home returns each
+to zero. Elsewhere the arrows turn and slide the slice, Space plays or pauses,
+`.` and `,` step the physics clock, S lifts the shadow, F freezes, R resets the
+slice, Q and E turn the camera, + and − zoom it, C brings it home and 1–6
+choose a chapter. On a phone, the
 picture stays pinned at the top while you scroll to the instruments. If your
 system asks for reduced motion, the camera stops gliding and the transitions
 are removed.

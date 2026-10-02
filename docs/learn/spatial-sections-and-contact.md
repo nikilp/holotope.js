@@ -150,9 +150,12 @@ It composes the modules above and adds no geometry or physics of its own.
   moves the slice, the shadow or the focus, and never the simulation, the
   orbit or the study. A *time* action moves a clock. A *study* action moves
   only the separate turning scene. A *chapter* action establishes its stated
-  turn, offset, launch and phase in full. Nothing carries over from an earlier
-  chapter, unlike the classic guided stages (see the limits below). While the
-  turning scene is open, slice actions and the collision's clock are refused.
+  turn, offset, launch and phase in full. Each guided chapter, I to V,
+  re-establishes its stated state, unlike the classic guided stages (see the
+  limits below). Free exploration keeps everything as it was, and chapter V
+  leaves the collision as it was. While the turning scene is open, slice
+  actions and the collision's clock are refused. A clock advances only with
+  its world in front.
 - **The hidden plane.** `plane.ts` flattens each body onto the x–w plane along
   y and z: the convex hull of its posed corners, or a disc. The slice is the
   line n·q = offset. While the normal n lies in the x–w plane, n·p reads only
@@ -163,7 +166,8 @@ It composes the modules above and adds no geometry or physics of its own.
   the model's numbers. An empty view names one of four causes: outside the
   slice, touching only along the boundary, outside the camera's view, or not
   drawn. Where a recovery exists, it moves only the slice or only the
-  camera.
+  camera. When the struck bodies have carried on beyond the slider's reach, the
+  view instead offers a replay of the physics clock from the launch.
 
 At the new routes it resolves these presentation notes from the classic
 pages:
@@ -244,7 +248,7 @@ These pins read the shipped page and module text. They prove the code says
 something, not that it runs: the repository has no DOM test environment.
 Behaviour in a browser needs genuine input.
 
-The Hidden Direction's suite holds 747 tests in 11 files. They drive the
+The Hidden Direction's suite holds 759 tests in 11 files. They drive the
 controller through the same entry point the page uses, and their oracles are
 independent: fresh instances, closed forms and literals.
 
