@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CHAPTERS, createExperience, type ChapterId } from '../../src/hidden-direction/experience.js';
 import {
   EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, distance, eventLine, hint, planeNote,
-  derivedReading, pivotLine, plainReading, replayLine, side, signedReading, stateAfterBlow, strikeLine, type Cause, type StrikeObservation
+  derivedReading, pivotLine, plainReading, replayLine, side, signedReading, briefState, strikeLine, type Cause, type StrikeObservation
 } from '../../src/hidden-direction/copy.js';
 import { homeCamera } from '../../src/hidden-direction/stage.js';
 import type { Meeting } from '../../src/hidden-direction/worlds.js';
@@ -125,7 +125,7 @@ function copyCensus(): string[] {
   }
   for (const gap of GAPS) for (const replayedTo of [null, 73]) out.add(strikeLine(gap, replayedTo));
   for (const cause of CAUSES) if (cause.kind === 'replay' || cause.kind === 'launch') out.add(replayLine(cause));
-  for (const kind of KINDS) for (const gap of GAPS) for (const name of NAMES) for (const meeting of MEETINGS) out.add(stateAfterBlow(kind, name, gap, meeting));
+  for (const kind of KINDS) for (const gap of GAPS) for (const name of NAMES) for (const meeting of MEETINGS) out.add(briefState(kind, name, gap, meeting));
   for (const name of NAMES) {
     for (const status of STATUSES) {
       for (const gap of GAPS) {

@@ -353,7 +353,9 @@ describe('hints that send you somewhere check that you can get there', () => {
     playUntil(x, () => steps(x) >= 450);
     const b = box(x);
     expect([b.drawn, b.reachable]).toEqual([0, false]);
-    expect(x.view().hint).toBe('The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane, or replay to just after the blow, to watch its slice change width as it turns.');
+    expect(x.view().hint).toBe('The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane, or press Just before the blow and step on, to watch its slice change width as it turns.');
+    // The page offers no replay here yet: the empty view's only recovery is the slide to the ball.
+    expect(x.view(homeCamera(1.6)).empty?.recoveries.map((q) => q.label)).toEqual(['Slide your slice to the ball']);
     x.dispose();
   });
 
@@ -425,6 +427,31 @@ describe('the world button already in front changes nothing', () => {
     const before = x.view();
     press(x, 'hd-world-turn');
     expect([x.view().event, x.view().eventId]).toEqual([before.event, before.eventId]);
+    x.dispose();
+  });
+});
+
+describe('every change in one action is said', () => {
+  it('a replay that lands on the blow says a body it took out of the slice, after the blow’s line', () => {
+    const x = createExperience('collision');
+    x.dispatch(INSTRUMENTS.gauge.act(-1.02));
+    press(x, 'hd-jump');
+    press(x, 'hd-step');
+    press(x, 'hd-step');
+    expect(box(x).status).not.toBe('outside');
+    press(x, 'hd-step-back');
+    expect(steps(x)).toBe(73);
+    expect(box(x).status).toBe('outside');
+    expect(x.view().event).toMatch(/^Replayed from launch to step 73, the blow: the box was struck there by something your slice cannot show: the ball, then \d\.\d\d ana of your slice\. The box now lies ana of your slice\.$/);
+    x.dispose();
+  });
+
+  it('a slide that takes the box out and brings the ball in says both', () => {
+    const x = createExperience('collision');
+    playUntil(x, () => steps(x) >= 130);
+    x.dispatch(INSTRUMENTS.gauge.act(1.4));
+    expect([box(x).status, ball(x).drawn > 0]).toEqual(['outside', true]);
+    expect(x.view().event).toBe('Box vanished from your slice — you moved your slice; the box now lies kata of your slice. It has not gone. Ball is in your slice.');
     x.dispose();
   });
 });

@@ -9,7 +9,7 @@ import { STUDY_PLANES, type StudyMode } from '../spatial-4d-contact/study.js';
 import { ContactWorld, TurnWorld, type BodyReading } from './worlds.js';
 import {
   AT_ZERO, EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, eventLine,
-  hint, planeNote, pivotLine, replayLine, side, stateAfterBlow, strikeLine, type Cause, type StrikeObservation
+  briefState, hint, planeNote, pivotLine, replayLine, side, strikeLine, type Cause, type StrikeObservation
 } from './copy.js';
 import { FaceShadow } from './identity.js';
 import { PLANE_EXTENT, chordOf, lineOf } from './plane.js';
@@ -218,11 +218,8 @@ export function createExperience(start: ChapterId = 'arrival') {
   let lastCause: Cause = { kind: 'slice' };
   /** The latest blow you saw in this run, with the slice you saw it with. Null until one is shown. */
   let strike: StrikeObservation | null = null;
-  /**
-   * The blow was shown in this action and said so. A replay that lands on it says nothing more; when the clock
-   * stepped onto it, what else changed in the same action follows the blow's line as plain states.
-   */
-  let strikeSaid: 'step' | 'replay' | null = null;
+  /** The blow was shown in this action and said so: what else changed in the same action follows its line. */
+  let strikeSaid = false;
   /** Whether the orbit meets the turning world's slice, cached against the slice it was computed for. */
   let orbitCache: { theta: number; offset: number; meets: boolean } | null = null;
 
@@ -276,14 +273,21 @@ export function createExperience(start: ChapterId = 'arrival') {
       else if (now === 'tangent') kind = 'touching';
       else continue;
       lines.push(eventLine(kind, b.name, b.gap, lastCause, b.meeting));
-      after.push(stateAfterBlow(kind, b.name, b.gap, b.meeting));
+      // After the blow's line, the ball's state is left out where that line already gives it.
+      const inSlice = kind === 'appeared' || kind === 'entered' || kind === 'face';
+      const told = strikeSaid && strike !== null && ball
+        && ((inSlice && strike.gap === 0) || ((kind === 'vanished' || kind === 'crossed') && strike.gap !== 0 && side(strike.gap) === side(b.gap)));
+      if (!told) after.push(briefState(kind, b.name, b.gap, b.meeting));
     }
     lastStatus = next;
-    if (lines.length === 0 || strikeSaid === 'replay') return;
-    // The blow the clock stepped onto stands first, and what else changed with it follows; otherwise the latest change.
-    event = strikeSaid === 'step' && event !== null
-      ? { line: `${event.line} ${after.join(' ')}`, at: event.at }
-      : { line: lines[lines.length - 1]!, at: ++sequence };
+    if (lines.length === 0) return;
+    // Every change is said: after the blow's line when one was said in this action, otherwise after the first
+    // change's own line, each as what it left the body as.
+    if (strikeSaid && event !== null) {
+      if (after.length > 0) event = { line: `${event.line} ${after.join(' ')}`, at: event.at };
+    } else {
+      event = { line: [lines[0]!, ...after.slice(1)].join(' '), at: ++sequence };
+    }
   }
 
   /** A sentence, then what any marker on screen for this body means. */
@@ -340,7 +344,7 @@ export function createExperience(start: ChapterId = 'arrival') {
     const ball = contactWorld.bodies().find((b) => b.id === 'ball')!;
     strike = { step: contactWorld.sim.steps, gap: ball.gap, offset: contactKnife.offset, degrees: deg(contactKnife.theta) };
     event = { line: strikeLine(ball.gap, replayedTo), at: ++sequence };
-    strikeSaid = replayedTo === null ? 'step' : 'replay';
+    strikeSaid = true;
   }
 
   /** Step the physics clock n fixed steps; a blow is described at the very step it lands, with the ball where it was then. */
@@ -375,7 +379,7 @@ export function createExperience(start: ChapterId = 'arrival') {
     if (COLLISION_CLOCK_ACTIONS.has(action.type) && (world !== 'contact' || studyOpen)) return;
     // What changes the picture: the slice, the orbit, the physics clock — or a replay, which says so itself.
     lastCause = kindOf(action) === 'view' ? { kind: 'slice' } : world === 'turn' ? { kind: 'orbit' } : { kind: 'physics' };
-    strikeSaid = null;
+    strikeSaid = false;
     const said = sequence;
     mark(action);
     switch (action.type) {

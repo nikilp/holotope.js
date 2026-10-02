@@ -268,10 +268,10 @@ export function eventLine(
 }
 
 /**
- * What a body's change in the same step as the blow left it as, in a few words: the blow's line has said
- * what happened, so the cause is not repeated.
+ * What a body's change left it as, in a few words, said after a line that has already said what happened —
+ * the blow's, or another body's change in the same action — so the cause is not repeated.
  */
-export function stateAfterBlow(
+export function briefState(
   kind: 'appeared' | 'entered' | 'face' | 'vanished' | 'crossed' | 'touching', name: string, gap: number, meeting: Meeting
 ): string {
   if (kind === 'vanished' || kind === 'crossed') return `The ${name.toLowerCase()} now lies ${side(gap)} of your slice.`;
@@ -400,7 +400,7 @@ export function hint(chapter: string, seen: Seen, now: HintModel): string {
       if (!now.boxInSlice) {
         return now.boxReachable
           ? 'The box is turning beyond your slice now. Slide your slice back to it to watch its slice change width as it turns.'
-          : 'The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane, or replay to just after the blow, to watch its slice change width as it turns.';
+          : 'The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane, or press Just before the blow and step on, to watch its slice change width as it turns.';
       }
       return 'Its slice changes width as it turns; the box itself is rigid. Chapter V turns the same box by hand.';
     case 'turning':
