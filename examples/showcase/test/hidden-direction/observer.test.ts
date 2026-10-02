@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { createExperience, type Action, type ChapterId } from '../../src/hidden-direction/experience.js';
-import { keyAction } from '../../src/hidden-direction/bindings.js';
+import { keyAction, sliderKey } from '../../src/hidden-direction/bindings.js';
 import { stripComments } from '../spatial-4d-contact/source-pins.js';
 
 /**
@@ -300,10 +300,22 @@ describe('keyboard steps that come back to zero land on zero; a drag is never sn
       const v = x.view(null);
       expect([Object.is(v.cut.offset, 0), Object.is(v.cut.degrees, 0)], JSON.stringify(seq)).toEqual([true, true]);
     }
+    // The same through the focused gauge's and map's own keys, as the page sends them.
+    const own: ['gauge' | 'map', string, boolean, number][][] = [
+      [['gauge', 'ArrowUp', false, 3], ['gauge', 'ArrowLeft', false, 3]],
+      [['gauge', 'ArrowRight', true, 4], ['gauge', 'ArrowDown', false, 40]],
+      [['map', 'ArrowRight', true, 3], ['map', 'ArrowDown', true, 3]],
+      [['map', 'ArrowUp', false, 17], ['map', 'ArrowLeft', true, 1], ['map', 'ArrowLeft', false, 7]]
+    ];
+    for (const seq of own) {
+      for (const [instrument, key, shift, times] of seq) for (let k = 0; k < times; k++) x.dispatch(sliderKey(instrument, key, shift)!);
+      const v = x.view(null);
+      expect([Object.is(v.cut.offset, 0), Object.is(v.cut.degrees, 0)], JSON.stringify(seq)).toEqual([true, true]);
+    }
     x.dispose();
   });
 
-  it('a small displacement made on purpose is kept, and steps around it do not erase it', () => {
+  it('a displacement of 0.003 made on purpose is kept, and steps around it do not erase it; a drag is never snapped, even below 10⁻¹²', () => {
     const x = createExperience('cuts');
     x.dispatch({ type: 'cut-offset', value: 0.003 });
     send(x, 'ArrowUp', false, 3);

@@ -9,7 +9,7 @@ import { STUDY_PLANES, type StudyMode } from '../spatial-4d-contact/study.js';
 import { ContactWorld, TurnWorld, type BodyReading } from './worlds.js';
 import {
   AT_ZERO, EMPTY_HEADLINE, GAUGE_LEGEND, PLANE_LEGEND, SHADOW_LEGEND, absentReason, caption, clockName, drawingNote, eventLine,
-  hint, planeNote, pivotLine, side, strikeLine, type Cause, type StrikeObservation
+  hint, planeNote, pivotLine, replayLine, side, strikeLine, type Cause, type StrikeObservation
 } from './copy.js';
 import { FaceShadow } from './identity.js';
 import { PLANE_EXTENT, chordOf, lineOf } from './plane.js';
@@ -218,7 +218,7 @@ export function createExperience(start: ChapterId = 'arrival') {
   let lastCause: Cause = { kind: 'slice' };
   /** The latest blow you saw in this run, with the slice you saw it with. Null until one is shown. */
   let strike: StrikeObservation | null = null;
-  /** A replay in this action landed on the blow and said so; that line stands over the status changes it caused. */
+  /** The blow was shown in this action and said so; that line stands over the status changes of the same action. */
   let strikeSaid = false;
   /** Whether the orbit meets the turning world's slice, cached against the slice it was computed for. */
   let orbitCache: { theta: number; offset: number; meets: boolean } | null = null;
@@ -252,7 +252,8 @@ export function createExperience(start: ChapterId = 'arrival') {
       const before = lastStatus.get(key);
       if (before === undefined || before === now || strikeSaid) continue;
       if (now === 'present') {
-        event = { line: eventLine('appeared', b.name, b.gap, lastCause, b.meeting), at: ++sequence };
+        // From a boundary meeting the slice met the body already: only the cut's drawing is new.
+        event = { line: eventLine(before === 'tangent' ? 'entered' : 'appeared', b.name, b.gap, lastCause, b.meeting), at: ++sequence };
         seen.add('appeared');
         // Credit the visitor only for an appearance their own slice move caused, and only for the latest one.
         if (lastCause.kind === 'slice') seen.add('found');
@@ -325,6 +326,7 @@ export function createExperience(start: ChapterId = 'arrival') {
     const ball = contactWorld.bodies().find((b) => b.id === 'ball')!;
     strike = { step: contactWorld.sim.steps, gap: ball.gap, offset: contactKnife.offset, degrees: deg(contactKnife.theta) };
     event = { line: strikeLine(ball.gap, replayedTo), at: ++sequence };
+    strikeSaid = true;
   }
 
   /** Step the physics clock n fixed steps; a blow is described at the very step it lands, with the ball where it was then. */
@@ -346,7 +348,7 @@ export function createExperience(start: ChapterId = 'arrival') {
     contactWorld.replayTo(steps);
     lastCause = { kind: 'replay', step: contactWorld.sim.steps };
     if (contactWorld.sim.impacts === 0) strike = null;
-    else if (contactWorld.sim.steps === contactWorld.impactStep()) { observeStrike(contactWorld.sim.steps); strikeSaid = true; }
+    else if (contactWorld.sim.steps === contactWorld.impactStep()) observeStrike(contactWorld.sim.steps);
   }
 
   /** Whether the box is turning now, from the simulation's own angular velocity. */
@@ -360,10 +362,12 @@ export function createExperience(start: ChapterId = 'arrival') {
     // What changes the picture: the slice, the orbit, the physics clock — or a replay, which says so itself.
     lastCause = kindOf(action) === 'view' ? { kind: 'slice' } : world === 'turn' ? { kind: 'orbit' } : { kind: 'physics' };
     strikeSaid = false;
+    const said = sequence;
     mark(action);
     switch (action.type) {
       case 'chapter': enter(action.id); return;
-      case 'world': world = action.world; studyOpen = false; break;
+      // The line on screen was about the world left behind; the new world has said nothing yet.
+      case 'world': world = action.world; studyOpen = false; event = null; break;
       case 'cut-offset': setKnife(setOffset(knife(), action.value)); break;
       // A keyboard step, like any position the page computes, lands on zero when it comes within AT_ZERO
       // of it; a drag is never snapped.
@@ -442,6 +446,10 @@ export function createExperience(start: ChapterId = 'arrival') {
     }
     apply();
     notice();
+    // A replay or a fresh launch is always said: if no body changed in the picture, as itself.
+    if ((lastCause.kind === 'replay' || lastCause.kind === 'launch') && sequence === said) {
+      event = { line: replayLine(lastCause), at: ++sequence };
+    }
   }
 
   /** Remember what the visitor did, for the chapter's next hint. */
@@ -547,6 +555,7 @@ export function createExperience(start: ChapterId = 'arrival') {
         orbitMeets: orbitCache.meets,
         struck: physics && contactWorld.sim.impacts > 0,
         spinning: physics && boxSpinning(),
+        boxInSlice: physics && bodies.some((b) => b.id === 'box' && b.drawn > 0),
         offCentre: physics && contactWorld.presetId === 'off-centre',
         strike: physics && contactWorld.sim.impacts > 0 ? strike : null,
         // Nothing in view and only a replay can bring a body back.

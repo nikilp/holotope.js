@@ -61,7 +61,7 @@ describe('outside the cut: each body is beyond the slice, said with its side and
     x.dispatch({ type: 'cut-offset', value: 1.6 });
     const v = x.view();
     expect(v.empty).not.toBeNull();
-    expect(v.empty!.headline).toBe('Your slice cuts nothing in view — and nothing has gone.');
+    expect(v.empty!.headline).toBe('No cut is drawn in view — and nothing has gone.');
     const box = v.bodies.find((b) => b.id === 'box')!;
     const ball = v.bodies.find((b) => b.id === 'ball')!;
     expect([box.status, box.drawn, ball.status, ball.drawn]).toEqual(['outside', 0, 'outside', 0]);
@@ -403,12 +403,12 @@ describe('a marker on screen is named, and never read as a cut', () => {
     x.dispose();
   });
 
-  it('the empty headline stays true with a marker on screen: the slice cuts nothing in view', () => {
+  it('the empty headline stays true with a marker on screen: no cut is drawn in view', () => {
     // Chapter III at the top of the slider's reach: both bodies outside, nothing cut.
     const x = createExperience('collision');
     x.dispatch({ type: 'cut-offset', value: 1.6 });
     const v = x.view();
-    expect(v.empty!.headline).toBe('Your slice cuts nothing in view — and nothing has gone.');
+    expect(v.empty!.headline).toBe('No cut is drawn in view — and nothing has gone.');
     expect(v.bodies.every((b) => b.drawn === 0)).toBe(true);
     x.dispose();
   });

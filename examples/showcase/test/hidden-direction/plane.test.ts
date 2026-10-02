@@ -17,10 +17,13 @@ import { BOX, type PresetId } from '../../src/spatial-4d-contact/simulation.js';
  * word on membership: a chord is drawn through a footprint exactly when the
  * accepted section modules say the body is not outside the slice.
  *
- * The library classifies with its sectioner tolerance (|signed distance| ≤
- * 10⁻⁹ is on the slice); the copy promises the same word ("touching … within
- * 10⁻⁹"). So the agreement asserted here is with that tolerance, not with
- * exact-sign arithmetic.
+ * Since the review's N1.1 the view passes that word to `chordOf` (`meets`), so
+ * the drawn chord's presence holds by construction, and the grid tests check
+ * that wiring. They also check, separately, the footprint arithmetic's own
+ * answer (`chordOf` with no `meets`), which uses the sectioner tolerance
+ * (|signed distance| ≤ 10⁻⁹ is on the slice): it agrees with the library over
+ * both grids, which do not sit on the band's edge. At the edge it can disagree
+ * by rounding, and the pinned case below shows it.
  *
  * What this file does not prove: the cut's shape (that needs y and z), the
  * map's drawing in `app.ts`, or how a pointer drag becomes a turn or a slide.
@@ -184,6 +187,13 @@ function disagreements(samples: readonly Sample[]): string[] {
     .map((s) => `${s.at}: ${s.id} is ${s.status}, map ${s.chord === null ? 'draws no chord' : 'draws a chord'}`);
 }
 
+/** The footprint arithmetic's own answer, without the library's word, against the library's status. */
+function arithmeticDisagreements(samples: readonly Sample[]): string[] {
+  return samples
+    .filter((s) => s.line !== null && (chordOf(s.footprint, s.line) !== null) !== (s.status !== 'outside'))
+    .map((s) => `${s.at}: ${s.id} is ${s.status}, the arithmetic alone says ${s.status === 'outside' ? 'it meets' : 'it misses'}`);
+}
+
 /* -------------------------------------------------------------------------- */
 
 describe('the convex hull keeps exactly the corners, counter-clockwise', () => {
@@ -298,6 +308,7 @@ describe('the map agrees with the library about membership', () => {
     const words = new Set(samples.map((s) => `${s.id}:${s.status}`));
     for (const w of ['block:present', 'block:tangent', 'companion:present', 'companion:outside']) expect(words.has(w), w).toBe(true);
     expect(disagreements(samples)).toEqual([]);
+    expect(arithmeticDisagreements(samples)).toEqual([]);
   }, 30_000);
 
   it('contact world: both launches at 0, impact − 1, impact, impact + 60 and impact + 240 steps — 4 250 poses (2 × 5 × 25 × 17), 8 500 readings — a chord exactly when the body is not outside', () => {
@@ -311,6 +322,7 @@ describe('the map agrees with the library about membership', () => {
     const words = new Set(samples.map((s) => `${s.id}:${s.status}`));
     for (const w of ['box:present', 'box:outside', 'box:tangent', 'ball:present', 'ball:outside']) expect(words.has(w), w).toBe(true);
     expect(disagreements(samples)).toEqual([]);
+    expect(arithmeticDisagreements(samples)).toEqual([]);
   }, 30_000);
 
   it('just before the blow, a slice on the box’s +w face meets the ball the library calls touching — and the map draws it a chord', () => {

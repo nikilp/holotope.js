@@ -218,12 +218,12 @@ describe('the blow is said at the step it lands, with the ball where it was then
 });
 
 describe('the jumps and Step back are replays from launch', () => {
-  it('jump-touch lands one step before the blow, with no impact and nothing said; one Step then says the strike', () => {
+  it('jump-touch lands one step before the blow, with no impact, said as a replay; one Step then says the strike', () => {
     const x = createExperience('collision');
     x.dispatch({ type: 'jump-touch' });
     expect(x.worlds.contact.sim.steps).toBe(72);
     expect(x.worlds.contact.sim.impacts).toBe(0);
-    expect(x.view().event).toBeNull();
+    expect(x.view().event).toBe('The run was replayed from launch to step 72.');
     expect(physics(x.worlds.contact.sim)).toEqual(physics(ContactSimulation.atStep(preset('central'), 72)));
     x.dispatch({ type: 'step' });
     expect(x.worlds.contact.sim.steps).toBe(73);

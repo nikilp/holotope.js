@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { VecN } from '@holotope/core';
 import { describe, expect, it } from 'vitest';
 import { createExperience } from '../../src/hidden-direction/experience.js';
@@ -45,7 +48,7 @@ describe('the reference limits: the block’s ±w faces, met whole, drawn from o
     const x = createExperience('cuts');
     const down = keyAction('ArrowDown', true, { playing: false, shadowOn: false, studyPlaying: false, facesCut: [], face: null })!;
     for (let k = 0; k < 8; k++) x.dispatch(down as Exclude<typeof down, string>);
-    // Eight steps of 0.2 land 1.1·10⁻¹⁶ short of the limit — far inside the sectioner's 10⁻⁹, so the slice lies on the face.
+    // Eight steps of 0.2 land one ulp (2.2·10⁻¹⁶) short of the limit — far inside the sectioner's 10⁻⁹, so the slice lies on the face.
     expect(x.view().cut.offset).toBeCloseTo(-1.6, 15);
     const block = body(x, 'block');
     // 1. Whether the slice meets it: the library's word.
@@ -241,5 +244,24 @@ describe('the gauge’s own keys reach the reference limit too', () => {
     expect(body(x, 'block').status).toBe('tangent');
     expect(body(x, 'block').caption).toContain('its −w face, a solid 4.40 × 2.60 × 1.60 cuboid');
     x.dispose();
+  });
+});
+
+describe('the old claim does not return at its other claim sites', () => {
+  // A text check of prose, not of the page: the visitor guide, the evidence page's section on this
+  // experience, and the rules at the head of the copy module, where the review found the claim too.
+  const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
+  const read = (path: string): string => readFileSync(join(root, path), 'utf8').replace(/\s+/g, ' ');
+  it('the guide, the evidence page and the copy rules say the boundary meeting can be solid, and never “not a solid”', () => {
+    const guide = read('docs/learn/the-hidden-direction.md');
+    const evidence = read('docs/learn/spatial-sections-and-contact.md');
+    const copy = read('examples/showcase/src/hidden-direction/copy.ts');
+    for (const [name, text] of [['guide', guide], ['evidence page', evidence], ['copy.ts', copy]] as const) {
+      expect(text, name).not.toMatch(/not a solid|draws solids only|only solids are drawn|nothing solid is drawn|face, an edge or a point/);
+    }
+    expect(guide).toContain("the block's whole −w face, a 4.4 × 2.6 × 1.6 cuboid");
+    expect(guide).toContain('never drawn, whichever side the ball lies on');
+    expect(evidence).toContain('solid 4.4 × 2.6 × 1.6 cuboid');
+    expect(copy).toContain("A slice lying on a box's 3-face meets it in a solid cuboid");
   });
 });

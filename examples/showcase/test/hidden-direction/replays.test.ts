@@ -20,9 +20,11 @@ import { homeCamera } from '../../src/hidden-direction/stage.js';
  * narrated as one — never as motion — and the physics clock's own steps are
  * narrated as motion (C5).
  *
- * Every action here is the one the page sends: a button's `act` from the
- * binding table, an instrument's `act`, or a recovery's `action` from the
- * empty view.
+ * Every action here is one the page sends: a button's `act` from the binding
+ * table, an instrument's `act`, or a recovery's `action` from the empty view.
+ * The C3 test reaches *Replay to just after the blow* as the page offers it,
+ * from a stranded view; other tests send that recovery's action (`jump-after`)
+ * directly, from states where the page would not yet offer it.
  */
 
 type Experience = ReturnType<typeof createExperience>;
@@ -187,6 +189,21 @@ describe('chapter IV says the box is turning only while it is', () => {
   });
 });
 
+describe('chapter IV’s last hint speaks of the box’s slice only while the box is in the slice', () => {
+  it('slid off the turning box after Freeze, the hint says it turns beyond the slice, and how to see its slice again', () => {
+    const x = createExperience('spin');
+    playUntil(x, () => steps(x) >= 120);
+    press(x, 'hd-freeze');
+    expect(x.view().hint).toBe('Its slice changes width as it turns; the box itself is rigid. Chapter V turns the same box by hand.');
+    x.dispatch(INSTRUMENTS.gauge.act(1.5));
+    expect(box(x).drawn).toBe(0);
+    expect(x.view().hint).toBe('The box is turning beyond your slice now. Slide your slice back to it to watch its slice change width as it turns.');
+    x.dispatch(INSTRUMENTS.gauge.act(0));
+    expect(x.view().hint).toMatch(/^Its slice changes width/);
+    x.dispose();
+  });
+});
+
 describe('a replay is narrated as a replay; a step of the clock as motion', () => {
   it('the box carried out of the slice by physics is said to have moved; Replay launch brings it back, said as a replay', () => {
     const x = createExperience('collision');
@@ -217,7 +234,7 @@ describe('a replay is narrated as a replay; a step of the clock as motion', () =
     x.dispose();
   });
 
-  it('no replay path, from any of several states, narrates motion', () => {
+  it('no replay path, from any of several states, narrates motion — and every one is said', () => {
     const paths: (readonly string[])[] = [['hd-replay'], ['hd-jump'], ['hd-step-back'], ['hd-preset-a'], ['hd-preset-b']];
     let said = 0;
     for (const offset of [0, 1.2, -1.1]) {
@@ -232,16 +249,34 @@ describe('a replay is narrated as a replay; a step of the clock as motion', () =
             else press(x, id);
           }
           const v = x.view();
-          if (v.eventId !== before) {
-            said++;
-            expect(v.event, `${offset}/${until}/${path}`).toMatch(/replayed from launch|started afresh/i);
-            expect(v.event, `${offset}/${until}/${path}`).not.toMatch(/\bit moved\b|prescribed orbit|you moved/);
-          }
+          expect(v.eventId, `${offset}/${until}/${path}: said`).toBeGreaterThan(before);
+          said++;
+          expect(v.event, `${offset}/${until}/${path}`).toMatch(/replayed from launch|started afresh/i);
+          expect(v.event, `${offset}/${until}/${path}`).not.toMatch(/\bit moved\b|prescribed orbit|you moved/);
           x.dispose();
         }
       }
     }
-    expect(said, 'replays changed the picture often enough to be heard').toBeGreaterThan(10);
+    expect(said).toBe(3 * 3 * 6);
+  });
+
+  it('a replay or launch that changes nothing else is said as itself, and the old run’s blow line goes', () => {
+    // At the untilted slice through the centre, before and after these replays the box is in the slice and the
+    // ball beyond it: no body changes, so only the replay itself can be said.
+    for (const [id, line] of [
+      ['hd-replay', 'The run was replayed from launch to step 0.'],
+      ['hd-jump', 'The run was replayed from launch to step 72.'],
+      ['hd-preset-b', 'Launch B was started afresh, at step 0.']
+    ] as const) {
+      const x = createExperience('collision');
+      playUntil(x, () => steps(x) >= 100);
+      expect(x.view().event, id).toMatch(/^The box was struck/);
+      const statuses = x.view().bodies.map((b) => b.status);
+      press(x, id);
+      expect(x.view().bodies.map((b) => b.status), `${id}: nothing changed in the picture`).toEqual(statuses);
+      expect(x.view().event, id).toBe(line);
+      x.dispose();
+    }
   });
 });
 
@@ -258,6 +293,49 @@ describe('a body only the camera has lost is never said to have moved', () => {
     expect(v.empty!.reasons.find((r) => r.id === 'block')!.line).toBe('Block is in your slice, but outside the camera’s view.');
     expect(v.cut).toEqual(before.cut);
     expect(x.view(homeCamera(1.6)).empty).toBeNull();
+    x.dispose();
+  });
+});
+
+describe('the event line belongs to the world it was said in', () => {
+  it('switching worlds clears it: the turning world’s orbit line is not left over the contact world, nor the blow over the turning world', () => {
+    const x = createExperience('free');
+    press(x, 'hd-play');
+    for (let k = 0; k < 900 && !(x.view().event ?? '').includes('vanished'); k++) x.dispatch({ type: 'tick', seconds: 1 / 60 });
+    expect(x.view().event).toContain('prescribed orbit');
+    press(x, 'hd-play');
+    press(x, 'hd-world-contact');
+    expect(x.view().event).toBeNull();
+    playUntil(x, () => steps(x) >= 80);
+    expect(x.view().event).toMatch(/^The box was struck/);
+    press(x, 'hd-world-turn');
+    expect(x.view().event).toBeNull();
+    x.dispose();
+  });
+});
+
+describe('leaving a boundary meeting for the interior is not an appearance', () => {
+  it('one step ana-ward from the kata limit: the slice met the block already, so the line says it now passes through and its cut is drawn', () => {
+    const x = createExperience('cuts');
+    x.dispatch(INSTRUMENTS.gauge.act(-1.6));
+    expect(x.view().event).toContain('now meets your slice only on its boundary');
+    x.dispatch({ type: 'cut-nudge', delta: 0.02 });
+    expect(x.view().event).toBe('Block now passes through your slice — you moved your slice, and its cut is drawn.');
+    expect(x.view().event).not.toMatch(/appeared/);
+    x.dispose();
+  });
+});
+
+describe('the blow’s line stands over what else changes in the same action', () => {
+  it('stepped through at the box’s +w face, the blow is said, as it is when replayed to the same step', () => {
+    const x = createExperience('collision');
+    x.dispatch(INSTRUMENTS.gauge.act(1));
+    press(x, 'hd-jump');
+    press(x, 'hd-step');
+    expect(steps(x)).toBe(73);
+    expect(x.view().event).toMatch(/^The box was struck/);
+    x.dispatch({ type: 'jump-after' });
+    expect(x.view().event).toMatch(/^Replayed from launch to step 73, the blow: the box was struck there/);
     x.dispose();
   });
 });

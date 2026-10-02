@@ -67,6 +67,15 @@ export function plainReading(value: number, places: number): string {
  */
 export const AT_ZERO = 1e-12;
 
+/**
+ * A signed reading of a value the page derives rather than one you set — a component of the slice's
+ * normal, a body's extent across the slice. Within AT_ZERO of zero it is zero: at a turn of exactly 90°
+ * the normal's w component is cos 90° = 6·10⁻¹⁷ in floating point, which is no displacement at all.
+ */
+export function derivedReading(value: number, places: number): string {
+  return signedReading(Math.abs(value) < AT_ZERO ? 0 : value, places);
+}
+
 /** Which side of your slice a signed gap lies on. */
 export function side(gap: number): 'ana' | 'kata' {
   return gap > 0 ? 'ana' : 'kata';
@@ -94,20 +103,26 @@ export function meetingPhrase(m: Meeting, short = false): string {
   }
 }
 
-/** Why a body the slice meets only on its boundary has nothing drawn — the convention, not the renderer. */
+/**
+ * Why a body the slice meets only on its boundary has nothing drawn. A ball's touch is a single point,
+ * marked but never drawn, whichever side the ball lies on. A box's edge or corner leaves the sectioner
+ * no surface, from either side. A box's 2- or 3-face is drawn or not by the sectioner's convention.
+ */
 function undrawnBecause(m: Extract<Meeting, { kind: 'boundary' }>, name: string): string {
   const it = name.toLowerCase();
   if (m.body === 'ball') return 'A single point has no volume, so only a marker is drawn.';
+  if (m.dim < 2) {
+    return `Nothing is drawn for it, whichever side of your slice the ${it} lies on: `
+      + `${m.dim === 1 ? 'an edge' : 'a single point'} leaves the sectioner no surface to emit.`;
+  }
   if (m.rest === 'ana') {
     return `Nothing is drawn for it. The library’s sectioner cuts only the cells of the ${it} that have a corner `
       + 'strictly kata of your slice, and it counts a corner on your slice as ana; here every corner is on your '
       + 'slice or ana of it, so there is nothing to cut. That is the sectioner’s convention for a slice lying on a '
-      + 'boundary, not the shape of the meeting'
-      + (m.dim >= 2 ? ` — with the ${it} kata of your slice instead, a meeting like this one is drawn.` : '.')
-      + ` A little ana-ward, inside the ${it}, the cut is drawn.`;
+      + `boundary, not the shape of the meeting — with the ${it} kata of your slice instead, a meeting like this one `
+      + `is drawn. A little ana-ward, inside the ${it}, the cut is drawn.`;
   }
-  return `Nothing is drawn for it: the cells with a corner kata of your slice meet it only in `
-    + `${m.dim === 1 ? 'an edge' : 'a point'}, which leaves the sectioner no surface to emit.`;
+  return 'Nothing is drawn for it.';
 }
 
 /**
@@ -174,8 +189,11 @@ export function drawingNote(marker: 'touch' | 'nearest' | null, hollow: boolean)
   return '';
 }
 
-/** The empty view's headline: true whether or not a marker is on screen. */
-export const EMPTY_HEADLINE = 'Your slice cuts nothing in view — and nothing has gone.';
+/**
+ * The empty view's headline: true whether or not a marker is on screen, and when the slice meets a body
+ * whose meeting is not drawn (a solid face at the kata limit is met, not drawn).
+ */
+export const EMPTY_HEADLINE = 'No cut is drawn in view — and nothing has gone.';
 
 /** The short line that defines the gauge, once. */
 export const GAUGE_LEGEND = 'Each bar is a body’s extent across your slice; the line is your slice. '
@@ -228,21 +246,30 @@ function causeClause(cause: Cause): string {
 /**
  * A notable change in the picture, said as what did it. The body's side gets its own clause with the
  * body as subject, so it can never be read as the side the slice moved to; `crossed` is a body that
- * stayed outside the slice but is now on its other side.
+ * stayed outside the slice but is now on its other side. `entered` is a body the slice met only on its
+ * boundary and now passes through: it did not appear, since the slice met it already.
  */
 export function eventLine(
-  kind: 'appeared' | 'vanished' | 'crossed' | 'touching', name: string, gap: number, cause: Cause, meeting: Meeting
+  kind: 'appeared' | 'entered' | 'vanished' | 'crossed' | 'touching', name: string, gap: number, cause: Cause, meeting: Meeting
 ): string {
   const by = causeClause(cause);
   const it = name.toLowerCase();
   switch (kind) {
     case 'appeared': return `${name} appeared — ${by}, and now your slice cuts it.`;
+    case 'entered': return `${name} now passes through your slice — ${by}, and its cut is drawn.`;
     case 'vanished': return `${name} vanished from your slice — ${by}; the ${it} now lies ${side(gap)} of your slice. It has not gone.`;
     case 'crossed': return `${name} is still not in your slice — ${by}; the ${it} now lies ${side(gap)} of your slice.`;
     case 'touching':
-      if (meeting.kind === 'boundary' && meeting.dim === 0) return `${name} is touching your slice at a single point — ${by}. Only a marker is drawn.`;
+      if (meeting.kind === 'boundary' && meeting.body === 'ball') return `${name} is touching your slice at a single point — ${by}. Only a marker is drawn.`;
       return `${name} now meets your slice only on its boundary — ${by}. The meeting is ${meetingPhrase(meeting, true)}; nothing is drawn for it.`;
   }
+}
+
+/** A replay or a fresh launch that changed nothing else in the picture, said as itself. */
+export function replayLine(cause: Extract<Cause, { kind: 'replay' | 'launch' }>): string {
+  return cause.kind === 'replay'
+    ? `The run was replayed from launch to step ${cause.step}.`
+    : `Launch ${cause.name} was started afresh, at step 0.`;
 }
 
 /**
@@ -299,6 +326,8 @@ interface HintModel {
   readonly struck: boolean;
   /** The box is turning now — measured, not assumed from the launch. */
   readonly spinning: boolean;
+  /** The box is drawn in the slice in front. */
+  readonly boxInSlice: boolean;
   /** The launch in front lands its blow off-centre. */
   readonly offCentre: boolean;
   /** The latest blow you saw in this run, with the slice you saw it with; null before one. */
@@ -318,7 +347,7 @@ export function hint(chapter: string, seen: Seen, now: HintModel): string {
     case 'arrival':
       if (!seen.has('played')) return 'Press play. The ball follows a prescribed orbit that takes it through the fourth direction.';
       if (seen.has('found') && now.ballInSlice) return 'Found it: your slice moved to the ball. The ball moves only along its prescribed orbit; your slice moves only when you move it.';
-      if (seen.has('vanished') && !now.ballInSlice) return 'It vanished — it has not gone. Pause, then follow it: drag the bright line on the gauge beside the picture toward the ball’s bar, or press ↑ or ↓. The hidden plane shows where it went.';
+      if (seen.has('vanished') && !now.ballInSlice) return 'It vanished — it has not gone. Pause, then follow it: drag the bright line on the gauge beside the picture toward the ball’s bar, or press ↑ or ↓. The hidden plane shows where it is.';
       if (now.ballInSlice) return 'There it is, in your slice. It is the same rigid ball throughout; only where your slice cuts it changes.';
       if (!now.orbitMeets) return 'Its orbit never meets your slice as it stands. Slide or turn your slice back toward its footprint on the map.';
       if (!now.playing) return 'Press play: the ball’s orbit carries it through your slice.';
@@ -345,6 +374,7 @@ export function hint(chapter: string, seen: Seen, now: HintModel): string {
       if (now.outOfReach) return 'Both bodies have carried on beyond your slice’s reach. Replay to just after the blow to look again.';
       if (!now.spinning) return 'This launch’s blow is central, so the box does not turn. Launch B lands it off-centre.';
       if (!seen.has('frozen')) return 'Freeze, and the shadow lifts: the box is turning in a plane your slice cannot show.';
+      if (!now.boxInSlice) return 'The box is turning beyond your slice now. Slide your slice back to it to watch its slice change width as it turns.';
       return 'Its slice changes width as it turns; the box itself is rigid. Chapter V turns the same box by hand.';
     case 'turning':
       if (!seen.has('studied')) return 'Drag the angle, or press play for the prescribed turn.';
