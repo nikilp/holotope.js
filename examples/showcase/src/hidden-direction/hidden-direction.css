@@ -239,6 +239,10 @@
   .hd-invite { font-size: 16px; line-height: 1.4; }
   .hd-hint { min-height: 0; }
 }
+/* The separate turning scene has no gauge and a longer stated setup: a shorter pinned picture keeps its first action on the first screen. */
+@media (max-width: 999px) {
+  .hd[data-world='study'] .hd-stage { grid-column: 1 / -1; height: 34vh; height: 34svh; min-height: 200px; }
+}
 @media (max-width: 560px) {
   /* Both pages stay one tap away in the card's "What exactly am I seeing?" links. */
   .hd-bar nav a[href*='spatial-sections-and-contact'], .hd-bar nav a[href$='-classic.html'] { display: none; }

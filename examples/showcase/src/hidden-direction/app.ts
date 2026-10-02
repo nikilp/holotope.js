@@ -203,6 +203,7 @@ export function createApp(root: HTMLElement): void {
 
   /* ---------- painting the view model ---------- */
   let shownEvent = 0;
+  let shownChapter: string | null = null;
   function paint(): void {
     view = x.view(stage.camera);
     const scene = view.studyOpen ? 'study' : view.world;
@@ -225,8 +226,12 @@ export function createApp(root: HTMLElement): void {
     el.event.hidden = view.event === null;
 
     for (const button of Array.from(el.chapters.querySelectorAll<HTMLButtonElement>('.hd-chapter'))) {
-      button.setAttribute('aria-current', button.dataset.chapter === view.chapter.id ? 'step' : 'false');
+      const current = button.dataset.chapter === view.chapter.id;
+      button.setAttribute('aria-current', current ? 'step' : 'false');
+      // On a narrow rail, bring the current chapter into view — the rail only, never the page.
+      if (current && shownChapter !== view.chapter.id) el.chapters.scrollLeft = Math.max(0, button.offsetLeft - el.chapters.offsetLeft - 12);
     }
+    shownChapter = view.chapter.id;
     const pressed = (id: string, on: boolean): void => { $(id).setAttribute('aria-pressed', String(on)); };
     const play = $<HTMLButtonElement>('hd-play');
     play.textContent = view.clock.playing ? 'Pause' : view.clock.kind === 'physics' && view.impacts > 0 ? 'Continue' : 'Play';
