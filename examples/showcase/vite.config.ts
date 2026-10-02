@@ -68,6 +68,8 @@ export default defineConfig({
         bicomplexJulia: local('./bicomplex-julia.html'),
         platonicBrots: local('./platonic-brots.html'),
         rigidBody4: local('./rigid-body4.html'),
+        spatial4dTurn: local('./spatial-4d-turn.html'),
+        spatial4dContact: local('./spatial-4d-contact.html'),
         akn: local('./akn.html')
       }
     }

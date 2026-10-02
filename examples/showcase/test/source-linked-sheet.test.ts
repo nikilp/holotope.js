@@ -227,7 +227,8 @@ describe('source-linked sheet — withheld from the built gallery', () => {
       'physics-browser.html', 'platonic-brots.html', 'playground.html',
       'polychora.html', 'polytope-browser.html', 'product-browser.html',
       'provenance-browser.html', 'quaternion-julia.html', 'rigid-body4.html',
-      'scene.html', 'tesseract.html', 'wythoff.html'
+      'scene.html', 'spatial-4d-contact.html', 'spatial-4d-turn.html',
+      'tesseract.html', 'wythoff.html'
     ]);
     expect(built).not.toContain('source-linked-sheet.html');
 
@@ -245,7 +246,7 @@ describe('source-linked sheet — withheld from the built gallery', () => {
     const linked = [...new Set(
       [...gallery.matchAll(/href="\.\/([a-z0-9-]+\.html)"/g)].map((match) => match[1]!)
     )].sort();
-    expect(linked.length).toBe(20);
+    expect(linked.length).toBe(22);
     expect(linked.filter((page) => !built.includes(page))).toEqual([]);
     expect(linked).not.toContain('source-linked-sheet.html');
   });
