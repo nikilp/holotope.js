@@ -13,8 +13,9 @@ check it yourself, is in
 The world has four directions: x, y, z and w. Your screen shows a **slice** of
 it — the three-dimensional set of points where a hyperplane crosses the world —
 drawn in solid colour. A body appears only where the slice cuts it, so a body
-can vanish from the picture and still be there: either it moved, or you moved
-the slice, along a direction the slice cannot show. A body can also be cut and
+can vanish from the picture and still be there: it moved, or you moved the
+slice, along a direction the slice cannot show, or the physics clock was
+replayed to an instant where it lay elsewhere. A body can also be cut and
 simply outside the camera's view. The page says which of these happened.
 
 Two words name that direction once, against your slice. **Ana** is the side the
@@ -49,8 +50,9 @@ Two shadows that overlap are not touching.
 
 Hold Shift with an arrow key for a step ten times larger. Moving the slice or the
 camera never changes the world: no body moves because of it, and no clock starts,
-stops or steps. When a body vanishes, the line in the picture says what moved —
-the body, or your slice — and on which side of your slice the body now lies.
+stops or steps. When a body vanishes, the line in the picture says what happened
+— the body moved, you moved your slice, or the run was replayed — and on which
+side of your slice the body now lies.
 
 ## The chapters
 
@@ -105,15 +107,18 @@ causes, and the page names which one applies:
   reach it. If the struck bodies have carried on beyond the slider's reach,
   *Replay to just after the blow* replays the physics clock from the launch.
 - **Meeting your slice only on its boundary.** Within 10⁻⁹, your slice lies on
-  part of the body's surface. That part can still be solid. At the slider's kata
-  limit, −1.6, your slice lies on the block's whole −w face, a 4.4 × 2.6 × 1.6
-  cuboid. A turned slice can meet the contact box in a flat rectangle, and a
-  ball only ever touches at a single point. Nothing is drawn for such a meeting
-  when the body lies on the ana side of your slice. This is the convention of
-  the library's sectioner, not a property of the meeting: it cuts only the cells
-  that have a corner strictly kata of your slice, and it counts a corner on the
-  slice as ana. From the kata side the same kind of meeting is drawn: at +1.6,
-  the block's +w face. The page says what the meeting is and what was drawn.
+  part of a box's surface, or touches a ball. The page says what the meeting is
+  and what was drawn.
+  - A box's face can still be solid. At the slider's kata limit, −1.6, your
+    slice lies on the block's whole −w face, a 4.4 × 2.6 × 1.6 cuboid. A turned
+    slice can meet the contact box in a flat rectangle. Nothing is drawn for
+    such a face when the box lies on the ana side of your slice. That is the
+    convention of the library's sectioner, not a property of the meeting: it
+    cuts only the cells that have a corner strictly kata of your slice, and it
+    counts a corner on the slice as ana. From the kata side the same kind of
+    face is drawn: at +1.6, the block's +w face.
+  - A ball only ever touches at a single point. A point has no volume, so it is
+    never drawn, whichever side the ball lies on; a small marker shows where.
 - **Outside the camera's view.** The body is in your slice but out of frame.
   *Turn the camera to it* moves the camera only.
 - **Not drawn.** The body is in your slice by the library's test, but the

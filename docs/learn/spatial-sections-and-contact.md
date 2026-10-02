@@ -139,7 +139,10 @@ chapter III, and `#arrival`, `#cuts`, `#collision`, `#spin`, `#turning` or
 `examples/showcase/src/hidden-direction/`, and tests in
 `examples/showcase/test/hidden-direction/`.
 
-It composes the modules above and adds no geometry or physics of its own.
+It composes the modules above and adds no physics of its own. Its only
+geometry is read from their posed corners and centres: each body's footprint
+on the x–w plane, the chord the slice cuts through it, and what the slice
+meets on a body's boundary.
 
 - **One owner per scene.** `worlds.ts` holds one instance each of the turning
   scene's section products and projection context, and of the contact page's
@@ -152,10 +155,10 @@ It composes the modules above and adds no geometry or physics of its own.
   only the separate turning scene. A *chapter* action establishes its stated
   turn, offset, launch and phase in full. Each guided chapter, I to V,
   re-establishes its stated state, unlike the classic guided stages (see the
-  limits below). Free exploration keeps everything as it was, and chapter V
-  leaves the collision as it was. While the turning scene is open, slice
-  actions and the collision's clock are refused. A clock advances only with
-  its world in front.
+  limits below). Free exploration keeps everything as it was. Chapter V
+  pauses the collision's clock and changes nothing else of it. While the
+  turning scene is open, slice actions and the collision's clock are refused.
+  A clock advances only with its world in front.
 - **The hidden plane.** `plane.ts` flattens each body onto the x–w plane along
   y and z: the convex hull of its posed corners, or a disc. The slice is the
   line n·q = offset. While the normal n lies in the x–w plane, n·p reads only
@@ -187,8 +190,9 @@ pages:
   draw in view, on a sampled grid of turns, offsets and orbit phases at aspect
   ratios from 0.56 (phones) to 2.2. When the struck box drifts out of frame,
   the page says so and offers a camera-only recovery.
-- **Phone layout.** On a narrow screen the picture stays pinned while the
-  instruments scroll beneath it.
+- **Phone layout.** On a narrow screen held upright, the picture stays pinned
+  while the card and the instruments scroll beneath it. On a phone held
+  sideways, the picture stays pinned on the left and they scroll beside it.
 - **Small distances.** A body in the slice never prints 0.00, and no reading
   prints a signed zero: a non-zero value under the last place prints as its
   bound ("under 0.005"), and an exact zero prints without a sign. A keyboard
@@ -262,7 +266,7 @@ These pins read the shipped page and module text. They prove the code says
 something, not that it runs: the repository has no DOM test environment.
 Behaviour in a browser needs genuine input.
 
-The Hidden Direction's suite holds 795 tests in 13 files. They drive the
+The Hidden Direction's suite holds 802 tests in 13 files. They drive the
 controller through the same entry point the page uses, and their oracles are
 independent: fresh instances, closed forms and literals. They do not drive the
 page's own wiring of controls to that entry point (`app.ts`), which needs a
@@ -281,7 +285,8 @@ suite.
   read with the dimensions of the meeting and with what was drawn. So are
   turned and posed faces of the contact box, and a touching ball.
 - **Replays and blows.** Strike hints, replays and new launches are driven
-  through the page's own button bindings, at retained offsets.
+  through the page's own button bindings and the empty view's replay action,
+  at retained offsets.
 - **Identity, absence and the observer.** The tests cover face identity across
   the slice and the shadow, the four empty-view causes and their recoveries,
   and the observer note read from the live slice. The note is also pinned on
