@@ -145,8 +145,8 @@ export function createApp(root: HTMLElement): void {
       send(INSTRUMENTS.turn.act((a * 180) / Math.PI));
     } else {
       // The offset under the pointer, through the slice's normal without its round-off: at a turn of exactly
-      // 90° the normal's w component is cos 90° = 6·10⁻¹⁷, which would leave a pointer on the centre column a
-      // few 10⁻¹⁶ off the centre point. (+ 0 turns a −0 into 0.)
+      // 90° the normal's w component is 2.2·10⁻¹⁶ (2⁻⁵², from the library's rotor transport), which would leave a
+      // pointer on the centre column a few 10⁻¹⁶ off the centre point. (+ 0 turns a −0 into 0.)
       const [nx, nw] = line.n.map((v) => (Math.abs(v) < AT_ZERO ? 0 : v));
       send(INSTRUMENTS.slide.act(nx! * px + nw! * pw + 0));
     }
@@ -457,18 +457,17 @@ export function createApp(root: HTMLElement): void {
       tags.push(`<span class="hd-tag hd-tag--marker" style="left:${left}px;top:${top}px;--c:${b.colour}">${b.name} · ${what}</span>`);
     }
     el.labels.innerHTML = tags.join('');
-    if (el.event.hidden) return;
-    // No text over text: a tag under the event line tries below its body, then just below the line, and
-    // takes the first place clear of both the line and the camera's controls.
-    const line = el.event.getBoundingClientRect();
-    const blocks = [line, el.camera.getBoundingClientRect()];
+    // No text over text: a tag under the camera's controls, or under the event line while one is shown, tries
+    // below its body, then just below the line, and takes the first place clear of both.
+    const line = el.event.hidden ? null : el.event.getBoundingClientRect();
+    const blocks = line ? [line, el.camera.getBoundingClientRect()] : [el.camera.getBoundingClientRect()];
     const clear = (t: DOMRect): boolean => blocks.every((o) => t.right <= o.left || t.left >= o.right || t.bottom <= o.top || t.top >= o.bottom);
     for (const tag of Array.from(el.labels.querySelectorAll<HTMLElement>('.hd-tag'))) {
       if (clear(tag.getBoundingClientRect())) continue;
       const original = tag.style.top;
       const places: [string, string][] = [
         ...(tag.dataset.below !== undefined ? [['hd-tag--below', `${tag.dataset.below}px`] as [string, string]] : []),
-        ['hd-tag--clear', `${line.bottom - r.top + 6}px`]
+        ...(line ? [['hd-tag--clear', `${line.bottom - r.top + 6}px`] as [string, string]] : [])
       ];
       let placed = false;
       for (const [cls, top] of places) {
