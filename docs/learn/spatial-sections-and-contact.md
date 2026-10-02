@@ -139,10 +139,12 @@ chapter III, and `#arrival`, `#cuts`, `#collision`, `#spin`, `#turning` or
 `examples/showcase/src/hidden-direction/`, and tests in
 `examples/showcase/test/hidden-direction/`.
 
-It composes the modules above and adds no physics of its own. Its only
-geometry is read from their posed corners and centres: each body's footprint
-on the x–w plane, the chord the slice cuts through it, and what the slice
-meets on a body's boundary.
+It composes the modules above and adds no physics of its own. The geometry it
+computes is read from their posed corners, centres and drawn bounds: each
+body's extent and gap across the slice, its footprint on the x–w plane, the
+chord the slice cuts through it, and what the slice meets on a body's
+boundary. It also samples whether the orbit meets the slice, and tests drawn
+bounds against the camera's view.
 
 - **One owner per scene.** `worlds.ts` holds one instance each of the turning
   scene's section products and projection context, and of the contact page's
@@ -190,14 +192,18 @@ pages:
   draw in view, on a sampled grid of turns, offsets and orbit phases at aspect
   ratios from 0.56 (phones) to 2.2. When the struck box drifts out of frame,
   the page says so and offers a camera-only recovery.
-- **Phone layout.** On a narrow screen held upright, the picture stays pinned
-  while the card and the instruments scroll beneath it. On a phone held
-  sideways, the picture stays pinned on the left and they scroll beside it.
+- **Phone layout.** On a narrow screen held upright, the picture and its gauge
+  stay pinned while the card, the chapters and the hidden plane scroll beneath
+  them. On a phone held sideways, they stay pinned on the left and the rest
+  scrolls beside them.
 - **Small distances.** A body in the slice never prints 0.00, and no reading
   prints a signed zero: a non-zero value under the last place prints as its
   bound ("under 0.005"), and an exact zero prints without a sign. A keyboard
   step, or a slide to a body, that comes within 10⁻¹² of zero lands on zero; a
-  drag is kept as given.
+  drag is kept as given. A value the page derives — a component of the
+  normal, a body's extent — prints as zero within 10⁻¹², and the map's slide
+  reads the normal without components under 10⁻¹². At a turn of exactly 90°
+  the normal's w component is 2.2·10⁻¹⁶.
 - **Absence wording.** One vocabulary describes absence, and the clock line
   says when it is paused.
 
@@ -266,7 +272,7 @@ These pins read the shipped page and module text. They prove the code says
 something, not that it runs: the repository has no DOM test environment.
 Behaviour in a browser needs genuine input.
 
-The Hidden Direction's suite holds 802 tests in 13 files. They drive the
+The Hidden Direction's suite holds 808 tests in 13 files. They drive the
 controller through the same entry point the page uses, and their oracles are
 independent: fresh instances, closed forms and literals. They do not drive the
 page's own wiring of controls to that entry point (`app.ts`), which needs a

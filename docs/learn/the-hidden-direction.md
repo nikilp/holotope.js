@@ -15,7 +15,7 @@ it — the three-dimensional set of points where a hyperplane crosses the world 
 drawn in solid colour. A body appears only where the slice cuts it, so a body
 can vanish from the picture and still be there: it moved, or you moved the
 slice, along a direction the slice cannot show, or the physics clock was
-replayed to an instant where it lay elsewhere. A body can also be cut and
+replayed or launched afresh to an instant where it lay elsewhere. A body can also be cut and
 simply outside the camera's view. The page says which of these happened.
 
 Two words name that direction once, against your slice. **Ana** is the side the
@@ -51,8 +51,10 @@ Two shadows that overlap are not touching.
 Hold Shift with an arrow key for a step ten times larger. Moving the slice or the
 camera never changes the world: no body moves because of it, and no clock starts,
 stops or steps. When a body vanishes, the line in the picture says what happened
-— the body moved, you moved your slice, or the run was replayed — and on which
-side of your slice the body now lies.
+— the body moved, you moved your slice, or the run was replayed or launched
+afresh — and on which side of your slice the body now lies. When that happens
+in the same moment as the blow, the blow is said first and the body's side
+after it.
 
 ## The chapters
 
