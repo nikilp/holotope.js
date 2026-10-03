@@ -189,8 +189,8 @@ interface EventNote { readonly line: string; readonly at: number }
  * What an event line can assert about a body, as a key: whether the slice meets it (the library's status, with
  * the side for a body outside it), whether its cut is drawn, and the meeting a line names — its kind and, on the
  * boundary, the face's dimension and name. A change between passing through a box and lying on its face keeps
- * the status `present`, yet the line names one or the other, so it is a change. Side lengths are left out: no
- * line names them, and they vary continuously. Two readings with one key are one observation, said once.
+ * the status `present`, yet the line names one or the other, so it is a change. Side lengths and the renderer's
+ * primitive count are left out: no line names them. Two readings with one key are one observation, said once.
  */
 function standing(b: BodyReading): string {
   if (b.status === 'outside') return `outside:${side(b.gap)}`;
@@ -258,8 +258,7 @@ export function createExperience(start: ChapterId = 'arrival') {
   function notice(): void {
     const bodies = readBodies();
     const next = new Map<string, string>();
-    const lines: string[] = [];
-    const after: string[] = [];
+    const changes: { line: string; brief: string | null; status: boolean }[] = [];
     for (const b of bodies) {
       const key = `${world}:${b.id}`;
       // A body the library places in the slice but the renderer draws nothing for is neither "appeared" nor "vanished".
@@ -291,21 +290,29 @@ export function createExperience(start: ChapterId = 'arrival') {
       }
       else if (now.startsWith('tangent')) kind = 'touching';
       else continue;
-      lines.push(eventLine(kind, b.name, b.gap, lastCause, b.meeting));
       // After the blow's line, the ball's state is left out where that line already gives it.
       const inSlice = kind === 'appeared' || kind === 'entered' || kind === 'face';
       const told = strikeSaid && strike !== null && ball
         && ((inSlice && strike.gap === 0) || ((kind === 'vanished' || kind === 'crossed') && strike.gap !== 0 && side(strike.gap) === side(b.gap)));
-      if (!told) after.push(briefState(kind, b.name, b.gap, b.meeting));
+      changes.push({
+        line: eventLine(kind, b.name, b.gap, lastCause, b.meeting),
+        brief: told ? null : briefState(kind, b.name, b.gap, b.meeting),
+        // Whether the status changed (with the side, outside), or only the meeting a line names.
+        status: before.split('|')[0] !== now.split('|')[0]
+      });
     }
     lastStatus = next;
-    if (lines.length === 0) return;
+    if (changes.length === 0) return;
     // Every change is said: after the blow's line when one was said in this action, otherwise after the first
-    // change's own line, each as what it left the body as.
+    // change's own line, each as what it left the body as. A change of status leads, and a change of the meeting
+    // alone — between passing through a box and lying on its face — follows it, so a ball that appears or vanishes
+    // in the same action is said as itself.
+    changes.sort((p, q) => Number(q.status) - Number(p.status));
+    const after = changes.flatMap((c) => (c.brief === null ? [] : [c.brief]));
     if (strikeSaid && event !== null) {
       if (after.length > 0) event = { line: `${event.line} ${after.join(' ')}`, at: event.at };
     } else {
-      event = { line: [lines[0]!, ...after.slice(1)].join(' '), at: ++sequence };
+      event = { line: [changes[0]!.line, ...changes.slice(1).flatMap((c) => (c.brief === null ? [] : [c.brief]))].join(' '), at: ++sequence };
     }
   }
 

@@ -272,7 +272,7 @@ These pins read the shipped page and module text. They prove the code says
 something, not that it runs: the repository has no DOM test environment.
 Behaviour in a browser needs genuine input.
 
-The Hidden Direction's suite holds 826 tests in 14 files. They drive the
+The Hidden Direction's suite holds 833 tests in 14 files. They drive the
 controller through the same entry point the page uses, and their oracles are
 independent: fresh instances, closed forms and literals. They do not drive the
 page's own wiring of controls to that entry point (`app.ts`), which needs a
@@ -291,12 +291,15 @@ suite.
   read with the dimensions of the meeting and with what was drawn. So are
   turned and posed faces of the contact box, and a touching ball.
 - **Event lines against the meeting.** In both worlds, the slice is moved by
-  arrow keys and by gauge drags onto a box's faces, from inside and from
-  outside, and back in. After every key press and every pointer move, each
-  sentence of the line on screen is parsed for what it says about a body now.
-  That claim is checked against the body's reading: its status, what was drawn,
-  its meeting and its side. The test does not use the rule that decides when
-  the page speaks.
+  arrow keys, gauge drags and map turns onto a box's faces from inside, and in
+  the contact world from outside too, and back in. The block's faces lie at the
+  slider's limits, so they have no outside. After every key press, every
+  pointer move and every tick of a clock, each sentence of the line on screen is
+  parsed for what it says about a body. The claim is checked against the
+  body's reading now, and a reported change ("appeared", "now passes through")
+  against its reading before. A body whose meeting changed must be named in the
+  new line, and when nothing named changed, nothing new may be said. The test
+  does not use the rule that decides when the page speaks.
 - **Replays and blows.** Strike hints, replays and new launches are driven
   through the page's own button bindings and the empty view's replay action,
   at retained offsets.
