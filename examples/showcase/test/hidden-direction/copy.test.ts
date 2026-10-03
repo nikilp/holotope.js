@@ -515,10 +515,16 @@ describe('the four ways a body can fail to appear are never merged', () => {
     expect(four).toEqual([
       'Ball — in your slice',
       'Ball — in your slice, but the renderer drew nothing for it',
-      'Ball — touching your slice at a single point; nothing drawn',
+      'Ball — touching your slice at a single point; no cut drawn',
       'Ball — not in your slice: 0.30 ana of it'
     ]);
     expect(caption('Ball', 'outside', -0.3, 0, NONE)).toBe('Ball — not in your slice: 0.30 kata of it');
+  });
+
+  it('a touching ball has its marker drawn, so its caption says no cut is drawn; a box touching at a corner has nothing drawn', () => {
+    expect(caption('Ball', 'tangent', 0, 0, BALL_POINT)).toBe('Ball — touching your slice at a single point; no cut drawn');
+    const corner: Meeting = { kind: 'boundary', body: 'box', dim: 0, sides: [], face: null, rest: 'ana' };
+    expect(caption('Box', 'tangent', 0, 0, corner)).toBe('Box — touching your slice at a single point; nothing drawn');
   });
 
   it('present, omitted, touching, outside and out of the camera are five different reasons', () => {

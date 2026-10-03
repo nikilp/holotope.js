@@ -140,7 +140,8 @@ export function caption(
 ): string {
   if (status === 'outside') return `${name} — not in your slice: ${distance(gap)} ${side(gap)} of it`;
   if (status === 'present' && drawn === 0) return `${name} — in your slice, but the renderer drew nothing for it`;
-  const drawnNote = status === 'present' ? '' : '; nothing drawn';
+  // A touching ball has its marker drawn, so what is not drawn for it is a cut.
+  const drawnNote = status === 'present' ? '' : meeting.kind === 'boundary' && meeting.body === 'ball' ? '; no cut drawn' : '; nothing drawn';
   if (meeting.kind === 'boundary' && meeting.dim === 0) return `${name} — touching your slice at a single point${drawnNote}`;
   if (meeting.kind === 'boundary' || meeting.kind === 'unsettled') {
     return `${name} — ${status === 'present' ? 'in' : 'meets'} your slice only on its boundary: ${meetingPhrase(meeting)}${drawnNote}`;

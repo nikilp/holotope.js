@@ -172,7 +172,7 @@ describe('a touching ball is a single point, kept apart from a box’s face', ()
     const ball = body(x, 'companion');
     expect(ball.status).toBe('tangent');
     expect(ball.meeting).toEqual({ kind: 'boundary', body: 'ball', dim: 0, sides: [], face: null, rest: 'ana' });
-    expect(ball.caption).toBe('Ball — touching your slice at a single point; nothing drawn. The small marker is the point where it touches.');
+    expect(ball.caption).toBe('Ball — touching your slice at a single point; no cut drawn. The small marker is the point where it touches.');
     expect(ball.reason).toContain('Ball touches your slice at a single point, within 10⁻⁹.');
     expect(ball.reason).not.toContain('sectioner');
     x.dispose();

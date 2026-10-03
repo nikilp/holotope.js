@@ -137,10 +137,12 @@ would first touch the ball.
 
 Tab reaches every control, and every button, slider and disclosure works from
 the keyboard. The map, the gauge and the box's dial are sliders: while one has
-focus, its arrow keys move it and Home returns it to zero. Every other key works
-the same with or without an instrument focused: the arrows turn and slide the
-slice, Space plays or pauses, `.` and `,` step the physics clock, S lifts the
-shadow, F freezes, R resets the slice, and 1–6 choose a chapter. The camera has
+focus, the arrow keys are its own — on the map they turn your slice, on the
+gauge they slide it, on the dial they turn the box — and Home returns it to
+zero. With no instrument focused, ← and → turn your slice and ↑ and ↓ slide it.
+The other keys work the same with or without an instrument focused: Space plays
+or pauses, `.` and `,` step the physics clock, S lifts the shadow, F freezes, R
+resets the slice, and 1–6 choose a chapter. The camera has
 fewer keys than the pointer. Q and E turn it about the vertical, + and − bring
 it nearer or farther, and C brings it home. Tilting it up or down, and panning
 it, need a pointer.

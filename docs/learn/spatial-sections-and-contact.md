@@ -272,7 +272,7 @@ These pins read the shipped page and module text. They prove the code says
 something, not that it runs: the repository has no DOM test environment.
 Behaviour in a browser needs genuine input.
 
-The Hidden Direction's suite holds 825 tests in 14 files. They drive the
+The Hidden Direction's suite holds 826 tests in 14 files. They drive the
 controller through the same entry point the page uses, and their oracles are
 independent: fresh instances, closed forms and literals. They do not drive the
 page's own wiring of controls to that entry point (`app.ts`), which needs a

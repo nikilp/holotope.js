@@ -335,7 +335,7 @@ describe('the map agrees with the library about membership', () => {
     const v = x.view();
     const ball = v.bodies.find((b) => b.id === 'ball')!;
     expect(ball.status).toBe('tangent');
-    expect(ball.caption).toBe('Ball — touching your slice at a single point; nothing drawn. The small marker is the point where it touches.');
+    expect(ball.caption).toBe('Ball — touching your slice at a single point; no cut drawn. The small marker is the point where it touches.');
     expect(v.plane.footprints.find((f) => f.id === 'ball')!.chord, 'the map shows the touch the caption names').not.toBeNull();
     x.dispose();
   });
