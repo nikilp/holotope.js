@@ -185,6 +185,21 @@ function orbitMeets(slice: { signedDistance(p: readonly number[]): number }): bo
 
 interface EventNote { readonly line: string; readonly at: number }
 
+/**
+ * What an event line can assert about a body, as a key: whether the slice meets it (the library's status, with
+ * the side for a body outside it), whether its cut is drawn, and the meeting a line names — its kind and, on the
+ * boundary, the face's dimension and name. A change between passing through a box and lying on its face keeps
+ * the status `present`, yet the line names one or the other, so it is a change. Side lengths are left out: no
+ * line names them, and they vary continuously. Two readings with one key are one observation, said once.
+ */
+function standing(b: BodyReading): string {
+  if (b.status === 'outside') return `outside:${side(b.gap)}`;
+  const m = b.meeting;
+  const meeting = m.kind === 'boundary' ? `boundary:${m.dim}:${m.face ?? ''}` : m.kind;
+  if (b.status === 'tangent') return `tangent|${meeting}`;
+  return b.drawn > 0 ? `present|${meeting}` : 'omitted';
+}
+
 /** Below this, in every bivector coefficient, the box is not turning (the central blow leaves it at zero). */
 const SPIN_EPSILON = 1e-12;
 
@@ -249,20 +264,24 @@ export function createExperience(start: ChapterId = 'arrival') {
       const key = `${world}:${b.id}`;
       // A body the library places in the slice but the renderer draws nothing for is neither "appeared" nor "vanished".
       // A body outside is keyed by its side as well, so that one which changes sides without meeting the slice is said.
-      const now = b.status === 'outside' ? `outside:${side(b.gap)}` : b.status === 'tangent' ? 'tangent' : b.drawn > 0 ? 'present' : 'omitted';
+      const now = standing(b);
       next.set(key, now);
       const before = lastStatus.get(key);
       if (before === undefined || before === now) continue;
       // The marks are the ball's: the arrival chapter's hints are about following it.
       const ball = b.id === 'companion' || b.id === 'ball';
       let kind: Parameters<typeof eventLine>[0];
-      if (now === 'present') {
-        // Drawn on a face only, the meeting is still a boundary one; from a boundary meeting into the interior, the
-        // slice met the body already and now passes through it; otherwise the body appeared.
-        kind = b.meeting.kind === 'boundary' ? 'face' : before === 'tangent' ? 'entered' : 'appeared';
-        seen.add('appeared');
-        // Credit the visitor only for the ball brought in by their own slice move, and only for the latest one.
-        if (ball) { if (lastCause.kind === 'slice') seen.add('found'); else seen.delete('found'); }
+      if (now.startsWith('present')) {
+        // On the boundary only — a face, or corners that leave the meeting open — the line says so, whatever the slice
+        // met before. Into the interior from a meeting already there, on a face drawn or not, the slice met the body
+        // already and now passes through it; otherwise the body appeared.
+        const met = before.startsWith('tangent') || before.startsWith('present');
+        kind = b.meeting.kind !== 'through' ? 'face' : met ? 'entered' : 'appeared';
+        if (!before.startsWith('present')) {
+          seen.add('appeared');
+          // Credit the visitor only for the ball brought in by their own slice move, and only for the latest one.
+          if (ball) { if (lastCause.kind === 'slice') seen.add('found'); else seen.delete('found'); }
+        }
       }
       // Event lines stay on screen while the clock runs on, so they say nothing about a marker that may
       // already be gone; the caption and the picture's own tag say what a marker is while it is there.
@@ -270,7 +289,7 @@ export function createExperience(start: ChapterId = 'arrival') {
         kind = before.startsWith('outside') ? 'crossed' : 'vanished';
         if (ball) { if (kind === 'vanished') seen.add('vanished'); seen.delete('found'); }
       }
-      else if (now === 'tangent') kind = 'touching';
+      else if (now.startsWith('tangent')) kind = 'touching';
       else continue;
       lines.push(eventLine(kind, b.name, b.gap, lastCause, b.meeting));
       // After the blow's line, the ball's state is left out where that line already gives it.

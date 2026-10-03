@@ -54,7 +54,8 @@ stops or steps. When a body vanishes, the line in the picture says what happened
 — the body moved, you moved your slice, or the run was replayed or launched
 afresh — and on which side of your slice the body now lies. When that happens
 in the same moment as the blow, the blow is said first and the body's side
-after it.
+after it. The line also changes when your slice moves from passing through a box
+to lying on one of its faces, or back.
 
 ## The chapters
 

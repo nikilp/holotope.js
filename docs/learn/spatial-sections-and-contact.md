@@ -272,7 +272,7 @@ These pins read the shipped page and module text. They prove the code says
 something, not that it runs: the repository has no DOM test environment.
 Behaviour in a browser needs genuine input.
 
-The Hidden Direction's suite holds 810 tests in 13 files. They drive the
+The Hidden Direction's suite holds 825 tests in 14 files. They drive the
 controller through the same entry point the page uses, and their oracles are
 independent: fresh instances, closed forms and literals. They do not drive the
 page's own wiring of controls to that entry point (`app.ts`), which needs a
@@ -290,6 +290,13 @@ suite.
 - **What a slice meets.** Both of the turning scene's reference limits are
   read with the dimensions of the meeting and with what was drawn. So are
   turned and posed faces of the contact box, and a touching ball.
+- **Event lines against the meeting.** In both worlds, the slice is moved by
+  arrow keys and by gauge drags onto a box's faces, from inside and from
+  outside, and back in. After every key press and every pointer move, each
+  sentence of the line on screen is parsed for what it says about a body now.
+  That claim is checked against the body's reading: its status, what was drawn,
+  its meeting and its side. The test does not use the rule that decides when
+  the page speaks.
 - **Replays and blows.** Strike hints, replays and new launches are driven
   through the page's own button bindings and the empty view's replay action,
   at retained offsets.
