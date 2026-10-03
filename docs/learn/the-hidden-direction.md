@@ -55,7 +55,9 @@ stops or steps. When a body vanishes, the line in the picture says what happened
 afresh — and on which side of your slice the body now lies. When that happens
 in the same moment as the blow, the blow is said first and the body's side
 after it. The line also changes when your slice moves from passing through a box
-to lying on one of its faces, or back.
+to lying on one of its faces, or back. On a phone, while the picture is empty,
+the card that says why lies over the line; the line shows again when the card
+closes.
 
 ## The chapters
 
@@ -142,8 +144,8 @@ gauge they slide it, on the dial they turn the box — and Home returns it to
 zero. With no instrument focused, ← and → turn your slice and ↑ and ↓ slide it.
 The other keys work the same with or without an instrument focused: Space plays
 or pauses, `.` and `,` step the physics clock, S lifts the shadow, F freezes, R
-resets the slice, and 1–6 choose a chapter. A focused button takes Space and
-Enter for itself, as buttons do. The camera has
+resets the slice, and 1–6 choose a chapter. A focused button, link or
+disclosure takes Space and Enter for itself. The camera has
 fewer keys than the pointer. Q and E turn it about the vertical, + and − bring
 it nearer or farther, and C brings it home. Tilting it up or down, and panning
 it, need a pointer.

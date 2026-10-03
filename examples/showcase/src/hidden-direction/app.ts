@@ -487,12 +487,30 @@ export function createApp(root: HTMLElement): void {
     }
   }
 
+  /**
+   * Where the picture has room, the empty view sits clear of the event line: when the card, centred, would reach
+   * the line, it is centred in the part of the picture below the line instead (`--hd-clear`). A phone's picture has
+   * no such room, and there the stylesheet lays the card over the whole picture, the line included.
+   */
+  function clearOfLine(): void {
+    let clear = 0;
+    if (!el.empty.hidden && !el.event.hidden) {
+      const box = stageHost.getBoundingClientRect();
+      // The line's arrival lifts it 6 px for 380 ms; 8 px below it clears it either way.
+      const below = el.event.getBoundingClientRect().bottom - box.top + 8;
+      const height = Math.min(el.empty.scrollHeight + 2, box.height - 32);
+      if ((box.height - height) / 2 < below) clear = Math.ceil(below);
+    }
+    el.empty.style.setProperty('--hd-clear', `${clear}px`);
+  }
+
   function paintEmpty(): void {
     const e = view.empty;
     el.empty.hidden = e === null;
     if (!e) { shownOffer = null; return; }
     el.emptyHead.textContent = e.headline;
     el.emptyList.innerHTML = e.reasons.map((r) => `<li><span class="hz-swatch" style="background:${r.colour}"></span><span>${r.line}</span></li>`).join('');
+    clearOfLine();
     // Rebuilt only when the offer changes, so a button stays put — and clickable — while a clock runs.
     const offer = e.recoveries.map((r) => r.label).join('\n');
     if (offer === shownOffer) return;
@@ -541,7 +559,7 @@ export function createApp(root: HTMLElement): void {
 
   window.addEventListener('resize', () => paint());
   // The event line arrives with a short slide; tags are placed again against where it settles.
-  el.event.addEventListener('animationend', () => paintLabels());
+  el.event.addEventListener('animationend', () => { paintLabels(); clearOfLine(); });
   paint();
   requestAnimationFrame(frame);
 }

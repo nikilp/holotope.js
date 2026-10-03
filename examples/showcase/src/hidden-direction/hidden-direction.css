@@ -105,9 +105,9 @@
 .hd-event {
   position: absolute; z-index: 2;
   top: 14px; left: 50%; transform: translateX(-50%);
-  /* Padding and border within the width, so the line stays 14 px inside a narrow picture; 654 px is 620 of text. */
+  /* Padding and border within the width: 620 px of text, as before, and never past the picture's edge. */
   box-sizing: border-box;
-  width: max-content; max-width: min(654px, calc(100% - 28px));
+  width: max-content; max-width: min(654px, calc(100% - 2px));
   margin: 0; padding: 9px 16px;
   border-radius: 18px;
   font: 500 14px/1.4 var(--sans);
@@ -127,14 +127,14 @@
 /*
  * The empty view: its headline, then the ways back, then the reasons, which can be long (at the kata limit they
  * give the sectioner's convention); on a small picture the card scrolls to them. Its box, padding included, stays
- * inside the picture.
+ * inside the picture, and below the event line when the line would reach it (`--hd-clear`, set by app.ts).
  */
 .hd-empty {
   position: absolute; z-index: 3;
-  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  left: 50%; top: calc(50% + var(--hd-clear, 0px) / 2); transform: translate(-50%, -50%);
   box-sizing: border-box;
   width: min(542px, calc(100% - 32px));
-  max-height: calc(100% - 32px); overflow: auto;
+  max-height: calc(100% - 32px - var(--hd-clear, 0px)); overflow: auto;
   padding: 18px 20px;
 }
 .hd-empty h2 { font: 500 21px/1.25 var(--serif); margin: 0 0 10px; }
@@ -263,7 +263,7 @@
   .hd-study-block { grid-column: 1 / -1; grid-row: 5; }
   .hd-cam-hint { display: none; }
   .hd-camera { right: 8px; bottom: 8px; }
-  .hd-event { top: 8px; font-size: 13px; padding: 7px 12px; }
+  .hd-event { top: 8px; font-size: 13px; padding: 7px 12px; max-width: min(646px, calc(100% - 2px)); }
   .hd-bar { padding: 10px 12px; gap: 10px; }
   .hd-bar .hd-where { display: none; }
   .hd-bar nav a { padding: 8px 7px; font-size: 13px; }
