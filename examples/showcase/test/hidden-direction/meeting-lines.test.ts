@@ -24,12 +24,16 @@ import type { Meeting } from '../../src/hidden-direction/worlds.js';
  *   - every claim of the line on screen holds;
  *   - a body whose shown meeting changed is spoken of in the new line, and if the line's own sentence for it is a
  *     full one, it names the new meeting — a drawn face as that face, not merely "in your slice";
- *   - when nothing shown changed, nothing new is said.
+ *   - a full sentence names what did it: "you moved your slice" for a view action, the orbit or "it moved" for the
+ *     clocks, "the run was replayed from launch to step N" for a replay, "launch X was started afresh" for a launch;
+ *   - when a body's status changed (or its side, outside), the line leads with such a body, and a change of the
+ *     meeting alone follows;
+ *   - when nothing shown changed, nothing new is said (a replay or a launch is always said, as itself).
  * The clock is held to the same, except that at the blow the blow's line may give the ball's state itself.
  *
  * The input is the page's own: arrows as `keyAction` and the focused gauge's `sliderKey` send them, gauge drags as
- * the series of offsets a pointer sends (`INSTRUMENTS.gauge.act`), ending where the pointer is released, and map
- * turns as `INSTRUMENTS.turn.act`.
+ * the series of offsets a pointer sends (`INSTRUMENTS.gauge.act`), ending where the pointer is released, map turns
+ * as `INSTRUMENTS.turn.act`, and the clock's buttons as their bindings send them.
  *
  * Where the faces are (authored half extents): the contact box's w faces at ±1.0 at launch, its x faces at ±1.2
  * with the slice turned ±90°; the turning world's block w faces at ±1.6, which are the slider's own limits — so
@@ -42,8 +46,11 @@ type Side = 'ana' | 'kata';
 /** The change a full sentence reports; null for the brief state said after another sentence. */
 type Change = 'appeared' | 'entered' | 'face' | 'touching' | 'vanished' | 'crossed' | null;
 
-/** What the line claims about a body now. `meeting` is a phrase key (see `phraseKey`); null when the line names none. */
-type Claim = { readonly body: string; readonly change: Change } & (
+/**
+ * What the line claims about a body now. `meeting` is a phrase key (see `phraseKey`); null when the line names none.
+ * `cause` is what a full sentence says did the change; null for a brief.
+ */
+type Claim = { readonly body: string; readonly change: Change; readonly cause: string | null } & (
   | { readonly kind: 'in' }
   | { readonly kind: 'through' }
   | { readonly kind: 'boundary'; readonly meeting: string | null; readonly drawn: boolean | null }
@@ -51,8 +58,8 @@ type Claim = { readonly body: string; readonly change: Change } & (
   | { readonly kind: 'outside'; readonly side: Side }
 );
 
-/** Every clause a line uses to say what did a change. */
-const CAUSE = String.raw`(?:you moved your slice|it moved along its prescribed orbit|it moved|the run was replayed from launch to step \d+|launch [A-Z] was started afresh, at step 0)`;
+/** Every clause a line uses to say what did a change, captured. */
+const CAUSE = String.raw`(you moved your slice|it moved along its prescribed orbit|it moved|the run was replayed from launch to step \d+|launch [A-Z] was started afresh, at step 0)`;
 
 /** A meeting as named in a line, as a key: a named 3-face, or a dimension, or "not established". */
 function phraseKey(phrase: string): string {
@@ -78,30 +85,30 @@ function meetingKey(m: Meeting): string | null {
 
 /** Each sentence form, with what it claims. The body is named by its display name, or lower-case after "the". */
 const FORMS: readonly { readonly re: RegExp; readonly claims: (m: RegExpExecArray) => Claim[] }[] = [
-  { re: new RegExp(`^(\\w+) appeared — ${CAUSE}, and now your slice cuts it\\.`), claims: (m) => [{ body: m[1]!, change: 'appeared', kind: 'in' }] },
-  { re: new RegExp(`^(\\w+) now passes through your slice — ${CAUSE}, and its cut is drawn\\.`), claims: (m) => [{ body: m[1]!, change: 'entered', kind: 'through' }] },
+  { re: new RegExp(`^(\\w+) appeared — ${CAUSE}, and now your slice cuts it\\.`), claims: (m) => [{ body: m[1]!, change: 'appeared', cause: m[2]!, kind: 'in' }] },
+  { re: new RegExp(`^(\\w+) now passes through your slice — ${CAUSE}, and its cut is drawn\\.`), claims: (m) => [{ body: m[1]!, change: 'entered', cause: m[2]!, kind: 'through' }] },
   {
     re: new RegExp(`^(\\w+) now meets your slice only on its boundary — ${CAUSE}\\. The meeting is (.+?), and its cut is drawn\\.`),
-    claims: (m) => [{ body: m[1]!, change: 'face', kind: 'boundary', meeting: phraseKey(m[2]!), drawn: true }]
+    claims: (m) => [{ body: m[1]!, change: 'face', cause: m[2]!, kind: 'boundary', meeting: phraseKey(m[3]!), drawn: true }]
   },
   {
     re: new RegExp(`^(\\w+) now meets your slice only on its boundary — ${CAUSE}\\. The meeting is (.+?); nothing is drawn for it\\.`),
-    claims: (m) => [{ body: m[1]!, change: 'touching', kind: 'boundary', meeting: phraseKey(m[2]!), drawn: false }]
+    claims: (m) => [{ body: m[1]!, change: 'touching', cause: m[2]!, kind: 'boundary', meeting: phraseKey(m[3]!), drawn: false }]
   },
-  { re: new RegExp(`^(\\w+) is touching your slice at a single point — ${CAUSE}\\. Only a marker is drawn\\.`), claims: (m) => [{ body: m[1]!, change: 'touching', kind: 'point' }] },
+  { re: new RegExp(`^(\\w+) is touching your slice at a single point — ${CAUSE}\\. Only a marker is drawn\\.`), claims: (m) => [{ body: m[1]!, change: 'touching', cause: m[2]!, kind: 'point' }] },
   {
     re: new RegExp(`^(\\w+) vanished from your slice — ${CAUSE}; the (\\w+) now lies (ana|kata) of your slice\\. It has not gone\\.`),
-    claims: (m) => [{ body: m[1]!, change: 'vanished', kind: 'outside', side: m[3] as Side }]
+    claims: (m) => [{ body: m[1]!, change: 'vanished', cause: m[2]!, kind: 'outside', side: m[4] as Side }]
   },
   {
     re: new RegExp(`^(\\w+) is still not in your slice — ${CAUSE}; the (\\w+) now lies (ana|kata) of your slice\\.`),
-    claims: (m) => [{ body: m[1]!, change: 'crossed', kind: 'outside', side: m[3] as Side }]
+    claims: (m) => [{ body: m[1]!, change: 'crossed', cause: m[2]!, kind: 'outside', side: m[4] as Side }]
   },
   // What a change left a body as, said after another sentence.
-  { re: /^The (\w+) now lies (ana|kata) of your slice\./, claims: (m) => [{ body: m[1]!, change: null, kind: 'outside', side: m[2] as Side }] },
-  { re: /^(\w+) is touching your slice at a single point\./, claims: (m) => [{ body: m[1]!, change: null, kind: 'point' }] },
-  { re: /^(\w+) now meets your slice only on its boundary\./, claims: (m) => [{ body: m[1]!, change: null, kind: 'boundary', meeting: null, drawn: null }] },
-  { re: /^(\w+) is in your slice\./, claims: (m) => [{ body: m[1]!, change: null, kind: 'in' }] },
+  { re: /^The (\w+) now lies (ana|kata) of your slice\./, claims: (m) => [{ body: m[1]!, change: null, cause: null, kind: 'outside', side: m[2] as Side }] },
+  { re: /^(\w+) is touching your slice at a single point\./, claims: (m) => [{ body: m[1]!, change: null, cause: null, kind: 'point' }] },
+  { re: /^(\w+) now meets your slice only on its boundary: (.+?)\./, claims: (m) => [{ body: m[1]!, change: null, cause: null, kind: 'boundary', meeting: phraseKey(m[2]!), drawn: null }] },
+  { re: /^(\w+) is in your slice\./, claims: (m) => [{ body: m[1]!, change: null, cause: null, kind: 'in' }] },
   // About the past, or about the run: nothing about now.
   { re: /^The box was struck — by the ball, then in your slice\./, claims: () => [] },
   { re: /^The box was struck by something your slice cannot show: the ball, then .+? (?:ana|kata) of your slice\./, claims: () => [] },
@@ -196,12 +203,18 @@ function wrongs(x: Experience): string[] {
 
 const reading = (x: Experience, id: string) => x.view().bodies.find((b) => b.id === id)!;
 
+/** A reading's status, with its side when outside: what a change of status is, as against a change of meeting alone. */
+const statusOf = (b: Reading): string => (b.status === 'outside' ? `outside ${sideOf(b)}` : b.status);
+/** Sentences that open a line without a claim about now: the blow, a replay, a launch. */
+const NO_CLAIM_LEAD = /^(The box was struck|Replayed from launch|The run was replayed|Launch [A-Z] was started)/;
+
 /**
- * After one action or tick: the line holds now; a new line's report of a change agrees with what came before; a
- * body whose shown meeting changed is spoken of, and named if its sentence is a full one; and when nothing shown
- * changed and `quiet`, nothing new is said. `ballByBlow`: the blow's line may give the ball's state.
+ * After one action or tick: the line holds now; a new line's report of a change agrees with what came before and
+ * names what did it (`cause`); a body whose shown meeting changed is spoken of, and named if its sentence is a full
+ * one; when a status changed, the line leads with it; and when nothing shown changed and `quiet`, nothing new is
+ * said. `ballByBlow`: the blow's line may give the ball's state.
  */
-function checkStep(x: Experience, before: readonly Reading[], idBefore: number, label: string, quiet: boolean, ballByBlow = false): void {
+function checkStep(x: Experience, before: readonly Reading[], idBefore: number, label: string, quiet: boolean, cause: RegExp, ballByBlow = false): void {
   const v = x.view();
   expect(wrongs(x), label).toEqual([]);
   const said = v.eventId !== idBefore;
@@ -211,6 +224,12 @@ function checkStep(x: Experience, before: readonly Reading[], idBefore: number, 
     for (const c of claims) {
       const was = before.find((q) => q.name.toLowerCase() === c.body.toLowerCase());
       if (was) expect(priorFalsity(c, was), `${label}: “${v.event}”`).toBeNull();
+      if (c.cause !== null) expect(c.cause, `${label}: what did it, in “${v.event}”`).toMatch(cause);
+    }
+    const restatused = changed.filter((b) => statusOf(before.find((q) => q.id === b.id)!) !== statusOf(b));
+    if (restatused.length > 0 && v.event !== null && !NO_CLAIM_LEAD.test(v.event)) {
+      const lead = claims[0]?.body.toLowerCase();
+      expect(restatused.map((b) => b.name.toLowerCase()), `${label}: a change of status leads “${v.event}”`).toContain(lead);
     }
   }
   for (const b of changed) {
@@ -236,7 +255,7 @@ function run(x: Experience, id: string, actions: readonly Action[], label: strin
     shown.push(shownAs(reading(x, id)));
     const at = `${label}, action ${k + 1} of ${actions.length} (${JSON.stringify(a)})`;
     if (truthOnly) expect(wrongs(x), at).toEqual([]);
-    else checkStep(x, before, idBefore, at, true);
+    else checkStep(x, before, idBefore, at, true, /^you moved your slice$/);
   }
   return shown;
 }
@@ -253,7 +272,31 @@ function play(x: Experience, id: string, ticks: number, label: string): { shown:
     const blow = x.worlds.contact.sim.impacts > impacts;
     shown.push({ shown: shownAs(reading(x, id)), step: x.worlds.contact.sim.steps });
     // The blow is said even where no body's shown meeting changes; any other new line answers a change.
-    checkStep(x, before, idBefore, `${label}, tick ${k}`, !blow, blow);
+    const cause = x.view().world === 'turn' ? /^it moved along its prescribed orbit$/ : /^it moved$/;
+    checkStep(x, before, idBefore, `${label}, tick ${k}`, !blow, cause, blow);
+  }
+  return shown;
+}
+
+/**
+ * The collision's clock by its buttons, as their bindings send them: a step is motion; Step −1 and the jumps are
+ * replays from launch to the step they land on; *Replay launch* and a preset start a run afresh. A replay or a
+ * launch is always said, so only a step must be quiet when nothing shown changed.
+ */
+function press(x: Experience, actions: readonly Action[], label: string): string[] {
+  const shown: string[] = [];
+  for (const [k, a] of actions.entries()) {
+    const before = x.view().bodies;
+    const idBefore = x.view().eventId;
+    const impacts = x.worlds.contact.sim.impacts;
+    x.dispatch(a);
+    const steps = x.worlds.contact.sim.steps;
+    const blow = x.worlds.contact.sim.impacts > impacts;
+    shown.push(shownAs(reading(x, 'box')));
+    const cause = a.type === 'step' ? /^it moved$/
+      : a.type === 'preset' ? /^launch [AB] was started afresh, at step 0$/
+      : new RegExp(`^the run was replayed from launch to step ${steps}$`);
+    checkStep(x, before, idBefore, `${label}, action ${k + 1} (${JSON.stringify(a)})`, a.type === 'step' && !blow, cause, blow);
   }
   return shown;
 }
@@ -274,21 +317,24 @@ const turns = (from: number, to: number): Action[] =>
 describe('the oracle reads lines, and fails on a line that is false now', () => {
   it('parses every line form the copy says, and finds the stale lines the re-check found', () => {
     expect(claimsOf('Box now meets your slice only on its boundary — you moved your slice. The meeting is its +w face, a solid cuboid, and its cut is drawn.'))
-      .toEqual([{ body: 'Box', change: 'face', kind: 'boundary', meeting: 'face +w', drawn: true }]);
+      .toEqual([{ body: 'Box', change: 'face', cause: 'you moved your slice', kind: 'boundary', meeting: 'face +w', drawn: true }]);
     expect(claimsOf('Block now passes through your slice — you moved your slice, and its cut is drawn. Ball is in your slice.'))
-      .toEqual([{ body: 'Block', change: 'entered', kind: 'through' }, { body: 'Ball', change: null, kind: 'in' }]);
+      .toEqual([{ body: 'Block', change: 'entered', cause: 'you moved your slice', kind: 'through' }, { body: 'Ball', change: null, cause: null, kind: 'in' }]);
     expect(claimsOf('The box was struck by something your slice cannot show: the ball, then 0.01 ana of your slice. The box now lies kata of your slice.'))
-      .toEqual([{ body: 'box', change: null, kind: 'outside', side: 'kata' }]);
+      .toEqual([{ body: 'box', change: null, cause: null, kind: 'outside', side: 'kata' }]);
+    expect(claimsOf('Ball appeared — you moved your slice, and now your slice cuts it. Box now meets your slice only on its boundary: its +x face, a solid cuboid.'))
+      .toEqual([{ body: 'Ball', change: 'appeared', cause: 'you moved your slice', kind: 'in' }, { body: 'Box', change: null, cause: null, kind: 'boundary', meeting: 'face +x', drawn: null }]);
     expect(() => claimsOf('Box is somewhere.')).toThrow(/does not know/);
     // The re-check's two readings, with the lines that were left on screen.
     const through = { name: 'Box', status: 'present', drawn: 48, meeting: { kind: 'through' }, gap: 0 } as unknown as Reading;
     const face = { name: 'Block', status: 'present', drawn: 12, meeting: { kind: 'boundary', body: 'box', dim: 3, sides: [4.4, 2.6, 1.6], face: '+w', rest: 'kata' }, gap: 0 } as unknown as Reading;
-    expect(falsity({ body: 'Box', change: 'face', kind: 'boundary', meeting: 'face +w', drawn: true }, through)).toMatch(/meets it only on its boundary/);
-    expect(falsity({ body: 'Block', change: 'entered', kind: 'through' }, face)).toMatch(/passes through/);
-    expect(falsity({ body: 'Block', change: 'face', kind: 'boundary', meeting: 'face +w', drawn: true }, face)).toBeNull();
+    const said = 'you moved your slice';
+    expect(falsity({ body: 'Box', change: 'face', cause: said, kind: 'boundary', meeting: 'face +w', drawn: true }, through)).toMatch(/meets it only on its boundary/);
+    expect(falsity({ body: 'Block', change: 'entered', cause: said, kind: 'through' }, face)).toMatch(/passes through/);
+    expect(falsity({ body: 'Block', change: 'face', cause: said, kind: 'boundary', meeting: 'face +w', drawn: true }, face)).toBeNull();
     // What came before: an appearance from a face, and a drawn face said only as "in your slice".
-    expect(priorFalsity({ body: 'Block', change: 'appeared', kind: 'in' }, face)).toMatch(/met it before/);
-    expect(vagueness({ body: 'Block', change: 'appeared', kind: 'in' }, face)).toMatch(/must name/);
+    expect(priorFalsity({ body: 'Block', change: 'appeared', cause: said, kind: 'in' }, face)).toMatch(/met it before/);
+    expect(vagueness({ body: 'Block', change: 'appeared', cause: said, kind: 'in' }, face)).toMatch(/must name/);
   });
 });
 
@@ -431,7 +477,7 @@ describe('a change of status leads; a change of the meeting alone follows it', (
   it('one press above the ana limit in chapter I: the ball appears, and the block’s face follows as a brief', () => {
     const x = createExperience('arrival');
     run(x, 'block', [INSTRUMENTS.gauge.act(2)], 'past the limit');
-    expect(x.view().event).toBe('Ball appeared — you moved your slice, and now your slice cuts it. Block now meets your slice only on its boundary.');
+    expect(x.view().event).toBe('Ball appeared — you moved your slice, and now your slice cuts it. Block now meets your slice only on its boundary: its +w face, a solid cuboid.');
     x.dispose();
   });
 
@@ -439,6 +485,54 @@ describe('a change of status leads; a change of the meeting alone follows it', (
     const x = createExperience('arrival');
     run(x, 'block', [...arrow('ArrowUp', 8, true), { type: 'cut-reset' }], 'up and reset');
     expect(x.view().event).toBe('Ball vanished from your slice — you moved your slice; the ball now lies ana of your slice. It has not gone. Block is in your slice.');
+    x.dispose();
+  });
+});
+
+describe('the contact world: a change of status leads, and a face-to-face brief names the new face', () => {
+  it('turned 90° on the −x face, then R: the ball crossing to the ana side leads, and the box passing through follows', () => {
+    const x = createExperience('collision');
+    run(x, 'box', [...arrow('ArrowRight', 9, true), ...arrow('ArrowUp', 60), { type: 'cut-reset' }], 'turn, up, reset');
+    expect(x.view().event).toBe('Ball is still not in your slice — you moved your slice; the ball now lies ana of your slice. Box is in your slice.');
+    x.dispose();
+  });
+
+  it('chapter IV, on the −x face at +1.2, one map move to −90°: the ball appears, and the box’s brief names its +x face', () => {
+    const x = createExperience('spin');
+    run(x, 'box', [INSTRUMENTS.turn.act(90), INSTRUMENTS.gauge.act(1.2), INSTRUMENTS.turn.act(-90)], 'onto −x, then flip');
+    expect(x.view().event).toBe('Ball appeared — you moved your slice, and now your slice cuts it. Box now meets your slice only on its boundary: its +x face, a solid cuboid.');
+    x.dispose();
+  });
+});
+
+describe('the clock’s buttons: a step is motion, a replay or a launch says itself, and every change is said', () => {
+  it('chapter III at its start: Step +1 until the moving box lies on the slice, Step −1, both jumps, Replay launch, each preset', () => {
+    const x = createExperience('collision');
+    const step: Action = { type: 'step' };
+    const shown = press(x, Array.from({ length: 162 }, () => step), 'steps');
+    expect(shown.at(-1), 'the box comes to lie on the slice by the clock').toBe('present face +w');
+    expect(x.view().event).toBe('Box now meets your slice only on its boundary — it moved. The meeting is its +w face, a solid cuboid, and its cut is drawn.');
+    press(x, [{ type: 'step-back' }], 'step back');
+    expect(x.view().event).toBe('Box now passes through your slice — the run was replayed from launch to step 161, and its cut is drawn.');
+    press(x, [...Array.from({ length: 2 }, () => step), { type: 'jump-touch' }, { type: 'jump-after' }, ...Array.from({ length: 100 }, () => step),
+      { type: 'replay' }, ...Array.from({ length: 162 }, () => step), { type: 'preset', id: 'central' }, ...Array.from({ length: 162 }, () => step),
+      { type: 'preset', id: 'off-centre' }], 'buttons');
+    x.dispose();
+  });
+
+  it('chapter III with the slice at +1.6: the clock carries the ball from touching to passing through, said as such', () => {
+    const x = createExperience('collision');
+    run(x, 'box', arrow('ArrowUp', 8, true), 'to +1.6');
+    play(x, 'ball', 240, 'chapter III at +1.6');
+    x.dispose();
+  });
+
+  it('a turned slice set on the box’s greatest height meets a drawn flat face; a step in passes through it', () => {
+    const x = createExperience('collision');
+    run(x, 'box', [INSTRUMENTS.turn.act(30)], 'turn 30°');
+    const high = reading(x, 'box').high;
+    expect(run(x, 'box', [INSTRUMENTS.gauge.act(high), INSTRUMENTS.gauge.act(high - 0.1), INSTRUMENTS.gauge.act(high)], 'ridge'))
+      .toEqual(['present dim 2', 'present through', 'present dim 2']);
     x.dispose();
   });
 });

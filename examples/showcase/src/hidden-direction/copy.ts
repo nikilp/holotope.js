@@ -270,14 +270,15 @@ export function eventLine(
 
 /**
  * What a body's change left it as, in a few words, said after a line that has already said what happened —
- * the blow's, or another body's change in the same action — so the cause is not repeated.
+ * the blow's, or another body's change in the same action — so the cause is not repeated. A meeting on the
+ * boundary is named, so that a change from one face to another says which face it is now.
  */
 export function briefState(
   kind: 'appeared' | 'entered' | 'face' | 'vanished' | 'crossed' | 'touching', name: string, gap: number, meeting: Meeting
 ): string {
   if (kind === 'vanished' || kind === 'crossed') return `The ${name.toLowerCase()} now lies ${side(gap)} of your slice.`;
   if (kind === 'touching' && meeting.kind === 'boundary' && meeting.body === 'ball') return `${name} is touching your slice at a single point.`;
-  if (kind === 'touching' || kind === 'face') return `${name} now meets your slice only on its boundary.`;
+  if (kind === 'touching' || kind === 'face') return `${name} now meets your slice only on its boundary: ${meetingPhrase(meeting, true)}.`;
   return `${name} is in your slice.`;
 }
 
