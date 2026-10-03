@@ -457,21 +457,24 @@ export function createApp(root: HTMLElement): void {
       tags.push(`<span class="hd-tag hd-tag--marker" style="left:${left}px;top:${top}px;--c:${b.colour}">${b.name} · ${what}</span>`);
     }
     el.labels.innerHTML = tags.join('');
-    // No text over text: a tag under the camera's controls, or under the event line while one is shown, tries
-    // below its body, just below the line, then just above the controls, and takes the first place inside the
-    // picture that is clear of both.
+    // No text over text: a tag under the event line (while one is shown) or under the camera's controls moves
+    // to the first new place inside the picture that is clear of both — below its body, then the place nearest
+    // what it was under: just below the line, or just above the controls.
     const line = el.event.hidden ? null : el.event.getBoundingClientRect();
     const controls = el.camera.getBoundingClientRect();
-    const blocks = line ? [line, controls] : [controls];
+    const over = (t: DOMRect, o: DOMRect): boolean => t.right > o.left && t.left < o.right && t.bottom > o.top && t.top < o.bottom;
     const clear = (t: DOMRect): boolean => t.top >= r.top && t.bottom <= r.bottom && t.left >= r.left && t.right <= r.right
-      && blocks.every((o) => t.right <= o.left || t.left >= o.right || t.bottom <= o.top || t.top >= o.bottom);
+      && !over(t, controls) && !(line && over(t, line));
     for (const tag of Array.from(el.labels.querySelectorAll<HTMLElement>('.hd-tag'))) {
-      if (clear(tag.getBoundingClientRect())) continue;
+      const at = tag.getBoundingClientRect();
+      const underLine = line !== null && over(at, line);
+      if (!underLine && !over(at, controls)) continue;
       const original = tag.style.top;
+      const belowLine: [string, string][] = line ? [['hd-tag--clear', `${line.bottom - r.top + 6}px`]] : [];
+      const aboveControls: [string, string][] = [['hd-tag--above', `${controls.top - r.top - 6}px`]];
       const places: [string, string][] = [
         ...(tag.dataset.below !== undefined ? [['hd-tag--below', `${tag.dataset.below}px`] as [string, string]] : []),
-        ...(line ? [['hd-tag--clear', `${line.bottom - r.top + 6}px`] as [string, string]] : []),
-        ['hd-tag--above', `${controls.top - r.top - 6}px`]
+        ...(underLine ? [...belowLine, ...aboveControls] : [...aboveControls, ...belowLine])
       ];
       let placed = false;
       for (const [cls, top] of places) {

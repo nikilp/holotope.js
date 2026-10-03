@@ -353,9 +353,15 @@ describe('hints that send you somewhere check that you can get there', () => {
     playUntil(x, () => steps(x) >= 450);
     const b = box(x);
     expect([b.drawn, b.reachable]).toEqual([0, false]);
-    expect(x.view().hint).toBe('The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane, or press Just before the blow and step on, to watch its slice change width as it turns.');
+    expect(x.view().hint).toBe('The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane to meet it, or press Just before the blow to look again from where your slice can reach it.');
     // The page offers no replay here yet: the empty view's only recovery is the slide to the ball.
     expect(x.view(homeCamera(1.6)).empty?.recoveries.map((q) => q.label)).toEqual(['Slide your slice to the ball']);
+    // Where the hint sends you, the slice can reach the box, at any turn and offset (one before the blow, it is at rest at the origin).
+    for (const t of [-90, -45, 0, 45, 90]) {
+      x.dispatch({ type: 'cut-turn', degrees: t });
+      press(x, 'hd-jump');
+      expect([steps(x), box(x).reachable], `${t}°`).toEqual([72, true]);
+    }
     x.dispose();
   });
 

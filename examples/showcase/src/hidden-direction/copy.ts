@@ -400,7 +400,7 @@ export function hint(chapter: string, seen: Seen, now: HintModel): string {
       if (!now.boxInSlice) {
         return now.boxReachable
           ? 'The box is turning beyond your slice now. Slide your slice back to it to watch its slice change width as it turns.'
-          : 'The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane, or press Just before the blow and step on, to watch its slice change width as it turns.';
+          : 'The box is turning beyond your slice’s reach now. Turn your slice on the hidden plane to meet it, or press Just before the blow to look again from where your slice can reach it.';
       }
       return 'Its slice changes width as it turns; the box itself is rigid. Chapter V turns the same box by hand.';
     case 'turning':
