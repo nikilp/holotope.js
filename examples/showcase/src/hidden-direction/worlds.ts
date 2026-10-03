@@ -249,8 +249,12 @@ export class TurnWorld {
         for (let v = 0; v < p.complex.vertexCount; v++) corners.push(Array.from(p.complex.getPosition(v)));
         ({ low, high } = cornerInterval(this.slice, corners));
         footprint = polytopeFootprint(corners);
+        // The section module's own corner classification decides whether the slice passes through the block;
+        // only a supporting slice needs the corners on it, read the same way, to say which face it lies on.
+        const boundary = p.boundary;
         meeting = p.status === 'outside' ? { kind: 'none' }
-          : boxMeeting(corners.map((c) => this.slice.signedDistance(c)), corners, p.faces);
+          : boundary !== null && boundary.below > 0 && boundary.above > 0 ? { kind: 'through' }
+            : boxMeeting(corners.map((c) => this.slice.signedDistance(c)), corners, p.faces);
       } else {
         const centre = p.position4()!;
         const h = this.slice.signedDistance(centre) + this.slice.offset;
