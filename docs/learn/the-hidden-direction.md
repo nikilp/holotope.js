@@ -56,7 +56,8 @@ afresh — and on which side of your slice the body now lies. When that happens
 in the same moment as the blow, the blow is said first and the body's side
 after it. The line also changes when your slice moves from passing through a box
 to lying on one of its faces, or back. On a phone, while the picture is empty,
-the card that says why lies over the line; the line shows again when the card
+the card that says why lies over the line and the camera's controls, and in a
+small window it can cover part of either; they show again when the card
 closes.
 
 ## The chapters

@@ -294,9 +294,10 @@ suite.
   a box's faces from inside by arrow keys and gauge drags, and back in. In the
   contact world it also reaches them from outside, and by map turns. The
   block's faces lie at the slider's limits, so they have no outside. The
-  physics clock is driven by playing, by its buttons (Step, Step −1, Just
-  before the blow, Replay launch and each launch) and by the empty view's
-  replay to just after the blow.
+  physics clock is driven by playing, by its buttons (Step +1, Step −1, Just
+  before the blow, Replay launch and each launch) and, once the bodies are
+  beyond the slider's reach, by the replay to just after the blow that the
+  empty view offers.
   - After every key press, pointer move, button and tick, each sentence of the
     line on screen is parsed for what it says about a body.
   - The claim is checked against the body's reading now. A reported change

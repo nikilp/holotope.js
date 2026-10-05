@@ -281,8 +281,6 @@ function play(x: Experience, id: string, ticks: number, label: string): { shown:
 
 /** A clock button's action, as its binding sends it. */
 const button = (id: string): Action => BUTTONS.find((b) => b.id === id)!.act({ playing: false, shadowOn: false, studyPlaying: false, facesCut: [], face: null })!;
-/** The empty view's recovery *Replay to just after the blow*, as its button sends it. */
-const JUST_AFTER: Action = { type: 'jump-after' };
 
 /**
  * The collision's clock by its buttons: a step is motion; Step −1, *Just before the blow* and the empty view's
@@ -526,18 +524,32 @@ describe('the contact world: a change of status leads, and a face-to-face brief 
 });
 
 describe('the clock’s buttons: a step is motion, a replay or a launch says itself, and every change is said', () => {
-  it('chapter III at its start: Step +1 until the moving box lies on the slice, Step −1, Just before the blow, the replay to just after it, Replay launch, each launch', () => {
+  it('chapter III at its start: Replay launch and a launch that change nothing shown, Step +1 until the moving box lies on the slice, Step −1, Just before the blow, Replay launch, each launch, and the empty view’s replay to just after the blow', () => {
     const x = createExperience('collision');
     const step = button('hd-step');
+    // At launch nothing a body line names changes, so each is said as itself.
+    expect(x.worlds.contact.presetId, 'chapter III opens on launch A').toBe('central');
+    const at = x.view().eventId;
+    press(x, [button('hd-replay'), button('hd-preset-a')], 'at launch');
+    expect(x.view().eventId, 'both are said').toBe(at + 2);
     const shown = press(x, Array.from({ length: 162 }, () => step), 'steps');
     expect(shown.at(-1), 'the box comes to lie on the slice by the clock').toBe('present face +w');
     expect(x.view().event).toBe('Box now meets your slice only on its boundary — it moved. The meeting is its +w face, a solid cuboid, and its cut is drawn.');
     press(x, [button('hd-step-back')], 'step back');
     expect(x.view().event).toBe('Box now passes through your slice — the run was replayed from launch to step 161, and its cut is drawn.');
-    press(x, [...Array.from({ length: 2 }, () => step), button('hd-jump'), JUST_AFTER, ...Array.from({ length: 100 }, () => step),
+    press(x, [...Array.from({ length: 2 }, () => step), button('hd-jump'), ...Array.from({ length: 100 }, () => step),
       button('hd-replay'), ...Array.from({ length: 162 }, () => step), button('hd-preset-a'), ...Array.from({ length: 162 }, () => step),
       button('hd-preset-b')], 'buttons');
     expect(x.view().event).toMatch(/launch B was started afresh, at step 0/);
+    // Stepped on until the bodies are beyond the slider's reach, the empty view offers the replay; its button sends
+    // the action the view gives.
+    const offered = (): Action | null => x.view().empty?.recoveries.find((r) => r.label === 'Replay to just after the blow')?.action ?? null;
+    let stepped = 0;
+    while (offered() === null && stepped < 2000) { press(x, [step], `launch B, step ${++stepped}`); }
+    const replay = offered();
+    expect(replay, 'the empty view offers the replay').not.toBeNull();
+    press(x, [replay!], 'the empty view’s replay');
+    expect(x.view().event).toMatch(/^Replayed from launch to step \d+, the blow/);
     x.dispose();
   });
 

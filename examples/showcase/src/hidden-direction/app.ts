@@ -490,10 +490,11 @@ export function createApp(root: HTMLElement): void {
   /**
    * Where the picture has room, the empty view covers neither the event line above it nor the camera's controls
    * below: when the card, centred, would reach either, it is centred in the space between them instead
-   * (`--hd-top`, `--hd-bottom`). That space must still show the card's headline and every way back; when it does
-   * not, the controls are kept clear before the line, and failing both the card is centred as before. Positions are
-   * read from the layout, so the line's arrival transform does not move the card. A phone's picture has no such
-   * room, and there the stylesheet lays the card over the whole picture, the line and the controls included.
+   * (`--hd-top`, `--hd-bottom`). That space must still show the card's headline and every way back whole; when it
+   * does not, the card keeps clear of the controls alone, failing that of the line alone, and failing both it is
+   * centred as before. Positions are read from the layout, so the line's arrival transform does not move the card.
+   * A phone's picture has no such room, and there the stylesheet lays the card over the whole picture, the line and
+   * the controls included.
    */
   function placeEmpty(): void {
     let top = 16;
@@ -520,13 +521,15 @@ export function createApp(root: HTMLElement): void {
         if (line !== null && t < line && at(t, b).top < line) t = line;
         if (controls !== null && b < height - controls && at(t, b).bottom > controls) b = height - controls;
       }
-      // The headline and the ways back, with the card's padding and border.
-      const needed = el.emptyActions.offsetTop + el.emptyActions.offsetHeight + parseFloat(getComputedStyle(el.empty).paddingBottom) + 2;
-      if (height - t - b >= needed) { top = t; bottom = b; } else {
-        // No room for both: the controls are kept clear if the card, centred above them, can still show its ways back.
-        const clearOfControls = controls !== null && at(16, 16).bottom > controls ? height - controls : 16;
-        if (height - 16 - clearOfControls >= needed) bottom = clearOfControls;
-      }
+      // The headline and every way back, whole, 4 px above the card's border; the reasons below them scroll.
+      const needed = el.emptyActions.offsetTop + el.emptyActions.offsetHeight + 4 + 2;
+      const fits = (tt: number, bb: number): boolean => height - tt - bb >= needed;
+      // No room for both: clear of the controls alone, else of the line alone, else centred.
+      const clearOfControls = controls !== null && at(16, 16).bottom > controls ? height - controls : 16;
+      const clearOfLine = line !== null && at(16, 16).top < line ? line : 16;
+      if (fits(t, b)) { top = t; bottom = b; }
+      else if (fits(16, clearOfControls)) bottom = clearOfControls;
+      else if (fits(clearOfLine, 16)) top = clearOfLine;
     }
     el.empty.style.setProperty('--hd-top', `${Math.ceil(top)}px`);
     el.empty.style.setProperty('--hd-bottom', `${Math.ceil(bottom)}px`);

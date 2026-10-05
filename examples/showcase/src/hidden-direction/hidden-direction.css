@@ -314,6 +314,8 @@
  */
 @media (max-width: 560px), (max-width: 999px) and (max-height: 540px) and (orientation: landscape) {
   .hd-stage:has(> .hd-empty:not([hidden])) .hd-event { max-width: calc(100% - 16px); }
+  /* A browser without :has() narrows the line on a phone's picture whether or not the card shows. */
+  @supports not selector(:has(*)) { .hd-event { max-width: calc(100% - 16px); } }
   .hd-empty { top: 6px; transform: translateX(-50%); width: calc(100% - 12px); max-height: calc(100% - 12px); padding: 12px 14px; }
   .hd-empty h2 { font-size: 18px; margin-bottom: 8px; }
   .hd-empty .hd-actions { margin-bottom: 12px; }
