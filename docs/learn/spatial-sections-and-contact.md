@@ -272,7 +272,7 @@ These pins read the shipped page and module text. They prove the code says
 something, not that it runs: the repository has no DOM test environment.
 Behaviour in a browser needs genuine input.
 
-The Hidden Direction's suite holds 838 tests in 14 files. They drive the
+The Hidden Direction's suite holds 839 tests in 14 files. They drive the
 controller through the same entry point the page uses, and their oracles are
 independent: fresh instances, closed forms and literals. They do not drive the
 page's own wiring of controls to that entry point (`app.ts`), which needs a
@@ -294,8 +294,9 @@ suite.
   a box's faces from inside by arrow keys and gauge drags, and back in. In the
   contact world it also reaches them from outside, and by map turns. The
   block's faces lie at the slider's limits, so they have no outside. The
-  physics clock is driven by playing and by its buttons: Step, Step −1, the
-  jumps, Replay launch and each launch.
+  physics clock is driven by playing, by its buttons (Step, Step −1, Just
+  before the blow, Replay launch and each launch) and by the empty view's
+  replay to just after the blow.
   - After every key press, pointer move, button and tick, each sentence of the
     line on screen is parsed for what it says about a body.
   - The claim is checked against the body's reading now. A reported change

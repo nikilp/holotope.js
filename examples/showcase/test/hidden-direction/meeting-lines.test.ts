@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { createExperience, type Action } from '../../src/hidden-direction/experience.js';
-import { INSTRUMENTS, keyAction, sliderKey } from '../../src/hidden-direction/bindings.js';
+import { BUTTONS, INSTRUMENTS, keyAction, sliderKey } from '../../src/hidden-direction/bindings.js';
+import { PRESETS } from '../../src/spatial-4d-contact/simulation.js';
 import type { Meeting } from '../../src/hidden-direction/worlds.js';
 
 /**
@@ -73,7 +74,7 @@ function phraseKey(phrase: string): string {
     'part of its boundary, of a dimension not established within 10⁻⁹': 'unsettled'
   };
   const key = keys[phrase];
-  if (!key) throw new Error(`unknown meeting phrase: “${phrase}”`);
+  if (!key) assert.fail(`unknown meeting phrase: “${phrase}”`);
   return key;
 }
 /** The same key, from a body's reading. */
@@ -118,7 +119,7 @@ const FORMS: readonly { readonly re: RegExp; readonly claims: (m: RegExpExecArra
   { re: /^Launch [A-Z] was started afresh, at step 0\./, claims: () => [] }
 ];
 
-/** Every claim a line makes about now, sentence by sentence. A sentence no form knows is an error. */
+/** Every claim a line makes about now, sentence by sentence. A sentence no form knows fails the test. */
 function claimsOf(line: string): Claim[] {
   const out: Claim[] = [];
   let rest = line.trim();
@@ -132,7 +133,7 @@ function claimsOf(line: string): Claim[] {
       matched = true;
       break;
     }
-    if (!matched) throw new Error(`a sentence the oracle does not know: “${rest}”`);
+    if (!matched) assert.fail(`a sentence the oracle does not know: “${rest}”`);
   }
   return out;
 }
@@ -278,10 +279,16 @@ function play(x: Experience, id: string, ticks: number, label: string): { shown:
   return shown;
 }
 
+/** A clock button's action, as its binding sends it. */
+const button = (id: string): Action => BUTTONS.find((b) => b.id === id)!.act({ playing: false, shadowOn: false, studyPlaying: false, facesCut: [], face: null })!;
+/** The empty view's recovery *Replay to just after the blow*, as its button sends it. */
+const JUST_AFTER: Action = { type: 'jump-after' };
+
 /**
- * The collision's clock by its buttons, as their bindings send them: a step is motion; Step −1 and the jumps are
- * replays from launch to the step they land on; *Replay launch* and a preset start a run afresh. A replay or a
- * launch is always said, so only a step must be quiet when nothing shown changed.
+ * The collision's clock by its buttons: a step is motion; Step −1, *Just before the blow* and the empty view's
+ * *Replay to just after the blow* are replays from launch to the step they land on; *Replay launch* and a launch
+ * start a run afresh. A replay or a launch is always said, as itself or with what it changed; a step must be quiet
+ * when nothing shown changed.
  */
 function press(x: Experience, actions: readonly Action[], label: string): string[] {
   const shown: string[] = [];
@@ -293,10 +300,13 @@ function press(x: Experience, actions: readonly Action[], label: string): string
     const steps = x.worlds.contact.sim.steps;
     const blow = x.worlds.contact.sim.impacts > impacts;
     shown.push(shownAs(reading(x, 'box')));
+    const at = `${label}, action ${k + 1} (${JSON.stringify(a)})`;
+    const letter = a.type === 'preset' ? PRESETS.find((p) => p.id === a.id)!.name.charAt(0) : null;
     const cause = a.type === 'step' ? /^it moved$/
-      : a.type === 'preset' ? /^launch [AB] was started afresh, at step 0$/
+      : letter !== null ? new RegExp(`^launch ${letter} was started afresh, at step 0$`)
       : new RegExp(`^the run was replayed from launch to step ${steps}$`);
-    checkStep(x, before, idBefore, `${label}, action ${k + 1} (${JSON.stringify(a)})`, a.type === 'step' && !blow, cause, blow);
+    checkStep(x, before, idBefore, at, a.type === 'step' && !blow, cause, blow);
+    if (a.type !== 'step') expect(x.view().eventId, `${at}: a replay or a launch is said`).not.toBe(idBefore);
   }
   return shown;
 }
@@ -497,6 +507,16 @@ describe('the contact world: a change of status leads, and a face-to-face brief 
     x.dispose();
   });
 
+  it('chapter IV, on the +x face at −1.2, nothing drawn: one map move to −90° and back — the ball vanishes and appears, and the touching box’s brief names its face', () => {
+    const x = createExperience('spin');
+    run(x, 'box', [INSTRUMENTS.turn.act(90), INSTRUMENTS.gauge.act(-1.2)], 'onto +x, not drawn');
+    run(x, 'box', [INSTRUMENTS.turn.act(-90)], 'flip');
+    expect(x.view().event).toBe('Ball vanished from your slice — you moved your slice; the ball now lies ana of your slice. It has not gone. Box now meets your slice only on its boundary: its −x face, a solid cuboid.');
+    run(x, 'box', [INSTRUMENTS.turn.act(90)], 'flip back');
+    expect(x.view().event).toBe('Ball appeared — you moved your slice, and now your slice cuts it. Box now meets your slice only on its boundary: its +x face, a solid cuboid.');
+    x.dispose();
+  });
+
   it('chapter IV, on the −x face at +1.2, one map move to −90°: the ball appears, and the box’s brief names its +x face', () => {
     const x = createExperience('spin');
     run(x, 'box', [INSTRUMENTS.turn.act(90), INSTRUMENTS.gauge.act(1.2), INSTRUMENTS.turn.act(-90)], 'onto −x, then flip');
@@ -506,17 +526,18 @@ describe('the contact world: a change of status leads, and a face-to-face brief 
 });
 
 describe('the clock’s buttons: a step is motion, a replay or a launch says itself, and every change is said', () => {
-  it('chapter III at its start: Step +1 until the moving box lies on the slice, Step −1, both jumps, Replay launch, each preset', () => {
+  it('chapter III at its start: Step +1 until the moving box lies on the slice, Step −1, Just before the blow, the replay to just after it, Replay launch, each launch', () => {
     const x = createExperience('collision');
-    const step: Action = { type: 'step' };
+    const step = button('hd-step');
     const shown = press(x, Array.from({ length: 162 }, () => step), 'steps');
     expect(shown.at(-1), 'the box comes to lie on the slice by the clock').toBe('present face +w');
     expect(x.view().event).toBe('Box now meets your slice only on its boundary — it moved. The meeting is its +w face, a solid cuboid, and its cut is drawn.');
-    press(x, [{ type: 'step-back' }], 'step back');
+    press(x, [button('hd-step-back')], 'step back');
     expect(x.view().event).toBe('Box now passes through your slice — the run was replayed from launch to step 161, and its cut is drawn.');
-    press(x, [...Array.from({ length: 2 }, () => step), { type: 'jump-touch' }, { type: 'jump-after' }, ...Array.from({ length: 100 }, () => step),
-      { type: 'replay' }, ...Array.from({ length: 162 }, () => step), { type: 'preset', id: 'central' }, ...Array.from({ length: 162 }, () => step),
-      { type: 'preset', id: 'off-centre' }], 'buttons');
+    press(x, [...Array.from({ length: 2 }, () => step), button('hd-jump'), JUST_AFTER, ...Array.from({ length: 100 }, () => step),
+      button('hd-replay'), ...Array.from({ length: 162 }, () => step), button('hd-preset-a'), ...Array.from({ length: 162 }, () => step),
+      button('hd-preset-b')], 'buttons');
+    expect(x.view().event).toMatch(/launch B was started afresh, at step 0/);
     x.dispose();
   });
 

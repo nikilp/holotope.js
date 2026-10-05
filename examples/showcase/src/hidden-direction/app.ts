@@ -488,20 +488,48 @@ export function createApp(root: HTMLElement): void {
   }
 
   /**
-   * Where the picture has room, the empty view sits clear of the event line: when the card, centred, would reach
-   * the line, it is centred in the part of the picture below the line instead (`--hd-clear`). A phone's picture has
-   * no such room, and there the stylesheet lays the card over the whole picture, the line included.
+   * Where the picture has room, the empty view covers neither the event line above it nor the camera's controls
+   * below: when the card, centred, would reach either, it is centred in the space between them instead
+   * (`--hd-top`, `--hd-bottom`). That space must still show the card's headline and every way back; when it does
+   * not, the controls are kept clear before the line, and failing both the card is centred as before. Positions are
+   * read from the layout, so the line's arrival transform does not move the card. A phone's picture has no such
+   * room, and there the stylesheet lays the card over the whole picture, the line and the controls included.
    */
-  function clearOfLine(): void {
-    let clear = 0;
-    if (!el.empty.hidden && !el.event.hidden) {
-      const box = stageHost.getBoundingClientRect();
-      // The line's arrival lifts it 6 px for 380 ms; 8 px below it clears it either way.
-      const below = el.event.getBoundingClientRect().bottom - box.top + 8;
-      const height = Math.min(el.empty.scrollHeight + 2, box.height - 32);
-      if ((box.height - height) / 2 < below) clear = Math.ceil(below);
+  function placeEmpty(): void {
+    let top = 16;
+    let bottom = 16;
+    if (!el.empty.hidden) {
+      const height = stageHost.clientHeight;
+      const width = stageHost.clientWidth;
+      const natural = el.empty.scrollHeight + 2;
+      const left = (width - el.empty.offsetWidth) / 2;
+      const right = (width + el.empty.offsetWidth) / 2;
+      const across = (o: HTMLElement): boolean => o.offsetLeft < right && o.offsetLeft + o.offsetWidth > left;
+      const line = !el.event.hidden && across(el.event) ? el.event.offsetTop + el.event.offsetHeight + 8 : null;
+      const controls = el.camera.offsetParent !== null && across(el.camera) ? el.camera.offsetTop - 8 : null;
+      // Where the card falls, centred between an inset at the top and one at the bottom.
+      const at = (t: number, b: number): { top: number; bottom: number } => {
+        const room = height - t - b;
+        const h = Math.min(natural, room);
+        return { top: t + (room - h) / 2, bottom: t + (room + h) / 2 };
+      };
+      // Clear of the line, then of the controls; the second shift can bring the line back into reach, so twice.
+      let t = 16;
+      let b = 16;
+      for (let k = 0; k < 2; k++) {
+        if (line !== null && t < line && at(t, b).top < line) t = line;
+        if (controls !== null && b < height - controls && at(t, b).bottom > controls) b = height - controls;
+      }
+      // The headline and the ways back, with the card's padding and border.
+      const needed = el.emptyActions.offsetTop + el.emptyActions.offsetHeight + parseFloat(getComputedStyle(el.empty).paddingBottom) + 2;
+      if (height - t - b >= needed) { top = t; bottom = b; } else {
+        // No room for both: the controls are kept clear if the card, centred above them, can still show its ways back.
+        const clearOfControls = controls !== null && at(16, 16).bottom > controls ? height - controls : 16;
+        if (height - 16 - clearOfControls >= needed) bottom = clearOfControls;
+      }
     }
-    el.empty.style.setProperty('--hd-clear', `${clear}px`);
+    el.empty.style.setProperty('--hd-top', `${Math.ceil(top)}px`);
+    el.empty.style.setProperty('--hd-bottom', `${Math.ceil(bottom)}px`);
   }
 
   function paintEmpty(): void {
@@ -510,10 +538,10 @@ export function createApp(root: HTMLElement): void {
     if (!e) { shownOffer = null; return; }
     el.emptyHead.textContent = e.headline;
     el.emptyList.innerHTML = e.reasons.map((r) => `<li><span class="hz-swatch" style="background:${r.colour}"></span><span>${r.line}</span></li>`).join('');
-    clearOfLine();
-    // Rebuilt only when the offer changes, so a button stays put — and clickable — while a clock runs.
+    // Rebuilt only when the offer changes, so a button stays put — and clickable — while a clock runs. The card is
+    // placed once its content, the ways back included, is what it will show.
     const offer = e.recoveries.map((r) => r.label).join('\n');
-    if (offer === shownOffer) return;
+    if (offer === shownOffer) { placeEmpty(); return; }
     shownOffer = offer;
     el.emptyActions.replaceChildren(...e.recoveries.map((rec, i) => {
       const button = document.createElement('button');
@@ -528,6 +556,7 @@ export function createApp(root: HTMLElement): void {
       });
       return button;
     }));
+    placeEmpty();
   }
 
   /** The focused body glows in its slice and its shadow; the others step back. Presentation only. */
@@ -559,7 +588,7 @@ export function createApp(root: HTMLElement): void {
 
   window.addEventListener('resize', () => paint());
   // The event line arrives with a short slide; tags are placed again against where it settles.
-  el.event.addEventListener('animationend', () => { paintLabels(); clearOfLine(); });
+  el.event.addEventListener('animationend', () => paintLabels());
   paint();
   requestAnimationFrame(frame);
 }
