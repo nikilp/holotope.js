@@ -30,7 +30,13 @@ export const DRAW_ORDER = {
   /** The cube's wireframe, opaque lines. */
   cubeEdges: 0,
   /** The only transparent object in the scene, and therefore drawn last. */
-  cubeFaces: 10
+  cubeFaces: 10,
+  /**
+   * One rung up, the shadow and the cut's corners: opaque, drawn after the cut
+   * solid and without a depth test, so a shadow lying exactly on the cut still
+   * shows. Opaque, so the transparent budget is unchanged.
+   */
+  shadowOver: 5
 } as const;
 
 /** How many transparent objects the solid view is allowed to contain. */

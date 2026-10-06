@@ -233,12 +233,13 @@ describe('source-linked sheet — withheld from the built gallery', () => {
     ]);
     expect(built).not.toContain('source-linked-sheet.html');
 
-    // Two different reasons a page can be built and unlinked, and this list
-    // must keep them apart. `flatland.html` is an experimental route whose
-    // taste gate is still open, so it is built and deliberately not promoted.
-    // `source-linked-sheet.html` is withheld from the build entirely, because
-    // its surface passes through its own support; see the note above `input:`
-    // in vite.config.ts. Neither is a gallery card, and only one is buildable.
+    // `flatland.html` is One More Direction, the way in before The Hidden
+    // Direction, and the atlas links it (hero note and a card). It was built
+    // and deliberately unlinked while its earlier version's taste gate was
+    // open; PUBLIC-DIMENSIONS-G1 rebuilt it and promotes it, pending that
+    // commission's own taste check. `source-linked-sheet.html` is still
+    // withheld from the build entirely, because its surface passes through its
+    // own support; see the note above `input:` in vite.config.ts.
     expect(built).toContain('flatland.html');
 
     // Every page the gallery links must be a page the build emits, and the
@@ -247,10 +248,11 @@ describe('source-linked sheet — withheld from the built gallery', () => {
     const linked = [...new Set(
       [...gallery.matchAll(/href="\.\/([a-z0-9-]+\.html)"/g)].map((match) => match[1]!)
     )].sort();
-    // 26: the twenty studies, both Hidden Direction entries, both classic
-    // instruments they were built from, the previous gallery, and the atlas's
-    // own mark linking home.
-    expect(linked.length).toBe(26);
+    // 27: the twenty studies, both Hidden Direction entries, both classic
+    // instruments they were built from, One More Direction, the previous
+    // gallery, and the atlas's own mark linking home.
+    expect(linked.length).toBe(27);
+    expect(linked).toContain('flatland.html');
     expect(linked.filter((page) => !built.includes(page))).toEqual([]);
     expect(linked).not.toContain('source-linked-sheet.html');
   });

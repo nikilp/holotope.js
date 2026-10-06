@@ -27,6 +27,7 @@ traceability comes from a second map retained during construction.
 
 - [Representation provenance](./representation-provenance) — what a pick can and cannot recover
 - [Provenance-driven decorations](./couplings) — assigning parameters from retained source identity
+- [One More Direction — how to explore](./one-more-direction) — a visitor's guide to the way in: a cube through a plane, then a tesseract through your space, with four hands that each change one thing
 - [The Hidden Direction — how to explore](./the-hidden-direction) — a visitor's guide to the showcase's guided experience: your screen as a slice of R4, the instruments beside it, and the four ways to move
 - [Turning a section, and contact through the hidden direction](./spatial-sections-and-contact) — two showcase pages that keep one R4 source behind every view: what changes only the observer, and how to find a cause the cut cannot show
 

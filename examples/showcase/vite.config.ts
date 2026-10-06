@@ -41,9 +41,9 @@ export default defineConfig({
         index: local('./index.html'),
         // The gallery as it stood before the atlas redesign, kept reachable from the atlas footer.
         atlasClassic: local('./atlas-classic.html'),
-        // Scene 3 of the guided ladder, built as an experimental route while its
-        // taste gate is open. Deliberately absent from the gallery in
-        // `index.html` until that review says it belongs there.
+        // One More Direction: a cube through a plane, then a tesseract through
+        // your space. The atlas links it as the way in before The Hidden
+        // Direction; the route keeps its earlier name, and its earlier hashes.
         flatland: local('./flatland.html'),
         polytopeBrowser: local('./polytope-browser.html'),
         productBrowser: local('./product-browser.html'),

@@ -1,0 +1,307 @@
+/*
+ * One More Direction. Three places, side by side on a wide screen: the words
+ * (the chapter card), the picture, and the hands' instruments (slide, turn,
+ * cast). Nothing covers the picture except what the picture is about: its
+ * event line, its note when nothing is cut, its name tags, and the camera's
+ * own controls. A tag that would sit under any of those is not shown.
+ */
+
+.om {
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.om-bar { position: relative; z-index: 6; }
+.om-bar .om-where { font: 500 15px/1 var(--serif); color: var(--text-soft); padding-left: 12px; border-left: 1px solid var(--hair); }
+.hz-skip:focus { position: fixed; left: 12px; top: 12px; width: auto; height: auto; clip: auto; z-index: 10; padding: 8px 12px; background: var(--ink-2); border-radius: 8px; }
+
+.om-main {
+  display: grid;
+  grid-template-columns: clamp(300px, 27vw, 380px) minmax(0, 1fr) clamp(250px, 19vw, 280px);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px 14px;
+  padding: 0 20px 12px;
+  min-height: 0;
+}
+
+/* ---------- the card: the chapter, the one thing to try, the question ---------- */
+.om-card {
+  grid-column: 1; grid-row: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 20px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+  scrollbar-width: thin;
+}
+/* The card scrolls when its content outgrows it; nothing in it is squeezed to make room. */
+.om-card > * { margin: 0; flex-shrink: 0; }
+.om-card h1 { font-size: 31px; }
+.om-setup { font-size: 12.5px; color: var(--muted); margin-top: -6px !important; line-height: 1.45; }
+.om-invite { font: 400 17px/1.5 var(--serif); color: var(--text); }
+.om-hint {
+  font-size: 14px; color: var(--slice); min-height: 2.6em;
+  padding-left: 12px; border-left: 2px solid var(--slice-glow);
+}
+.om-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.om-secondary .hz-btn { min-height: 36px; padding: 0 13px; font-size: 13px; }
+
+.om-guess { border-top: 1px solid var(--hair); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.om-guess > * { margin: 0; }
+.om-question { font: 400 16px/1.45 var(--serif); }
+.om-choice { min-height: 38px; padding: 0 14px; font-size: 13.5px; }
+.om-test-row .hz-btn { min-height: 34px; padding: 0 12px; font-size: 13px; border: 1px dashed var(--hair-strong); }
+.om-test-row .hz-btn::before { content: '→'; color: var(--slice); }
+.om-reveal { padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(241, 223, 174, 0.07); border: 1px solid var(--slice-glow); }
+.om-reveal p { margin: 0; font-size: 14px; line-height: 1.5; }
+.om-yours { color: var(--muted); font-size: 12.5px !important; margin-bottom: 4px !important; }
+
+.om-status { font-size: 13px; color: var(--text-soft); line-height: 1.45; }
+.om-inspect { font-size: 13.5px; color: var(--text); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px dashed var(--hair-strong); }
+.om-next { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--hair); }
+.om-next p { margin: 0; font-size: 13px; color: var(--text-soft); }
+.om-next .hz-btn { align-self: flex-start; }
+
+.om-more { border-top: 1px solid var(--hair); padding-top: 6px; margin-top: auto !important; }
+.om-more summary { cursor: pointer; color: var(--text-soft); font-size: 13px; padding: 6px 0; }
+.om-more p, .om-more li { font-size: 13px; color: var(--text-soft); margin: 6px 0; line-height: 1.45; }
+.om-legend { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 6px; }
+.om-legend li { display: flex; gap: 8px; align-items: baseline; }
+.om-legend .hz-swatch { flex: none; transform: translateY(1px); }
+.om-swatch-camera { background: transparent; border: 1.5px solid var(--text-soft); border-radius: 50%; }
+.om-numbers div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); padding: 2px 0; }
+.om-numbers .hz-num { text-align: right; color: var(--text-soft); }
+.om-lists .hz-kicker { margin: 10px 0 4px; }
+.om-lists ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.om-lists li { margin: 0 !important; }
+.om-pick { background: transparent; cursor: pointer; font-family: var(--mono); font-size: 11.5px; }
+.om-pick:hover { border-color: var(--hair-strong); color: var(--text); }
+.om-pick[aria-pressed='true'] { border-color: var(--slice); color: var(--text); background: rgba(241, 223, 174, 0.08); }
+.om-more .om-links { display: flex; gap: 14px; flex-wrap: wrap; }
+
+/* ---------- the picture ---------- */
+.om-stage {
+  position: relative;
+  grid-column: 2; grid-row: 1;
+  min-height: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  background: #070a10;
+}
+.om-stage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.om-stage canvas:active { cursor: grabbing; }
+.om-stage::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 62%, rgba(0, 0, 0, 0.42));
+}
+
+.om-labels { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.om-tag {
+  position: absolute;
+  transform: translate(-50%, -160%);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 600 12px/1.3 var(--sans);
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: rgba(8, 11, 17, 0.74);
+  border: 1px solid var(--hair-strong);
+  white-space: nowrap;
+}
+.om-tag--plane { border-color: rgba(241, 223, 174, 0.5); color: var(--text-soft); transform: translate(-50%, 40%); }
+.om-tag--cut { border-color: var(--slice); transform: translate(calc(-100% - 10px), -50%); }
+.om-tag--shadow { border-color: rgba(183, 196, 255, 0.75); transform: translate(-50%, 45%); }
+.om-tag--pile { padding: 1px 6px; font-size: 11px; border-color: rgba(183, 196, 255, 0.75); color: #dfe6ff; transform: translate(30%, -120%); }
+
+.om-event {
+  position: absolute; z-index: 2;
+  top: 14px; left: 50%; transform: translateX(-50%);
+  box-sizing: border-box;
+  width: max-content; max-width: min(640px, calc(100% - 24px));
+  margin: 0; padding: 9px 16px;
+  border-radius: 18px;
+  font: 500 14px/1.4 var(--sans);
+  color: var(--text);
+  background: rgba(10, 13, 20, 0.84);
+  border: 1px solid var(--slice-glow);
+  text-align: center;
+}
+.om-event.is-new { animation: om-arrive 380ms var(--ease); }
+@keyframes om-arrive { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/*
+ * A blank picture: nothing cut, no shadow, no object drawn. The note takes the middle of the picture, which has
+ * nothing else to show; it stays inside it, clear of the camera's controls below.
+ */
+.om-empty {
+  position: absolute; z-index: 3;
+  left: 50%; top: calc(50% - 22px); transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(520px, calc(100% - 32px));
+  max-height: calc(100% - 120px); overflow: auto;
+  padding: 14px 18px;
+}
+.om-empty-head { font: 400 16px/1.45 var(--serif); margin: 0 0 10px; }
+.om-empty .hz-btn { min-height: 38px; padding: 0 14px; font-size: 13.5px; }
+
+.om-camera {
+  position: absolute; z-index: 2; right: 12px; bottom: 12px; left: 12px;
+  display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap;
+  pointer-events: none;
+}
+.om-camera > * { pointer-events: auto; }
+.om-cam-hint { font: 500 12px/1.3 var(--sans); color: var(--muted); background: rgba(8, 11, 17, 0.6); padding: 6px 10px; border-radius: 999px; margin-right: auto; }
+.om-cam-btn { min-height: 36px; padding: 0 14px; font-size: 13px; background: rgba(8, 11, 17, 0.7); }
+
+/* ---------- the instruments: one panel per hand ---------- */
+.om-panel { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.om-panel-head { margin: 0; padding: 12px 14px 0; }
+.om-read { margin: 6px 14px 12px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.om-read b { color: var(--text); font-weight: 500; }
+
+.om-slide { flex: 1; min-height: 240px; display: flex; flex-direction: column; }
+.om-gauge { position: relative; flex: 1; margin: 6px 8px 0; cursor: ns-resize; touch-action: none; border-radius: 12px; min-height: 120px; }
+.om-gauge[aria-disabled='true'] { cursor: default; }
+.om-gauge-svg { position: absolute; inset: 22px 6px; }
+.om-gauge-svg svg { display: block; overflow: visible; }
+.om-gauge-end { position: absolute; left: 0; right: 0; text-align: center; font: 600 11px/1 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.om-gauge-end.top { top: 4px; }
+.om-gauge-end.bottom { bottom: 4px; }
+.om-gauge .reach { fill: rgba(241, 223, 174, 0.035); stroke: rgba(241, 223, 174, 0.1); }
+.om-gauge .middle { stroke: var(--hair); stroke-dasharray: 2 4; }
+.om-gauge .extent { fill: rgba(236, 232, 223, 0.1); stroke: var(--hair-strong); }
+.om-gauge .layer { stroke-width: 2.5; stroke-linecap: round; }
+.om-gauge .layer.plus { stroke: #c9c6bf; }
+.om-gauge .layer.minus { stroke: #6f7889; }
+.om-gauge .layer.on { stroke: var(--slice); stroke-width: 3.5; }
+.om-gauge .count { fill: var(--text-soft); font: 600 11px var(--mono); }
+.om-gauge .slice-line { stroke: var(--slice); stroke-width: 2.5; filter: drop-shadow(0 0 6px var(--slice-glow)); }
+.om-gauge .slice-knob { fill: var(--slice); }
+.om-gauge svg * { pointer-events: none; }
+
+.om-turn, .om-cast { flex: none; }
+.om-turn-body { display: flex; align-items: center; gap: 6px; padding: 4px 12px 0 6px; }
+.om-dial { flex: 1 1 auto; min-width: 0; max-width: 160px; aspect-ratio: 150 / 124; cursor: grab; touch-action: none; border-radius: 12px; }
+.om-dial-svg { width: 100%; height: 100%; }
+.om-dial .track { fill: none; stroke: var(--hair-strong); stroke-width: 2; }
+.om-dial .stop { stroke: var(--muted); stroke-width: 2; }
+.om-dial .stop.is-on { stroke: var(--slice); stroke-width: 3; }
+.om-dial .axis { stroke: var(--muted); stroke-width: 1.2; }
+.om-dial .arrow-head { fill: var(--muted); }
+.om-dial .axis-label { fill: var(--muted); font: 600 10px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
+.om-dial .body { fill: rgba(236, 232, 223, 0.08); stroke: var(--text-soft); stroke-width: 1.2; }
+.om-dial .corner { fill: var(--text-soft); }
+.om-dial .lowest { fill: var(--text); }
+.om-dial .hand { stroke: var(--slice); stroke-width: 1.5; stroke-dasharray: 3 3; opacity: 0.7; }
+.om-dial .knob { fill: var(--slice); stroke: #1a1408; stroke-width: 1.5; }
+.om-poses { display: flex; flex-direction: column; gap: 6px; flex: none; }
+.om-poses .hz-btn { min-height: 32px; padding: 0 11px; font-size: 12.5px; }
+.om-cast-body { display: flex; flex-direction: column; gap: 4px; padding: 8px 14px 0; }
+.om-cast-body .hz-btn { align-self: flex-start; min-height: 36px; padding: 0 14px; font-size: 13px; }
+.om-cast-body .om-read { margin: 4px 0 12px; }
+
+/* ---------- the chapter rail ---------- */
+.om-chapters {
+  grid-column: 1 / -1; grid-row: 2;
+  display: flex; gap: 6px; overflow-x: auto;
+  scrollbar-width: thin;
+}
+.om-chapter {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  min-height: var(--tap); padding: 0 14px;
+  border-radius: 999px; border: 1px solid var(--hair);
+  background: transparent; color: var(--text-soft);
+  font: 500 14px/1 var(--sans); cursor: pointer; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.om-chapter:hover { border-color: var(--hair-strong); color: var(--text); }
+.om-chapter[aria-current='step'] { border-color: var(--slice); color: var(--text); background: rgba(241, 223, 174, 0.08); }
+.om-chapter-numeral { font: 500 15px/1 var(--serif); color: var(--slice); }
+
+/* On a touch screen every control and every link is a full tap target. */
+@media (pointer: coarse) {
+  .om .hz-btn, .om .om-chapter, .om .om-pick, .om-poses .hz-btn, .om-choice, .om-cam-btn { min-height: var(--tap); }
+  .om .om-more summary { min-height: var(--tap); display: flex; align-items: center; }
+  .om .om-bar { padding-top: 0; padding-bottom: 0; }
+  .om .om-bar .hz-mark, .om .om-bar nav a, .om .om-more .om-links a { min-height: var(--tap); display: inline-flex; align-items: center; }
+  .om .hz-skip:focus { min-height: var(--tap); display: inline-flex; align-items: center; }
+}
+
+/* ---------- short desktop windows: the card scrolls; the dial shrinks with the height ---------- */
+@media (min-width: 1000px) and (max-height: 780px) {
+  .om-card h1 { font-size: 26px; }
+  .om-dial { max-width: min(150px, 18vh); }
+  .om-slide { min-height: 170px; }
+  .om-read { margin-bottom: 8px; }
+}
+
+/*
+ * Narrow screens: the picture stays in view (sticky at the top) with the gauge
+ * beside it, the plus side still up; the card, then the turn and the light,
+ * then the chapters scroll beneath it, so every hand can be used while you
+ * watch. The card comes first, so its first action is on the first screen.
+ */
+@media (max-width: 999px) {
+  .om { height: auto; min-height: 100vh; grid-template-rows: auto auto; }
+  .om-main { grid-template-columns: minmax(0, 1fr) 64px; grid-template-rows: auto; gap: 10px 8px; padding: 0 10px 16px; }
+  .om-stage, .om-slide {
+    position: sticky; top: 0; z-index: 4;
+    height: 46vh; height: 46svh; min-height: 250px;
+  }
+  .om-stage { grid-column: 1; grid-row: 1; border-radius: 0 0 18px 18px; border-top: 0; box-shadow: 0 0 0 10px var(--ink-0); }
+  .om-panel { display: contents; }
+  .om-slide { grid-column: 2; grid-row: 1; flex: none; min-height: 250px; background: var(--ink-1); border-radius: 0 0 14px 14px; border-top: 0; box-shadow: 0 0 0 10px var(--ink-0); }
+  .om-slide .om-panel-head, .om-slide .om-read { display: none; }
+  .om-gauge { margin: 2px 2px 6px; }
+  .om-gauge-svg { inset: 18px 2px; }
+  .om-gauge-end { font-size: 10px; letter-spacing: 0.06em; }
+  .om-card { grid-column: 1 / -1; grid-row: 2; overflow: visible; padding: 16px 16px 12px; }
+  .om-turn { grid-column: 1 / -1; grid-row: 3; }
+  .om-dial { max-width: 190px; }
+  .om-poses { flex: 1; max-width: 200px; }
+  .om-cast { grid-column: 1 / -1; grid-row: 4; }
+  .om-chapters { grid-column: 1 / -1; grid-row: 5; }
+  .om-chapter { min-height: 40px; padding: 0 12px; font-size: 13px; }
+  .om-card h1 { font-size: 26px; }
+  .om-cam-hint { display: none; }
+  .om-camera { right: 8px; bottom: 8px; left: 8px; }
+  .om-event { top: 8px; font-size: 13px; padding: 7px 12px; max-width: calc(100% - 16px); }
+  .om-empty { width: calc(100% - 16px); padding: 10px 12px; max-height: calc(100% - 64px); top: calc(50% - 20px); }
+  .om-empty-head { font-size: 14.5px; margin-bottom: 8px; }
+  .om-bar { padding: 10px 12px; gap: 10px; }
+  .om-bar .om-where { display: none; }
+  .om-bar nav a { padding: 8px 7px; font-size: 13px; }
+}
+/* Short phones: a shorter picture and a tighter card head, so the chapter's first action is on the first screen. */
+@media (max-width: 999px) and (max-height: 760px) {
+  .om-stage, .om-slide { height: 40vh; height: 40svh; min-height: 220px; }
+  .om-card { gap: 8px; padding-top: 12px; }
+  .om-card h1 { font-size: 23px; }
+  .om-invite { font-size: 16px; line-height: 1.4; }
+  .om-hint { min-height: 0; }
+  .om-event { font-size: 12px; line-height: 1.3; padding: 6px 10px; top: 6px; }
+}
+/*
+ * Landscape phones: too short for the picture above the card. The picture and its gauge stay pinned on the left;
+ * the card, the instruments and the chapters scroll on the right. Nothing asks you to turn the phone.
+ */
+@media (max-width: 999px) and (max-height: 540px) and (orientation: landscape) {
+  .om-main { grid-template-columns: minmax(0, 1fr) 54px minmax(250px, 46%); grid-template-rows: auto auto auto auto 1fr; align-items: start; gap: 8px 8px; padding-bottom: 10px; }
+  .om-stage, .om-slide { grid-row: 1 / span 5; top: 6px; height: calc(100vh - 56px); height: calc(100svh - 56px); min-height: 0; }
+  .om-stage { border-radius: 16px; border-top: 1px solid var(--hair); box-shadow: none; }
+  .om-slide { border-radius: 14px; border-top: 1px solid var(--hair); box-shadow: none; }
+  .om-card { grid-column: 3; grid-row: 1; padding: 8px 12px 10px; gap: 6px; }
+  .om-card h1 { font-size: 21px; }
+  .om-setup { font-size: 12px; margin-top: -4px !important; }
+  .om-invite { font-size: 14.5px; line-height: 1.35; }
+  .om-hint { font-size: 13px; }
+  .om-turn { grid-column: 3; grid-row: 2; }
+  .om-cast { grid-column: 3; grid-row: 3; }
+  .om-chapters { grid-column: 3; grid-row: 4; flex-wrap: wrap; overflow: visible; }
+}
+@media (max-width: 560px) {
+  /* The mark is the way home, and The Hidden Direction stays one tap away in the card's links. */
+  .om-bar nav a[href='./index.html'], .om-bar nav a[href='./spatial-4d-turn.html'] { display: none; }
+  .om-cam-btn { min-height: 34px; padding: 0 11px; font-size: 12px; }
+}
