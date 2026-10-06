@@ -164,7 +164,7 @@ function touchingSentence(rung: RungId, meeting: Extract<Meeting, { kind: 'touch
       + 'that has collapsed to a point or a segment. The meeting is real.';
   }
   return `${w.Slice} touches ${w.theObject} ${what}. Nothing is drawn: the library cuts only where a corner lies strictly ${w.minusSide}, `
-    + `and counts a corner in ${w.slice} as ${w.plusSide.replace(/ (the plane|your space)$/, '')} it. The meeting is real; leaving it undrawn is the library's convention.`;
+    + `and counts a corner in ${w.slice} as ${w.plusSide.replace(/ (the plane|your space)$/, '')} it. The meeting is real; leaving it undrawn is the library’s convention.`;
 }
 
 /** What made a change, said with its subject. */

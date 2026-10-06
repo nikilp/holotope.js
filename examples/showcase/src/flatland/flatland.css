@@ -189,7 +189,7 @@
 .om-dial .stop.is-on { stroke: var(--slice); stroke-width: 3; }
 .om-dial .axis { stroke: var(--muted); stroke-width: 1.2; }
 .om-dial .arrow-head { fill: var(--muted); }
-.om-dial .axis-label { fill: var(--muted); font: 600 10px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
+.om-dial .axis-label { fill: var(--muted); font: 600 11px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; }
 .om-dial .body { fill: rgba(236, 232, 223, 0.08); stroke: var(--text-soft); stroke-width: 1.2; }
 .om-dial .corner { fill: var(--text-soft); }
 .om-dial .lowest { fill: var(--text); }
@@ -255,7 +255,7 @@
   .om-slide .om-panel-head, .om-slide .om-read { display: none; }
   .om-gauge { margin: 2px 2px 6px; }
   .om-gauge-svg { inset: 18px 2px; }
-  .om-gauge-end { font-size: 10px; letter-spacing: 0.06em; }
+  .om-gauge-end { font-size: 11px; letter-spacing: 0.04em; }
   .om-card { grid-column: 1 / -1; grid-row: 2; overflow: visible; padding: 16px 16px 12px; }
   .om-turn { grid-column: 1 / -1; grid-row: 3; }
   .om-dial { max-width: 190px; }

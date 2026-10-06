@@ -155,6 +155,7 @@ describe('the camera and the picture’s presentation change no source', () => {
       const w = x.worlds[rung];
       const source = Array.from(w.source.positions);
       const posed = w.corners().map((c) => [...c.posed]);
+      const placed = { tip: w.tip, offset: w.offset, cut: w.cut().corners.map((c) => [...c.at]) };
       picture.update(x.view());
       const before = [picture.probe.cutSides(), picture.probe.shadowEdges(), picture.probe.cutCorners()];
       const camera = new PerspectiveCamera(40, 1.5, 0.1, 100);
@@ -170,6 +171,7 @@ describe('the camera and the picture’s presentation change no source', () => {
       expect([picture.probe.cutSides(), picture.probe.shadowEdges(), picture.probe.cutCorners()]).toEqual(before);
       expect(Array.from(w.source.positions)).toEqual(source);
       expect(w.corners().map((c) => [...c.posed])).toEqual(posed);
+      expect({ tip: w.tip, offset: w.offset, cut: w.cut().corners.map((c) => [...c.at]) }).toEqual(placed);
     }
   });
 

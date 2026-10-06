@@ -80,6 +80,12 @@ describe('the sweep is wide', () => {
   });
 });
 
+describe('typography', () => {
+  it('sets every apostrophe as one, never as a straight quote', () => {
+    expect(said.filter((s) => /[A-Za-z]'[A-Za-z]/.test(s.text))).toEqual([]);
+  });
+});
+
 describe('rigid bodies: nothing grows, shrinks or deforms', () => {
   it('never says so', () => {
     const bad = said.filter((s) => /\b(grow|grows|grew|growing|shrink\w*|shrank|stretch\w*|deform\w*|morph\w*|melt\w*|squash\w*)\b/i.test(s.text));
@@ -165,10 +171,37 @@ describe('no claim the page cannot back', () => {
     expect(honestNote('plane')).toContain('it would meet even the cut only edge-on');
   });
 
-  it('names the cut, the shadow and the camera apart in the legend, in both rungs', () => {
+  it('names the cut, the shadow and the camera apart in the legend, in both rungs, each for what it is', () => {
     for (const rung of ['plane', 'space'] as const) {
-      expect(legend(rung).map((l) => l.name)).toEqual(['The cut', 'The shadow', 'The camera']);
-      expect(legend(rung)[1]!.text).toContain(WORDS[rung].missing);
+      const [cut, shadow, camera] = legend(rung);
+      expect([cut!.name, shadow!.name, camera!.name]).toEqual(['The cut', 'The shadow', 'The camera']);
+      expect(cut!.text).toMatch(new RegExp(`^where ${WORDS[rung].theObject} meets ${WORDS[rung].slice}\\.`));
+      expect(shadow!.text).toMatch(new RegExp(`^all of ${WORDS[rung].theObject}, dropped straight along ${WORDS[rung].missing}\\.`));
+      expect(camera!.text).toMatch(/^only how you look\./);
+    }
+  });
+});
+
+describe('a touch is explained by the reason that applies to it', () => {
+  it('blames the tie-break from the far side, and the collapse from the near side', () => {
+    for (const rung of ['plane', 'space'] as const) {
+      const x = createExperience('free', { instantTurns: true });
+      x.dispatch({ type: 'rung', id: rung });
+      x.dispatch({ type: 'pose', pose: 'corner' });
+      const [lo, hi] = x.view().extent;
+      x.dispatch({ type: 'slide-to', offset: lo });
+      const far = x.view().status;
+      expect(far).toContain('at a single corner');
+      expect(far).toContain('leaving it undrawn is the library’s convention');
+      expect(far).not.toContain('collapsed');
+      x.dispatch({ type: 'slide-to', offset: hi });
+      const near = x.view().status;
+      expect(near).toContain('the cut is only a single point');
+      expect(near).toContain('collapsed');
+      expect(near).not.toContain('convention');
+      x.dispatch({ type: 'pose', pose: 'facet' });
+      x.dispatch({ type: 'slide-to', offset: 1 });
+      expect(x.view().status).toContain('and it is drawn');
     }
   });
 });
