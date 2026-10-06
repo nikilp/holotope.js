@@ -282,6 +282,13 @@
   .om-hint { min-height: 0; }
   .om-event { font-size: 12px; line-height: 1.3; padding: 6px 10px; top: 6px; }
 }
+/* The shortest phones: a shorter picture again, and a tighter card, so the longest setup still leaves the first action on screen. */
+@media (max-width: 999px) and (max-height: 680px) {
+  .om-stage, .om-slide { height: 35vh; height: 35svh; min-height: 205px; }
+  .om-card { gap: 6px; }
+  .om-card h1 { font-size: 21px; }
+  .om-setup { font-size: 12px; }
+}
 /*
  * Landscape phones: too short for the picture above the card. The picture and its gauge stay pinned on the left;
  * the card, the instruments and the chapters scroll on the right. Nothing asks you to turn the phone.
