@@ -100,6 +100,12 @@ describe('the cut is what the slice meets, by the definition', () => {
         interior += 1;
         const expected = hull2(crossings(posed(plane), plane.edges, 2, h).map((p) => drop(p, 2)));
         expect(sameSet(cut.corners.map((c) => drop(c.at, 2)), expected)).toBe(true);
+        // Its sides are the hull's sides, each between neighbours around it.
+        // Rounded to a micrometre, with a negative zero made zero, so one point has one key.
+        const key = (p: readonly number[]) => p.map((x) => (Math.round(x * 1e6) / 1e6 + 0).toFixed(6)).join(',');
+        const side = (p: readonly number[], q: readonly number[]) => [key(p), key(q)].sort().join('|');
+        expect(new Set(cut.edges.map((e) => side(drop(cut.corners[e.a]!.at, 2), drop(cut.corners[e.b]!.at, 2)))))
+          .toEqual(new Set(expected.map((p, i) => side(p, expected[(i + 1) % expected.length]!))));
         // Every corner of the cut lies in the plane.
         for (const c of cut.corners) expect(Math.abs(c.at[2]! - h)).toBeLessThan(1e-12);
         // The library's triangles fill exactly the analytic polygon.
@@ -129,6 +135,13 @@ describe('the cut is what the slice meets, by the definition', () => {
         const vertices = points.filter((p) => expected.faces.some((f) => f.some((q) => q.every((x, k) => Math.abs(x - p[k]!) < 1e-9))));
         expect(sameSet(cut.corners.map((c) => c.at), vertices)).toBe(true);
         expect(cut.faces.length).toBe(expected.faces.length);
+        // Its edges are the hull's: pairs of corners that share two of its faces, and no others.
+        const onFace = (p: readonly number[], f: number[][]) => f.some((q) => q.every((x, k) => Math.abs(x - p[k]!) < 1e-9));
+        const hullEdges = new Set<string>();
+        cut.corners.forEach((a, i) => cut.corners.forEach((b, j) => {
+          if (j > i && expected.faces.filter((f) => onFace(a.at, f) && onFace(b.at, f)).length >= 2) hullEdges.add(`${i}-${j}`);
+        }));
+        expect(new Set(cut.edges.map((e) => `${Math.min(e.a, e.b)}-${Math.max(e.a, e.b)}`))).toEqual(hullEdges);
         const s = space.chart.section;
         let drawn = 0;
         for (let t = 0; t < s.cellCount; t++) {
