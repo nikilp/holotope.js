@@ -311,7 +311,32 @@ describe('the shadow is all of the object, dropped along the missing direction',
   });
 });
 
+describe('the section accounts for every cell it examined', () => {
+  it('partitions its cells into cut, passed over, wholly below and collapsed, in every state the page shows', () => {
+    for (const w of [plane, space]) {
+      for (const angle of poses(w)) {
+        w.setTip(angle);
+        for (const h of offsets(w)) {
+          w.setSlice(h);
+          const d = w.diagnostics();
+          expect(d.sectionedCells + d.suppressedOnPlaneCells + d.cellsBelow + d.collapsedSectionCells).toBe(d.sourceCells);
+          // 6 tetrahedra in the cube; 6 in each of the tesseract's 8 cubes.
+          expect(d.sourceCells).toBe(w.rung.dim === 3 ? 6 : 48);
+        }
+      }
+    }
+  });
+});
+
 describe('the source is never touched', () => {
+  it('returns the posed corners to the authored ones exactly when the turn is undone', () => {
+    for (const w of [plane, space]) {
+      for (const angle of poses(w)) w.setTip(angle);
+      w.setTip(0);
+      expect(w.corners().map((c) => [...c.posed])).toEqual(w.corners().map((c) => Array.from(w.source.positions.subarray(c.index * w.rung.dim, (c.index + 1) * w.rung.dim))));
+    }
+  });
+
   it('keeps the authored corners bitwise through every pose and slide', () => {
     for (const w of [plane, space]) {
       const authored = Float64Array.from(w.source.positions);

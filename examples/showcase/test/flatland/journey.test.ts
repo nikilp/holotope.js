@@ -136,7 +136,8 @@ describe('routes: every chapter has a hash, and the page’s earlier hashes stil
   });
 
   it('treats any other hash as an anchor, and starts at the beginning', () => {
-    for (const hash of ['', '#', '#om-card', '#nope', '#constructor', '#__proto__', '#toString', '#hasOwnProperty']) {
+    // The earlier page's own bogus cases, '#Section' and '#tesseract2', among them.
+    for (const hash of ['', '#', '#om-card', '#nope', '#Section', '#tesseract2', '#constructor', '#__proto__', '#toString', '#hasOwnProperty']) {
       expect(isRoute(hash)).toBe(false);
       expect(chapterFromHash(hash)).toBe('through');
     }
