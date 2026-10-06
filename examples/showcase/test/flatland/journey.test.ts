@@ -215,10 +215,58 @@ describe('a question is answered only by the state it asks about', () => {
   it('never makes a guess a condition: the offered next step reaches every answer without one', () => {
     for (const c of guided.filter((g) => g.prediction !== null)) {
       const x = createExperience(c.id, { instantTurns: true });
-      for (let k = 0; k < 4 && !x.view().prediction!.revealed; k++) x.dispatch(x.view().prediction!.test!.action);
+      for (let k = 0; k < 4 && !x.view().prediction!.revealed; k++) {
+        const test = x.view().prediction!.test;
+        expect(test, `${c.id}: a next step while the question is open`).not.toBeNull();
+        x.dispatch(test!.action);
+      }
       expect(x.view().prediction!.revealed, c.id).toBe(true);
       expect(x.view().prediction!.choice).toBeNull();
       expect(x.view().prediction!.test).toBeNull();
+    }
+  });
+});
+
+describe('a picked point names its own source', () => {
+  it('names, for every corner of every cut, the very edge or corner it lies on', () => {
+    let checked = 0;
+    for (const rung of ['plane', 'space'] as const) {
+      const x = createExperience('free', { instantTurns: true });
+      x.dispatch({ type: 'rung', id: rung });
+      for (const pose of ['facet', 'corner', 'edge'] as const) {
+        x.dispatch({ type: 'pose', pose });
+        for (const h of [-1.3, -0.4, 0.2, 0.9]) {
+          x.dispatch({ type: 'slide-to', offset: h });
+          const cut = x.view().cut;
+          cut.corners.forEach((c, index) => {
+            x.dispatch({ type: 'inspect', target: { kind: 'cut-corner', index } });
+            const v = x.view();
+            const names = c.on.map((i) => v.corners[i]!.name);
+            for (const name of names) expect(v.inspection!.text).toContain(name);
+            expect(v.inspection!.edges).toEqual(c.on.length === 2 ? [[c.on[0], c.on[1]]] : []);
+            expect(v.inspection!.corners).toEqual(c.on.length === 1 ? [c.on[0]] : []);
+            checked += 1;
+          });
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+  });
+
+  it('names, for every point of every shadow, every corner that lands there and none that does not', () => {
+    for (const rung of ['plane', 'space'] as const) {
+      const x = createExperience('free', { instantTurns: true });
+      x.dispatch({ type: 'rung', id: rung });
+      x.dispatch({ type: 'shadow', on: true });
+      for (const pose of ['facet', 'corner', 'edge'] as const) {
+        x.dispatch({ type: 'pose', pose });
+        x.view().shadow.points.forEach((p, index) => {
+          x.dispatch({ type: 'inspect', target: { kind: 'shadow-point', index } });
+          const v = x.view();
+          expect(v.inspection!.corners).toEqual(p.corners);
+          for (const c of v.corners) expect(v.inspection!.text.includes(c.name)).toBe(p.corners.includes(c.index));
+        });
+      }
     }
   });
 });

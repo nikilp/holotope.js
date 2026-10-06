@@ -227,7 +227,8 @@ describe('a pick lights its source', () => {
     x.dispatch({ type: 'inspect', target: { kind: 'cut-corner', index: 0 } });
     const v = x.view();
     picture.update(v);
-    const [a, b] = v.inspection!.edges[0]!;
+    // The edge the cut corner's own lineage names, not the one the inspection repeats.
+    const [a, b] = v.cut.corners[0]!.on as [number, number];
     expect(sameSegments(picture.probe.highlighted(), [[v.corners[a]!.posed, v.corners[b]!.posed]])).toBe(true);
   });
 
@@ -248,9 +249,11 @@ describe('a pick lights its source', () => {
     x.dispatch({ type: 'slide-to', offset: -1.5 });
     x.dispatch({ type: 'inspect', target: { kind: 'cut-corner', index: 1 } });
     let v = x.view();
-    picture.update(v);
-    const [a, b] = v.inspection!.edges[0]!;
+    const [a, b] = v.cut.corners[1]!.on as [number, number];
     const k = v.shadow.edges.findIndex(([p, q]) => (p === a && q === b) || (p === b && q === a));
+    expect(k).toBeGreaterThanOrEqual(0);
+    expect(v.inspection!.edges).toEqual([[a, b]]);
+    picture.update(v);
     expect(sameSegments(picture.probe.highlighted(), [v.shadow.segments[k]!])).toBe(true);
     x.dispatch({ type: 'shadow', on: false });
     x.dispatch({ type: 'inspect', target: { kind: 'cut-corner', index: 1 } });

@@ -52,7 +52,8 @@ function sweep(): Said[] {
       for (let k = 0; k < 300 && x.view().passing; k++) act({ type: 'tick', dt: 1 / 30 }, `tick${k}`);
       act({ type: 'reset' }, 'reset');
       // Every question's own path to its answer.
-      for (let k = 0; k < 4 && x.view().prediction && !x.view().prediction!.revealed; k++) act(x.view().prediction!.test!.action, `test${k}`);
+      // (Whether these steps reach the answer is journey.test.ts's to hold; here they only gather what is said.)
+      for (let k = 0; k < 4 && x.view().prediction?.test; k++) act(x.view().prediction!.test!.action, `test${k}`);
     }
   }
   for (const rung of ['plane', 'space'] as const) {
