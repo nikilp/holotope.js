@@ -34,7 +34,11 @@ function leaks(v: View): string[] {
   return out;
 }
 
-const answer = (x: Experience): void => { while (!x.view().prediction!.revealed) x.dispatch(x.view().prediction!.test!.action); };
+/** Follow the offered steps to the answer: a pose, a pointing out, a pick. Bounded, so a step that never arrives fails. */
+const answer = (x: Experience): void => {
+  for (let k = 0; k < 8 && !x.view().prediction!.revealed; k++) x.dispatch(x.view().prediction!.test!.action);
+  expect(x.view().prediction!.revealed).toBe(true);
+};
 
 describe('while a pile-up question is open, nothing beside the picture answers it (C3)', () => {
   for (const chapter of ['shadow', 'up-shadow'] as const) {

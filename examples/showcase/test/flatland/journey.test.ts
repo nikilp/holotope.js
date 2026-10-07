@@ -364,7 +364,7 @@ describe('the passage and the steps', () => {
     // The arrow keys from the same start, over the same span.
     const keys = createExperience('corner', { instantTurns: true });
     const keyShapes: string[] = [keys.view().cut.shape];
-    while (keys.view().offset < visited[visited.length - 1]!) { keys.dispatch({ type: 'slide-step', steps: 1 }); keyShapes.push(keys.view().cut.shape); }
+    for (let k = 0; k < 100 && keys.view().offset < visited[visited.length - 1]!; k++) { keys.dispatch({ type: 'slide-step', steps: 1 }); keyShapes.push(keys.view().cut.shape); }
     expect(shapes).toEqual(keyShapes);
     expect(shapes).toContain('a regular hexagon');
     expect(STEP_SECONDS).toBeGreaterThan(0.2);
@@ -408,7 +408,8 @@ describe('an open question about pile-ups is not answered in words either', () =
     expect(x.view().event?.line).toBe('The shadow is all of the cube, dropped straight along the direction the plane lacks. Pick a point of it to see what lands there.');
     expect(x.view().event?.line).not.toMatch(/\b(two|seven|eight)\b/);
     // The step points the centre out, then shows what lands there.
-    while (!x.view().prediction!.revealed) x.dispatch(x.view().prediction!.test!.action);
+    for (let k = 0; k < 8 && !x.view().prediction!.revealed; k++) x.dispatch(x.view().prediction!.test!.action);
+    expect(x.view().prediction!.revealed).toBe(true);
     x.dispatch({ type: 'shadow', on: false });
     x.dispatch({ type: 'shadow', on: true });
     expect(x.view().event?.line).toContain('its 8 corners land on 7 points');
