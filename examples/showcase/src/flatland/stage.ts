@@ -51,14 +51,19 @@ export interface Stage {
   readonly canvas: HTMLCanvasElement;
   add(object: Object3D): void;
   render(): void;
-  recentre(): void;
-  /** Turn the camera about its target, around the vertical, by an angle in radians. Camera only. */
-  orbit(radians: number): void;
-  /** Bring the camera nearer (factor < 1) or farther (> 1), within its limits. Camera only. */
-  zoom(factor: number): void;
+  /** Bring the camera home. Camera only. Says whether the camera moved. */
+  recentre(): boolean;
+  /** Turn the camera about its target, around the vertical, by an angle in radians. Camera only. Says whether it moved. */
+  orbit(radians: number): boolean;
+  /** Bring the camera nearer (factor < 1) or farther (> 1), within its limits. Camera only. Says whether it moved. */
+  zoom(factor: number): boolean;
   /** Every camera change, from any cause. */
   onCameraMove(listener: () => void): void;
-  /** A drag, pinch or wheel on the picture begins: the visitor is looking. */
+  /**
+   * A drag, pinch or wheel on the picture has moved the camera: the visitor is looking. Once per gesture, and only when
+   * the camera has actually moved since the gesture began; a plain click or tap, which the controls also report as a
+   * gesture, moves nothing and is not looking.
+   */
   onUserLook(listener: () => void): void;
   /** The picture's size in CSS pixels changed. */
   onResize(listener: (width: number, height: number) => void): void;
@@ -113,30 +118,48 @@ export function createStage(host: HTMLElement, reducedMotion: boolean): Stage {
 
   const moveListeners: (() => void)[] = [];
   const lookListeners: (() => void)[] = [];
-  controls.addEventListener('change', () => { for (const l of moveListeners) l(); });
-  controls.addEventListener('start', () => { for (const l of lookListeners) l(); });
+  /** Where the camera stands and looks: its position and its target. */
+  const pose = (): number[] => [...camera.position.toArray(), ...controls.target.toArray()];
+  const differs = (a: readonly number[], b: readonly number[]): boolean => a.some((v, i) => Math.abs(v - b[i]!) > 1e-9);
+  // The controls report a gesture's start on any pointer-down, a plain click or tap included. Looking is reported once
+  // the camera has moved since then: during the gesture, or in the damping that follows it.
+  let gestureFrom: number[] | null = null;
+  controls.addEventListener('start', () => { gestureFrom = pose(); });
+  controls.addEventListener('change', () => {
+    for (const l of moveListeners) l();
+    if (gestureFrom !== null && differs(pose(), gestureFrom)) {
+      gestureFrom = null;
+      for (const l of lookListeners) l();
+    }
+  });
+  /** Run a camera move and say whether it moved the camera. */
+  const moved = (move: () => void): boolean => {
+    const before = pose();
+    move();
+    return differs(pose(), before);
+  };
 
   return {
     camera,
     canvas: renderer.domElement,
     add: (object) => { scene.add(object); },
     render: () => { controls.update(); renderer.render(scene, camera); },
-    recentre: () => {
+    recentre: () => moved(() => {
       camera.position.set(HOME.x, HOME.y, HOME.z);
       controls.target.set(0, 0, 0);
       controls.update();
-    },
-    orbit: (radians) => {
+    }),
+    orbit: (radians) => moved(() => {
       const offset = camera.position.clone().sub(controls.target).applyAxisAngle(new Vector3(0, 1, 0), radians);
       camera.position.copy(controls.target).add(offset);
       controls.update();
-    },
-    zoom: (factor) => {
+    }),
+    zoom: (factor) => moved(() => {
       const offset = camera.position.clone().sub(controls.target);
       const length = Math.min(controls.maxDistance, Math.max(controls.minDistance, offset.length() * factor));
       camera.position.copy(controls.target).add(offset.setLength(length));
       controls.update();
-    },
+    }),
     onCameraMove: (listener) => { moveListeners.push(listener); },
     onUserLook: (listener) => { lookListeners.push(listener); },
     onResize: (listener) => { resizeListeners.push(listener); resize(); },

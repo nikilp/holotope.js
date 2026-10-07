@@ -18,8 +18,9 @@ Two worlds, one rung apart, built the same way:
   are called **ana** and **kata**; they are not up and down. There is no outside
   to see the tesseract from: the gauge shows where it lies along w, and the dial
   the plane it turns in. Both draw ana toward their top, a convention of the
-  drawing, not a direction in the picture. Chapter IV names them, and free
-  exploration's second world says all of this, for a visitor who starts there.
+  drawing, not a direction in the picture. Chapter IV says this in one
+  sentence, and free exploration's second world says it again, for a visitor
+  who starts there.
 
 In both worlds, two things are all the slice can have of the object:
 
@@ -33,8 +34,8 @@ In both worlds, two things are all the slice can have of the object:
   larger and says how many. Two corners on one point are still two corners.
   While chapter III or V asks how many land on a point, every dot is drawn the
   same size, and nothing beside the picture counts them: not the gauge's ticks,
-  not the readouts, not the list of points. Picking the point, or the answer,
-  brings the counts back.
+  not the readouts, not the list of points. Finding the answer brings the
+  counts back; choosing an answer does not.
 
 The **camera** is only how you look.
 
@@ -48,8 +49,9 @@ The **camera** is only how you look.
 | **Cast** | *Show the shadow*, or S | whether the shadow is shown | the object, the cut |
 
 The gauge shows the object's reach along the missing direction, with a tick for
-each layer of corners: the heights where the cut can change, each with how many
-corners share it. A drag near a tick lands on it exactly. Page Up and Page Down
+each layer of corners: the heights where the cut can change. Where the gauge has
+room, a tick that several corners share says how many; a phone's narrow gauge
+gives no counts. A drag near a tick lands on it exactly. Page Up and Page Down
 go from tick to tick and pass over the cuts between them; ↑ and ↓ show those.
 The dial draws the object in the plane it turns in, with the missing direction
 toward the top.
@@ -96,8 +98,9 @@ The button under the answers offers one step at a time. In chapter II it is
 *Corner first*, then a slide just past the lowest corner, then one to the
 middle; in chapter IV, *Corner first*, then a slide just past the first corner.
 In chapters III and V it is the pose the question needs, then *Point out*, which
-rings the place in the picture without saying what lands there, then *Show me
-what lands there*, which picks it. Your own hands work as well.
+rings the place in the picture without saying what lands there and lets go of
+any point picked before, then *Show me what lands there*, which picks it. Your
+own hands work as well.
 
 ## Picking a point
 

@@ -152,11 +152,18 @@ export const FIRST_CUT_CLAUSES = {
 
 /**
  * Ana and kata, as free exploration introduces them whenever its space is on show: a visitor may arrive there cold,
- * without chapter IV, whose setup names them more briefly in the guided order. The gauge and the dial draw ana
- * toward their top; the sentence says that is the drawing's convention, not a direction in the picture.
+ * without chapter IV, whose setup says the same more briefly ({@link ANA_KATA_GUIDED}). The gauge and the dial draw
+ * ana toward their top; the sentence says that is the drawing's convention, not a direction in the picture.
  */
 export const ANA_KATA = 'Its two ways along the fourth direction, w, are called ana and kata; they are not up and down. The gauge and '
   + 'the dial draw ana toward their top, a convention of the drawing, not a direction in the picture.';
+
+/**
+ * The guided path's shorter introduction, in chapter IV's setup: the same three facts (ana and kata are the two ways
+ * along w; they are not up and down; the gauge and the dial draw ana at their top, by the drawing's convention) in one
+ * sentence, so the card's first action stays on the first screen at every supported size.
+ */
+export const ANA_KATA_GUIDED = 'Its two ways along the fourth, w, are ana and kata, not up and down, though the gauge and dial draw ana at the top.';
 
 export type InspectTarget =
   | { readonly kind: 'cut-corner'; readonly index: number }
@@ -543,18 +550,23 @@ export function createExperience(start: ChapterId = 'through', options: { readon
     }
   };
 
-  const hintFor = (): string => {
+  /** The hint for the state now: `cut` is the cut on show, so a hint that names it is true of it. */
+  const hintFor = (cut: CutSummary): string => {
     const m = state.milestones;
+    const pose = poseAt(state.rung, state.tip[state.rung]);
     switch (state.chapter) {
       case 'through':
         if (m.has('looked') && m.has('passed')) return 'Looking moved only your view: the cube, the plane and the cut are as they were. Next, stand the cube on a corner.';
         if (m.has('passed')) return 'The plane has passed the cube. Now look around: drag the picture, or press Q and E.';
         if (m.has('cut')) return 'That square is all the plane can meet of the cube: the place where the cube crosses it. Keep going.';
         return 'Press Pass through, tap or drag the gauge, or press ↑.';
+      // A hint that names what is on show stands only while it is on show; a rule it gives carries its condition.
+      // The question is asked of the cube stood on a corner, so in any other pose the hint says how to get back.
       case 'corner':
         if (m.has('after-reveal')) return 'Turn the cube with the dial and slide again: each pose cuts it differently, and the cube never changes.';
         if (m.has('revealed')) return 'Six edges, six corners. Keep sliding: past the middle it comes back to a triangle, turned the other way.';
-        if (m.has('triangle')) return 'A triangle: near a corner, the plane crosses that corner’s three edges. Keep going.';
+        if (pose !== 'corner') return 'The question stands the cube on a corner: press Corner first, then slide the plane.';
+        if (m.has('triangle') && cut.corners.length === 3) return 'A triangle: stood on one corner, the plane just past it crosses only that corner’s three edges. Keep going.';
         return 'Guess first, if you like, then slide the plane up.';
       case 'shadow':
         if (m.has('hid')) return 'That is all the plane holds of the cube: a cut and a shadow. One rung up, that is all there is to see.';
@@ -563,12 +575,12 @@ export function createExperience(start: ChapterId = 'through', options: { readon
         if (state.attention) return 'The ringed dot is the shadow’s centre. Pick it, with a click or a tap, to see what lands there.';
         return 'The filled shape is the cut, the lines the shadow; Hide the cube leaves only those two. Guess, then pick the dot at the shadow’s centre.';
       case 'up':
-        if (m.has('octahedron')) return 'At the very middle, six of the tesseract’s corners lie in your space at once, and the cut is an octahedron: for that one position only.';
+        if (m.has('octahedron')) return 'Corner first, at the very middle, six of the tesseract’s corners lie in your space at once, and the cut is an octahedron: for that one position only.';
         if (m.has('revealed')) return 'Keep sliding, and count the cut’s corners each time your space passes a layer of the tesseract’s corners. The gauge marks the layers.';
         if (m.has('turned-corner')) return 'Guess first, if you like, then slide your space in, just past the tesseract’s nearest corner. The gauge marks where its corners lie.';
-        if (m.has('passed')) return 'A cube the whole way through, as the cube’s cut in the plane was a square the whole way. Now turn the tesseract corner first.';
-        if (m.has('cut')) return 'A cube. Keep going: does it change as your space moves on?';
-        return 'Only the gauge and the dial show the fourth direction. Press Pass through, tap or drag the gauge, or press ↑.';
+        if (m.has('passed')) return 'Cell first, the cut is a cube the whole way through, as the cube’s cut in the plane was a square the whole way. Now turn the tesseract corner first.';
+        if (m.has('cut')) return cut.shape === 'a cube' ? 'A cube. Keep going: does it change as your space moves on?' : 'Keep going: does the cut change as your space moves on?';
+        return 'Press Pass through, tap or drag the gauge, or press ↑.';
       case 'up-shadow':
         if (m.has('after-reveal')) return 'Turn the tesseract corner first: its shadow’s centre carries two corners, as the cube’s hexagonal shadow’s did.';
         if (m.has('revealed')) return 'Now turn the tesseract, and watch the shadow change while the tesseract stays the same.';
@@ -584,9 +596,9 @@ export function createExperience(start: ChapterId = 'through', options: { readon
       case 'through': return 'A cube hangs above a flat world, one face toward it. The plane lies below it; nothing is cut yet. Camera as you left it.';
       case 'corner': return 'The same cube, turned to stand on its corner (− − −). The plane lies below it. Camera as you left it.';
       case 'shadow': return 'The cube stands on a corner, the plane passes through its middle, and light comes straight along the missing direction. Camera as you left it.';
-      // The guided introduction, as the review accepted it; the full sentence, with the drawing's convention, is free
-      // exploration's, where a visitor may arrive cold. Kept short: on a phone the card's first action must stay on screen.
-      case 'up': return 'Now your whole picture is the slice: a space of three directions inside four. Its two ways along the fourth are called ana and kata. A tesseract, the four-dimensional cube, lies ana of it, cell first. Camera as you left it.';
+      // The guided introduction says in one sentence what free exploration's full one says (ANA_KATA): kept short,
+      // because on a phone the card's first action must stay on the first screen.
+      case 'up': return `Now your whole picture is the slice, three directions inside four. ${ANA_KATA_GUIDED} A tesseract, the four-dimensional cube, lies ana of it, cell first. Camera as you left it.`;
       case 'up-shadow': return 'The tesseract, cell first, with your space through its middle, and light along the direction your space lacks. Camera as you left it.';
       default: return state.rung === 'space' ? `Both worlds, as you left them. In this one your whole picture is the slice. ${ANA_KATA}` : 'Both worlds, as you left them.';
     }
@@ -730,7 +742,7 @@ export function createExperience(start: ChapterId = 'through', options: { readon
         edge: w.edgeLengths()[0]!,
         setup: setupFor(),
         invitation: invitationFor(),
-        hint: hintFor(),
+        hint: hintFor(cut),
         prediction: predictionSpec
           ? { spec: predictionSpec, choice: state.choice, revealed: state.revealed, reveal: state.revealText, test: testFor() }
           : null,
@@ -777,20 +789,29 @@ export function createExperience(start: ChapterId = 'through', options: { readon
           change('slide', () => { state.offset[rung] = to; });
           return;
         }
-        // A turn stops a passage: the slice never slides on by itself while the object turns.
-        case 'tip-to':
+        // A turn stops a passage: the slice never slides on by itself while the object turns. A turn that would leave
+        // the tip where it is (the dial's end, a key pushing past it, the pose already held) stops the passage and
+        // says nothing: no turn happened, so none is reported, and nothing picked is let go.
+        case 'tip-to': {
+          const to = Math.max(0, Math.min(Math.PI / 2, action.angle));
           state.turn = null;
           state.pass = null;
-          change('turn', () => { state.tip[rung] = Math.max(0, Math.min(Math.PI / 2, action.angle)); });
+          if (to === state.tip[rung]) return;
+          change('turn', () => { state.tip[rung] = to; });
           return;
-        case 'tip-step':
+        }
+        case 'tip-step': {
+          const to = tipStep(rung, state.tip[rung], action.steps);
           state.turn = null;
           state.pass = null;
-          change('turn', () => { state.tip[rung] = tipStep(rung, state.tip[rung], action.steps); }, true);
+          if (to === state.tip[rung]) return;
+          change('turn', () => { state.tip[rung] = to; }, true);
           return;
+        }
         case 'pose': {
           const to = RUNGS[rung].stops[action.pose];
           state.pass = null;
+          if (to === state.tip[rung]) { state.turn = null; return; }
           if (options.instantTurns) { state.turn = null; change('turn', () => { state.tip[rung] = to; }, true); return; }
           state.turn = { from: state.tip[rung], to, t: 0, slid: false };
           return;
@@ -851,8 +872,11 @@ export function createExperience(start: ChapterId = 'through', options: { readon
           state.attention = null;
           checkReveal('inspect');
           return;
+        // Pointing a place out lets go of any earlier pick: its line was about another point, and must not stand
+        // beside a ring round this one. A pick, in turn, takes the ring away.
         case 'attend':
           state.attention = action.target;
+          state.inspect = null;
           return;
         case 'look':
           if (!state.milestones.has('looked')) {

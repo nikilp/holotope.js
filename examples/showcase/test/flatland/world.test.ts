@@ -110,7 +110,7 @@ describe('the cut is what the slice meets, by the definition', () => {
           .toEqual(new Set(expected.map((p, i) => side(p, expected[(i + 1) % expected.length]!))));
         // Every corner of the cut lies in the plane.
         for (const c of cut.corners) expect(Math.abs(c.at[2]! - h)).toBeLessThan(1e-12);
-        // The library's triangles fill exactly the analytic polygon.
+        // The library's triangles fill the analytic polygon, to 1e-9 of its area.
         const r = plane.drawn.result;
         let drawn = 0;
         for (let t = 0; t < r.cellCount; t++) {
@@ -187,12 +187,14 @@ describe('the cut is what the slice meets, by the definition', () => {
 });
 
 /**
- * C1: a cut's name says only what its unrounded lengths and angles establish. The witness is `analytic.ts`: it finds
- * each cut again from the hypercube's own squares and cubes (or, through corners, from a hull), measures it exactly,
- * and names it by the conditions each name states, at a tolerance tighter (1e-11) and one looser (1e-8) than the page's.
- * Where the two agree the page must say the same; nowhere may it say a third thing. No rounded display enters it.
+ * C1: a cut's name says only what its unrounded floating-point lengths and angles establish, within the documented
+ * tolerance (`EQUAL_REL`, `ANGLE_ABS`: 1e-9). The witness is `analytic.ts`: it finds each cut again from the
+ * hypercube's own squares and cubes (or, through corners, from a hull), so its corner and face counts are exact; it
+ * measures the lengths and angles in unrounded floating point, and names the cut by the conditions each name states,
+ * at a tolerance tighter (1e-11) and one looser (1e-8) than the page's, neither read from the page. Where the two
+ * agree the page must say the same; nowhere may it say a third thing. No rounded display enters it.
  */
-describe('a cut is called equal, right or regular only where its exact lengths and angles say so (C1)', () => {
+describe('a cut is called equal, right or regular only where its unrounded floating-point measurements meet the condition, within the documented tolerance (C1)', () => {
   /** Every tip the keys reach: the named poses (Home, End, the pose buttons), then from each, steps of 5° and, on the focused dial, 15°. */
   const keyTips = (rung: RungId): number[] => {
     const out: number[] = [...Object.values(RUNGS[rung].stops)];
@@ -207,6 +209,29 @@ describe('a cut is called equal, right or regular only where its exact lengths a
   /** The dial, dragged to just outside its 2.5° snap on either side of each named pose: as near a pose as a drag can rest. */
   const dragTips = (rung: RungId): number[] => Object.values(RUNGS[rung].stops)
     .flatMap((s) => [s - 2.51 * DEG, s + 2.51 * DEG]).filter((t) => t >= 0 && t <= Math.PI / 2);
+  /**
+   * A drag, then a key. A drag rests outside every pose's 2.5° snap, but a turning key then steps 5° (15° with Shift on
+   * the focused dial) from wherever it rests, so the two together reach nearer a pose than either: here 0.01°, 0.1°
+   * and 1° from each, where a drag can rest to get there. With them, the C1 re-check's own drag: 59.7456°, then ←.
+   */
+  const dragKeyTips = (rung: RungId): number[] => {
+    const stops = Object.values(RUNGS[rung].stops);
+    const rests = (t: number): boolean => t >= 0 && t <= Math.PI / 2 && stops.every((s) => Math.abs(t - s) > 2.5 * DEG);
+    const out: number[] = [];
+    for (const s of stops) {
+      for (const d of [0.01, 0.1, 1]) {
+        for (const side of [1, -1]) {
+          for (const [steps, span] of [[1, 5], [3, 15]] as const) {
+            const rest = s + side * (span + d) * DEG;
+            const tip = tipStep(rung, rest, -side * steps);
+            if (rests(rest) && !out.some((t) => Math.abs(t - tip) < 1e-12)) out.push(tip);
+          }
+        }
+      }
+    }
+    if (rung === 'plane') out.push(tipStep('plane', 59.74561047309488 * DEG, -1));
+    return out;
+  };
   /** The gauge's 0.1 grid end to end; every layer of corners; 0.05 and 0.1 past each; and cuts 1e-3 to 1e-7 past each. */
   const walkOffsets = (w: World): number[] => {
     const out: number[] = [];
@@ -215,7 +240,7 @@ describe('a cut is called equal, right or regular only where its exact lengths a
     return out;
   };
 
-  interface State { readonly rung: RungId; readonly by: 'keys' | 'drag'; readonly tip: number; readonly h: number; readonly page: CutSummary; readonly g: Measured }
+  interface State { readonly rung: RungId; readonly by: 'keys' | 'drag' | 'drag-key'; readonly tip: number; readonly h: number; readonly page: CutSummary; readonly g: Measured }
 
   const signsOf = (w: World): number[][] => w.corners().map((c) => Array.from(w.source.positions.subarray(c.index * w.rung.dim, (c.index + 1) * w.rung.dim)));
 
@@ -238,7 +263,7 @@ describe('a cut is called equal, right or regular only where its exact lengths a
     const emptyMismatches: string[] = [];
     for (const w of [plane, space]) {
       const rung = w.rung.id;
-      for (const [by, tips] of [['keys', keyTips(rung)], ['drag', dragTips(rung)]] as const) {
+      for (const [by, tips] of [['keys', keyTips(rung)], ['drag', dragTips(rung)], ['drag-key', dragKeyTips(rung)]] as const) {
         for (const tip of tips) {
           w.setTip(tip);
           for (const h of walkOffsets(w)) {
@@ -257,7 +282,7 @@ describe('a cut is called equal, right or regular only where its exact lengths a
   const dimOf = (s: State): 2 | 3 => (s.rung === 'plane' ? 2 : 3);
   const spread = (g: Measured): number => { const l = edgeLengths(g); return (Math.max(...l) - Math.min(...l)) / Math.max(...l); };
 
-  it('names every cut the keys and the dial reach as its exact lengths and angles establish, in both rungs', () => {
+  it('names every cut the keys, the dial, and a drag then a key reach as its unrounded floating-point measurements establish within the documented tolerance, in both rungs', () => {
     const { states, emptyMismatches } = walk();
     expect(emptyMismatches).toEqual([]);
     const wrong: string[] = [];
@@ -286,23 +311,50 @@ describe('a cut is called equal, right or regular only where its exact lengths a
     }
   });
 
-  it('keeps unequal lengths far from its tolerance: no symmetry, and they differ by at least 0.4 % (as world.ts claims)', () => {
-    let least = Infinity;
+  it('over the states walked, keeps lengths no symmetry equalises far outside the 1e-9 tolerance, and lengths a symmetry equalises within 1e-12', () => {
+    // The least spread measured in each walked set, rounded down: key tips 0.49 % (plane) and 1.87 % (space); drags
+    // just outside a snap 4.28 % and 4.59 %; a drag then a key, 0.01° from a pose, 0.0185 % and 0.0201 %. Nearer a pose
+    // than the walk goes, a spread shrinks with the angle: this is a margin over the walked set, not a bound over every
+    // dial position followed by a key.
+    const floor = { keys: 0.004, drag: 0.04, 'drag-key': 1.5e-4 } as const;
+    const least = { keys: Infinity, drag: Infinity, 'drag-key': Infinity };
     for (const s of walk().states) {
       const l = edgeLengths(s.g);
       if (Math.max(...l) < 1e-4) continue;
       const d = spread(s.g);
-      if (d > 1e-8) least = Math.min(least, d);
-      // And lengths equal by a symmetry are equal to far better than the page's 1e-9.
+      if (d > 1e-8) least[s.by] = Math.min(least[s.by], d);
+      // Lengths equal by a symmetry are equal to far better than the page's 1e-9.
       else expect(d, `${s.rung} ${(s.tip / DEG).toFixed(4)}° at ${s.h}`).toBeLessThan(1e-12);
     }
-    expect(least).toBeGreaterThanOrEqual(0.004);
+    for (const by of ['keys', 'drag', 'drag-key'] as const) expect(least[by], by).toBeGreaterThanOrEqual(floor[by]);
+    // Every set: at least five orders of magnitude beyond the tolerance a name rests on.
+    expect(Math.min(...Object.values(least))).toBeGreaterThan(1e5 * 1e-9);
   });
 
-  /** A printed length: within half a unit of its last decimal of the exact one, and to at least two significant figures. */
-  const printed = (text: string, exact: number): string | null => {
+  it('reaches a pose within 0.01° by a drag then a key, as the C1 re-check did by hand, in both rungs', () => {
+    for (const rung of ['plane', 'space'] as const) {
+      const tips = dragKeyTips(rung);
+      const stops = Object.values(RUNGS[rung].stops);
+      const nearest = (t: number): number => Math.min(...stops.map((s) => Math.abs(t - s)));
+      // Every named pose is approached from each side a drag can rest on, at 0.01°, 0.1° and 1°: from above the first
+      // pose, from below the last, and from both sides of Corner first; four tips at each distance.
+      for (const d of [0.01, 0.1, 1]) {
+        expect(tips.filter((t) => Math.abs(nearest(t) - d * DEG) < 1e-9).length, `${rung} ${d}°`).toBe(4);
+      }
+    }
+    // The re-check's own: dragged to 59.7456°, then ←, 0.01° past Corner first.
+    const reviewed = dragKeyTips('plane').at(-1)!;
+    expect(reviewed / DEG).toBeCloseTo(54.74561047309488, 9);
+    plane.setTip(reviewed);
+    plane.setSlice(-1.6);
+    expect(plane.cut().shape).toBe('a triangle');
+    expect(plane.cut().equalEdges).toBe(false);
+  });
+
+  /** A printed length: within half a unit of its last decimal of the unrounded one, and to at least two significant figures. */
+  const printed = (text: string, unrounded: number): string | null => {
     const decimals = (text.split('.')[1] ?? '').length;
-    if (Math.abs(Number(text) - exact) > 0.5 * 10 ** -decimals + 1e-12) return `${text} is not ${exact}`;
+    if (Math.abs(Number(text) - unrounded) > 0.5 * 10 ** -decimals + 1e-12) return `${text} is not ${unrounded}`;
     if (text.replace('.', '').replace(/^0+/, '').length < 2) return `${text} has fewer than two significant figures`;
     return null;
   };

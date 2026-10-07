@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   WORDS, castReadout, cutPhrase, dimensionsSentence, distance, honestNote, legend, lengthRange, measure, shadowSentence, signed
 } from '../../src/flatland/copy.js';
-import { ANA_KATA, CHAPTERS, PREDICTIONS, createExperience, tipStep, type Action, type View } from '../../src/flatland/journey.js';
+import { ANA_KATA, ANA_KATA_GUIDED, CHAPTERS, PREDICTIONS, createExperience, tipStep, type Action, type View } from '../../src/flatland/journey.js';
 import { RUNGS } from '../../src/flatland/world.js';
 
 /**
@@ -100,18 +100,19 @@ describe('ana and kata are the space’s own words, never up and down', () => {
   it('never shares a sentence with a vertical word, unless the sentence says they are not up and down', () => {
     const vertical = /\b(up|down|upward|downward|above|below|top|bottom|higher|lower|highest|lowest|upright|rise|rises|fall|falls)\b/i;
     // The one way a vertical word may stand beside ana or kata: in a sentence that denies they mean it.
-    const disclaims = /they are not up and down|not a direction in the picture/;
+    const disclaims = /they are not up and down|ana and kata, not up and down|not a direction in the picture/;
     const bad = said.flatMap((s) => sentences(s.text).filter((t) => /\b(ana|kata)\b/.test(t) && vertical.test(t) && !disclaims.test(t)).map((t) => `${s.where}: ${t}`));
     expect(bad).toEqual([]);
-    // And the disclaiming sentences are exactly the introduction's.
+    // And the disclaiming sentences are exactly the two introductions', free exploration's and chapter IV's.
     const disclaiming = new Set(said.flatMap((s) => sentences(s.text).filter((t) => /\b(ana|kata)\b/.test(t) && vertical.test(t))));
-    for (const t of disclaiming) expect(ANA_KATA).toContain(t);
+    expect(disclaiming.size).toBeGreaterThan(0);
+    for (const t of disclaiming) expect([ANA_KATA, ANA_KATA_GUIDED].some((intro) => intro.includes(t)), t).toBe(true);
   });
 
   it('are introduced before they are used, in chapter IV and in free exploration’s space', () => {
     const setup = createExperience('up').view().setup;
-    expect(setup).toMatch(/Its two ways along the fourth are called ana and kata\./);
-    expect(setup.indexOf('called ana and kata')).toBeLessThan(setup.indexOf('ana of it'));
+    expect(setup).toContain(ANA_KATA_GUIDED);
+    expect(setup.indexOf('are ana and kata')).toBeLessThan(setup.indexOf('ana of it'));
     const free = createExperience('free');
     free.dispatch({ type: 'rung', id: 'space' });
     expect(free.view().setup).toContain(ANA_KATA);
@@ -259,9 +260,9 @@ describe('lengths are said as the established facts allow (C1)', () => {
           const cut = x.view().cut;
           if (cut.empty) continue;
           const phrase = cutPhrase(rung, cut);
-          const exact = cut.edgeLengths;
-          const min = Math.min(...exact);
-          const max = Math.max(...exact);
+          const unrounded = cut.edgeLengths;
+          const min = Math.min(...unrounded);
+          const max = Math.max(...unrounded);
           if (/on each side|on every edge/.test(phrase)) {
             equal += 1;
             expect(cut.equalEdges, phrase).toBe(true);
@@ -291,7 +292,7 @@ describe('the hints name every way to slide, and every view of the missing direc
 
   it('never says the gauge alone shows the missing direction: the dial shows it too', () => {
     expect(said.filter((s) => /only the gauge\b(?! and the dial)|the only view of/.test(s.text))).toEqual([]);
-    expect(said.some((s) => /Only the gauge and the dial show the fourth direction/.test(s.text))).toBe(true);
+    expect(said.some((s) => /the gauge and dial draw ana at the top/.test(s.text))).toBe(true);
   });
 
   it('says the same on the atlas card that leads to the page', async () => {

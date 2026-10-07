@@ -254,9 +254,14 @@ const round2 = (x: number): number => Math.round(x * 100) / 100;
  * than the object, so about 1e-15 absolutely. A cut is measured only when its longest edge is at least
  * {@link RESOLVED}, so a length there carries a relative error below 1e-10, and {@link EQUAL_REL} leaves a factor of
  * ten above that. An angle or a direction is judged only when every edge is at least {@link RESOLVED}, for the same
- * reason: a sliver's short side has a direction no better known than its length. What the tolerances must refuse lies
- * far beyond them: across every turn the keys reach (named poses and 5° steps) and every drag of the dial just
- * outside its 2.5° snap, lengths that no symmetry makes equal differ by at least 0.4 % (`world.test.ts` measures it).
+ * reason: a sliver's short side has a direction no better known than its length. These are tolerances on unrounded
+ * floating-point measurements, not exact arithmetic: within about 1e-3° of a pose, a cut whose corners miss a right
+ * angle by under 1e-9 is called square, true to the tolerance.
+ *
+ * Over the states `world.test.ts` walks, what the tolerances must refuse lies far beyond them: lengths that no
+ * symmetry makes equal differ by at least 0.49 % at the tips the keys reach (named poses and 5° steps), 4 % at drags
+ * of the dial just outside its 2.5° snap, and 0.018 % at a drag followed by a key that lands 0.01° from a pose. That
+ * is a margin over the walked set, not a bound: nearer a pose, the spread shrinks with the angle.
  */
 export const EQUAL_REL = 1e-9;
 /** Below this longest edge (the object's edges are 2 long) a cut is too small to measure: counted, never called equal or right. */

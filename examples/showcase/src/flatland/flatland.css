@@ -181,6 +181,12 @@
 .om-gauge svg * { pointer-events: none; }
 
 .om-turn, .om-cast { flex: none; }
+/*
+ * The turn's readout keeps two lines' room whatever it says ("Face first. …" fits one, "Turned 46.0°. …" takes two),
+ * so the panel's height never changes as the object turns. Otherwise the gauge's panel, which takes up the slack,
+ * shrinks as a pose is left, and the dial moves up under the pointer that is dragging it.
+ */
+.om-turn > .om-read { min-height: 2.9em; }
 .om-turn-body { display: flex; align-items: center; gap: 6px; padding: 4px 12px 0 6px; }
 .om-dial { flex: 1 1 auto; min-width: 0; max-width: 160px; aspect-ratio: 150 / 124; cursor: grab; touch-action: none; border-radius: 12px; }
 .om-dial-svg { width: 100%; height: 100%; }

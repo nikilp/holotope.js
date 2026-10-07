@@ -320,4 +320,21 @@ describe('a point pointed out is ringed, and nothing more (D-1)', () => {
       expect(picture.probe.attention()).toEqual([]);
     }
   });
+
+  it('after a pick that does not answer, Point out lights the ring alone: the earlier point’s light goes with its line (D-8)', () => {
+    const x = createExperience('shadow', { instantTurns: true });
+    const picture = createPicture(x);
+    const single = x.view().shadow.points.findIndex((p) => p.corners.length === 1);
+    x.dispatch({ type: 'inspect', target: { kind: 'shadow-point', index: single } });
+    picture.update(x.view());
+    expect(x.view().inspection?.text).toMatch(/^One corner lands here/);
+    expect(picture.probe.highlighted().length).toBeGreaterThan(0);
+    x.dispatch(x.view().prediction!.test!.action);
+    const v = x.view();
+    picture.update(v);
+    expect((v.attention as { index: number }).index).not.toBe(single);
+    expect(v.inspection).toBeNull();
+    expect(picture.probe.highlighted()).toEqual([]);
+    expect(picture.probe.attention().length).toBe(40);
+  });
 });

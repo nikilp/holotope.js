@@ -63,14 +63,16 @@ export function createApp(root: HTMLElement): void {
     dirty = true;
     paint();
   };
-  /** The camera's keys and buttons: the page's camera only. The controller hears only that you looked. */
+  /**
+   * The camera's keys and buttons: the page's camera only. The controller hears that you looked only when the camera
+   * moved: Re-centre at home, or a zoom at its limit, moves nothing.
+   */
   const moveCamera = (k: CameraKey): void => {
-    if (k === 'camera') stage.recentre();
-    else if (k === 'orbit-left') stage.orbit(Math.PI / 12);
-    else if (k === 'orbit-right') stage.orbit(-Math.PI / 12);
-    else if (k === 'zoom-in') stage.zoom(0.85);
-    else stage.zoom(1 / 0.85);
-    send({ type: 'look' });
+    const moved = k === 'camera' ? stage.recentre()
+      : k === 'orbit-left' ? stage.orbit(Math.PI / 12)
+        : k === 'orbit-right' ? stage.orbit(-Math.PI / 12)
+          : stage.zoom(k === 'zoom-in' ? 0.85 : 1 / 0.85);
+    if (moved) send({ type: 'look' });
   };
 
   /* ---------- buttons: exactly the binding table ---------- */
@@ -161,7 +163,8 @@ export function createApp(root: HTMLElement): void {
   });
   let cameraMoved = false;
   stage.onCameraMove(() => { cameraMoved = true; });
-  // The controller says once per chapter that looking moved nothing; it changes no world either way.
+  // The controller says once per chapter that looking moved nothing; it changes no world either way. Only a gesture
+  // that moved the camera is looking: a click or tap that picks a point is not.
   stage.onUserLook(() => send({ type: 'look' }));
 
   /* ---------- the loop: the slice and the turn move only while one is running ---------- */
@@ -328,7 +331,8 @@ export function createApp(root: HTMLElement): void {
       + `<line x1="0" x2="${W}" y1="${line}" y2="${line}" class="slice-line"/>`
       + `<circle cx="${W - 8}" cy="${line}" r="6.5" class="slice-knob"/>`
       + '</svg>';
-    el.gauge.setAttribute('aria-label', `${capitalise(w.slice)}, across ${w.missing}: tap or drag the gauge, or use the arrow keys; Page Up and Page Down go to the next layer of corners`);
+    // The gauge's end labels are drawn for the eye and hidden from assistive technology; its name says which end is which.
+    el.gauge.setAttribute('aria-label', `${capitalise(w.slice)}, across ${w.missing}, ${w.plus} at the top: tap or drag the gauge, or use the arrow keys; Page Up and Page Down go to the next layer of corners`);
     el.gauge.setAttribute('aria-valuemin', String(-R));
     el.gauge.setAttribute('aria-valuemax', String(R));
     el.gauge.setAttribute('aria-valuenow', String(Number(view.offset.toFixed(3)) + 0));
