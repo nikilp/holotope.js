@@ -114,8 +114,9 @@ export type CameraKey = 'camera' | 'orbit-left' | 'orbit-right' | 'zoom-in' | 'z
 /**
  * Keys, when no text field has focus. Up and Down slide, Page Up and Page Down slide to the next layer of
  * corners, Left and Right turn; Shift makes a slide ten times larger. Space passes through or stops, S casts the
- * shadow, H hides or shows the cube, R resets the chapter, Escape lets go of what you picked. Q and E turn the
- * camera about the scene, + and − bring it nearer or farther, C brings it home: camera only, never the model.
+ * shadow, H hides or shows the cube, R resets the chapter, Escape stops a passage or lets go of what you picked. Q
+ * and E turn the camera about the scene, + and − bring it nearer or farther, C brings it home: camera only, never the
+ * model.
  */
 export function keyAction(key: string, shift: boolean, context: ControlContext): Action | CameraKey | null {
   switch (key) {
@@ -134,7 +135,8 @@ export function keyAction(key: string, shift: boolean, context: ControlContext):
     case 's': case 'S': return { type: 'shadow', on: !context.shadowOn };
     case 'h': case 'H': return { type: 'show-object', on: !context.objectShown };
     case 'r': case 'R': return { type: 'reset' };
-    case 'Escape': return { type: 'inspect', target: null };
+    // Escape stops a passage first; with none running, it lets go of a picked or pointed-out point.
+    case 'Escape': return context.passing ? { type: 'stop' } : { type: 'inspect', target: null };
     default: return null;
   }
 }

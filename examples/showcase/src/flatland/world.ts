@@ -202,7 +202,7 @@ export interface CutEdge {
   /** The cut's corners it joins, by index into {@link CutSummary.corners}. */
   readonly a: number;
   readonly b: number;
-  /** Rounded to centimetres. */
+  /** Unrounded: a display rounds it, a name never does. */
   readonly length: number;
   /**
    * Where it lies on the source: the one face of the cube a side of the cut polygon lies in, or the two cells of
@@ -221,10 +221,18 @@ export interface CutSummary {
   readonly faces: readonly { readonly source: SourceFace; readonly sides: number }[];
   /** The edges of the cut (plane rung: its sides, in order around it). */
   readonly edges: readonly CutEdge[];
-  /** Their lengths, rounded to centimetres, in the same order. */
+  /** Their lengths, unrounded, in the same order. */
   readonly edgeLengths: readonly number[];
-  /** A measured name: "a square", "a hexagon", "an octahedron"... or a count when nothing simpler is true. */
+  /**
+   * A measured name: "a square", "a hexagon", "an octahedron"... or a count when nothing simpler is true. A name
+   * that says equal, regular, square, right-angled or prism holds by the conditions in {@link EQUAL_REL},
+   * {@link ANGLE_ABS} and {@link RESOLVED}, tested on unrounded lengths and directions.
+   */
   readonly shape: string;
+  /** Whether every edge (side) is the same length, established as {@link EQUAL_REL} says; never for an unresolved cut. */
+  readonly equalEdges: boolean;
+  /** Whether the cut is large enough to measure: its longest edge at least {@link RESOLVED}. Below it, it is only counted. */
+  readonly resolved: boolean;
   /** Source edges the cut crosses, as vertex index pairs: the edges its corners lie on. */
   readonly crossedEdges: readonly (readonly [number, number])[];
 }
@@ -238,6 +246,132 @@ const sameEdge = (a: number, b: number, positions: ArrayLike<number>, dim: numbe
 };
 
 const round2 = (x: number): number => Math.round(x * 100) / 100;
+
+/**
+ * When a cut's lengths, directions and angles are said to be equal, right or parallel.
+ *
+ * Positions come from the sectioner with a rounding error of a few units in the last place of coordinates no larger
+ * than the object, so about 1e-15 absolutely. A cut is measured only when its longest edge is at least
+ * {@link RESOLVED}, so a length there carries a relative error below 1e-10, and {@link EQUAL_REL} leaves a factor of
+ * ten above that. An angle or a direction is judged only when every edge is at least {@link RESOLVED}, for the same
+ * reason: a sliver's short side has a direction no better known than its length. What the tolerances must refuse lies
+ * far beyond them: across every turn the keys reach (named poses and 5° steps) and every drag of the dial just
+ * outside its 2.5° snap, lengths that no symmetry makes equal differ by at least 0.4 % (`world.test.ts` measures it).
+ */
+export const EQUAL_REL = 1e-9;
+/** Below this longest edge (the object's edges are 2 long) a cut is too small to measure: counted, never called equal or right. */
+export const RESOLVED = 1e-4;
+/** A cosine within this of zero is a right angle; two cosines within it of each other, the same angle. */
+export const ANGLE_ABS = 1e-9;
+
+const EMPTY_CUT: CutSummary = {
+  empty: true, dimension: null, corners: [], faces: [], edges: [], edgeLengths: [], shape: 'nothing', equalEdges: false, resolved: false, crossedEdges: []
+};
+
+/** Every length the same, relative to the longest. */
+const allEqual = (lengths: readonly number[]): boolean => {
+  if (lengths.length === 0) return false;
+  const max = Math.max(...lengths);
+  const min = Math.min(...lengths);
+  return max - min <= EQUAL_REL * max;
+};
+
+const sub3 = (a: readonly number[], b: readonly number[]): number[] => [a[0]! - b[0]!, a[1]! - b[1]!, (a[2] ?? 0) - (b[2] ?? 0)];
+const dot3 = (a: readonly number[], b: readonly number[]): number => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+const cross3 = (a: readonly number[], b: readonly number[]): number[] => [a[1]! * b[2]! - a[2]! * b[1]!, a[2]! * b[0]! - a[0]! * b[2]!, a[0]! * b[1]! - a[1]! * b[0]!];
+const norm3 = (a: readonly number[]): number => Math.hypot(a[0]!, a[1]!, a[2]!);
+
+/** The cosine of the angle at each corner of a polygon given in order, between its two sides. */
+const cornerCosines = (ring: readonly (readonly number[])[]): number[] => ring.map((p, i) => {
+  const u = sub3(ring[(i - 1 + ring.length) % ring.length]!, p);
+  const v = sub3(ring[(i + 1) % ring.length]!, p);
+  return dot3(u, v) / (norm3(u) * norm3(v));
+});
+
+const countWord = (n: number): string => ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'][n] ?? String(n);
+
+/**
+ * A cut polygon's name, from its corners in order and its unrounded side lengths. Equal sides make a triangle
+ * equilateral and a four-sided shape a rhombus; four right angles make a rectangle, and equal sides with them a
+ * square; equal sides and equal angles make a hexagon regular. A cut too small to measure is only counted.
+ */
+function namePolygon(ring: readonly (readonly number[])[], sides: readonly number[]): { shape: string; equal: boolean; resolved: boolean } {
+  const n = ring.length;
+  const resolved = sides.length > 0 && Math.max(...sides) >= RESOLVED;
+  const equal = resolved && allEqual(sides);
+  const count = n === 3 ? 'a triangle' : n === 4 ? 'a four-sided shape' : n === 5 ? 'a pentagon' : n === 6 ? 'a hexagon' : `a shape with ${countWord(n)} corners`;
+  if (!resolved) return { shape: count, equal: false, resolved };
+  if (n === 3) return { shape: equal ? 'an equilateral triangle' : 'a triangle', equal, resolved };
+  // Angles only when every side is long enough to have a known direction.
+  const cosines = Math.min(...sides) >= RESOLVED ? cornerCosines(ring) : null;
+  if (n === 4 && cosines?.every((c) => Math.abs(c) <= ANGLE_ABS)) return { shape: equal ? 'a square' : 'a rectangle', equal, resolved };
+  // Four equal sides make a rhombus, whatever its angles.
+  if (n === 4 && equal) return { shape: 'a rhombus', equal, resolved };
+  if (n === 6 && equal && cosines?.every((c) => Math.abs(c - cosines[0]!) <= ANGLE_ABS)) return { shape: 'a regular hexagon', equal, resolved };
+  return { shape: count, equal, resolved };
+}
+
+/**
+ * A cut solid's name, from its corners, its faces (each a ring of corner indices in order) and its edges, all
+ * unrounded. Four triangles are a tetrahedron and eight an octahedron, regular when every edge is equal; six
+ * four-sided faces with right angles throughout are a box, and with equal edges a cube; two triangles or two hexagons
+ * joined by equal, parallel edges are a prism; four triangles and four hexagons, the hexagons' planes closing round a
+ * tetrahedron, are a tetrahedron with its corners cut off. A cut too small to measure is only counted.
+ */
+function nameSolid(
+  points: readonly (readonly number[])[], faces: readonly (readonly number[])[], edges: readonly { a: number; b: number; length: number }[]
+): { shape: string; equal: boolean; resolved: boolean } {
+  const V = points.length;
+  const F = faces.length;
+  const sizes = faces.map((f) => f.length);
+  const allSize = (k: number): boolean => sizes.every((s) => s === k);
+  const ofSize = (k: number): number => sizes.filter((s) => s === k).length;
+  const lengths = edges.map((e) => e.length);
+  const resolved = lengths.length > 0 && Math.max(...lengths) >= RESOLVED;
+  const equal = resolved && allEqual(lengths);
+  const generic = `a solid with ${countWord(V)} corners and ${countWord(F)} faces`;
+  if (V === 4 && F === 4 && allSize(3)) return { shape: equal ? 'a regular tetrahedron' : 'a tetrahedron', equal, resolved };
+  if (V === 6 && F === 8 && allSize(3)) return { shape: equal ? 'a regular octahedron' : 'an octahedron', equal, resolved };
+  // What follows judges angles and directions: only when every edge is long enough to have a known direction.
+  if (!resolved || Math.min(...lengths) < RESOLVED) return { shape: generic, equal, resolved };
+  const ring = (f: readonly number[]): number[][] => f.map((i) => [...points[i]!]);
+  if (V === 8 && F === 6 && allSize(4) && faces.every((f) => cornerCosines(ring(f)).every((c) => Math.abs(c) <= ANGLE_ABS))) {
+    return { shape: equal ? 'a cube' : 'a box', equal, resolved };
+  }
+  /** The edges joining two faces of one size, k: a prism's lateral edges, if they are parallel and equal. */
+  const prism = (k: number, quads: number): boolean => {
+    if (!(F === quads + 2 && ofSize(k) === 2 && ofSize(4) === quads)) return false;
+    const caps = faces.filter((f) => f.length === k);
+    const inCap = (i: number): number => caps.findIndex((c) => c.includes(i));
+    const lateral = edges.filter((e) => inCap(e.a) !== -1 && inCap(e.b) !== -1 && inCap(e.a) !== inCap(e.b));
+    if (lateral.length !== k) return false;
+    const dirs = lateral.map((e) => (inCap(e.a) === 0 ? sub3(points[e.b]!, points[e.a]!) : sub3(points[e.a]!, points[e.b]!)));
+    return allEqual(lateral.map((e) => e.length))
+      && dirs.every((d) => norm3(cross3(d, dirs[0]!)) <= ANGLE_ABS * norm3(d) * norm3(dirs[0]!) && dot3(d, dirs[0]!) > 0);
+  };
+  if (V === 6 && prism(3, 3)) return { shape: 'a triangular prism', equal, resolved };
+  if (V === 12 && prism(6, 6)) return { shape: 'a hexagonal prism', equal, resolved };
+  if (V === 12 && F === 8 && ofSize(3) === 4 && ofSize(6) === 4) {
+    // The hexagons' outward normals must surround the origin: then their four planes bound a tetrahedron.
+    const centre = [0, 1, 2].map((k) => points.reduce((s, p) => s + p[k]!, 0) / V);
+    const normals = faces.filter((f) => f.length === 6).map((f) => {
+      const r = ring(f);
+      const n = cross3(sub3(r[1]!, r[0]!), sub3(r[2]!, r[0]!));
+      return dot3(n, sub3(r[0]!, centre)) < 0 ? n.map((x) => -x) : n;
+    });
+    const [a, b, c, d] = normals as [number[], number[], number[], number[]];
+    const det = dot3(a, cross3(b, c));
+    if (Math.abs(det) > ANGLE_ABS * norm3(a) * norm3(b) * norm3(c)) {
+      // Solve a·x + b·y + c·z = −d by Cramer's rule; all three positive means 0 lies inside their hull.
+      const m = d.map((v) => -v);
+      const x = dot3(m, cross3(b, c)) / det;
+      const y = dot3(a, cross3(m, c)) / det;
+      const z = dot3(a, cross3(b, m)) / det;
+      if (x > 0 && y > 0 && z > 0) return { shape: 'a tetrahedron with its corners cut off', equal, resolved };
+    }
+  }
+  return { shape: generic, equal, resolved };
+}
 
 /** The edge group of a hypercube complex: its 1-cells. */
 function edgeGroup(complex: CellComplex): CellGroup {
@@ -468,28 +602,22 @@ class PlaneWorld extends BaseWorld {
   cut(): CutSummary {
     const outline = this.drawn;
     const result = outline.result;
-    if (outline.sides === 0 || result.cellCount === 0) {
-      return { empty: true, dimension: null, corners: [], faces: [], edges: [], edgeLengths: [], shape: 'nothing', crossedEdges: [] };
-    }
-    // A corner of the polygon is where its ring turns; subdivision points on a side are not.
-    const ring = outline.ring;
-    const turning: number[] = [];
-    for (let i = 0; i < ring.length; i++) {
-      const before = ring[(i - 1 + ring.length) % ring.length]!;
-      const at = ring[i]!;
-      const after = ring[(i + 1) % ring.length]!;
-      const cross = (at[0] - before[0]) * (after[1] - at[1]) - (at[1] - before[1]) * (after[0] - at[0]);
-      const scale = Math.hypot(at[0] - before[0], at[1] - before[1]) * Math.hypot(after[0] - at[0], after[1] - at[1]);
-      if (scale > 1e-12 && Math.abs(cross / scale) > 1e-7) turning.push(i);
-    }
+    if (result.cellCount === 0 || outline.ringVertices.length === 0) return EMPTY_CUT;
+    // A corner of the polygon is where the plane crosses one of the cube's edges, or meets one of its corners: a ring
+    // vertex whose lineage is the two ends of a source edge, or one source corner. The other ring vertices lie on a
+    // side: they cross the tetrahedra's inner edges, which run across the cube's faces. Read from the lineage, the
+    // count does not depend on how small the cut is, as a test of where the ring turns would.
     const corners: CutCorner[] = [];
-    for (const i of turning) {
+    const seen = new Set<string>();
+    for (let i = 0; i < outline.ringVertices.length; i++) {
       const provenance = outlineProvenance(outline, i);
       if (provenance === undefined) continue;
       const vertex = outline.ringVertices[i]!;
       const at = [result.ambientPositions[vertex * 3]!, result.ambientPositions[vertex * 3 + 1]!, result.ambientPositions[vertex * 3 + 2]!];
       const corner = this.cutCornerOf(provenance.sourceVertices, provenance.weights, at);
-      if (corner) corners.push(corner);
+      if (!corner || seen.has(corner.on.join('-'))) continue;
+      seen.add(corner.on.join('-'));
+      corners.push(corner);
     }
     // Each side lies on one face of the cube: the face whose fixed coordinate both its ends share.
     const edges: CutEdge[] = corners.map((c, i) => {
@@ -497,7 +625,7 @@ class PlaneWorld extends BaseWorld {
       const next = corners[j]!;
       const parents = [...c.on, ...next.on];
       const face = this.faces.find((f) => parents.every((v) => Math.sign(this.source.positions[v * 3 + f.axis]!) === f.sign));
-      return { a: i, b: j, length: round2(Math.hypot(...c.at.map((x, k) => x - next.at[k]!))), on: face ? [face] : [] };
+      return { a: i, b: j, length: Math.hypot(...c.at.map((x, k) => x - next.at[k]!)), on: face ? [face] : [] };
     });
     const edgeLengths = edges.map((e) => e.length);
     const faces: { source: SourceFace; sides: number }[] = [];
@@ -507,6 +635,7 @@ class PlaneWorld extends BaseWorld {
       const entry = faces.find((e) => e.source.ordinal === face.ordinal);
       if (entry) entry.sides += 1; else faces.push({ source: face, sides: 1 });
     }
+    const named = namePolygon(corners.map((c) => c.at), edgeLengths);
     return {
       empty: false,
       dimension: 2,
@@ -514,32 +643,12 @@ class PlaneWorld extends BaseWorld {
       faces,
       edges,
       edgeLengths,
-      shape: planeShapeName(outline, edgeLengths, corners),
+      shape: named.shape,
+      equalEdges: named.equal,
+      resolved: named.resolved,
       crossedEdges: corners.filter((c) => c.on.length === 2).map((c) => [c.on[0]!, c.on[1]!] as const)
     };
   }
-}
-
-/** A measured name for a cut polygon. `outline.shape` is the pinned module's own count-based name. */
-function planeShapeName(outline: FlatlandOutline, sides: readonly number[], corners: readonly CutCorner[]): string {
-  const n = corners.length;
-  const equal = sides.every((s) => Math.abs(s - sides[0]!) < 0.011);
-  if (n === 3) return equal ? 'an equilateral triangle' : 'a triangle';
-  if (n === 4) {
-    const right = corners.every((c, i) => {
-      const a = corners[(i - 1 + n) % n]!.at;
-      const b = corners[(i + 1) % n]!.at;
-      const u = c.at.map((x, k) => a[k]! - x);
-      const v = c.at.map((x, k) => b[k]! - x);
-      return Math.abs(u.reduce((s, x, k) => s + x * v[k]!, 0)) < 1e-6;
-    });
-    if (right) return equal ? 'a square' : 'a rectangle';
-    return 'a four-sided shape';
-  }
-  if (n === 6) return equal ? 'a regular hexagon' : 'a hexagon';
-  if (n === 5) return 'a pentagon';
-  // Anything else is said as the pinned module counts it.
-  return outline.shape;
 }
 
 /** The space rung: a tesseract, posed by the tip, cut by the three-dimensional slice through `SectionChart3D`. */
@@ -585,11 +694,11 @@ class SpaceWorld extends BaseWorld {
 
   cut(): CutSummary {
     const section = this.chart.section;
-    if (section.cellCount === 0) {
-      return { empty: true, dimension: null, corners: [], faces: [], edges: [], edgeLengths: [], shape: 'nothing', crossedEdges: [] };
-    }
+    if (section.cellCount === 0) return EMPTY_CUT;
     const { lineage, vertexCount } = section;
+    // The solid's corners: section vertices whose lineage is a tesseract edge or corner (see the plane rung's cut).
     const corners: CutCorner[] = [];
+    const seen = new Set<string>();
     for (let v = 0; v < vertexCount; v++) {
       const from = lineage.offsets[v]!;
       const to = lineage.offsets[v + 1] ?? lineage.sourceVertices.length;
@@ -597,39 +706,38 @@ class SpaceWorld extends BaseWorld {
       const weights = Array.from(lineage.weights.slice(from, to));
       const at = [section.chartPositions[v * 3]!, section.chartPositions[v * 3 + 1]!, section.chartPositions[v * 3 + 2]!];
       const corner = this.cutCornerOf(parents, weights, at);
-      if (corner && !corners.some((c) => c.at.every((x, k) => Math.abs(x - at[k]!) <= 1e-9))) corners.push(corner);
+      if (!corner || seen.has(corner.on.join('-'))) continue;
+      seen.add(corner.on.join('-'));
+      corners.push(corner);
     }
-    // A face of the cut solid is the cut of one source cube, with its area: zero-area slivers are not faces.
-    const area = new Map<number, number>();
-    for (let p = 0; p < section.cellCount; p++) {
-      const face = this.faceOfPrimitive(p);
-      const [a, b, c] = [section.cells[p * 3]!, section.cells[p * 3 + 1]!, section.cells[p * 3 + 2]!];
-      const P = (i: number): number[] => [section.chartPositions[i * 3]!, section.chartPositions[i * 3 + 1]!, section.chartPositions[i * 3 + 2]!];
-      const u = P(b).map((x, k) => x - P(a)[k]!);
-      const w = P(c).map((x, k) => x - P(a)[k]!);
-      const cross = [u[1]! * w[2]! - u[2]! * w[1]!, u[2]! * w[0]! - u[0]! * w[2]!, u[0]! * w[1]! - u[1]! * w[0]!];
-      area.set(face.ordinal, (area.get(face.ordinal) ?? 0) + Math.hypot(...cross) / 2);
+    // A face of the cut solid is the cut of one of the tesseract's cells: the cell holding at least three of the cut's
+    // corners, all of whose source corners share the cell's fixed coordinate. Counted from the lineage, not by area.
+    // A cell lying wholly in the slice is not one of them: the slice meets it in all three dimensions, so it is the
+    // cut itself, and its faces are where the cells around it meet the slice.
+    const ofCell = (v: number, f: SourceFace): boolean => Math.sign(this.source.positions[v * 4 + f.axis]!) === f.sign;
+    const inCell = (c: CutCorner, f: SourceFace): boolean => c.on.every((v) => ofCell(v, f));
+    const heights = this.corners().map((c) => c.height);
+    const inSlice = (f: SourceFace): boolean => heights.every((h, v) => !ofCell(v, f) || Math.abs(h) <= ON_PLANE_EPSILON);
+    const rings: { source: SourceFace; ring: number[] }[] = [];
+    for (const source of this.faces) {
+      const members = corners.map((c, i) => (inCell(c, source) ? i : -1)).filter((i) => i >= 0);
+      if (members.length < 3 || inSlice(source)) continue;
+      rings.push({ source, ring: aroundFace(members.map((i) => corners[i]!.at), members) });
     }
-    const faces: { source: SourceFace; sides: number }[] = [];
-    for (const [ordinal, a] of area) {
-      if (a <= 1e-9) continue;
-      const source = this.faces[ordinal]!;
-      // The face's corners are the cut's corners lying in that cube: all their source corners share its fixed coordinate.
-      const sides = corners.filter((c) => c.on.every((v) => Math.sign(this.source.positions[v * 4 + source.axis]!) === source.sign)).length;
-      faces.push({ source, sides });
-    }
-    faces.sort((p, q) => p.source.ordinal - q.source.ordinal);
+    rings.sort((p, q) => p.source.ordinal - q.source.ordinal);
+    const faces = rings.map((r) => ({ source: r.source, sides: r.ring.length }));
     // The cut's edges: pairs of corners lying together in two of its faces.
     const edges: CutEdge[] = [];
     for (let i = 0; i < corners.length; i++) {
       for (let j = i + 1; j < corners.length; j++) {
-        const shared = faces.filter((f) => [corners[i]!, corners[j]!].every((c) => c.on.every((v) => Math.sign(this.source.positions[v * 4 + f.source.axis]!) === f.source.sign)));
+        const shared = rings.filter((r) => r.ring.includes(i) && r.ring.includes(j));
         if (shared.length >= 2) {
-          edges.push({ a: i, b: j, length: round2(Math.hypot(...corners[i]!.at.map((x, k) => x - corners[j]!.at[k]!))), on: shared.map((f) => f.source) });
+          edges.push({ a: i, b: j, length: Math.hypot(...corners[i]!.at.map((x, k) => x - corners[j]!.at[k]!)), on: shared.map((r) => r.source) });
         }
       }
     }
     const edgeLengths = edges.map((e) => e.length);
+    const named = nameSolid(corners.map((c) => c.at), rings.map((r) => r.ring), edges);
     return {
       empty: false,
       dimension: 3,
@@ -637,29 +745,32 @@ class SpaceWorld extends BaseWorld {
       faces,
       edges,
       edgeLengths,
-      shape: spaceShapeName(corners.length, faces, edgeLengths),
+      shape: named.shape,
+      equalEdges: named.equal,
+      resolved: named.resolved,
       crossedEdges: corners.filter((c) => c.on.length === 2).map((c) => [c.on[0]!, c.on[1]!] as const)
     };
   }
 }
 
-/** A measured name for a cut solid, from its counted corners and faces. Nothing is named that was not counted. */
-function spaceShapeName(corners: number, faces: readonly { readonly sides: number }[], edges: readonly number[]): string {
-  const F = faces.length;
-  const sides = faces.map((f) => f.sides).sort((a, b) => a - b);
-  const equal = edges.length > 0 && edges.every((e) => Math.abs(e - edges[0]!) < 0.011);
-  const all = (n: number): boolean => sides.every((s) => s === n);
-  if (corners === 8 && F === 6 && all(4)) return equal ? 'a cube' : 'a box';
-  if (corners === 4 && F === 4 && all(3)) return equal ? 'a regular tetrahedron' : 'a tetrahedron';
-  if (corners === 6 && F === 8 && all(3)) return equal ? 'a regular octahedron' : 'an octahedron';
-  if (corners === 6 && F === 5 && sides.filter((s) => s === 3).length === 2) return 'a triangular prism';
-  if (corners === 12 && F === 8 && sides.filter((s) => s === 6).length === 2 && sides.filter((s) => s === 4).length === 6) {
-    return 'a hexagonal prism';
+/**
+ * The corners of one face, in order around it: by angle about their centroid, in the face's own plane. The corners
+ * of a convex polygon, seen from its centroid, follow one another in angle.
+ */
+function aroundFace(points: readonly (readonly number[])[], ids: readonly number[]): number[] {
+  const n = points.length;
+  const c = [0, 1, 2].map((k) => points.reduce((s, p) => s + p[k]!, 0) / n);
+  // The plane's normal, from the farthest pair of corners and the corner farthest from their line.
+  const first = points.reduce((p, q) => (norm3(sub3(q, c)) > norm3(sub3(p, c)) ? q : p));
+  const e1 = sub3(first, c);
+  let normal = [0, 0, 0];
+  for (const p of points) {
+    const candidate = cross3(e1, sub3(p, c));
+    if (norm3(candidate) > norm3(normal)) normal = candidate;
   }
-  if (corners === 12 && F === 8 && sides.filter((s) => s === 3).length === 4 && sides.filter((s) => s === 6).length === 4) {
-    return 'a tetrahedron with its corners cut off';
-  }
-  return `a solid with ${corners} corners and ${F} faces`;
+  const e2 = cross3(normal, e1);
+  const angle = (p: readonly number[]): number => Math.atan2(dot3(sub3(p, c), e2), dot3(sub3(p, c), e1));
+  return ids.map((id, k) => ({ id, a: angle(points[k]!) })).sort((p, q) => p.a - q.a).map((x) => x.id);
 }
 
 export type PlaneWorldT = PlaneWorld;

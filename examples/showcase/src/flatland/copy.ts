@@ -89,23 +89,47 @@ export function poseInSentence(rung: RungId, pose: PoseName | null, degrees: num
   return `turned ${degrees.toFixed(1)}°`;
 }
 
-/** The cut, said with its measured size. */
+/** Decimals that show a length to at least two significant figures, and never fewer than two. */
+const decimalsFor = (x: number): number => (x > 0 ? Math.max(2, 1 - Math.floor(Math.log10(x))) : 2);
+
+/**
+ * A length for reading: two decimals, or as many more as two significant figures need, so a present length never
+ * prints as zero. The cut's lengths are unrounded; only this rounds them, and only for display.
+ */
+export function measure(x: number): string {
+  return x.toFixed(Math.min(8, decimalsFor(x)));
+}
+
+/**
+ * Two different lengths for reading: each to at least two significant figures, and with more decimals until they
+ * print differently, so a range never shows a spread wider than the lengths have. Null when that would take more than
+ * six decimals: the shorter is under 0.00001, or six decimals cannot tell them apart. The lengths are then left unsaid.
+ */
+export function lengthRange(min: number, max: number): string | null {
+  for (let d = decimalsFor(min); d <= 6; d++) {
+    const [a, b] = [min.toFixed(d), max.toFixed(d)];
+    if (a !== b) return `${a} to ${b}`;
+  }
+  return null;
+}
+
+/**
+ * The cut, said with its measured size. One length "on each side" or "on every edge" only when the cut's edges are
+ * equal (`equalEdges`, established on unrounded lengths); a rectangle by its two lengths; any other polygon by the
+ * range of its sides; any other solid by its name alone. A cut too small to measure says so.
+ */
 export function cutPhrase(rung: RungId, cut: CutSummary): string {
   if (cut.empty) return 'nothing';
-  const lengths = [...new Set(cut.edgeLengths)].sort((a, b) => a - b);
-  const one = (n: number): string => n.toFixed(2);
-  if (rung === 'plane') {
-    if (cut.shape === 'a square') return `a square, ${one(lengths[0]!)} on each side`;
-    if (cut.shape === 'a rectangle') return `a rectangle, ${one(lengths[0]!)} by ${one(lengths[lengths.length - 1]!)}`;
-    if (cut.shape === 'an equilateral triangle') return `an equilateral triangle, ${one(lengths[0]!)} on each side`;
-    if (cut.shape === 'a regular hexagon') return `a regular hexagon, ${one(lengths[0]!)} on each side`;
-    if (cut.shape === 'a hexagon') return `a hexagon, its sides ${one(lengths[0]!)} and ${one(lengths[lengths.length - 1]!)} in turn`;
-    return cut.shape;
-  }
-  if (cut.shape === 'a cube') return `a cube, ${one(lengths[0]!)} on every edge`;
-  if (cut.shape === 'a regular tetrahedron') return `a regular tetrahedron, ${one(lengths[0]!)} on every edge`;
-  if (cut.shape === 'a regular octahedron') return `a regular octahedron, ${one(lengths[0]!)} on every edge`;
-  return cut.shape;
+  const lengths = cut.edgeLengths;
+  const min = Math.min(...lengths);
+  const max = Math.max(...lengths);
+  const noun = rung === 'plane' ? 'side' : 'edge';
+  if (!cut.resolved) return `${cut.shape}, too small to measure: every ${noun} under ${(1e-4).toFixed(4)} long`;
+  if (cut.equalEdges) return `${cut.shape}, ${measure(max)} on ${rung === 'plane' ? 'each side' : 'every edge'}`;
+  if (cut.shape === 'a rectangle') return `a rectangle, ${measure(min)} by ${measure(max)}`;
+  if (rung === 'space') return cut.shape;
+  const range = lengthRange(min, max);
+  return range === null ? cut.shape : `${cut.shape}, its sides ${range} long`;
 }
 
 /** Why the cut has the corners it has: the count rule, from the cut's own provenance. */
@@ -168,7 +192,7 @@ function touchingSentence(rung: RungId, meeting: Extract<Meeting, { kind: 'touch
 }
 
 /** What made a change, said with its subject. */
-export type Cause = 'slide' | 'turn' | 'pass' | 'chapter' | 'reset' | 'rung';
+export type Cause = 'slide' | 'turn' | 'turn-slide' | 'pass' | 'chapter' | 'reset' | 'rung';
 
 export function causePhrase(rung: RungId, cause: Cause): string {
   const w = WORDS[rung];
@@ -176,6 +200,7 @@ export function causePhrase(rung: RungId, cause: Cause): string {
     case 'slide': return `you slid ${w.slice}`;
     case 'pass': return `${w.slice} is passing through`;
     case 'turn': return `you turned ${w.theObject}`;
+    case 'turn-slide': return `you turned ${w.theObject} and slid ${w.slice} while it turned`;
     default: return '';
   }
 }
@@ -188,7 +213,7 @@ export function eventLine(rung: RungId, before: { readonly meeting: Meeting; rea
   const w = WORDS[rung];
   const why = causePhrase(rung, cause);
   const tail = why ? ` — ${why}.` : '.';
-  const rigid = cause === 'turn' ? ` ${w.TheObject} is the same ${w.object}: every edge is still ${edge.toFixed(2)} long.` : '';
+  const rigid = cause === 'turn' || cause === 'turn-slide' ? ` ${w.TheObject} is the same ${w.object}: every edge is still ${edge.toFixed(2)} long.` : '';
   // A line stays on screen until the next change it names, so it quotes no size that could move on under it:
   // the counted shape and the side only. The readout beside it carries the live numbers.
   if (after.meeting.kind === 'apart') {
@@ -229,14 +254,19 @@ export function dimensionsSentence(rung: RungId, d: { readonly world: number; re
     + 'so a length on screen is not a length in the world.';
 }
 
-/** The legend: the cut, the shadow and the camera, named apart, each with what it is. */
-export function legend(rung: RungId): readonly { readonly key: 'cut' | 'shadow' | 'camera'; readonly name: string; readonly text: string }[] {
+/**
+ * The legend: the cut, the shadow and the camera, named apart, each with what it is. While a pile-up question is open
+ * (`withhold`) every dot is drawn the same size, so the legend does not describe a larger dot: it says how to find out.
+ */
+export function legend(rung: RungId, withhold = false): readonly { readonly key: 'cut' | 'shadow' | 'camera'; readonly name: string; readonly text: string }[] {
   const w = WORDS[rung];
   return [
     { key: 'cut', name: 'The cut', text: `where ${w.theObject} meets ${w.slice}. ${rung === 'plane'
       ? 'Each side takes the colour of the cube’s face it lies in; the bright edges of the cube are the ones the plane crosses, one for each corner of the cut.'
       : 'Each face takes the colour of the tesseract’s cell it lies in: x red, y green, z blue, w gold, darker on the − side.'}` },
-    { key: 'shadow', name: 'The shadow', text: `all of ${w.theObject}, dropped straight along ${w.missing}. A larger dot is a point several corners land on.` },
+    { key: 'shadow', name: 'The shadow', text: `all of ${w.theObject}, dropped straight along ${w.missing}. ${withhold
+      ? 'Pick a dot to see which corners land on it.'
+      : 'A larger dot is a point several corners land on.'}` },
     { key: 'camera', name: 'The camera', text: 'only how you look. Dragging the picture moves it, and nothing else.' }
   ];
 }

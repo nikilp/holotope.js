@@ -50,6 +50,13 @@ export const TIP_STEP_DEG = 5;
 export const PASS_SPEED = 0.8;
 /** How long a named pose takes to reach, in seconds; instant when motion is reduced. */
 export const TURN_SECONDS = 0.7;
+/**
+ * How long a passage holds the slice at the object's middle, in seconds. The middle is where chapters II and IV look
+ * for their answers (the regular hexagon, the octahedron), and a slice gliding past it would show it for no frame.
+ */
+export const MIDDLE_HOLD = 0.9;
+/** Under reduced motion a passage moves in steps on the slide grid, one every this many seconds, and never glides. */
+export const STEP_SECONDS = 0.35;
 
 export interface ChapterSpec {
   readonly id: ChapterId;
@@ -70,8 +77,10 @@ export const CHAPTERS: readonly ChapterSpec[] = [
     start: { pose: 'corner', offset: -1.9, shadow: false }, hands: ['look', 'slide', 'turn'], prediction: 'middle-cut' },
   { id: 'shadow', numeral: 'III', title: 'Light from the missing direction', rung: 'plane',
     start: { pose: 'corner', offset: 0, shadow: true }, hands: ['look', 'slide', 'turn', 'cast'], prediction: 'shadow-centre' },
+  // IV starts beyond the tesseract's farthest corner in every pose (2 from its centre), so a turn alone cuts nothing
+  // and the question's slide is the visitor's to make.
   { id: 'up', numeral: 'IV', title: 'One rung up', rung: 'space',
-    start: { pose: 'facet', offset: -1.6, shadow: false }, hands: ['look', 'slide', 'turn'], prediction: 'first-solid' },
+    start: { pose: 'facet', offset: -2.1, shadow: false }, hands: ['look', 'slide', 'turn'], prediction: 'first-solid' },
   { id: 'up-shadow', numeral: 'V', title: 'Its shadow, one rung up', rung: 'space',
     start: { pose: 'facet', offset: 0, shadow: true }, hands: ['look', 'slide', 'turn', 'cast'], prediction: 'shadow-corner' },
   { id: 'free', numeral: '∞', title: 'Explore freely', rung: null, start: null, hands: ['look', 'slide', 'turn', 'cast'], prediction: null }
@@ -126,6 +135,29 @@ export const PREDICTIONS: Record<PredictionId, PredictionSpec> = {
   }
 };
 
+/**
+ * The corner rule, with its condition. Stood on one corner, an object meets the slice at that corner alone, and just
+ * past it the slice crosses only that corner's edges: three for a cube, four for a tesseract. Face (cell) first or
+ * edge first, several corners arrive together instead. The reveals say this, and stay on screen while the visitor
+ * turns to the other poses, so `journey.test.ts` holds every clause to the first cut in each named pose.
+ */
+export const FIRST_CUT_CLAUSES = {
+  plane: 'Stood on one corner, the cube meets the plane at that corner alone, so just past it the plane crosses only that corner’s '
+    + 'three edges and the cut is a triangle; past the next three corners it crosses six. Face first or edge first, several corners '
+    + 'arrive together, and the first cut is a square or a rectangle.',
+  space: 'Turned corner first, the tesseract meets your space at that one corner alone, and a tesseract’s corner has four edges: just '
+    + 'past it your space crosses those four, and four corners make a tetrahedron, as the cube’s three made a triangle in the plane. '
+    + 'Cell first or edge first, several corners arrive together, and the first cut is a cube or a triangular prism.'
+} as const;
+
+/**
+ * Ana and kata, as free exploration introduces them whenever its space is on show: a visitor may arrive there cold,
+ * without chapter IV, whose setup names them more briefly in the guided order. The gauge and the dial draw ana
+ * toward their top; the sentence says that is the drawing's convention, not a direction in the picture.
+ */
+export const ANA_KATA = 'Its two ways along the fourth direction, w, are called ana and kata; they are not up and down. The gauge and '
+  + 'the dial draw ana toward their top, a convention of the drawing, not a direction in the picture.';
+
 export type InspectTarget =
   | { readonly kind: 'cut-corner'; readonly index: number }
   | { readonly kind: 'shadow-point'; readonly index: number }
@@ -147,6 +179,8 @@ export type Action =
   | { readonly type: 'tick'; readonly dt: number }
   | { readonly type: 'predict'; readonly choice: string }
   | { readonly type: 'inspect'; readonly target: InspectTarget | null }
+  /** Point a point out, without picking it: it is marked, and what lands there stays unsaid. */
+  | { readonly type: 'attend'; readonly target: InspectTarget | null }
   | { readonly type: 'look' }
   | { readonly type: 'reset' };
 
@@ -156,13 +190,13 @@ export const ACTION_KINDS: Record<Action['type'], 'chapter' | 'world' | 'shadow'
   'slide-to': 'world', 'slide-step': 'world', 'slide-layer': 'world', 'tip-to': 'world', 'tip-step': 'world', pose: 'world', play: 'world',
   stop: 'clock', tick: 'clock',
   shadow: 'shadow',
-  predict: 'question', inspect: 'question',
+  predict: 'question', inspect: 'question', attend: 'question',
   look: 'view', 'show-object': 'view'
 };
 
 /** The hand an action needs, or null when it needs none. A chapter that has not granted the hand ignores the action. */
 export const HAND_OF: Record<Action['type'], Hand | null> = {
-  chapter: null, rung: null, reset: null, stop: null, tick: null, predict: null, inspect: null,
+  chapter: null, rung: null, reset: null, stop: null, tick: null, predict: null, inspect: null, attend: null,
   'slide-to': 'slide', 'slide-step': 'slide', 'slide-layer': 'slide', play: 'slide',
   'tip-to': 'turn', 'tip-step': 'turn', pose: 'turn',
   shadow: 'cast',
@@ -237,6 +271,8 @@ export interface View {
     readonly test: { readonly label: string; readonly action: Action } | null;
   } | null;
   readonly inspection: Inspection | null;
+  /** A point the page has pointed out, unpicked: marked in the picture, its answer not given. */
+  readonly attention: InspectTarget | null;
   readonly event: { readonly line: string; readonly at: number } | null;
   readonly eventId: number;
   /** Set only when the picture is blank: nothing cut, no shadow, no object drawn. */
@@ -268,8 +304,11 @@ interface State {
   /** The reveal as it read when the discovery was made: later moves do not rewrite it. */
   revealText: string | null;
   inspect: InspectTarget | null;
-  pass: { to: number } | null;
-  turn: { from: number; to: number; t: number } | null;
+  attention: InspectTarget | null;
+  /** A passage: where it ends, how long it still holds at the middle, whether it has, and time towards its next step. */
+  pass: { to: number; hold: number; heldMiddle: boolean; wait: number } | null;
+  /** A turn to a named pose; `slid` when the slice was slid while it turned, so its last line can say so. */
+  turn: { from: number; to: number; t: number; slid: boolean } | null;
   milestones: Set<Milestone>;
   event: { line: string; at: number } | null;
   sequence: number;
@@ -310,12 +349,16 @@ export function nextLayer(layers: readonly Layer[], offset: number, direction: 1
   return direction > 0 ? Math.min(...beyond) : Math.max(...beyond);
 }
 
-export function createExperience(start: ChapterId = 'through', options: { readonly instantTurns?: boolean } = {}): Experience {
+/**
+ * `instantTurns`: a named pose is reached at once (reduced motion). `steppedPass`: a passage moves in grid steps,
+ * one every {@link STEP_SECONDS}, instead of gliding (reduced motion). Either way it holds at the middle.
+ */
+export function createExperience(start: ChapterId = 'through', options: { readonly instantTurns?: boolean; readonly steppedPass?: boolean } = {}): Experience {
   const worlds = { plane: createPlaneWorld(), space: createSpaceWorld() };
   const state: State = {
     chapter: start, rung: 'plane',
     tip: { plane: 0, space: 0 }, offset: { plane: -1.6, space: -1.6 },
-    shadow: false, objectShown: true, choice: null, revealed: false, revealText: null, inspect: null, pass: null, turn: null,
+    shadow: false, objectShown: true, choice: null, revealed: false, revealText: null, inspect: null, attention: null, pass: null, turn: null,
     milestones: new Set(), event: null, sequence: 0
   };
 
@@ -351,13 +394,14 @@ export function createExperience(start: ChapterId = 'through', options: { readon
     mutate();
     sync(state.rung);
     state.inspect = null;
+    state.attention = null;
     const after = snapshot();
     if (after.meeting.kind === 'crossing' || (after.meeting.kind === 'touching' && after.meeting.drawn)) state.milestones.add('cut');
     if (after.cut.corners.length === 3 && state.rung === 'plane') state.milestones.add('triangle');
     if (after.cut.shape === 'a regular octahedron') state.milestones.add('octahedron');
     if (before.meeting.kind !== 'apart' && after.meeting.kind === 'apart' && state.milestones.has('cut')) state.milestones.add('passed');
-    if (state.milestones.has('revealed') && (cause === 'slide' || cause === 'pass' || cause === 'turn')) state.milestones.add('after-reveal');
-    if (cause === 'turn') {
+    if (state.milestones.has('revealed') && (cause === 'slide' || cause === 'pass' || cause === 'turn' || cause === 'turn-slide')) state.milestones.add('after-reveal');
+    if (cause === 'turn' || cause === 'turn-slide') {
       state.milestones.add('turned');
       if (poseAt(state.rung, state.tip[state.rung]) === 'corner') state.milestones.add('turned-corner');
     }
@@ -365,7 +409,7 @@ export function createExperience(start: ChapterId = 'through', options: { readon
       const edge = world().edgeLengths()[0]!;
       say(eventLine(state.rung, before, after, cause, edge));
     }
-    checkReveal();
+    checkReveal(cause);
   };
 
   const enter = (id: ChapterId): void => {
@@ -374,6 +418,7 @@ export function createExperience(start: ChapterId = 'through', options: { readon
     state.pass = null;
     state.turn = null;
     state.inspect = null;
+    state.attention = null;
     state.choice = null;
     state.revealed = false;
     state.revealText = null;
@@ -387,19 +432,25 @@ export function createExperience(start: ChapterId = 'through', options: { readon
       state.objectShown = true;
     }
     sync(state.rung);
-    checkReveal();
+    checkReveal('chapter');
   };
 
-  const checkReveal = (): void => {
+  /**
+   * Whether the question is answered now. Chapters II and IV ask what a slide will meet, so their answers come only
+   * from a slide or a passage: a turn that lands in the answer shows the cut, and the question stays open until the
+   * slice is slid. Chapters III and V ask what lands on a point, so theirs come only from picking it.
+   */
+  const checkReveal = (cause: Cause | 'inspect'): void => {
     const spec = chapterById(state.chapter);
     if (spec.prediction === null || state.revealed) return;
     const w = world();
     const pose = poseAt(state.rung, state.tip[state.rung]);
     const cut = w.cut();
+    const slid = cause === 'slide' || cause === 'pass';
     let found = false;
     switch (spec.prediction) {
-      case 'middle-cut': found = state.rung === 'plane' && pose === 'corner' && cut.corners.length === 6; break;
-      case 'first-solid': found = state.rung === 'space' && pose === 'corner' && cut.corners.length === 4 && cut.dimension === 3; break;
+      case 'middle-cut': found = slid && state.rung === 'plane' && pose === 'corner' && cut.corners.length === 6; break;
+      case 'first-solid': found = slid && state.rung === 'space' && pose === 'corner' && cut.corners.length === 4 && cut.dimension === 3; break;
       case 'shadow-centre':
       case 'shadow-corner': {
         const target = state.inspect;
@@ -427,14 +478,12 @@ export function createExperience(start: ChapterId = 'through', options: { readon
       case 'middle-cut': {
         const cut = w.cut();
         const regular = cut.shape === 'a regular hexagon' ? ` Here, at the middle, all six sides are equal: ${cutPhrase('plane', cut)}.` : '';
-        return `A hexagon, all the while the plane lies between the cube’s two middle layers of corners. ${cornerReason('plane', cut)} Near a `
-          + `corner the plane crosses only that corner’s three edges, so the cut begins as a triangle; once it is past the next three corners it crosses six.${regular}`;
+        return `A hexagon, all the while the plane lies between the cube’s two middle layers of corners. ${cornerReason('plane', cut)} `
+          + `${FIRST_CUT_CLAUSES.plane}${regular}`;
       }
       case 'first-solid': {
         const cut = w.cut();
-        return `${capitalise(cutPhrase('space', cut))}. ${cornerReason('space', cut)} A cube’s corner has three edges, so near a corner `
-          + 'the plane’s cut of it was a triangle; a tesseract’s corner has four, so near a corner the cut has four corners, and a solid '
-          + 'with four corners is a tetrahedron.';
+        return `${capitalise(cutPhrase('space', cut))}. ${cornerReason('space', cut)} ${FIRST_CUT_CLAUSES.space}`;
       }
       case 'shadow-centre':
       case 'shadow-corner': {
@@ -462,35 +511,46 @@ export function createExperience(start: ChapterId = 'through', options: { readon
     const pose = poseAt(state.rung, state.tip[state.rung]);
     const facetLabel = state.rung === 'plane' ? 'Face first' : 'Cell first';
     switch (spec.prediction) {
-      case 'middle-cut':
-        return pose === 'corner' ? { label: 'Slide to the middle', action: { type: 'slide-to', offset: 0 } } : { label: 'Corner first', action: { type: 'pose', pose: 'corner' } };
+      case 'middle-cut': {
+        if (pose !== 'corner') return { label: 'Corner first', action: { type: 'pose', pose: 'corner' } };
+        // The cut near the corner first, then the middle: the triangle is half of what the answer explains.
+        if (!state.milestones.has('triangle')) {
+          const first = world().layers()[0]!.height;
+          return { label: 'Slide just past its lowest corner', action: { type: 'slide-to', offset: onGrid(first + 0.2) } };
+        }
+        return { label: 'Slide to the middle', action: { type: 'slide-to', offset: 0 } };
+      }
       case 'first-solid': {
+        // Turning cuts nothing from the chapter's start; the slide past the corner is the act the question asks for.
         if (pose !== 'corner') return { label: 'Corner first', action: { type: 'pose', pose: 'corner' } };
-        const [lo] = world().extent();
-        return { label: 'Slide in, just past its first corner', action: { type: 'slide-to', offset: onGrid(lo + 0.5) } };
+        const [lo, hi] = world().extent();
+        const target = state.offset[state.rung] > 0 ? onGrid(hi - 0.5) : onGrid(lo + 0.5);
+        return { label: 'Slide in, just past its first corner', action: { type: 'slide-to', offset: target } };
       }
-      case 'shadow-centre': {
-        if (pose !== 'corner') return { label: 'Corner first', action: { type: 'pose', pose: 'corner' } };
-        const index = world().shadow().points.findIndex((p) => p.corners.length >= 2);
-        return index === -1 ? null : { label: 'Show what lands on the centre', action: { type: 'inspect', target: { kind: 'shadow-point', index } } };
-      }
+      case 'shadow-centre':
       case 'shadow-corner': {
-        if (pose !== 'facet') return { label: facetLabel, action: { type: 'pose', pose: 'facet' } };
+        // First point the place out, unpicked; only a second, plainly named press shows what lands there.
+        const want = spec.prediction === 'shadow-centre' ? 'corner' : 'facet';
+        if (pose !== want) return want === 'corner' ? { label: 'Corner first', action: { type: 'pose', pose: 'corner' } } : { label: facetLabel, action: { type: 'pose', pose: 'facet' } };
         const index = world().shadow().points.findIndex((p) => p.corners.length >= 2);
-        return index === -1 ? null : { label: 'Show what lands on one corner', action: { type: 'inspect', target: { kind: 'shadow-point', index } } };
+        if (index === -1) return null;
+        const target: InspectTarget = { kind: 'shadow-point', index };
+        if (state.attention?.kind !== 'shadow-point' || state.attention.index !== index) {
+          return { label: spec.prediction === 'shadow-centre' ? 'Point out the centre' : 'Point out a corner of the shadow', action: { type: 'attend', target } };
+        }
+        return { label: 'Show me what lands there', action: { type: 'inspect', target } };
       }
     }
   };
 
   const hintFor = (): string => {
     const m = state.milestones;
-    const w = WORDS[state.rung];
     switch (state.chapter) {
       case 'through':
         if (m.has('looked') && m.has('passed')) return 'Looking moved only your view: the cube, the plane and the cut are as they were. Next, stand the cube on a corner.';
         if (m.has('passed')) return 'The plane has passed the cube. Now look around: drag the picture, or press Q and E.';
         if (m.has('cut')) return 'That square is all the plane can meet of the cube: the place where the cube crosses it. Keep going.';
-        return 'Press Pass through, press ↑, or drag the bright line on the gauge.';
+        return 'Press Pass through, tap or drag the gauge, or press ↑.';
       case 'corner':
         if (m.has('after-reveal')) return 'Turn the cube with the dial and slide again: each pose cuts it differently, and the cube never changes.';
         if (m.has('revealed')) return 'Six edges, six corners. Keep sliding: past the middle it comes back to a triangle, turned the other way.';
@@ -500,18 +560,20 @@ export function createExperience(start: ChapterId = 'through', options: { readon
         if (m.has('hid')) return 'That is all the plane holds of the cube: a cut and a shadow. One rung up, that is all there is to see.';
         if (m.has('after-reveal')) return 'Slide the plane: the cut changes and the shadow keeps its shape. Turn the cube: both change. Then hide the cube.';
         if (m.has('revealed')) return 'Now slide the plane, and turn the cube, and watch which of the two changes.';
-        return 'The filled shape is the cut; the lines are the shadow. Guess, then show what lands on the shadow’s centre.';
+        if (state.attention) return 'The ringed dot is the shadow’s centre. Pick it, with a click or a tap, to see what lands there.';
+        return 'The filled shape is the cut, the lines the shadow; Hide the cube leaves only those two. Guess, then pick the dot at the shadow’s centre.';
       case 'up':
         if (m.has('octahedron')) return 'At the very middle, six of the tesseract’s corners lie in your space at once, and the cut is an octahedron: for that one position only.';
         if (m.has('revealed')) return 'Keep sliding, and count the cut’s corners each time your space passes a layer of the tesseract’s corners. The gauge marks the layers.';
-        if (m.has('turned-corner')) return 'Guess first, if you like, then slide your space in, just past the tesseract’s first corner, the one farthest kata. The gauge marks where its corners lie.';
+        if (m.has('turned-corner')) return 'Guess first, if you like, then slide your space in, just past the tesseract’s nearest corner. The gauge marks where its corners lie.';
         if (m.has('passed')) return 'A cube the whole way through, as the cube’s cut in the plane was a square the whole way. Now turn the tesseract corner first.';
         if (m.has('cut')) return 'A cube. Keep going: does it change as your space moves on?';
-        return `The gauge is now the only view of ${w.missing}. Press Pass through, press ↑, or drag its bright line.`;
+        return 'Only the gauge and the dial show the fourth direction. Press Pass through, tap or drag the gauge, or press ↑.';
       case 'up-shadow':
         if (m.has('after-reveal')) return 'Turn the tesseract corner first: its shadow’s centre carries two corners, as the cube’s hexagonal shadow’s did.';
         if (m.has('revealed')) return 'Now turn the tesseract, and watch the shadow change while the tesseract stays the same.';
-        return 'The solid is the cut; the lines are the shadow, lying right over it here. Guess, then show what lands on one of its corners.';
+        if (state.attention) return 'The ringed dot is one corner of the shadow. Pick it, with a click or a tap, to see what lands there.';
+        return 'The solid is the cut; the lines are the shadow, lying right over it here. Guess, then pick a dot at one of its corners.';
       default:
         return 'Every hand works here, in both worlds. Nothing is reset when you come back.';
     }
@@ -522,9 +584,11 @@ export function createExperience(start: ChapterId = 'through', options: { readon
       case 'through': return 'A cube hangs above a flat world, one face toward it. The plane lies below it; nothing is cut yet. Camera as you left it.';
       case 'corner': return 'The same cube, turned to stand on its corner (− − −). The plane lies below it. Camera as you left it.';
       case 'shadow': return 'The cube stands on a corner, the plane passes through its middle, and light comes straight along the missing direction. Camera as you left it.';
-      case 'up': return 'Now your whole picture is the slice: a space of three directions inside four. Its two ways along the fourth are called ana and kata. A tesseract, the four-dimensional cube, lies just ana of it, cell first. Camera as you left it.';
+      // The guided introduction, as the review accepted it; the full sentence, with the drawing's convention, is free
+      // exploration's, where a visitor may arrive cold. Kept short: on a phone the card's first action must stay on screen.
+      case 'up': return 'Now your whole picture is the slice: a space of three directions inside four. Its two ways along the fourth are called ana and kata. A tesseract, the four-dimensional cube, lies ana of it, cell first. Camera as you left it.';
       case 'up-shadow': return 'The tesseract, cell first, with your space through its middle, and light along the direction your space lacks. Camera as you left it.';
-      default: return 'Both worlds, as you left them.';
+      default: return state.rung === 'space' ? `Both worlds, as you left them. In this one your whole picture is the slice. ${ANA_KATA}` : 'Both worlds, as you left them.';
     }
   };
 
@@ -605,6 +669,33 @@ export function createExperience(start: ChapterId = 'through', options: { readon
     return { world: d, slice: d - 1, object: d, cut: cut.dimension, shadow: d - 1 };
   };
 
+  /**
+   * One frame of a passage. Gliding, it moves PASS_SPEED a second; stepped (reduced motion), one grid step every
+   * STEP_SECONDS. Either way, a passage that would cross the middle lands on it exactly and holds MIDDLE_HOLD there.
+   */
+  const advancePass = (dt: number): void => {
+    const pass = state.pass!;
+    const rung = state.rung;
+    if (pass.hold > 0) { pass.hold = Math.max(0, pass.hold - dt); return; }
+    let next: number;
+    if (options.steppedPass) {
+      pass.wait += dt;
+      if (pass.wait < STEP_SECONDS) return;
+      pass.wait = 0;
+      next = Math.min(pass.to, onGrid(state.offset[rung] + SLIDE_STEP));
+    } else {
+      next = Math.min(pass.to, state.offset[rung] + PASS_SPEED * dt);
+    }
+    if (!pass.heldMiddle && state.offset[rung] < 0 && next >= 0) {
+      next = 0;
+      pass.heldMiddle = true;
+      pass.hold = MIDDLE_HOLD;
+    }
+    const done = next >= pass.to - 1e-12;
+    change('pass', () => { state.offset[rung] = done ? pass.to : next; });
+    if (done) state.pass = null;
+  };
+
   enter(start);
 
   return {
@@ -644,6 +735,7 @@ export function createExperience(start: ChapterId = 'through', options: { readon
           ? { spec: predictionSpec, choice: state.choice, revealed: state.revealed, reveal: state.revealText, test: testFor() }
           : null,
         inspection: inspectionFor(),
+        attention: state.attention,
         event: state.event,
         eventId: state.sequence,
         empty: emptyFor(meeting),
@@ -669,31 +761,38 @@ export function createExperience(start: ChapterId = 'through', options: { readon
           return;
         case 'slide-to':
           state.pass = null;
+          if (state.turn) state.turn.slid = true;
           change('slide', () => { state.offset[rung] = Math.max(-reach, Math.min(reach, action.offset)); });
           return;
         case 'slide-step':
           state.pass = null;
+          if (state.turn) state.turn.slid = true;
           change('slide', () => { state.offset[rung] = Math.max(-reach, Math.min(reach, onGrid(state.offset[rung] + action.steps * SLIDE_STEP))); });
           return;
         case 'slide-layer': {
           const to = nextLayer(world().layers(), state.offset[rung], action.direction);
           if (to === null) return;
           state.pass = null;
+          if (state.turn) state.turn.slid = true;
           change('slide', () => { state.offset[rung] = to; });
           return;
         }
+        // A turn stops a passage: the slice never slides on by itself while the object turns.
         case 'tip-to':
           state.turn = null;
+          state.pass = null;
           change('turn', () => { state.tip[rung] = Math.max(0, Math.min(Math.PI / 2, action.angle)); });
           return;
         case 'tip-step':
           state.turn = null;
+          state.pass = null;
           change('turn', () => { state.tip[rung] = tipStep(rung, state.tip[rung], action.steps); }, true);
           return;
         case 'pose': {
           const to = RUNGS[rung].stops[action.pose];
+          state.pass = null;
           if (options.instantTurns) { state.turn = null; change('turn', () => { state.tip[rung] = to; }, true); return; }
-          state.turn = { from: state.tip[rung], to, t: 0 };
+          state.turn = { from: state.tip[rung], to, t: 0, slid: false };
           return;
         }
         case 'shadow':
@@ -719,27 +818,27 @@ export function createExperience(start: ChapterId = 'through', options: { readon
             : 'The cube is hidden from the picture, not from the world: the cut and the shadow are what the plane holds of it.');
           return;
         case 'play': {
-          const [lo, hi] = world().extent();
-          const top = onGrid(hi + 0.3);
-          if (state.offset[rung] >= hi - 1e-12) change('slide', () => { state.offset[rung] = Math.max(-reach, onGrid(lo - 0.3)); });
-          state.pass = { to: Math.min(reach, top) };
+          // A passage runs from beyond the object's farthest corner in any pose to beyond it on the other side, so a
+          // turn made after it, or before it, cuts nothing until the slice is slid again.
+          const [, hi] = world().extent();
+          const far = Math.sqrt(RUNGS[rung].dim);
+          if (state.offset[rung] >= hi - 1e-12) change('slide', () => { state.offset[rung] = Math.max(-reach, onGrid(-far - 0.3)); });
+          state.pass = {
+            to: Math.min(reach, onGrid(far + 0.3)), hold: 0, heldMiddle: state.offset[rung] >= 0,
+            wait: options.steppedPass ? STEP_SECONDS : 0
+          };
           return;
         }
         case 'stop': state.pass = null; state.turn = null; return;
         case 'tick': {
-          if (state.pass) {
-            const to = state.pass.to;
-            const next = Math.min(to, state.offset[rung] + PASS_SPEED * action.dt);
-            const done = next >= to - 1e-12;
-            change('pass', () => { state.offset[rung] = done ? to : next; });
-            if (done) state.pass = null;
-          }
+          if (state.pass) advancePass(action.dt);
           if (state.turn) {
             const turn = state.turn;
             turn.t = Math.min(1, turn.t + action.dt / TURN_SECONDS);
             const eased = turn.t < 1 ? turn.from + (turn.to - turn.from) * (1 - (1 - turn.t) ** 3) : turn.to;
-            change('turn', () => { state.tip[rung] = eased; }, turn.t >= 1);
-            if (turn.t >= 1) state.turn = null;
+            const settled = turn.t >= 1;
+            change(settled && turn.slid ? 'turn-slide' : 'turn', () => { state.tip[rung] = eased; }, settled);
+            if (settled) state.turn = null;
           }
           return;
         }
@@ -749,7 +848,11 @@ export function createExperience(start: ChapterId = 'through', options: { readon
           return;
         case 'inspect':
           state.inspect = action.target;
-          checkReveal();
+          state.attention = null;
+          checkReveal('inspect');
+          return;
+        case 'attend':
+          state.attention = action.target;
           return;
         case 'look':
           if (!state.milestones.has('looked')) {

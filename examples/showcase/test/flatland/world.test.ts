@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ON_PLANE_EPSILON, RUNGS, createPlaneWorld, createSpaceWorld, tipRotation, type World } from '../../src/flatland/world.js';
-import { area2, crossings, drop, hull2, hull3, sameSet } from './analytic.js';
+import { cutPhrase } from '../../src/flatland/copy.js';
+import { tipStep } from '../../src/flatland/journey.js';
+import { ON_PLANE_EPSILON, RUNGS, createPlaneWorld, createSpaceWorld, tipRotation, type CutSummary, type RungId, type World } from '../../src/flatland/world.js';
+import { area2, crossings, cutByFaces, cutByHull, drop, edgeLengths, hull2, hull3, hypercubeFaces, nameByConditions, sameSet, type Measured } from './analytic.js';
 
 /**
  * One More Direction's numbers, held to an independent account (`analytic.ts`):
@@ -181,6 +183,227 @@ describe('the cut is what the slice meets, by the definition', () => {
     expect(shape(space, space.rung.stops.corner, -1.5)).toBe('a regular tetrahedron');
     expect(shape(space, space.rung.stops.corner, -0.5)).toBe('a tetrahedron with its corners cut off');
     expect(shape(space, space.rung.stops.corner, 0)).toBe('a regular octahedron');
+  });
+});
+
+/**
+ * C1: a cut's name says only what its unrounded lengths and angles establish. The witness is `analytic.ts`: it finds
+ * each cut again from the hypercube's own squares and cubes (or, through corners, from a hull), measures it exactly,
+ * and names it by the conditions each name states, at a tolerance tighter (1e-11) and one looser (1e-8) than the page's.
+ * Where the two agree the page must say the same; nowhere may it say a third thing. No rounded display enters it.
+ */
+describe('a cut is called equal, right or regular only where its exact lengths and angles say so (C1)', () => {
+  /** Every tip the keys reach: the named poses (Home, End, the pose buttons), then from each, steps of 5° and, on the focused dial, 15°. */
+  const keyTips = (rung: RungId): number[] => {
+    const out: number[] = [...Object.values(RUNGS[rung].stops)];
+    for (let i = 0; i < out.length; i++) {
+      for (const steps of [1, -1, 3, -3]) {
+        const next = tipStep(rung, out[i]!, steps);
+        if (!out.some((t) => Math.abs(t - next) < 1e-12)) out.push(next);
+      }
+    }
+    return out;
+  };
+  /** The dial, dragged to just outside its 2.5° snap on either side of each named pose: as near a pose as a drag can rest. */
+  const dragTips = (rung: RungId): number[] => Object.values(RUNGS[rung].stops)
+    .flatMap((s) => [s - 2.51 * DEG, s + 2.51 * DEG]).filter((t) => t >= 0 && t <= Math.PI / 2);
+  /** The gauge's 0.1 grid end to end; every layer of corners; 0.05 and 0.1 past each; and cuts 1e-3 to 1e-7 past each. */
+  const walkOffsets = (w: World): number[] => {
+    const out: number[] = [];
+    for (let k = Math.ceil(-w.rung.reach * 10); k <= Math.floor(w.rung.reach * 10); k++) out.push(k / 10);
+    for (const l of w.layers()) for (const d of [0, 0.05, 0.1, 1e-3, 1e-5, 1e-6, 1e-7]) out.push(l.height - d, l.height + d);
+    return out;
+  };
+
+  interface State { readonly rung: RungId; readonly by: 'keys' | 'drag'; readonly tip: number; readonly h: number; readonly page: CutSummary; readonly g: Measured }
+
+  const signsOf = (w: World): number[][] => w.corners().map((c) => Array.from(w.source.positions.subarray(c.index * w.rung.dim, (c.index + 1) * w.rung.dim)));
+
+  /** The page's cut and the witness's, at a state; the witness's is null when the page cuts nothing, and must then find nothing. */
+  const measure = (w: World): { page: CutSummary; g: Measured | null; witnessEmpty: boolean } => {
+    const signs = signsOf(w);
+    const posed = w.corners().map((c) => [...c.posed]);
+    const axis = w.rung.extraAxis;
+    const page = w.cut();
+    const byFaces = cutByFaces(signs, posed, axis, w.offset);
+    if (page.empty) return { page, g: null, witnessEmpty: byFaces === null || byFaces.points.length === 0 };
+    const g = byFaces ?? cutByHull(crossings(posed, hypercubeFaces(signs, 1) as [number, number][], axis, w.offset).map((p) => drop(p, axis)), w.rung.dim - 1);
+    return { page, g, witnessEmpty: false };
+  };
+
+  let walked: { states: State[]; emptyMismatches: string[] } | null = null;
+  const walk = (): { states: State[]; emptyMismatches: string[] } => {
+    if (walked !== null) return walked;
+    const states: State[] = [];
+    const emptyMismatches: string[] = [];
+    for (const w of [plane, space]) {
+      const rung = w.rung.id;
+      for (const [by, tips] of [['keys', keyTips(rung)], ['drag', dragTips(rung)]] as const) {
+        for (const tip of tips) {
+          w.setTip(tip);
+          for (const h of walkOffsets(w)) {
+            w.setSlice(h);
+            const { page, g, witnessEmpty } = measure(w);
+            if (g === null) { if (!witnessEmpty) emptyMismatches.push(`${rung} ${tip / DEG}° ${h}`); continue; }
+            states.push({ rung, by, tip, h, page, g });
+          }
+        }
+      }
+    }
+    walked = { states, emptyMismatches };
+    return walked;
+  };
+
+  const dimOf = (s: State): 2 | 3 => (s.rung === 'plane' ? 2 : 3);
+  const spread = (g: Measured): number => { const l = edgeLengths(g); return (Math.max(...l) - Math.min(...l)) / Math.max(...l); };
+
+  it('names every cut the keys and the dial reach as its exact lengths and angles establish, in both rungs', () => {
+    const { states, emptyMismatches } = walk();
+    expect(emptyMismatches).toEqual([]);
+    const wrong: string[] = [];
+    const census = { plane: new Set<string>(), space: new Set<string>() };
+    for (const s of states) {
+      const strict = nameByConditions(dimOf(s), s.g, 1e-11, 1e-11);
+      const loose = nameByConditions(dimOf(s), s.g, 1e-8, 1e-8);
+      const where = `${s.rung} ${s.by} ${(s.tip / DEG).toFixed(4)}° at ${s.h}: the page says "${s.page.shape}", the witness "${strict}"/"${loose}"`;
+      if (strict === loose ? s.page.shape !== strict : s.page.shape !== strict && s.page.shape !== loose) wrong.push(where);
+      // The same corners, and in space the same faces: the name is of the cut the witness measured.
+      if (s.page.corners.length !== s.g.points.length) wrong.push(`${where}; ${s.page.corners.length} corners, not ${s.g.points.length}`);
+      if (s.rung === 'space' && s.page.faces.length !== s.g.faces.length) wrong.push(`${where}; ${s.page.faces.length} faces, not ${s.g.faces.length}`);
+      census[s.rung].add(s.page.shape);
+    }
+    expect(wrong).toEqual([]);
+    expect(states.filter((s) => s.rung === 'plane').length).toBeGreaterThan(3500);
+    expect(states.filter((s) => s.rung === 'space').length).toBeGreaterThan(2500);
+    // Coverage of the names, not just of the states: every equal, right or regular name the page gives is met, and
+    // so are the plain ones beside it. ('a box' and 'an octahedron' that is not regular never arise from these turns.)
+    for (const name of ['an equilateral triangle', 'a triangle', 'a square', 'a rectangle', 'a rhombus', 'a four-sided shape', 'a pentagon', 'a regular hexagon', 'a hexagon']) {
+      expect(census.plane.has(name), name).toBe(true);
+    }
+    for (const name of ['a regular tetrahedron', 'a tetrahedron', 'a regular octahedron', 'a cube', 'a triangular prism', 'a hexagonal prism',
+      'a tetrahedron with its corners cut off', 'a solid with eight corners and six faces', 'a solid with six corners and five faces']) {
+      expect(census.space.has(name), name).toBe(true);
+    }
+  });
+
+  it('keeps unequal lengths far from its tolerance: no symmetry, and they differ by at least 0.4 % (as world.ts claims)', () => {
+    let least = Infinity;
+    for (const s of walk().states) {
+      const l = edgeLengths(s.g);
+      if (Math.max(...l) < 1e-4) continue;
+      const d = spread(s.g);
+      if (d > 1e-8) least = Math.min(least, d);
+      // And lengths equal by a symmetry are equal to far better than the page's 1e-9.
+      else expect(d, `${s.rung} ${(s.tip / DEG).toFixed(4)}° at ${s.h}`).toBeLessThan(1e-12);
+    }
+    expect(least).toBeGreaterThanOrEqual(0.004);
+  });
+
+  /** A printed length: within half a unit of its last decimal of the exact one, and to at least two significant figures. */
+  const printed = (text: string, exact: number): string | null => {
+    const decimals = (text.split('.')[1] ?? '').length;
+    if (Math.abs(Number(text) - exact) > 0.5 * 10 ** -decimals + 1e-12) return `${text} is not ${exact}`;
+    if (text.replace('.', '').replace(/^0+/, '').length < 2) return `${text} has fewer than two significant figures`;
+    return null;
+  };
+
+  it('says one length "on each side" or "on every edge" only of equal edges; otherwise their true range, a rectangle’s two sides, or none', () => {
+    const wrong: string[] = [];
+    for (const s of walk().states) {
+      const phrase = cutPhrase(s.rung, s.page);
+      const l = edgeLengths(s.g);
+      const [min, max] = [Math.min(...l), Math.max(...l)];
+      const where = `${s.rung} ${(s.tip / DEG).toFixed(4)}° at ${s.h}: "${phrase}"`;
+      const fail = (why: string | null): void => { if (why !== null) wrong.push(`${where}: ${why}`); };
+      let m: RegExpMatchArray | null;
+      if ((m = phrase.match(/, too small to measure: every (side|edge) under 0\.0001 long$/))) {
+        if (max >= 1e-4) fail(`its longest edge is ${max}`);
+      } else if (max < 1e-4) {
+        fail(`its longest edge is ${max}, too small to measure, and it does not say so`);
+      } else if ((m = phrase.match(/, ([\d.]+) on (each side|every edge)$/))) {
+        if (max - min > 1e-8 * max) fail(`its edges are ${min} to ${max}`);
+        fail(printed(m[1]!, max));
+      } else if ((m = phrase.match(/^a rectangle, ([\d.]+) by ([\d.]+)$/))) {
+        fail(printed(m[1]!, min));
+        fail(printed(m[2]!, max));
+        if (m[1] === m[2]) fail('its two sides print alike');
+      } else if ((m = phrase.match(/, its sides ([\d.]+) to ([\d.]+) long$/))) {
+        fail(printed(m[1]!, min));
+        fail(printed(m[2]!, max));
+        if (m[1] === m[2]) fail('the two ends print alike');
+      } else if (phrase !== s.page.shape) {
+        fail('an unrecognised phrase');
+      } else if (s.rung === 'plane' && min >= 1e-5 && max - min >= 1e-6) {
+        // Left unsaid only when two significant figures of the shorter, or telling the two apart, take over six decimals.
+        fail(`its sides, ${min} to ${max}, go unsaid`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  /** The states 7d27c4a named equilateral or regular with unequal lengths, as the review found them: rung, tip in degrees, offsets. */
+  const REVIEWED: readonly (readonly [RungId, number, readonly number[]])[] = [
+    ['plane', 25, [-1.5, 1.5]],
+    ['plane', 45, [-1.7, 1.7]],
+    ['plane', 50, [-1.7, -1.676138050525943, 1.676138050525943, 1.7]],
+    ['plane', 59.73561031724534, [-1.7, -1.675459831325642, 1.675459831325642, 1.7]],
+    ['plane', 64.73561031724533, [-1.7, 1.7]],
+    ['plane', 65.00000000000003, [-1.7, 1.7]],
+    ['plane', 60.00000000000003, [-1.7, -1.674744871391589, 1.674744871391589, 1.7]],
+    ['plane', 55.00000000000003, [-1.7, -1.6820323670301847, -1.6320323670301846, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1, -0.9, -0.8, -0.7,
+      -0.6848794943280931, -0.6348794943280932, -0.6235764363510458, 0.6235764363510458, 0.6348794943280932, 0.6848794943280931,
+      0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.6320323670301846, 1.6820323670301847, 1.7]],
+    ['plane', 49.735610317245346, [-1.7, -1.675459831325642, 1.675459831325642, 1.7]],
+    ['plane', 44.735610317245346, [-1.7, 1.7]],
+    ['space', 5, [-1.146514089628528, 1.146514089628528]],
+    ['space', 35, [-1.8, 1.8]],
+    ['space', 55, [-1.9423893961834915, 1.9423893961834915]],
+    ['space', 65, [-1.942389396183491, 1.942389396183491]],
+    ['space', 65.00000000000003, [-1.9423893961834906, 1.9423893961834906]],
+    ['space', 5.000000000000002, [-1.146514089628528, 1.146514089628528]]
+  ];
+
+  it('calls none of the 70 states the review found misnamed equilateral or regular, and the walk passes through every one', () => {
+    const { states } = walk();
+    let n = 0;
+    for (const [rung, deg, offsets] of REVIEWED) {
+      const w = rung === 'plane' ? plane : space;
+      for (const h of offsets) {
+        n += 1;
+        w.setTip(deg * DEG);
+        w.setSlice(h);
+        const { page, g } = measure(w);
+        expect(g, `${rung} ${deg}° at ${h}`).not.toBeNull();
+        expect(spread(g!)).toBeGreaterThan(0.004);
+        expect(page.shape).not.toMatch(/equilateral|regular/);
+        expect(page.equalEdges).toBe(false);
+        expect(cutPhrase(rung, page)).not.toMatch(/on (each side|every edge)/);
+        expect(states.some((s) => s.rung === rung && Math.abs(s.tip - deg * DEG) < 1e-9 && Math.abs(s.h - h) < 1e-9), `${rung} ${deg}° at ${h} walked`).toBe(true);
+      }
+    }
+    expect(n).toBe(70);
+    // The three the review quotes, as the page now says them.
+    plane.setTip(25 * DEG); plane.setSlice(-1.5);
+    expect(cutPhrase('plane', plane.cut())).toBe('a triangle, its sides 0.014 to 0.019 long');
+    space.setTip(35 * DEG); space.setSlice(1.8);
+    expect(cutPhrase('space', space.cut())).toBe('a tetrahedron');
+  });
+
+  it('only counts a cut too small to measure: no 2-gon, no solid without faces, nothing equal, right or regular (A-2)', () => {
+    const tiny = { plane: 0, space: 0 };
+    for (const s of walk().states) {
+      const l = edgeLengths(s.g);
+      if (Math.max(...l) >= 1e-4) continue;
+      tiny[s.rung] += 1;
+      expect(s.page.resolved).toBe(false);
+      expect(s.page.equalEdges).toBe(false);
+      expect(s.page.corners.length).toBeGreaterThanOrEqual(s.rung === 'plane' ? 3 : 4);
+      if (s.rung === 'space') expect(s.page.faces.length).toBeGreaterThanOrEqual(4);
+      expect(s.page.shape).not.toMatch(/equilateral|regular|square|rectangle|rhombus|cube|box|prism|cut off/);
+      expect(cutPhrase(s.rung, s.page)).toMatch(/too small to measure/);
+    }
+    expect(tiny.plane).toBeGreaterThan(100);
+    expect(tiny.space).toBeGreaterThan(100);
   });
 });
 

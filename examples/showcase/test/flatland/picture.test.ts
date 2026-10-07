@@ -273,6 +273,13 @@ describe('an open question is not answered by the picture', () => {
       expect(v.withhold).toBe(true);
       expect(new Set(picture.probe.shadowPoints().map((d) => d.radius)).size).toBe(1);
       expect(picture.anchors(v).filter((a) => a.id === 'pile')).toEqual([]);
+      // The step points the place out first (still open, still withheld), then shows what lands there.
+      x.dispatch(v.prediction!.test!.action);
+      v = x.view();
+      expect(v.prediction!.revealed).toBe(false);
+      expect(v.withhold).toBe(true);
+      picture.update(v);
+      expect(new Set(picture.probe.shadowPoints().map((d) => d.radius)).size).toBe(1);
       x.dispatch(v.prediction!.test!.action);
       v = x.view();
       expect(v.prediction!.revealed).toBe(true);
@@ -282,6 +289,35 @@ describe('an open question is not answered by the picture', () => {
       picture.update(v);
       expect(picture.anchors(v).filter((a) => a.id === 'pile').length).toBe(v.shadow.points.filter((p) => p.corners.length > 1).length);
       expect(picture.probe.shadowPoints().some((d) => d.radius > 0.05)).toBe(true);
+    }
+  });
+});
+
+describe('a point pointed out is ringed, and nothing more (D-1)', () => {
+  it('draws a ring round the point in its slice, says nothing of what lands there, and lets it go on a pick', () => {
+    for (const [chapter, circles] of [['shadow', 1], ['up-shadow', 3]] as const) {
+      const x = createExperience(chapter, { instantTurns: true });
+      const picture = createPicture(x);
+      picture.update(x.view());
+      expect(picture.probe.attention()).toEqual([]);
+      x.dispatch(x.view().prediction!.test!.action);
+      const v = x.view();
+      picture.update(v);
+      const ring = picture.probe.attention();
+      expect(ring.length).toBe(40 * circles);
+      const centre = v.shadow.points[(v.attention as { index: number }).index]!.at;
+      for (const seg of ring) {
+        for (const end of [seg.slice(0, 3), seg.slice(3)]) {
+          expect(Math.hypot(...end.map((q, k) => q - centre[k]!))).toBeCloseTo(0.17, 5);
+          // In the plane the ring lies in the plane itself.
+          if (circles === 1) expect(end[2]).toBeCloseTo(v.offset, 5);
+        }
+      }
+      expect(v.inspection).toBeNull();
+      expect(picture.probe.highlighted()).toEqual([]);
+      x.dispatch(v.prediction!.test!.action);
+      picture.update(x.view());
+      expect(picture.probe.attention()).toEqual([]);
     }
   });
 });

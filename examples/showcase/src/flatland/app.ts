@@ -5,7 +5,8 @@ import {
   type Action, type ChapterId, type Hand, type View
 } from './journey.js';
 import { BUTTONS, chapterAction, dialAngle, gaugeValue, keyAction, sliderKey, type CameraKey } from './bindings.js';
-import { capitalise, castReadout, count, cutPhrase, dimensionsSentence, distance, honestNote, legend, poseLabel, signed } from './copy.js';
+import { capitalise, castReadout, dimensionsSentence, honestNote, legend, poseLabel, signed } from './copy.js';
+import { detailRows, layerTicks, pickGroups } from './readouts.js';
 import { createPicture, modelToThree } from './picture.js';
 import { createStage } from './stage.js';
 import { RUNGS } from './world.js';
@@ -29,7 +30,8 @@ export function createApp(root: HTMLElement): void {
   const start: ChapterId = isRoute(location.hash) ? chapterFromHash(location.hash) : chapterFromHash(root.dataset.start ?? '');
   if (isRoute(location.hash) && location.hash !== `#${start}`) history.replaceState(null, '', `#${start}`);
 
-  const x = createExperience(start, { instantTurns: reducedMotion });
+  // Reduced motion: named poses are reached at once, and a passage steps on the slide grid instead of gliding.
+  const x = createExperience(start, { instantTurns: reducedMotion, steppedPass: reducedMotion });
   const stageHost = root.querySelector<HTMLElement>('#om-stage')!;
   const stage = createStage(stageHost, reducedMotion);
   const picture = createPicture(x);
@@ -312,11 +314,10 @@ export function createApp(root: HTMLElement): void {
     const narrow = W < 56;
     const cx = narrow ? W / 2 : W / 2 - 8;
     const barW = narrow ? 12 : 16;
-    const ticks = view.layers.map((l) => {
-      const d = l.height - view.offset;
-      const cls = Math.abs(d) <= 1e-9 ? 'on' : d > 0 ? 'plus' : 'minus';
-      const label = !narrow && l.corners.length > 1 ? `<text x="${cx + barW / 2 + 12}" y="${y(l.height) + 4}" class="count">×${l.corners.length}</text>` : '';
-      return `<line x1="${cx - barW / 2 - 5}" x2="${cx + barW / 2 + 5}" y1="${y(l.height)}" y2="${y(l.height)}" class="layer ${cls}"/>${label}`;
+    // Each tick's count, only where one may be said (see readouts.ts on withholding).
+    const ticks = layerTicks(view).map((t) => {
+      const label = !narrow && t.count !== null ? `<text x="${cx + barW / 2 + 12}" y="${y(t.height) + 4}" class="count">×${t.count}</text>` : '';
+      return `<line x1="${cx - barW / 2 - 5}" x2="${cx + barW / 2 + 5}" y1="${y(t.height)}" y2="${y(t.height)}" class="layer ${t.side}"/>${label}`;
     }).join('');
     const line = y(view.offset);
     el.gaugeSvg.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">`
@@ -327,7 +328,7 @@ export function createApp(root: HTMLElement): void {
       + `<line x1="0" x2="${W}" y1="${line}" y2="${line}" class="slice-line"/>`
       + `<circle cx="${W - 8}" cy="${line}" r="6.5" class="slice-knob"/>`
       + '</svg>';
-    el.gauge.setAttribute('aria-label', `${capitalise(w.slice)}, across ${w.missing}: drag the bright line, or use the arrow keys; Page Up and Page Down go to the next layer of corners`);
+    el.gauge.setAttribute('aria-label', `${capitalise(w.slice)}, across ${w.missing}: tap or drag the gauge, or use the arrow keys; Page Up and Page Down go to the next layer of corners`);
     el.gauge.setAttribute('aria-valuemin', String(-R));
     el.gauge.setAttribute('aria-valuemax', String(R));
     el.gauge.setAttribute('aria-valuenow', String(Number(view.offset.toFixed(3)) + 0));
@@ -383,44 +384,12 @@ export function createApp(root: HTMLElement): void {
   }
 
   function paintDetails(): void {
-    const w = view.words;
-    el.legend.innerHTML = legend(view.rung).map((item) => `<li><span class="hz-swatch${item.key === 'camera' ? ' om-swatch-camera' : ''}"`
+    el.legend.innerHTML = legend(view.rung, view.withhold).map((item) => `<li><span class="hz-swatch${item.key === 'camera' ? ' om-swatch-camera' : ''}"`
       + `${item.key === 'camera' ? '' : ` style="background:${item.key === 'cut' ? SLICE_COLOUR : SHADOW_COLOUR}"`}></span><span><b>${item.name}</b>: ${item.text}</span></li>`).join('');
     el.dims.textContent = dimensionsSentence(view.rung, view.dimensions);
-    const [lo, hi] = view.extent;
-    const rows: [string, string][] = [
-      [`${w.slice} at`, signed(view.offset)],
-      [`${w.theObject} spans`, `${signed(lo)} … ${signed(hi)}`],
-      ['layers of corners', view.layers.map((l) => `${signed(l.height)}${l.corners.length > 1 ? ` ×${l.corners.length}` : ''}`).join(', ')],
-      ['turned', poseReadout(view)],
-      ['the cut', view.cut.empty ? 'nothing' : `${cutPhrase(view.rung, view.cut)}; ${count(view.cut.corners.length, 'corner')}`],
-      ['the shadow', view.withhold ? (view.shadowOn ? 'cast' : 'hidden') : `${count(view.shadow.points.length, 'point')} from ${count(view.corners.length, 'corner')}${view.shadowOn ? '' : ' (hidden)'}`],
-      ['every edge', distance(view.edge)],
-      // The library's own count of the cells it examined, so "nothing is drawn" is never a guess.
-      ['cells examined', `${view.accounting.sourceCells}: ${view.accounting.sectionedCells} cut; ${view.accounting.suppressedOnPlaneCells} with no corner strictly ${w.minusSide}; `
-        + `${view.accounting.cellsBelow} wholly ${w.minusSide}; ${view.accounting.collapsedSectionCells} collapsed to a point or a segment`],
-      ['crossings found', `${view.accounting.crossingsFound}, welded into ${view.accounting.weldedVertices} points`]
-    ];
-    el.numbers.innerHTML = rows.map(([k, v]) => `<div><span>${k}</span><span class="hz-num">${v}</span></div>`).join('');
+    el.numbers.innerHTML = detailRows(view).map(([k, v]) => `<div><span>${k}</span><span class="hz-num">${v}</span></div>`).join('');
     el.honest.textContent = honestNote(view.rung);
-    // The keyboard's way to pick: every corner of the cut, every point of the shadow, every corner of the cube.
-    const groups: { title: string; items: { label: string; action: Action }[] }[] = [];
-    if (!view.cut.empty) {
-      groups.push({ title: 'Corners of the cut', items: view.cut.corners.map((c, index) => ({
-        label: c.on.length === 1 ? `At corner ${view.corners[c.on[0]!]!.name}` : `On the edge ${view.corners[c.on[0]!]!.name}–${view.corners[c.on[1]!]!.name}`,
-        action: { type: 'inspect', target: { kind: 'cut-corner', index } }
-      })) });
-    }
-    if (view.shadowOn) {
-      // While the question is open, the points are numbered, not named by what lands on them: picking one tells.
-      groups.push({ title: 'Points of the shadow', items: view.shadow.points.map((p, index) => ({
-        label: view.withhold ? `Point ${index + 1}` : p.corners.map((i) => view.corners[i]!.name).join(' and '),
-        action: { type: 'inspect', target: { kind: 'shadow-point', index } }
-      })) });
-    }
-    if (view.rung === 'plane' && view.objectShown) {
-      groups.push({ title: 'Corners of the cube', items: view.corners.map((c, index) => ({ label: c.name, action: { type: 'inspect', target: { kind: 'corner', index } } })) });
-    }
+    const groups = pickGroups(view);
     const key = groups.map((g) => `${g.title}:${g.items.map((i) => i.label).join('|')}`).join('\n');
     if (key !== shownLists) {
       shownLists = key;

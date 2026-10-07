@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { RUNGS } from '../../src/flatland/world.js';
 import {
-  CHAPTERS, OLD_HASHES, chapterById, chapterFromHash, createExperience, isRoute, nextLayer, tipStep,
-  type Action, type ChapterId, type Experience, type View
+  ANA_KATA, CHAPTERS, FIRST_CUT_CLAUSES, MIDDLE_HOLD, OLD_HASHES, SLIDE_STEP, STEP_SECONDS, chapterById, chapterFromHash,
+  createExperience, isRoute, nextLayer, tipStep, type Action, type ChapterId, type Experience, type View
 } from '../../src/flatland/journey.js';
+import { keyAction } from '../../src/flatland/bindings.js';
+import { dimensionsSentence } from '../../src/flatland/copy.js';
+import { crossings } from './analytic.js';
 
 /**
  * The journey's state integrity: every transition between chapters, from any
@@ -106,12 +109,14 @@ describe('each setup sentence is true of the state it sets up', () => {
     expect((v.extent[0] + v.extent[1]) / 2).toBeCloseTo(0, 12);
   });
 
-  it('IV: the tesseract just ana of your space, cell first', () => {
+  it('IV: the tesseract ana of your space, cell first, and beyond reach of a turn', () => {
     const v = at('up');
     expect(v.pose).toBe('facet');
     // The slice below the object along the missing axis: the object lies on its plus side, ana.
     expect(v.meeting).toMatchObject({ kind: 'apart', side: 'below' });
-    expect(v.setup).toContain('ana of it');
+    expect(v.setup).toContain('lies ana of it, cell first');
+    // Beyond the tesseract's farthest corner in every pose: a turn alone cuts nothing here.
+    expect(Math.abs(v.offset)).toBeGreaterThan(Math.sqrt(4));
   });
 
   it('V: cell first, your space through its middle, the light on', () => {
@@ -193,7 +198,7 @@ describe('a question is answered only by the state it asks about', () => {
     const v = x.view();
     expect(v.prediction?.revealed).toBe(true);
     expect(v.prediction?.reveal).toContain('Four edges of the tesseract cross your space');
-    expect(v.prediction?.reveal).toContain('three edges');
+    expect(v.prediction?.reveal).toContain(FIRST_CUT_CLAUSES.space);
   });
 
   it('V: two corners on each corner of the shadow, cell first', () => {
@@ -290,7 +295,7 @@ describe('the empty picture', () => {
   it('says the object is still there, how far and on which side, never that it is gone', () => {
     const x = createExperience('up', { instantTurns: true });
     const e = x.view().empty!;
-    expect(e.headline).toBe('Your space meets nothing of the tesseract. The tesseract is still there: its nearest corner is 0.60 ana of your space.');
+    expect(e.headline).toBe('Your space meets nothing of the tesseract. The tesseract is still there: its nearest corner is 1.10 ana of your space.');
     x.dispatch({ type: 'slide-to', offset: 1.4 });
     expect(x.view().empty!.headline).toContain('0.40 kata of your space');
   });
@@ -308,13 +313,14 @@ describe('the empty picture', () => {
 });
 
 describe('the passage and the steps', () => {
-  it('passes from below to just beyond the top, and stops there', () => {
+  it('passes from below to beyond the object’s farthest corner in any pose, and stops there', () => {
     const x = createExperience('through');
     x.dispatch({ type: 'play' });
     const shapes = new Set<string>();
-    for (let k = 0; k < 400 && x.view().passing; k++) { x.dispatch({ type: 'tick', dt: 1 / 60 }); shapes.add(x.view().cut.shape); }
+    for (let k = 0; k < 600 && x.view().passing; k++) { x.dispatch({ type: 'tick', dt: 1 / 60 }); shapes.add(x.view().cut.shape); }
     expect(x.view().passing).toBe(false);
-    expect(x.view().offset).toBe(1.3);
+    // √3 + 0.3, on the grid: beyond the cube in every pose, so a turn made now cuts nothing.
+    expect(x.view().offset).toBe(2);
     expect([...shapes].sort()).toEqual(['a square', 'nothing']);
   });
 
@@ -322,10 +328,46 @@ describe('the passage and the steps', () => {
     const x = createExperience('through');
     x.dispatch({ type: 'slide-to', offset: 1.9 });
     x.dispatch({ type: 'play' });
-    expect(x.view().offset).toBe(-1.3);
+    expect(x.view().offset).toBe(-2);
     expect(x.view().passing).toBe(true);
     x.dispatch({ type: 'stop' });
     expect(x.view().passing).toBe(false);
+  });
+
+  it('lands a passage on the exact middle, and holds it there, in both rungs', () => {
+    for (const [chapter, pose, middle] of [['corner', 'corner', 'a regular hexagon'], ['up', 'corner', 'a regular octahedron']] as const) {
+      const x = createExperience(chapter, { instantTurns: true });
+      x.dispatch({ type: 'pose', pose });
+      x.dispatch({ type: 'play' });
+      let held = 0;
+      for (let k = 0; k < 1200 && x.view().passing; k++) {
+        x.dispatch({ type: 'tick', dt: 1 / 60 });
+        if (x.view().offset === 0) { held += 1 / 60; expect(x.view().cut.shape).toBe(middle); }
+      }
+      expect(held, chapter).toBeGreaterThanOrEqual(MIDDLE_HOLD - 1e-9);
+    }
+  });
+
+  it('under reduced motion, steps a passage on the grid, through the same cuts the arrow keys visit', () => {
+    const stepped = createExperience('corner', { instantTurns: true, steppedPass: true });
+    stepped.dispatch({ type: 'play' });
+    const visited: number[] = [stepped.view().offset];
+    const shapes: string[] = [stepped.view().cut.shape];
+    for (let k = 0; k < 2000 && stepped.view().passing; k++) {
+      stepped.dispatch({ type: 'tick', dt: 1 / 60 });
+      const v = stepped.view();
+      if (v.offset !== visited[visited.length - 1]) { visited.push(v.offset); shapes.push(v.cut.shape); }
+    }
+    // Never between grid points, and never more than one step at a time.
+    for (const o of visited) expect(Math.round(o * 10) / 10).toBe(o);
+    for (let i = 1; i < visited.length; i++) expect(visited[i]! - visited[i - 1]!).toBeCloseTo(SLIDE_STEP, 12);
+    // The arrow keys from the same start, over the same span.
+    const keys = createExperience('corner', { instantTurns: true });
+    const keyShapes: string[] = [keys.view().cut.shape];
+    while (keys.view().offset < visited[visited.length - 1]!) { keys.dispatch({ type: 'slide-step', steps: 1 }); keyShapes.push(keys.view().cut.shape); }
+    expect(shapes).toEqual(keyShapes);
+    expect(shapes).toContain('a regular hexagon');
+    expect(STEP_SECONDS).toBeGreaterThan(0.2);
   });
 
   it('steps the slice on its grid exactly, and to the next layer of corners exactly', () => {
@@ -365,7 +407,8 @@ describe('an open question about pile-ups is not answered in words either', () =
     x.dispatch({ type: 'shadow', on: true });
     expect(x.view().event?.line).toBe('The shadow is all of the cube, dropped straight along the direction the plane lacks. Pick a point of it to see what lands there.');
     expect(x.view().event?.line).not.toMatch(/\b(two|seven|eight)\b/);
-    x.dispatch(x.view().prediction!.test!.action);
+    // The step points the centre out, then shows what lands there.
+    while (!x.view().prediction!.revealed) x.dispatch(x.view().prediction!.test!.action);
     x.dispatch({ type: 'shadow', on: false });
     x.dispatch({ type: 'shadow', on: true });
     expect(x.view().event?.line).toContain('its 8 corners land on 7 points');
@@ -373,5 +416,283 @@ describe('an open question about pile-ups is not answered in words either', () =
 
   it('withholds only in the chapters whose question is about pile-ups', () => {
     for (const c of CHAPTERS) expect(createExperience(c.id).view().withhold, c.id).toBe(c.prediction === 'shadow-centre' || c.prediction === 'shadow-corner');
+  });
+});
+
+describe('the corner rule keeps its condition (C2)', () => {
+  /** The first layer of corners, and the cut just past it, counted from the definition (analytic.ts), not by the page. */
+  const firstCut = (x: Experience): { firstLayer: number; crossingCorners: number; shape: string } => {
+    const w = x.world();
+    const first = w.layers()[0]!;
+    x.dispatch({ type: 'slide-to', offset: first.height + 0.05 });
+    const corners = w.corners().map((c) => [...c.posed]);
+    const axis = w.rung.extraAxis;
+    return { firstLayer: first.corners.length, crossingCorners: crossings(corners, w.edges, axis, first.height + 0.05).length, shape: x.view().cut.shape };
+  };
+
+  for (const [chapter, rung] of [['corner', 'plane'], ['up', 'space']] as const) {
+    it(`${chapter === 'corner' ? 'II' : 'IV'}: says the rule only of the pose it holds for, and every clause stays true in every named pose`, () => {
+      const x = createExperience(chapter, { instantTurns: true });
+      for (let k = 0; k < 4 && !x.view().prediction!.revealed; k++) x.dispatch(x.view().prediction!.test!.action);
+      const said = x.view().prediction!.reveal!;
+      expect(said).toContain(FIRST_CUT_CLAUSES[rung]);
+      // The unconditional wording the review found is gone.
+      expect(said).not.toMatch(/Near a corner|so near a corner/);
+      const facts: Record<string, { firstLayer: number; crossingCorners: number; shape: string }> = {};
+      for (const pose of ['corner', 'facet', 'edge'] as const) {
+        x.dispatch({ type: 'pose', pose });
+        facts[pose] = firstCut(x);
+        // The reveal stays as it was said; so each of its clauses must hold here.
+        expect(x.view().prediction!.reveal).toBe(said);
+      }
+      // "Stood on one corner ... at that corner alone ... a triangle" / "a tetrahedron".
+      expect(facts.corner!.firstLayer).toBe(1);
+      expect(facts.corner!.crossingCorners).toBe(rung === 'plane' ? 3 : 4);
+      expect(facts.corner!.shape).toBe(rung === 'plane' ? 'an equilateral triangle' : 'a regular tetrahedron');
+      // "Face (cell) first or edge first, several corners arrive together, and the first cut is a square or a rectangle"
+      // (plane) / "a cube or a triangular prism" (space).
+      expect(facts.facet!.firstLayer).toBe(rung === 'plane' ? 4 : 8);
+      expect(facts.edge!.firstLayer).toBe(2);
+      expect(facts.facet!.shape).toBe(rung === 'plane' ? 'a square' : 'a cube');
+      expect(facts.edge!.shape).toBe(rung === 'plane' ? 'a rectangle' : 'a triangular prism');
+      expect(facts.facet!.crossingCorners).toBe(rung === 'plane' ? 4 : 8);
+      expect(facts.edge!.crossingCorners).toBe(rung === 'plane' ? 4 : 6);
+    });
+  }
+});
+
+describe('the steps leave the discovery to the visitor (D-1)', () => {
+  it('IV: no turn, from the start or after a passage, answers the question; the step’s slide does', () => {
+    const x = createExperience('up', { instantTurns: true });
+    for (const pose of ['corner', 'edge', 'facet'] as const) {
+      x.dispatch({ type: 'pose', pose });
+      expect(x.view().meeting.kind, pose).toBe('apart');
+      expect(x.view().prediction!.revealed).toBe(false);
+    }
+    x.dispatch({ type: 'play' });
+    for (let k = 0; k < 2000 && x.view().passing; k++) x.dispatch({ type: 'tick', dt: 1 / 30 });
+    for (const pose of ['corner', 'edge', 'facet', 'corner'] as const) {
+      x.dispatch({ type: 'pose', pose });
+      expect(x.view().meeting.kind, `after the passage, ${pose}`).toBe('apart');
+    }
+    expect(x.view().prediction!.revealed).toBe(false);
+    const step = x.view().prediction!.test!;
+    expect(step.label).toBe('Slide in, just past its first corner');
+    x.dispatch(step.action);
+    expect(x.view().prediction!.revealed).toBe(true);
+  });
+
+  it('IV: a turn that lands in the answer shows the cut, and leaves the question open until a slide', () => {
+    const x = createExperience('up', { instantTurns: true });
+    x.dispatch({ type: 'slide-to', offset: 1.8 });
+    x.dispatch({ type: 'pose', pose: 'corner' });
+    expect(x.view().cut.corners.length).toBe(4);
+    expect(x.view().prediction!.revealed).toBe(false);
+    x.dispatch({ type: 'slide-step', steps: -1 });
+    expect(x.view().prediction!.revealed).toBe(true);
+  });
+
+  it('IV: the step slides into the answer, past the first corner and short of the second layer (RM4)', () => {
+    for (const from of [-2.1, 2.3]) {
+      const x = createExperience('up', { instantTurns: true });
+      x.dispatch({ type: 'slide-to', offset: from });
+      x.dispatch({ type: 'pose', pose: 'corner' });
+      const step = x.view().prediction!.test!;
+      expect(step.action.type).toBe('slide-to');
+      const target = (step.action as Extract<Action, { type: 'slide-to' }>).offset;
+      const layers = x.view().layers.map((l) => l.height);
+      if (from < 0) { expect(target).toBeGreaterThan(layers[0]!); expect(target).toBeLessThan(layers[1]!); }
+      else { expect(target).toBeLessThan(layers[layers.length - 1]!); expect(target).toBeGreaterThan(layers[layers.length - 2]!); }
+      x.dispatch(step.action);
+      expect(x.view().cut.corners.length).toBe(4);
+      expect(x.view().prediction!.revealed).toBe(true);
+    }
+  });
+
+  it('IV: answers only in the pose its question names, not wherever a tetrahedron appears (RM5)', () => {
+    const x = createExperience('up', { instantTurns: true });
+    x.dispatch({ type: 'tip-to', angle: (50 * Math.PI) / 180 });
+    const first = x.view().layers[0]!.height;
+    x.dispatch({ type: 'slide-to', offset: first + 0.05 });
+    expect(x.view().cut.corners.length).toBe(4);
+    expect(x.view().pose).toBeNull();
+    expect(x.view().prediction!.revealed).toBe(false);
+  });
+
+  it('II: the step offers the cut near the corner before the middle', () => {
+    const x = createExperience('corner', { instantTurns: true });
+    const first = x.view().prediction!.test!;
+    expect(first.label).toBe('Slide just past its lowest corner');
+    x.dispatch(first.action);
+    expect(x.view().cut.shape).toBe('an equilateral triangle');
+    expect(x.view().prediction!.revealed).toBe(false);
+    const second = x.view().prediction!.test!;
+    expect(second.label).toBe('Slide to the middle');
+    x.dispatch(second.action);
+    expect(x.view().prediction!.revealed).toBe(true);
+  });
+
+  it('II: says "a triangle" when, and only when, a triangle has been on show (RM6)', () => {
+    const x = createExperience('corner', { instantTurns: true });
+    expect(x.view().hint).not.toMatch(/^A triangle/);
+    x.dispatch({ type: 'slide-to', offset: -1.8 });
+    expect(x.view().cut.empty).toBe(true);
+    expect(x.view().hint).not.toMatch(/^A triangle/);
+    x.dispatch({ type: 'slide-to', offset: -1.5 });
+    expect(x.view().cut.corners.length).toBe(3);
+    expect(x.view().hint).toMatch(/^A triangle: near a corner, the plane crosses that corner’s three edges/);
+    // A four-cornered cut is not a triangle: turned face first, the square never sets it.
+    const y = createExperience('corner', { instantTurns: true });
+    y.dispatch({ type: 'pose', pose: 'facet' });
+    y.dispatch({ type: 'slide-to', offset: 0 });
+    expect(y.view().cut.corners.length).toBe(4);
+    expect(y.view().hint).not.toMatch(/^A triangle/);
+  });
+
+  for (const [chapter, point, pose] of [['shadow', 'Point out the centre', 'corner'], ['up-shadow', 'Point out a corner of the shadow', 'facet']] as const) {
+    it(`${chapter === 'shadow' ? 'III' : 'V'}: points the place out first, and only a plainly named second press shows what lands there`, () => {
+      const x = createExperience(chapter, { instantTurns: true });
+      const one = x.view().prediction!.test!;
+      expect(one.label).toBe(point);
+      expect(one.action.type).toBe('attend');
+      x.dispatch(one.action);
+      let v = x.view();
+      expect(v.attention).toEqual((one.action as Extract<Action, { type: 'attend' }>).target);
+      expect(v.inspection).toBeNull();
+      expect(v.prediction!.revealed).toBe(false);
+      expect(v.withhold).toBe(true);
+      const two = v.prediction!.test!;
+      expect(two.label).toBe('Show me what lands there');
+      x.dispatch(two.action);
+      v = x.view();
+      expect(v.prediction!.revealed).toBe(true);
+      expect(v.attention).toBeNull();
+      expect(v.pose).toBe(pose);
+    });
+  }
+});
+
+describe('a turn, or Escape, stops a passage (B-1)', () => {
+  const passing = (): Experience => {
+    const x = createExperience('free');
+    x.dispatch({ type: 'slide-to', offset: -2 });
+    x.dispatch({ type: 'play' });
+    for (let k = 0; k < 10; k++) x.dispatch({ type: 'tick', dt: 1 / 60 });
+    expect(x.view().passing).toBe(true);
+    return x;
+  };
+
+  it('stops on a named pose, a dial turn and a turning key, and the slice stays put while the object turns', () => {
+    for (const turn of [{ type: 'pose', pose: 'edge' }, { type: 'tip-to', angle: 0.3 }, { type: 'tip-step', steps: 1 }] as Action[]) {
+      const x = passing();
+      x.dispatch(turn);
+      expect(x.view().passing, turn.type).toBe(false);
+      const offset = x.view().offset;
+      for (let k = 0; k < 60; k++) x.dispatch({ type: 'tick', dt: 1 / 60 });
+      expect(x.view().offset, turn.type).toBe(offset);
+    }
+  });
+
+  it('stops on Escape while passing; Escape lets go of a pick otherwise', () => {
+    const x = passing();
+    const context = { passing: x.view().passing, shadowOn: x.view().shadowOn, objectShown: x.view().objectShown };
+    const esc = keyAction('Escape', false, context) as Action;
+    expect(esc).toEqual({ type: 'stop' });
+    x.dispatch(esc);
+    expect(x.view().passing).toBe(false);
+    expect(keyAction('Escape', false, { ...context, passing: false })).toEqual({ type: 'inspect', target: null });
+  });
+
+  it('restarts from where it stopped, and a chapter or a reset ends it', () => {
+    const x = passing();
+    x.dispatch({ type: 'stop' });
+    const at = x.view().offset;
+    x.dispatch({ type: 'play' });
+    expect(x.view().offset).toBe(at);
+    expect(x.view().passing).toBe(true);
+    x.dispatch({ type: 'chapter', id: 'through' });
+    expect(x.view().passing).toBe(false);
+    x.dispatch({ type: 'play' });
+    x.dispatch({ type: 'reset' });
+    expect(x.view().passing).toBe(false);
+  });
+});
+
+describe('a slide made while the object turns is named (B-3)', () => {
+  it('says both when the turn settles', () => {
+    const x = createExperience('corner');
+    x.dispatch({ type: 'pose', pose: 'edge' });
+    x.dispatch({ type: 'tick', dt: 0.1 });
+    x.dispatch({ type: 'slide-step', steps: 3 });
+    for (let k = 0; k < 60 && x.view().turning; k++) x.dispatch({ type: 'tick', dt: 1 / 30 });
+    expect(x.view().event?.line).toContain('you turned the cube and slid the plane while it turned.');
+    expect(x.view().event?.line).toContain('every edge is still 2.00 long');
+  });
+});
+
+describe('ana and kata are introduced on every path into the space rung (C4)', () => {
+  const introduced = (v: View): boolean => v.setup.includes(ANA_KATA);
+
+  it('in free exploration, cold, from chapter I, and on every return to the space rung', () => {
+    const cold = createExperience('free');
+    expect(cold.view().rung).toBe('plane');
+    expect(cold.view().setup).not.toMatch(/\b(ana|kata)\b/);
+    cold.dispatch({ type: 'rung', id: 'space' });
+    expect(introduced(cold.view())).toBe(true);
+    // The introduction comes before ana is used in the card's status or the picture's note.
+    expect(cold.view().status).toMatch(/\bana\b/);
+    cold.dispatch({ type: 'rung', id: 'plane' });
+    expect(cold.view().setup).not.toMatch(/\b(ana|kata)\b/);
+    cold.dispatch({ type: 'rung', id: 'space' });
+    expect(introduced(cold.view())).toBe(true);
+    const fromI = createExperience('through');
+    fromI.dispatch({ type: 'chapter', id: 'free' });
+    fromI.dispatch({ type: 'rung', id: 'space' });
+    expect(introduced(fromI.view())).toBe(true);
+    // Chapter IV names them in the guided order, as before; the drawing's convention is said where a visitor may come cold.
+    expect(createExperience('up').view().setup).toMatch(/Its two ways along the fourth are called ana and kata\./);
+    expect(ANA_KATA).toMatch(/they are not up and down/);
+    expect(ANA_KATA).toMatch(/a convention of the drawing, not a direction in the picture/);
+  });
+});
+
+describe('each dimension is said for what it is (RM10)', () => {
+  it('names the world’s, the slice’s, the object’s, the cut’s and the shadow’s dimensions, in both rungs, cut or not', () => {
+    const x = createExperience('free', { instantTurns: true });
+    const seen = new Set<string>();
+    for (const rung of ['plane', 'space'] as const) {
+      x.dispatch({ type: 'rung', id: rung });
+      for (const h of [-2.3, -0.4, 0.3]) {
+        x.dispatch({ type: 'slide-to', offset: h });
+        const v = x.view();
+        const [world, slice] = rung === 'plane' ? [3, 2] : [4, 3];
+        const cut = v.cut.empty ? 'nothing is cut just now' : `the cut is ${slice}-dimensional, ${rung === 'plane' ? 'a flat shape' : 'a solid'}`;
+        expect(dimensionsSentence(v.rung, v.dimensions)).toBe(`The world has ${world} directions and ${v.words.slice} has ${slice}. `
+          + `${v.words.TheObject} is ${world}-dimensional; ${cut}; the shadow is ${slice}-dimensional. Your screen is flat: it shows `
+          + `${rung === 'plane' ? 'all of this' : 'your space'} in perspective, so a length on screen is not a length in the world.`);
+        seen.add(`${rung}:${v.cut.empty}`);
+      }
+    }
+    expect(seen.size).toBe(4);
+  });
+
+  it('gives a cut, whenever there is one, the slice’s own dimension: the reason RM10 changes no sentence', () => {
+    // RM10 replaces the cut's dimension with the slice's inside the clause said only when a cut exists. That is the
+    // same number in every state the page can reach, so the mutant is equivalent; this is the demonstration.
+    const x = createExperience('free', { instantTurns: true });
+    let cuts = 0;
+    for (const rung of ['plane', 'space'] as const) {
+      x.dispatch({ type: 'rung', id: rung });
+      for (let deg = 0; deg <= 90; deg += 5) {
+        x.dispatch({ type: 'tip-to', angle: (deg * Math.PI) / 180 });
+        for (const layer of x.view().layers) for (const d of [0, 0.05, -0.05]) {
+          x.dispatch({ type: 'slide-to', offset: layer.height + d });
+          const v = x.view();
+          expect(v.dimensions.cut === null || v.dimensions.cut === v.dimensions.slice).toBe(true);
+          if (v.dimensions.cut !== null) cuts += 1;
+        }
+      }
+    }
+    expect(cuts).toBeGreaterThan(300);
   });
 });

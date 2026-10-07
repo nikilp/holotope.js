@@ -196,6 +196,8 @@ export interface Picture {
     crossedEdges(): number[][];
     cutCorners(): { at: number[]; radius: number }[];
     highlighted(): number[][];
+    /** The ring round a point pointed out, segment by segment. */
+    attention(): number[][];
     transparentObjects(): Object3D[];
     renderOrders(): Record<string, number>;
   };
@@ -286,9 +288,27 @@ export function createPicture(experience: Experience): Picture {
   shadowPoints.object.name = 'the shadow, points';
   const highlight = new Lines(5);
   highlight.object.name = 'what you picked';
-  root.add(planeGroup, spaceGroup, cutCorners.object, shadowEdges.object, shadowPoints.object, highlight.object);
+  // A point pointed out, not picked: a ring round it, in the slice's colour, and nothing said about what lands there.
+  const attention = new Lines(2.5);
+  attention.object.name = 'the point pointed out';
+  root.add(planeGroup, spaceGroup, cutCorners.object, shadowEdges.object, shadowPoints.object, highlight.object, attention.object);
 
-  const lines = [sheet, cutSides, cubeEdges, crossed, solidEdges, shadowEdges, highlight];
+  const lines = [sheet, cutSides, cubeEdges, crossed, solidEdges, shadowEdges, highlight, attention];
+
+  /** A ring of radius r round a point: in the plane (one circle), or one rung up three crossed circles. */
+  const ringAround = (at: readonly number[], spaceRung: boolean): (readonly [number[], number[]])[] => {
+    const r = 0.17;
+    const n = 40;
+    const planes: [number, number][] = spaceRung ? [[0, 1], [1, 2], [0, 2]] : [[0, 1]];
+    const out: (readonly [number[], number[]])[] = [];
+    for (const [i, j] of planes) {
+      for (let k = 0; k < n; k++) {
+        const point = (a: number): number[] => { const p = [at[0]!, at[1]!, at[2]!]; p[i] = p[i]! + r * Math.cos(a); p[j] = p[j]! + r * Math.sin(a); return p; };
+        out.push([point((2 * Math.PI * k) / n), point((2 * Math.PI * (k + 1)) / n)]);
+      }
+    }
+    return out;
+  };
 
   /** The space rung's mesh, each triangle in the colour of the cell it was cut from: the chart's own layout, mirrored. */
   const colourSolid = (): void => {
@@ -405,6 +425,10 @@ export function createPicture(experience: Experience): Picture {
       return { at: c.at, radius: on ? 0.08 : 0.045, colour: on ? SLICE : CUT_CORNER };
     }));
     const spaceRung = view.rung === 'space';
+    const attended = view.attention?.kind === 'shadow-point' && view.shadowOn ? view.shadow.points[view.attention.index] : undefined;
+    if (attended) attention.set(ringAround(attended.at, spaceRung), [SLICE]); else attention.object.visible = false;
+    attention.material.depthTest = !spaceRung;
+    attention.object.renderOrder = spaceRung ? DRAW_ORDER.shadowOver : DRAW_ORDER.section;
     // In the space rung the shadow is drawn over the cut, without a depth test: a second thing in the same place.
     // The cut solid's corners too, so every corner can be counted, the far ones included.
     const over = spaceRung ? DRAW_ORDER.shadowOver : DRAW_ORDER.section;
@@ -503,6 +527,7 @@ export function createPicture(experience: Experience): Picture {
       crossedEdges: () => (planeGroup.visible && crossed.object.visible ? crossed.drawn() : []),
       cutCorners: () => cutCorners.drawn(),
       highlighted: () => highlight.drawn(),
+      attention: () => attention.drawn(),
       transparentObjects: () => {
         const out: Object3D[] = [];
         root.traverse((o) => {

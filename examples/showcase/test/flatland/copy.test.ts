@@ -1,8 +1,10 @@
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import {
-  WORDS, castReadout, dimensionsSentence, distance, honestNote, legend, shadowSentence, signed
+  WORDS, castReadout, cutPhrase, dimensionsSentence, distance, honestNote, legend, lengthRange, measure, shadowSentence, signed
 } from '../../src/flatland/copy.js';
-import { CHAPTERS, PREDICTIONS, createExperience, type Action, type View } from '../../src/flatland/journey.js';
+import { ANA_KATA, CHAPTERS, PREDICTIONS, createExperience, tipStep, type Action, type View } from '../../src/flatland/journey.js';
+import { RUNGS } from '../../src/flatland/world.js';
 
 /**
  * The language rules of `copy.ts`, held over every sentence the journey says
@@ -95,16 +97,24 @@ describe('rigid bodies: nothing grows, shrinks or deforms', () => {
 });
 
 describe('ana and kata are the space’s own words, never up and down', () => {
-  it('never shares a sentence with a vertical word', () => {
+  it('never shares a sentence with a vertical word, unless the sentence says they are not up and down', () => {
     const vertical = /\b(up|down|upward|downward|above|below|top|bottom|higher|lower|highest|lowest|upright|rise|rises|fall|falls)\b/i;
-    const bad = said.flatMap((s) => sentences(s.text).filter((t) => /\b(ana|kata)\b/.test(t) && vertical.test(t)).map((t) => `${s.where}: ${t}`));
+    // The one way a vertical word may stand beside ana or kata: in a sentence that denies they mean it.
+    const disclaims = /they are not up and down|not a direction in the picture/;
+    const bad = said.flatMap((s) => sentences(s.text).filter((t) => /\b(ana|kata)\b/.test(t) && vertical.test(t) && !disclaims.test(t)).map((t) => `${s.where}: ${t}`));
     expect(bad).toEqual([]);
+    // And the disclaiming sentences are exactly the introduction's.
+    const disclaiming = new Set(said.flatMap((s) => sentences(s.text).filter((t) => /\b(ana|kata)\b/.test(t) && vertical.test(t))));
+    for (const t of disclaiming) expect(ANA_KATA).toContain(t);
   });
 
-  it('are introduced before they are used, in the chapter that first needs them', () => {
+  it('are introduced before they are used, in chapter IV and in free exploration’s space', () => {
     const setup = createExperience('up').view().setup;
-    expect(setup).toContain('Its two ways along the fourth are called ana and kata.');
+    expect(setup).toMatch(/Its two ways along the fourth are called ana and kata\./);
     expect(setup.indexOf('called ana and kata')).toBeLessThan(setup.indexOf('ana of it'));
+    const free = createExperience('free');
+    free.dispatch({ type: 'rung', id: 'space' });
+    expect(free.view().setup).toContain(ANA_KATA);
     // Never in the plane rung: there the missing direction is up and down, and is seen.
     expect(said.filter((s) => s.rung === 'plane' && /\b(ana|kata)\b/.test(s.text))).toEqual([]);
   });
@@ -112,7 +122,9 @@ describe('ana and kata are the space’s own words, never up and down', () => {
 
 describe('numbers are measured, and nothing present prints as nothing', () => {
   it('never prints 0.00', () => {
-    expect(said.filter((s) => s.text.includes('0.00'))).toEqual([]);
+    // A number printed as zero: "0.00" standing alone, not the start of a small length such as "0.0084".
+    expect(said.filter((s) => /(^|[^\d.])0\.00(?![\d])/.test(s.text))).toEqual([]);
+    expect(said.some((s) => /(^|[^\d.])0\.00\d/.test(s.text))).toBe(true);
   });
 
   it('formats a tiny distance as a bound, and only zero as zero', () => {
@@ -135,7 +147,7 @@ describe('numbers are measured, and nothing present prints as nothing', () => {
 
 describe('a shape is named only when it was counted', () => {
   const corners: [RegExp, number][] = [
-    [/an? (equilateral )?triangle\b/, 3], [/a (square|rectangle|four-sided shape)\b/, 4], [/a pentagon\b/, 5], [/an? (regular )?hexagon\b/, 6],
+    [/an? (equilateral )?triangle\b/, 3], [/a (square|rectangle|rhombus|four-sided shape)\b/, 4], [/a pentagon\b/, 5], [/an? (regular )?hexagon\b/, 6],
     [/an? (regular )?tetrahedron with its corners cut off/, 12], [/an? (regular )?tetrahedron\b(?! with)/, 4], [/an? (regular )?octahedron\b/, 6],
     [/a (cube|box)\b/, 8], [/a triangular prism/, 6], [/a hexagonal prism/, 12]
   ];
@@ -149,8 +161,11 @@ describe('a shape is named only when it was counted', () => {
           x.dispatch({ type: 'slide-to', offset: Math.round(h * 10) / 10 });
           const v = x.view();
           if (v.meeting.kind !== 'crossing') continue;
-          const solid = /a solid with (\d+) corners and (\d+) faces/.exec(v.status);
-          if (solid) { expect(Number(solid[1])).toBe(v.cut.corners.length); expect(Number(solid[2])).toBe(v.cut.faces.length); continue; }
+          const words = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+          const solid = /a solid with (\w+) corners and (\w+) faces/.exec(v.status);
+          if (solid) { expect(words.indexOf(solid[1]!)).toBe(v.cut.corners.length); expect(words.indexOf(solid[2]!)).toBe(v.cut.faces.length); continue; }
+          const polygon = /a shape with (\w+) corners/.exec(v.status);
+          if (polygon) { expect(words.indexOf(polygon[1]!)).toBe(v.cut.corners.length); continue; }
           const match = corners.find(([re]) => re.test(v.status));
           expect(match, v.status).toBeDefined();
           expect(v.cut.corners.length, v.status).toBe(match![1]);
@@ -212,5 +227,80 @@ describe('the light’s panel keeps an open question open', () => {
     expect(castReadout('plane', true, 8, [2, 1, 1, 1, 1, 1, 1], true)).not.toMatch(/\b(two|seven|eight)\b/);
     expect(castReadout('plane', true, 8, [2, 1, 1, 1, 1, 1, 1])).toBe('Eight corners land on seven points; one point carries more than one.');
     expect(castReadout('space', false, 16, [])).toBe('The shadow is all of the tesseract, dropped straight along the direction your space lacks.');
+  });
+});
+
+describe('lengths are said as the established facts allow (C1)', () => {
+  it('prints a length, and a range of two, at the fewest decimals that tell them apart and never as zero', () => {
+    expect(measure(1.41421356)).toBe('1.41');
+    expect(measure(0.0032)).toBe('0.0032');
+    expect(measure(0.00012)).toBe('0.00012');
+    // The review's key-reachable triangle: sides 0.014 to 0.019, not one "0.01 on each side".
+    expect(lengthRange(0.014, 0.0188)).toBe('0.014 to 0.019');
+    expect(lengthRange(0.0149, 0.0151)).toBe('0.0149 to 0.0151');
+    expect(lengthRange(0.7953, 2.0342)).toBe('0.80 to 2.03');
+    expect(lengthRange(1, 1 + 1e-9)).toBeNull();
+  });
+
+  it('says "on each side" or "on every edge" only of a cut whose edges are equal, and otherwise brackets them', () => {
+    const x = createExperience('free', { instantTurns: true });
+    let equal = 0;
+    let ranged = 0;
+    for (const rung of ['plane', 'space'] as const) {
+      x.dispatch({ type: 'rung', id: rung });
+      const tips = new Set<number>([0]);
+      let t = 0;
+      for (let k = 0; k < 20; k++) { t = tipStep(rung, t, 1); tips.add(t); }
+      for (const tip of tips) {
+        x.dispatch({ type: 'tip-to', angle: tip });
+        for (let k = -24; k <= 24; k++) {
+          if (Math.abs(k / 10) > RUNGS[rung].reach) continue;
+          x.dispatch({ type: 'slide-to', offset: k / 10 });
+          const cut = x.view().cut;
+          if (cut.empty) continue;
+          const phrase = cutPhrase(rung, cut);
+          const exact = cut.edgeLengths;
+          const min = Math.min(...exact);
+          const max = Math.max(...exact);
+          if (/on each side|on every edge/.test(phrase)) {
+            equal += 1;
+            expect(cut.equalEdges, phrase).toBe(true);
+            expect(max - min, phrase).toBeLessThanOrEqual(1e-9 * max);
+          }
+          const range = /its sides ([\d.]+) to ([\d.]+) long/.exec(phrase);
+          if (range) {
+            ranged += 1;
+            const decimals = range[1]!.split('.')[1]!.length;
+            expect(Math.abs(Number(range[1]) - min), phrase).toBeLessThanOrEqual(0.5 * 10 ** -decimals + 1e-12);
+            expect(Math.abs(Number(range[2]) - max), phrase).toBeLessThanOrEqual(0.5 * 10 ** -decimals + 1e-12);
+          }
+        }
+      }
+    }
+    expect(equal).toBeGreaterThan(50);
+    expect(ranged).toBeGreaterThan(100);
+  });
+});
+
+describe('the hints name every way to slide, and every view of the missing direction (D-4, A-1)', () => {
+  it('names a tap wherever it names the up arrow', () => {
+    const keyed = said.filter((s) => s.where.endsWith(':hint') && /↑/.test(s.text));
+    expect(keyed.length).toBeGreaterThan(0);
+    for (const s of keyed) expect(s.text, s.where).toMatch(/tap or drag the gauge/);
+  });
+
+  it('never says the gauge alone shows the missing direction: the dial shows it too', () => {
+    expect(said.filter((s) => /only the gauge\b(?! and the dial)|the only view of/.test(s.text))).toEqual([]);
+    expect(said.some((s) => /Only the gauge and the dial show the fourth direction/.test(s.text))).toBe(true);
+  });
+
+  it('says the same on the atlas card that leads to the page', async () => {
+    const atlas = await readFile(new URL('../../index.html', import.meta.url), 'utf8');
+    const at = atlas.indexOf('<a class="card text-only" href="./flatland.html">');
+    expect(at).toBeGreaterThan(-1);
+    const card = atlas.slice(at, atlas.indexOf('</a>', at));
+    expect(card).toContain('One More Direction');
+    expect(card).not.toMatch(/only the gauge\b(?! and the dial)/);
+    expect(card).toContain('the gauge and the dial are the only views of the missing direction');
   });
 });
