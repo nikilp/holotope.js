@@ -170,6 +170,18 @@ describe('a question is answered only by the state it asks about', () => {
     expect(v.prediction?.reveal).toContain('a regular hexagon, 1.41 on each side');
   });
 
+  it('II: a turn that lands in the hexagon shows it, and the question waits for a slide', () => {
+    const x = createExperience('corner', { instantTurns: true });
+    x.dispatch({ type: 'pose', pose: 'facet' });
+    x.dispatch({ type: 'slide-to', offset: 0 });
+    expect(x.view().prediction?.revealed).toBe(false);
+    x.dispatch({ type: 'pose', pose: 'corner' });
+    expect(x.view().cut.shape).toBe('a regular hexagon');
+    expect(x.view().prediction?.revealed).toBe(false);
+    x.dispatch({ type: 'slide-step', steps: 1 });
+    expect(x.view().prediction?.revealed).toBe(true);
+  });
+
   it('III: two corners on the centre, found by asking at the corner pose only', () => {
     const x = createExperience('shadow', { instantTurns: true });
     const single = x.view().shadow.points.findIndex((p) => p.corners.length === 1);
@@ -334,17 +346,22 @@ describe('the passage and the steps', () => {
     expect(x.view().passing).toBe(false);
   });
 
-  it('lands a passage on the exact middle, and holds it there, in both rungs', () => {
-    for (const [chapter, pose, middle] of [['corner', 'corner', 'a regular hexagon'], ['up', 'corner', 'a regular octahedron']] as const) {
-      const x = createExperience(chapter, { instantTurns: true });
-      x.dispatch({ type: 'pose', pose });
-      x.dispatch({ type: 'play' });
-      let held = 0;
-      for (let k = 0; k < 1200 && x.view().passing; k++) {
-        x.dispatch({ type: 'tick', dt: 1 / 60 });
-        if (x.view().offset === 0) { held += 1 / 60; expect(x.view().cut.shape).toBe(middle); }
+  it('lands a passage on the exact middle, and rests there 0.9 s, as the guide says, in both rungs, gliding or stepped', () => {
+    for (const steppedPass of [false, true]) {
+      for (const [chapter, pose, middle] of [['corner', 'corner', 'a regular hexagon'], ['up', 'corner', 'a regular octahedron']] as const) {
+        const x = createExperience(chapter, { instantTurns: true, steppedPass });
+        x.dispatch({ type: 'pose', pose });
+        x.dispatch({ type: 'play' });
+        let held = 0;
+        for (let k = 0; k < 2400 && x.view().passing; k++) {
+          x.dispatch({ type: 'tick', dt: 1 / 60 });
+          if (x.view().offset === 0) { held += 1 / 60; expect(x.view().cut.shape).toBe(middle); }
+        }
+        // The documented rest, not the constant behind it: a frame either way for where the ticks fall.
+        expect(held, `${chapter}, stepped ${steppedPass}`).toBeGreaterThanOrEqual(0.9 - 1e-9);
+        expect(held, `${chapter}, stepped ${steppedPass}`).toBeLessThanOrEqual(0.9 + (steppedPass ? STEP_SECONDS : 0) + 2 / 60);
+        expect(MIDDLE_HOLD).toBe(0.9);
       }
-      expect(held, chapter).toBeGreaterThanOrEqual(MIDDLE_HOLD - 1e-9);
     }
   });
 
