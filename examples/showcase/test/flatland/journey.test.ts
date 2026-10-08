@@ -813,6 +813,178 @@ describe('a hint that names what is on show names what is on show; a rule it sta
     }
     expect(checked).toBe(2 * 3 * 49);
   });
+
+  // Chapters III and V, each hint stage reached on its own from a fresh start: before the answer, the ring, just
+  // answered, after the answer, and (III) the cube hidden. What is on show is read from the page's cut and shadow,
+  // never from a hint; the claims a hint may make are checked against it where they are made.
+  const extraAxis = (v: View): number => RUNGS[v.rung].extraAxis;
+  /** A set of points in the slice, the missing coordinate dropped, to 1e-9: comparable across places and poses. */
+  const pointSet = (points: readonly (readonly number[])[], axis: number): string =>
+    [...new Set(points.map((p) => p.filter((_, i) => i !== axis).map((c) => (Math.round(c * 1e9) / 1e9 + 0).toFixed(9)).join(',')))].sort().join(' ');
+  const cutSet = (v: View): string => pointSet(v.cut.corners.map((c) => c.at), extraAxis(v));
+  const shadowSet = (v: View): string => pointSet(v.shadow.points.map((p) => p.at), extraAxis(v));
+  /** The shadow lies right over the cut: something is cut, and its corners are the shadow's points. */
+  const shadowOverCut = (v: View): boolean => !v.cut.empty && cutSet(v) === shadowSet(v);
+  const answer = (x: Experience): void => {
+    for (let i = 0; i < 4 && !x.view().prediction!.revealed; i++) x.dispatch(x.view().prediction!.test!.action);
+    expect(x.view().prediction!.revealed).toBe(true);
+  };
+  const sweep = (x: Experience, visit: (v: View) => void): number => {
+    const reach = RUNGS[x.view().rung].reach;
+    let n = 0;
+    for (const pose of ['facet', 'corner', 'edge'] as const) {
+      x.dispatch({ type: 'pose', pose });
+      for (let k = Math.ceil(-reach * 10); k <= Math.floor(reach * 10); k++) { x.dispatch({ type: 'slide-to', offset: k / 10 }); visit(x.view()); n += 1; }
+    }
+    return n;
+  };
+  /** Whatever stage it stands at, a hint's claims about the cut and the shadow hold of what is on show. */
+  const claimsHold = (v: View): void => {
+    const where = `${v.chapter.id} ${v.pose ?? 'turned'} at ${v.offset}: "${v.hint}"`;
+    if (/right over|lying over/.test(v.hint)) expect(shadowOverCut(v), where).toBe(true);
+    if (/^The solid is the cut/.test(v.hint)) expect(v.cut.empty, where).toBe(false);
+  };
+  const V_OPEN = 'The lines are the shadow. Guess, then pick a dot at one of its corners.';
+  const III_AFTER = 'Slide the plane: the shadow keeps its shape; compare the cut with it. Then turn the cube and compare again. Then hide the cube.';
+
+  it('V, before the answer: the opening hint names the shadow and nothing it may not lie over, in every pose and at every place, cut or not (C3)', () => {
+    const x = createExperience('up-shadow', { instantTurns: true });
+    // The re-check's witnesses: corner first (a regular octahedron) and edge first (a hexagonal prism), whose shadows
+    // do not lie over them, and cell first slid to -1.5, where nothing is cut.
+    const witnesses: [string, () => void, (v: View) => void][] = [
+      ['corner first', () => x.dispatch({ type: 'pose', pose: 'corner' }), (v) => { expect(v.cut.shape).toBe('a regular octahedron'); expect(v.cut.corners.length).toBe(6); }],
+      ['edge first', () => x.dispatch({ type: 'pose', pose: 'edge' }), (v) => { expect(v.cut.shape).toBe('a hexagonal prism'); expect(v.cut.corners.length).toBe(12); }],
+      ['cell first at -1.5', () => { x.dispatch({ type: 'pose', pose: 'facet' }); x.dispatch({ type: 'slide-to', offset: -1.5 }); }, (v) => expect(v.cut.empty).toBe(true)]
+    ];
+    for (const [name, go, fixture] of witnesses) {
+      go();
+      const v = x.view();
+      fixture(v);
+      expect(shadowOverCut(v), name).toBe(false);
+      expect(v.prediction!.revealed, name).toBe(false);
+      // The regression: no claim that the shadow lies over the cut, or that a solid is there.
+      claimsHold(v);
+      expect(v.hint, name).not.toMatch(/over|solid|cut/);
+      expect(v.hint, name).toBe(V_OPEN);
+    }
+    // Cell first through the middle the shadow does lie over the cut: the cube whose corners are (±1, ±1, ±1). The
+    // opening hint says nothing of it there either: it names the shadow alone.
+    x.dispatch({ type: 'slide-to', offset: 0 });
+    expect(x.view().hint).toBe(V_OPEN);
+    const cube = pointSet([-1, 1].flatMap((a) => [-1, 1].flatMap((b) => [-1, 1].map((c) => [a, b, c, 0]))), 3);
+    expect(cutSet(x.view())).toBe(cube);
+    expect(shadowOverCut(x.view())).toBe(true);
+    // The whole stage: every pose and place, the question still open; misaligned and empty states both met.
+    let apart = 0; let empty = 0;
+    const n = sweep(x, (v) => {
+      expect(v.prediction!.revealed).toBe(false);
+      expect(v.hint).toBe(V_OPEN);
+      claimsHold(v);
+      if (!shadowOverCut(v)) apart += 1;
+      if (v.cut.empty) empty += 1;
+    });
+    expect(n).toBe(3 * 49);
+    expect(apart).toBeGreaterThan(100);
+    expect(empty).toBeGreaterThan(10);
+    // Reset and re-entry: the same opening hint.
+    x.dispatch({ type: 'reset' });
+    expect(x.view().hint).toBe(V_OPEN);
+    x.dispatch({ type: 'chapter', id: 'shadow' });
+    x.dispatch({ type: 'chapter', id: 'up-shadow' });
+    expect(x.view().hint).toBe(V_OPEN);
+  });
+
+  it('V, each later stage from a fresh start: the ring on a corner of the shadow, just answered, and after the answer in every pose (C3)', () => {
+    // The ring: Point out marks a point of the cell-first shadow, a corner of the cube (±1, ±1, ±1).
+    const ring = createExperience('up-shadow', { instantTurns: true });
+    ring.dispatch(ring.view().prediction!.test!.action);
+    const at = ring.view().attention!;
+    expect(at.kind).toBe('shadow-point');
+    const p = ring.view().shadow.points[(at as { index: number }).index]!.at;
+    expect(p.slice(0, 3).map((c) => Math.round(Math.abs(c) * 1e9) / 1e9)).toEqual([1, 1, 1]);
+    expect(ring.view().hint).toMatch(/^The ringed dot is one corner of the shadow/);
+    // Just answered: "watch the shadow change" as the tesseract turns; every other pose's shadow differs from cell first's.
+    const now = createExperience('up-shadow', { instantTurns: true });
+    answer(now);
+    expect(now.view().hint).toBe('Now turn the tesseract, and watch the shadow change while the tesseract stays the same.');
+    const cellFirst = shadowSet(now.view());
+    for (const pose of ['corner', 'edge'] as const) {
+      const other = createExperience('up-shadow', { instantTurns: true });
+      other.dispatch({ type: 'pose', pose });
+      expect(shadowSet(other.view()), pose).not.toBe(cellFirst);
+    }
+    // After the answer: its hint, in every pose and place; and corner first, the shadow's centre does carry two corners.
+    const after = createExperience('up-shadow', { instantTurns: true });
+    answer(after);
+    after.dispatch({ type: 'slide-to', offset: 0.5 });
+    const AFTER = 'Turn the tesseract corner first: its shadow’s centre carries two corners, as the cube’s hexagonal shadow’s did.';
+    expect(sweep(after, (v) => { expect(v.hint).toBe(AFTER); claimsHold(v); })).toBe(3 * 49);
+    after.dispatch({ type: 'pose', pose: 'corner' });
+    const centre = after.view().shadow.points.find((q) => q.at.slice(0, 3).every((c) => Math.abs(c) < 1e-9))!;
+    expect(centre.corners.length).toBe(2);
+    after.dispatch({ type: 'reset' });
+    expect(after.view().hint).toBe(V_OPEN);
+  });
+
+  it('III, after the answer: the hint compares and promises no change; face first the cut at -0.5 and +0.5 is one square (C3)', () => {
+    const x = createExperience('shadow', { instantTurns: true });
+    answer(x);
+    expect(x.view().hint).toBe('Now slide the plane, and turn the cube, and watch which of the two changes.');
+    // The re-check's witness: face first, the plane at -0.5 and at +0.5, the same square, corners (±1, ±1).
+    x.dispatch({ type: 'pose', pose: 'facet' });
+    const square = pointSet([[-1, -1, 0], [-1, 1, 0], [1, -1, 0], [1, 1, 0]], 2);
+    for (const h of [-0.5, 0.5]) {
+      x.dispatch({ type: 'slide-to', offset: h });
+      expect(cutSet(x.view()), `${h}`).toBe(square);
+      // The regression: no promise that sliding changes the cut, nor that turning changes both.
+      expect(x.view().hint, `face first at ${h}`).not.toMatch(/the cut changes|both change/);
+      expect(x.view().hint, `${h}`).toBe(III_AFTER);
+      expect(x.view().hint, `${h}`).toMatch(/hide the cube\.$/);
+    }
+    // In every pose and place after the answer: sliding keeps the shadow's shape, as the hint says, and the hint
+    // promises a change in the cut only in a pose where sliding does change it (face first it does not).
+    const shadows = new Map<string, Set<string>>();
+    const cuts = new Map<string, Set<string>>();
+    const seen: View[] = [];
+    expect(sweep(x, (v) => {
+      seen.push(v);
+      expect(v.hint).toBe(III_AFTER);
+      claimsHold(v);
+      const pose = v.pose ?? 'turned';
+      (shadows.get(pose) ?? shadows.set(pose, new Set()).get(pose)!).add(shadowSet(v));
+      if (!v.cut.empty) (cuts.get(pose) ?? cuts.set(pose, new Set()).get(pose)!).add(cutSet(v));
+    })).toBe(3 * 43);
+    for (const [pose, set] of shadows) expect(set.size, `the shadow ${pose}`).toBe(1);
+    expect(cuts.get('facet')!.size).toBe(1);
+    for (const v of seen) if (/the cut changes/.test(v.hint)) expect(cuts.get(v.pose ?? 'turned')!.size, `${v.pose} at ${v.offset}`).toBeGreaterThan(1);
+    // Reset and re-entry: the question open again, its own hint.
+    x.dispatch({ type: 'reset' });
+    expect(x.view().hint).toMatch(/^The filled shape is the cut, the lines the shadow/);
+    x.dispatch({ type: 'chapter', id: 'up' });
+    x.dispatch({ type: 'chapter', id: 'shadow' });
+    expect(x.view().prediction!.revealed).toBe(false);
+    expect(x.view().hint).toMatch(/^The filled shape is the cut, the lines the shadow/);
+  });
+
+  it('III, each other stage from a fresh start: before the answer in every pose, the ring on the shadow’s centre, and the cube hidden (C3)', () => {
+    const open = createExperience('shadow', { instantTurns: true });
+    expect(sweep(open, (v) => { expect(v.prediction!.revealed).toBe(false); expect(v.hint).toMatch(/^The filled shape is the cut, the lines the shadow/); claimsHold(v); })).toBe(3 * 43);
+    // The ring: Point out marks the shadow's centre, the point at the plane's own origin, stood on a corner.
+    const ring = createExperience('shadow', { instantTurns: true });
+    ring.dispatch(ring.view().prediction!.test!.action);
+    const at = ring.view().attention as { kind: string; index: number };
+    expect(at.kind).toBe('shadow-point');
+    expect(ring.view().shadow.points[at.index]!.at.slice(0, 2).map((c) => Math.abs(c) < 1e-9)).toEqual([true, true]);
+    expect(ring.view().hint).toMatch(/^The ringed dot is the shadow’s centre/);
+    // The cube hidden: its own hint, before or after the answer; the after-answer hint does not return over it.
+    for (const answered of [false, true]) {
+      const hid = createExperience('shadow', { instantTurns: true });
+      if (answered) answer(hid);
+      hid.dispatch({ type: 'show-object', on: false });
+      expect(hid.view().hint, `answered ${answered}`).toMatch(/^That is all the plane holds of the cube/);
+      expect(sweep(hid, (v) => { expect(v.hint).not.toBe(III_AFTER); claimsHold(v); })).toBe(3 * 43);
+    }
+  });
 });
 
 describe('pointing a place out lets go of an earlier pick, so no line about one point stands beside a ring round another (D-8)', () => {

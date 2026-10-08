@@ -570,7 +570,9 @@ export function createExperience(start: ChapterId = 'through', options: { readon
         return 'Guess first, if you like, then slide the plane up.';
       case 'shadow':
         if (m.has('hid')) return 'That is all the plane holds of the cube: a cut and a shadow. One rung up, that is all there is to see.';
-        if (m.has('after-reveal')) return 'Slide the plane: the cut changes and the shadow keeps its shape. Turn the cube: both change. Then hide the cube.';
+        // Sliding never changes the shadow's shape, but whether it changes the cut depends on the pose: face first the
+        // cut is the same square the whole way through. So the hint asks for the comparison and promises no change.
+        if (m.has('after-reveal')) return 'Slide the plane: the shadow keeps its shape; compare the cut with it. Then turn the cube and compare again. Then hide the cube.';
         if (m.has('revealed')) return 'Now slide the plane, and turn the cube, and watch which of the two changes.';
         if (state.attention) return 'The ringed dot is the shadow’s centre. Pick it, with a click or a tap, to see what lands there.';
         return 'The filled shape is the cut, the lines the shadow; Hide the cube leaves only those two. Guess, then pick the dot at the shadow’s centre.';
@@ -585,7 +587,9 @@ export function createExperience(start: ChapterId = 'through', options: { readon
         if (m.has('after-reveal')) return 'Turn the tesseract corner first: its shadow’s centre carries two corners, as the cube’s hexagonal shadow’s did.';
         if (m.has('revealed')) return 'Now turn the tesseract, and watch the shadow change while the tesseract stays the same.';
         if (state.attention) return 'The ringed dot is one corner of the shadow. Pick it, with a click or a tap, to see what lands there.';
-        return 'The solid is the cut; the lines are the shadow, lying right over it here. Guess, then pick a dot at one of its corners.';
+        // The shadow lies over the cut only cell first, and only while something is cut; the visitor may turn or slide
+        // before answering. So the opening hint names the shadow alone, true in every pose and at every place.
+        return 'The lines are the shadow. Guess, then pick a dot at one of its corners.';
       default:
         return 'Every hand works here, in both worlds. Nothing is reset when you come back.';
     }
