@@ -839,13 +839,19 @@ describe('a hint that names what is on show names what is on show; a rule it sta
     return n;
   };
   /** Whatever stage it stands at, a hint's claims about the cut and the shadow hold of what is on show. */
-  const claimsHold = (v: View): void => {
-    const where = `${v.chapter.id} ${v.pose ?? 'turned'} at ${v.offset}: "${v.hint}"`;
+  const claimsHold = (v: View, label = ''): void => {
+    const where = `${label ? `${label}: ` : ''}${v.chapter.id} ${v.pose ?? 'turned'} at ${v.offset}: "${v.hint}"`;
     if (/right over|lying over/.test(v.hint)) expect(shadowOverCut(v), where).toBe(true);
     if (/^The solid is the cut/.test(v.hint)) expect(v.cut.empty, where).toBe(false);
+    // A hint that says a filled cut and the shadow's lines are both there holds only where both are drawn.
+    if (/^The filled shape is the cut|leaves only those two|holds of the cube: a cut and a shadow/.test(v.hint)) {
+      expect(!v.cut.empty && v.shadowOn, where).toBe(true);
+    }
   };
   const V_OPEN = 'The lines are the shadow. Guess, then pick a dot at one of its corners.';
   const III_AFTER = 'Slide the plane: the shadow keeps its shape; compare the cut with it. Then turn the cube and compare again. Then hide the cube.';
+  const III_OPEN = 'Fill marks a cut, when there is one; lines mark the shadow. Hide the cube to focus on them. Guess, then pick the dot at the shadow’s centre.';
+  const III_HID = 'Without the cube, the plane can show a cut and a shadow of it. One rung up, the same distinction holds.';
 
   it('V, before the answer: the opening hint names the shadow and nothing it may not lie over, in every pose and at every place, cut or not (C3)', () => {
     const x = createExperience('up-shadow', { instantTurns: true });
@@ -959,16 +965,16 @@ describe('a hint that names what is on show names what is on show; a rule it sta
     for (const v of seen) if (/the cut changes/.test(v.hint)) expect(cuts.get(v.pose ?? 'turned')!.size, `${v.pose} at ${v.offset}`).toBeGreaterThan(1);
     // Reset and re-entry: the question open again, its own hint.
     x.dispatch({ type: 'reset' });
-    expect(x.view().hint).toMatch(/^The filled shape is the cut, the lines the shadow/);
+    expect(x.view().hint).toBe(III_OPEN);
     x.dispatch({ type: 'chapter', id: 'up' });
     x.dispatch({ type: 'chapter', id: 'shadow' });
     expect(x.view().prediction!.revealed).toBe(false);
-    expect(x.view().hint).toMatch(/^The filled shape is the cut, the lines the shadow/);
+    expect(x.view().hint).toBe(III_OPEN);
   });
 
   it('III, each other stage from a fresh start: before the answer in every pose, the ring on the shadow’s centre, and the cube hidden (C3)', () => {
     const open = createExperience('shadow', { instantTurns: true });
-    expect(sweep(open, (v) => { expect(v.prediction!.revealed).toBe(false); expect(v.hint).toMatch(/^The filled shape is the cut, the lines the shadow/); claimsHold(v); })).toBe(3 * 43);
+    expect(sweep(open, (v) => { expect(v.prediction!.revealed).toBe(false); expect(v.hint).toBe(III_OPEN); claimsHold(v); })).toBe(3 * 43);
     // The ring: Point out marks the shadow's centre, the point at the plane's own origin, stood on a corner.
     const ring = createExperience('shadow', { instantTurns: true });
     ring.dispatch(ring.view().prediction!.test!.action);
@@ -981,8 +987,123 @@ describe('a hint that names what is on show names what is on show; a rule it sta
       const hid = createExperience('shadow', { instantTurns: true });
       if (answered) answer(hid);
       hid.dispatch({ type: 'show-object', on: false });
-      expect(hid.view().hint, `answered ${answered}`).toMatch(/^That is all the plane holds of the cube/);
+      expect(hid.view().hint, `answered ${answered}`).toBe(III_HID);
       expect(sweep(hid, (v) => { expect(v.hint).not.toBe(III_AFTER); claimsHold(v); })).toBe(3 * 43);
+    }
+  });
+
+  // C3-A1: three more sentences of chapters III and V, each read beside what is on show at its own witnesses.
+  it('V, before the answer: its question names the configuration it asks about, cell first, in every pose and place; the step reaches it and answers nothing (C3-A1)', () => {
+    const cube = pointSet([-1, 1].flatMap((a) => [-1, 1].flatMap((b) => [-1, 1].map((c) => [a, b, c, 0]))), 3);
+    const questionHolds = (v: View, where: string): void => {
+      const q = v.prediction!.spec.question;
+      // A question that calls the shadow on show a cube holds only where that shadow is the cube (±1, ±1, ±1).
+      if (/^This shadow is a cube/.test(q)) expect(shadowSet(v), `${where}: "${q}"`).toBe(cube);
+      // The configuration it asks about is named, and its choices are the question's own.
+      expect(q, where).toMatch(/^With the tesseract Cell first, its shadow is a cube\. /);
+      expect(v.prediction!.spec.choices.map((c) => c.id), where).toEqual(['1', '2', '4']);
+    };
+    const x = createExperience('up-shadow', { instantTurns: true });
+    // The witnesses: corner first and edge first, and the dial turned between poses, where the shadow is not that
+    // cube; and cell first slid to -1.5, where nothing is cut.
+    const witnesses: [string, () => void][] = [
+      ['corner first', () => x.dispatch({ type: 'pose', pose: 'corner' })],
+      ['edge first', () => x.dispatch({ type: 'pose', pose: 'edge' })],
+      ['turned to 20°', () => x.dispatch({ type: 'tip-to', angle: (20 * Math.PI) / 180 })],
+      ['cell first at -1.5', () => { x.dispatch({ type: 'pose', pose: 'facet' }); x.dispatch({ type: 'slide-to', offset: -1.5 }); }]
+    ];
+    for (const [name, go] of witnesses) {
+      go();
+      const v = x.view();
+      expect(v.prediction!.revealed, name).toBe(false);
+      questionHolds(v, name);
+      if (name === 'cell first at -1.5') expect(v.cut.empty, name).toBe(true);
+      else expect(shadowSet(v), name).not.toBe(cube);
+    }
+    expect(x.view().pose).toBe('facet');
+    expect(shadowSet(x.view())).toBe(cube);
+    // From another pose the step is the route to that configuration: it turns to cell first and answers nothing.
+    for (const pose of ['corner', 'edge'] as const) {
+      const y = createExperience('up-shadow', { instantTurns: true });
+      y.dispatch({ type: 'pose', pose });
+      const step = y.view().prediction!.test!;
+      expect(step.label, pose).toBe('Cell first');
+      y.dispatch(step.action);
+      expect(y.view().pose, pose).toBe('facet');
+      expect(shadowSet(y.view()), pose).toBe(cube);
+      expect(y.view().prediction!.revealed, pose).toBe(false);
+      expect(y.view().prediction!.choice, pose).toBeNull();
+      expect(y.view().withhold, pose).toBe(true);
+    }
+    // Every pose and place before the answer; then reset and re-entry.
+    expect(sweep(x, (v) => { expect(v.prediction!.revealed).toBe(false); questionHolds(v, `${v.pose ?? 'turned'} at ${v.offset}`); })).toBe(3 * 49);
+    x.dispatch({ type: 'reset' });
+    questionHolds(x.view(), 'after reset');
+    x.dispatch({ type: 'chapter', id: 'shadow' });
+    x.dispatch({ type: 'chapter', id: 'up-shadow' });
+    questionHolds(x.view(), 're-entered');
+  });
+
+  /** III's states for a legend: a cut or none, the shadow cast or not, reached in turn from where the stage begins. */
+  const marks = (x: Experience): [string, () => void, (v: View) => void][] => [
+    ['as it stands', () => {}, (v) => { expect(v.cut.empty).toBe(false); expect(v.shadowOn).toBe(true); }],
+    ['the plane past the cube, at 2', () => x.dispatch({ type: 'slide-to', offset: 2 }), (v) => { expect(v.cut.empty).toBe(true); expect(v.shadowOn).toBe(true); }],
+    ['the shadow off, past the cube', () => x.dispatch({ type: 'shadow', on: false }), (v) => { expect(v.cut.empty).toBe(true); expect(v.shadowOn).toBe(false); }],
+    ['the shadow off, through the middle', () => x.dispatch({ type: 'slide-to', offset: 0 }), (v) => { expect(v.cut.empty).toBe(false); expect(v.shadowOn).toBe(false); }]
+  ];
+
+  it('III, before the answer: the opening legend says what fill and lines mean, and asserts no mark that is absent: a cut or none, the shadow cast or not (C3-A1)', () => {
+    const x = createExperience('shadow', { instantTurns: true });
+    const seen: [string, View][] = [];
+    // First what the hint claims, at every state: no claim of a mark that is not drawn there.
+    for (const [name, go, fixture] of marks(x)) {
+      go();
+      const v = x.view();
+      fixture(v);
+      expect(v.prediction!.revealed, name).toBe(false);
+      claimsHold(v, name);
+      seen.push([name, v]);
+    }
+    // Then the legend itself, with the Hide affordance and the invitation to pick.
+    for (const [name, v] of seen) {
+      expect(v.hint, name).toBe(III_OPEN);
+      expect(v.hint, name).toMatch(/Hide the cube/);
+      expect(v.hint, name).toMatch(/pick the dot at the shadow’s centre\.$/);
+    }
+    x.dispatch({ type: 'reset' });
+    expect(x.view().hint).toBe(III_OPEN);
+    x.dispatch({ type: 'chapter', id: 'corner' });
+    x.dispatch({ type: 'chapter', id: 'shadow' });
+    expect(x.view().hint).toBe(III_OPEN);
+  });
+
+  it('III, the cube hidden: the hint names the kinds of view the plane can show, not that both are there, before and after the answer (C3-A1)', () => {
+    for (const answered of [false, true]) {
+      const x = createExperience('shadow', { instantTurns: true });
+      if (answered) answer(x);
+      x.dispatch({ type: 'show-object', on: false });
+      const seen: [string, View][] = [];
+      // First what the hint claims, at every state; then its words.
+      for (const [name, go, fixture] of marks(x)) {
+        go();
+        const v = x.view();
+        const where = `${answered ? 'answered' : 'open'}, ${name}`;
+        fixture(v);
+        expect(v.objectShown, where).toBe(false);
+        claimsHold(v, where);
+        seen.push([where, v]);
+      }
+      for (const [where, v] of seen) {
+        expect(v.hint, where).toBe(III_HID);
+        // The rung analogy stays; no claim that these views are all there is, or that they settle the object.
+        expect(v.hint, where).toMatch(/One rung up/);
+        expect(v.hint, where).not.toMatch(/all there is|only|determin/);
+      }
+      // Shown again, the hint is still true of the plane's two kinds of view.
+      x.dispatch({ type: 'show-object', on: true });
+      expect(x.view().hint).toBe(III_HID);
+      x.dispatch({ type: 'reset' });
+      expect(x.view().hint).toBe(III_OPEN);
     }
   });
 });

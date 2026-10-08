@@ -130,7 +130,9 @@ export const PREDICTIONS: Record<PredictionId, PredictionSpec> = {
   },
   'shadow-corner': {
     id: 'shadow-corner',
-    question: 'This shadow is a cube. How many of the tesseract’s corners land on each of its corners?',
+    // The question is asked of one configuration, cell first, whose shadow is a cube; the visitor may have turned the
+    // tesseract before answering, so it names that configuration rather than the shadow on show.
+    question: 'With the tesseract Cell first, its shadow is a cube. How many of the tesseract’s corners land on each corner of that shadow?',
     choices: [{ id: '1', label: 'One' }, { id: '2', label: 'Two' }, { id: '4', label: 'Four' }]
   }
 };
@@ -569,13 +571,17 @@ export function createExperience(start: ChapterId = 'through', options: { readon
         if (m.has('triangle') && cut.corners.length === 3) return 'A triangle: stood on one corner, the plane just past it crosses only that corner’s three edges. Keep going.';
         return 'Guess first, if you like, then slide the plane up.';
       case 'shadow':
-        if (m.has('hid')) return 'That is all the plane holds of the cube: a cut and a shadow. One rung up, that is all there is to see.';
+        // The kinds of view the plane has of the cube, not a claim that either is on show: the plane may miss the
+        // cube, and the shadow may be switched off.
+        if (m.has('hid')) return 'Without the cube, the plane can show a cut and a shadow of it. One rung up, the same distinction holds.';
         // Sliding never changes the shadow's shape, but whether it changes the cut depends on the pose: face first the
         // cut is the same square the whole way through. So the hint asks for the comparison and promises no change.
         if (m.has('after-reveal')) return 'Slide the plane: the shadow keeps its shape; compare the cut with it. Then turn the cube and compare again. Then hide the cube.';
         if (m.has('revealed')) return 'Now slide the plane, and turn the cube, and watch which of the two changes.';
         if (state.attention) return 'The ringed dot is the shadow’s centre. Pick it, with a click or a tap, to see what lands there.';
-        return 'The filled shape is the cut, the lines the shadow; Hide the cube leaves only those two. Guess, then pick the dot at the shadow’s centre.';
+        // A legend for the marks that may be drawn, true whether or not the plane meets the cube and whether or not the
+        // shadow is cast: it says what fill and lines mean, not that both are there.
+        return 'Fill marks a cut, when there is one; lines mark the shadow. Hide the cube to focus on them. Guess, then pick the dot at the shadow’s centre.';
       case 'up':
         if (m.has('octahedron')) return 'Corner first, at the very middle, six of the tesseract’s corners lie in your space at once, and the cut is an octahedron: for that one position only.';
         if (m.has('revealed')) return 'Keep sliding, and count the cut’s corners each time your space passes a layer of the tesseract’s corners. The gauge marks the layers.';
