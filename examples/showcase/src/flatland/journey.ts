@@ -131,8 +131,9 @@ export const PREDICTIONS: Record<PredictionId, PredictionSpec> = {
   'shadow-corner': {
     id: 'shadow-corner',
     // The question is asked of one configuration, cell first, whose shadow is a cube; the visitor may have turned the
-    // tesseract before answering, so it names that configuration rather than the shadow on show.
-    question: 'With the tesseract Cell first, its shadow is a cube. How many of the tesseract’s corners land on each corner of that shadow?',
+    // tesseract before answering, so it names that configuration rather than the shadow on show. Kept to the old
+    // sentence's lines at every supported size, so nothing below it in the card moves.
+    question: 'Cell first, the shadow is a cube. How many tesseract corners land on each of its corners?',
     choices: [{ id: '1', label: 'One' }, { id: '2', label: 'Two' }, { id: '4', label: 'Four' }]
   }
 };

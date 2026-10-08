@@ -1000,7 +1000,7 @@ describe('a hint that names what is on show names what is on show; a rule it sta
       // A question that calls the shadow on show a cube holds only where that shadow is the cube (±1, ±1, ±1).
       if (/^This shadow is a cube/.test(q)) expect(shadowSet(v), `${where}: "${q}"`).toBe(cube);
       // The configuration it asks about is named, and its choices are the question's own.
-      expect(q, where).toMatch(/^With the tesseract Cell first, its shadow is a cube\. /);
+      expect(q, where).toMatch(/^Cell first, the shadow is a cube\. /);
       expect(v.prediction!.spec.choices.map((c) => c.id), where).toEqual(['1', '2', '4']);
     };
     const x = createExperience('up-shadow', { instantTurns: true });
