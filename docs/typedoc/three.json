@@ -24,8 +24,10 @@
   "docsRoot": "..",
 
   // Entry points are TypeScript sources rather than declaration output, so
-  // the reference is generated from the same tree the tests run against and
-  // does not depend on packages/*/dist existing or being current.
+  // the reference is generated from the same tree the tests run against. The
+  // types re-exported from @holotope/core still resolve through its built
+  // declarations, so packages/core/dist must exist and be current, or those
+  // pages are dropped without an error (scripts/check-api-pages.mjs).
   "skipErrorChecking": true,
   "excludeExternals": true,
   "excludePrivate": true,
