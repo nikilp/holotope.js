@@ -32,7 +32,7 @@
       packages straight from jsDelivr and checks itself.
     </p>
 
-    <pre><code>import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.186.0/+esm';
+    <pre><code>import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/+esm';
 import { createHypercube, cuboidCellFacetN } from 'https://cdn.jsdelivr.net/npm/@holotope/core@0.0.22/+esm';
 import { SlicedComplex3D } from 'https://cdn.jsdelivr.net/npm/@holotope/three@0.0.22/+esm';</code></pre>
 
@@ -51,11 +51,20 @@ import { SlicedComplex3D } from 'https://cdn.jsdelivr.net/npm/@holotope/three@0.
       catch it.
     </p>
 
+    <p>
+      It follows the adapter as published, not the repository. The published
+      <code>@holotope/three@0.0.22</code> declares <code>three</code>
+      <code>&gt;=0.184.0 &lt;0.186.0</code>, so jsDelivr resolves it against
+      <code>0.185.1</code>. The repository already develops and tests against
+      a wider range, with <code>0.186.0</code> as its reference; a CDN page can
+      only use that once a release publishes it.
+    </p>
+
     <div id="verdict">Running…</div>
     <ul id="results"></ul>
 
     <script type="module">
-      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.186.0/+esm';
+      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/+esm';
       import {
         HyperplaneSlice4,
         TransformN,

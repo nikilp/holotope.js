@@ -1,0 +1,8 @@
+{
+  "page": "examples/showcase/public/cdn.html",
+  "adapter": "@holotope/three",
+  "version": "0.0.22",
+  "peerThree": ">=0.184.0 <0.186.0",
+  "resolvedThree": "0.185.1",
+  "observed": "2026-10-11: registry.npmjs.org peerDependencies of @holotope/three@0.0.22, and the three import of cdn.jsdelivr.net/npm/@holotope/three@0.0.22/+esm"
+}

@@ -68,8 +68,10 @@ compute shaders have none — so a WebGL2 tick never covers them. No Firefox,
 Safari, Windows, discrete-GPU or mobile configuration has been exercised.
 
 `0.186.0` is the exact reproducibility reference — the version this repository
-develops, bundles, publishes CDN examples against, and runs packed-consumer
-conformance on. A peer *window* and a reproducibility *anchor* are different
+develops, bundles, and runs packed-consumer conformance on. The no-build CDN
+example is pinned differently, on purpose: it imports this adapter as
+published, so it uses the `three` that jsDelivr resolves the published version
+against, which follows the peer range that version was published with. A peer *window* and a reproducibility *anchor* are different
 objects, and widening the first does not move the second; this anchor moved
 because the reference was deliberately advanced, not to follow the range.
 

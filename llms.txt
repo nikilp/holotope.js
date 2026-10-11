@@ -619,10 +619,15 @@ if (hit.ambientPointStatus === 'exact') {
   if any claimed minor has none, but no other patch release in the range was
   executed. r183 is excluded because `@types/three` is broken at 0.183.0 and
   missing at 0.183.2, not because the runtime failed. It is not a
-  forward-compatibility promise. The development, showcase, CDN and
+  forward-compatibility promise. The development, showcase and
   packed-conformance reference is exactly `three@0.186.0`: a peer window and a
   reproducibility anchor are different things, so do not "update" the pins to
-  match the range, and do not widen the range to match a pin. Never widen the
+  match the range, and do not widen the range to match a pin. The no-build CDN
+  example is the exception: it imports the adapter *as published*, so it pins
+  the `three` that jsDelivr resolves the published adapter against (recorded in
+  `scripts/cdn-published-consumer.json`, checked by `pnpm check:cdn` and, against
+  the live registry and CDN, `pnpm check:cdn:online`), which can be older than
+  the development reference until a release publishes the wider range. Never widen the
   range to make `pnpm check:three-compat` pass — that guard drives its matrix
   from packed artifacts and will simply demand a representative for whatever
   minor you just claimed.
