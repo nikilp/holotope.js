@@ -143,6 +143,14 @@ interface ContactCandidate3 {
  * Enumerates the bounded intersection of R4 halfspaces inside one contact
  * hyperplane. The resulting problem is three-dimensional: every vertex is the
  * feasible intersection of three independent projected boundary planes.
+ *
+ * A halfspace whose in-plane coefficient is at most `rankTolerance` is nearly
+ * parallel to the plane. It cannot meet two others in a well-conditioned
+ * vertex, so it takes no part in generating candidates. It is not constant,
+ * though: across the plane it changes by its coefficient times the distance
+ * moved. So it is judged, like every other halfspace, at each candidate
+ * vertex. Its value at the chart's origin is never used: that origin is the
+ * foot of the world origin and may lie far from the patch.
  */
 export function intersectContactHalfspaces4(
   planeNormal: VecN,
@@ -164,19 +172,13 @@ export function intersectContactHalfspaces4(
   const effective = constraints.filter(
     (constraint) => length3(constraint.coefficient) > options.rankTolerance
   );
-  for (const constraint of constraints) {
-    if (
-      length3(constraint.coefficient) <= options.rankTolerance &&
-      constraint.bound < -scaledTolerance(
-        options.feasibilityTolerance,
-        constraint.bound
-      )
-    ) {
-      throw new Error(
-        'intersectContactHalfspaces4: contact plane lies outside a supplied halfspace'
-      );
-    }
-  }
+  const nearlyParallel = constraints.filter(
+    (constraint) => length3(constraint.coefficient) <= options.rankTolerance
+  );
+  // Whether each nearly parallel halfspace holds at some vertex of the region
+  // the effective halfspaces bound.
+  const nearlyParallelHolds = nearlyParallel.map(() => false);
+  let effectiveRegionReached = false;
 
   const candidates: ContactCandidate3[] = [];
   let triplesTested = 0;
@@ -193,10 +195,20 @@ export function intersectContactHalfspaces4(
         );
         if (
           !tangent ||
-          !satisfiesAll(tangent, constraints, options.feasibilityTolerance)
+          !satisfiesAll(tangent, effective, options.feasibilityTolerance)
         ) {
           continue;
         }
+        effectiveRegionReached = true;
+        let holdsAll = true;
+        nearlyParallel.forEach((constraint, index) => {
+          if (satisfies(tangent, constraint, options.feasibilityTolerance)) {
+            nearlyParallelHolds[index] = true;
+          } else {
+            holdsAll = false;
+          }
+        });
+        if (!holdsAll) continue;
         feasibleCandidates++;
         const activeHalfspaces = activeHalfspacesAt(
           tangent,
@@ -221,6 +233,13 @@ export function intersectContactHalfspaces4(
     }
   }
   if (candidates.length === 0) {
+    // A linear function attains its minimum over a bounded region at a vertex,
+    // so a halfspace violated at every vertex excludes the whole region.
+    if (effectiveRegionReached && nearlyParallelHolds.includes(false)) {
+      throw new Error(
+        'intersectContactHalfspaces4: contact plane lies outside a supplied halfspace'
+      );
+    }
     throw new Error(
       'intersectContactHalfspaces4: failed to enumerate a bounded contact patch'
     );
@@ -335,14 +354,20 @@ function satisfiesAll(
   constraints: readonly Halfspace3[],
   tolerance: number
 ): boolean {
-  return constraints.every((constraint) => {
-    const projection = dot3(constraint.coefficient, point);
-    return projection <= constraint.bound + scaledTolerance(
-      tolerance,
-      projection,
-      constraint.bound
-    );
-  });
+  return constraints.every((constraint) => satisfies(point, constraint, tolerance));
+}
+
+function satisfies(
+  point: ArrayLike<number>,
+  constraint: Halfspace3,
+  tolerance: number
+): boolean {
+  const projection = dot3(constraint.coefficient, point);
+  return projection <= constraint.bound + scaledTolerance(
+    tolerance,
+    projection,
+    constraint.bound
+  );
 }
 
 function tangentToWorld(
