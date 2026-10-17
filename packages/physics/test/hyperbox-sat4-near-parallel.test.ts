@@ -320,6 +320,34 @@ describe('near-parallel candidate axes', () => {
     expect(patch?.referenceBox).toBe('a');
     expect(patch?.intrinsicDim).toBe(3);
   });
+
+  it('keeps the larger separation when both members of a direction separate', () => {
+    // B's facet normal separates by 1e-6; A's, 1e-7 rad away, by 0.995e-6.
+    // Either is a separating axis, but only the larger is the reported gap.
+    const [a, b] = pair({ planes: [[0, 1]], theta: 1e-7, gap: 0.85 + 0.5e-7 + 1e-6 });
+    const reference = exhaustive(a, b).separation;
+    for (const [x, y] of [[a, b], [b, a]] as const) {
+      const sat = hyperboxSat4(x, y);
+      expect(sat.status).toBe('separated');
+      expect(Math.abs(sat.separation - reference)).toBeLessThan(1e-15);
+    }
+    expect(hyperboxSat4(a, b).source).toEqual({ featureClass: 'facet-b', axesA: [], axesB: [0] });
+  });
+
+  it('groups candidates by the direction that founded the group, not by its best member', () => {
+    // At 2 planes and 1.2e-7 the winning member sits within the band of a
+    // candidate that the founder does not: anchoring membership to the best
+    // member would merge it and report 7 directions / 39 copies.
+    const [a, b] = pair({ planes: [[0, 1], [0, 2]], theta: 1.2e-7, gap: 0.83 });
+    const sat = hyperboxSat4(a, b);
+    expect(sat.source).toEqual({ featureClass: 'facet-b', axesA: [], axesB: [0] });
+    expect(sat.diagnostics).toEqual({
+      axesGenerated: 56,
+      axesTested: 6,
+      degenerateAxesSkipped: 10,
+      duplicateAxesSkipped: 40
+    });
+  });
 });
 
 /** Deterministic common rotations and offset directions, so far poses are not hand-picked. */
