@@ -301,4 +301,23 @@ describe('near-parallel candidate axes', () => {
     });
     expect(hyperboxContactPatch4(a, b).patch?.intrinsicDim).toBe(3);
   });
+
+  it('keeps a facet on a rounding-level tie, so a rotated parallel pair is not reported cross-family', () => {
+    // Under a common rotation, the duals of wedges that are parallel to a
+    // facet normal differ from it only by rounding. A group must not hand its
+    // facet over to such a copy for an ulp of depth: the contact would lose its
+    // reference box for no geometric reason.
+    const common = Rotor4.fromPlanes([
+      { i: 0, j: 1, angle: 0.3 },
+      { i: 1, j: 2, angle: -0.8 },
+      { i: 2, j: 3, angle: 0.5 }
+    ]);
+    const [a, b] = pair({ planes: [], theta: 0, gap: 0.83, common, offset: [0.25, -1.5, 2, 0.75] });
+    const sat = hyperboxSat4(a, b);
+    expect(sat.status).toBe('overlapping');
+    expect(sat.source.featureClass).toBe('facet-a');
+    const patch = hyperboxContactPatch4(a, b).patch;
+    expect(patch?.referenceBox).toBe('a');
+    expect(patch?.intrinsicDim).toBe(3);
+  });
 });
