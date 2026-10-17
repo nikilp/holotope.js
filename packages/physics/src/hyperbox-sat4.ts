@@ -69,6 +69,8 @@ interface AxisEvaluation {
   orientedAxis: VecN;
   separation: number;
   penetrationDepth: number;
+  /** Largest term entering the evaluation; scales its rounding error. */
+  magnitude: number;
 }
 
 const FACE_PAIRS: readonly (readonly [number, number])[] = [
@@ -273,39 +275,75 @@ function evaluateAxis(
   axesB: readonly VecN[],
   candidate: AxisCandidate
 ): AxisEvaluation {
-  const intervalA = projectionInterval(boxA, axesA, candidate.axis);
-  const intervalB = projectionInterval(boxB, axesB, candidate.axis);
-  if (intervalA[0] > intervalB[1]) {
+  // Projecting the center offset, rather than each center, keeps the world
+  // position out of the comparison: projecting two centers near |x| = 1e4 and
+  // subtracting leaves rounding of about 1e-12, which outweighs the real
+  // difference between parallel copies of one direction. Subtracting stored
+  // centers rounds, if at all, relative to their offset, so what remains
+  // scales with the pair; the stored centers still resolve only an ulp of |x|.
+  const offset = projectedCenterOffset(boxA, boxB, candidate.axis);
+  const reach = projectionRadius(boxA, axesA, candidate.axis)
+    + projectionRadius(boxB, axesB, candidate.axis);
+  const magnitude = Math.max(Math.abs(offset), reach);
+  if (offset > reach) {
     return {
       candidate,
       orientedAxis: candidate.axis.clone(),
-      separation: intervalA[0] - intervalB[1],
-      penetrationDepth: 0
+      separation: offset - reach,
+      penetrationDepth: 0,
+      magnitude
     };
   }
-  if (intervalB[0] > intervalA[1]) {
+  if (-offset > reach) {
     return {
       candidate,
       orientedAxis: candidate.axis.clone().multiplyScalar(-1),
-      separation: intervalB[0] - intervalA[1],
-      penetrationDepth: 0
+      separation: -offset - reach,
+      penetrationDepth: 0,
+      magnitude
     };
   }
-  const escapeNegative = intervalA[1] - intervalB[0];
-  const escapePositive = intervalB[1] - intervalA[0];
+  const escapeNegative = reach + offset;
+  const escapePositive = reach - offset;
   return escapeNegative <= escapePositive
     ? {
         candidate,
         orientedAxis: candidate.axis.clone().multiplyScalar(-1),
         separation: 0,
-        penetrationDepth: escapeNegative
+        penetrationDepth: escapeNegative,
+        magnitude
       }
     : {
         candidate,
         orientedAxis: candidate.axis.clone(),
         separation: 0,
-        penetrationDepth: escapePositive
+        penetrationDepth: escapePositive,
+        magnitude
       };
+}
+
+function projectedCenterOffset(
+  boxA: HyperboxSupportShape4,
+  boxB: HyperboxSupportShape4,
+  direction: VecN
+): number {
+  let offset = 0;
+  for (let axis = 0; axis < 4; axis++) {
+    offset += (boxA.center.data[axis]! - boxB.center.data[axis]!) * direction.data[axis]!;
+  }
+  return offset;
+}
+
+function projectionRadius(
+  box: HyperboxSupportShape4,
+  axes: readonly VecN[],
+  direction: VecN
+): number {
+  let radius = 0;
+  for (let axis = 0; axis < 4; axis++) {
+    radius += box.halfExtents[axis]! * Math.abs(axes[axis]!.dot(direction));
+  }
+  return radius;
 }
 
 function projectionInterval(
@@ -314,10 +352,7 @@ function projectionInterval(
   direction: VecN
 ): readonly [number, number] {
   const center = box.center.dot(direction);
-  let radius = 0;
-  for (let axis = 0; axis < 4; axis++) {
-    radius += box.halfExtents[axis]! * Math.abs(axes[axis]!.dot(direction));
-  }
+  const radius = projectionRadius(box, axes, direction);
   return [center - radius, center + radius];
 }
 
@@ -338,6 +373,13 @@ function resolvedTolerance(
  * separating axis beats any overlapping one, a larger separation beats a
  * smaller, and a smaller overlap beats a larger, each beyond the tie band so
  * that the earlier member is kept on a tie.
+ *
+ * Members of a group differ in direction by rounding or by a real tilt below
+ * `duplicateEpsilon`. The band is relative to the terms each value was formed
+ * from (center offset and reach, independent of world position), not to the
+ * value alone: a touching depth near zero is still the difference of
+ * unit-sized terms. A tilt shows through once it moves a value by more than
+ * about 64 ulps of the pair's own size.
  */
 function moreDecisive(
   candidate: AxisEvaluation,
@@ -347,11 +389,10 @@ function moreDecisive(
   const candidateSeparates = candidate.separation > contactTolerance;
   const incumbentSeparates = incumbent.separation > contactTolerance;
   if (candidateSeparates !== incumbentSeparates) return candidateSeparates;
+  const band = numericalTie(candidate.magnitude, incumbent.magnitude);
   return candidateSeparates
-    ? candidate.separation >
-        incumbent.separation + numericalTie(candidate.separation, incumbent.separation)
-    : candidate.penetrationDepth <
-        incumbent.penetrationDepth - numericalTie(candidate.penetrationDepth, incumbent.penetrationDepth);
+    ? candidate.separation > incumbent.separation + band
+    : candidate.penetrationDepth < incumbent.penetrationDepth - band;
 }
 
 function numericalTie(left: number, right: number): number {

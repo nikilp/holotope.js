@@ -321,3 +321,75 @@ describe('near-parallel candidate axes', () => {
     expect(patch?.intrinsicDim).toBe(3);
   });
 });
+
+/** Deterministic common rotations and offset directions, so far poses are not hand-picked. */
+function farPoses(count: number): { common: Rotor4; direction: number[] }[] {
+  let seed = 12345;
+  const next = (): number => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return 2 * (seed / 2147483648) - 1;
+  };
+  const planes = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]] as const;
+  return Array.from({ length: count }, () => ({
+    common: Rotor4.fromPlanes(planes.map(([i, j]) => ({ i, j, angle: next() * Math.PI }))),
+    direction: [next(), next(), next(), next()]
+  }));
+}
+
+describe('near-parallel candidate axes far from the origin', () => {
+  // Each candidate is evaluated from the projected center offset, and a group
+  // compares members within a band relative to the pair's own size, so a world
+  // offset changes neither which member wins nor by how much a real tilt can
+  // differ. The stored centers still resolve only an ulp of |x| (1.8e-12 at
+  // 1e4); the bounds below sit between that and the tilts' own 5e-11.
+  const common = Rotor4.fromPlanes([
+    { i: 0, j: 2, angle: 0.7 },
+    { i: 1, j: 3, angle: -0.45 },
+    { i: 2, j: 3, angle: 0.2 }
+  ]);
+  const offsets = (far: number): number[] => [far, -0.6 * far, 0.3 * far, 0.9 * far];
+
+  it('keeps a facet on a rounding-level tie at offsets of 300 and beyond, at any scale, in either order', () => {
+    const mislabelled: string[] = [];
+    for (const scale of [1, 1000, 0.001]) {
+      for (const far of [300, 1e4]) {
+        farPoses(40).forEach(({ common: rotation, direction }, index) => {
+          const [a, b] = pair({ planes: [], theta: 0, gap: 0.83, common: rotation, offset: direction.map((x) => x * far), scale });
+          for (const [order, x, y] of [['ab', a, b], ['ba', b, a]] as const) {
+            const sat = hyperboxSat4(x, y);
+            const patch = hyperboxContactPatch4(x, y).patch;
+            if (!sat.source.featureClass.startsWith('facet') || patch?.referenceBox == null || patch.intrinsicDim !== 3) {
+              mislabelled.push(`scale ${scale} offset ${far} pose ${index} ${order}: ${sat.source.featureClass}`);
+            }
+          }
+        });
+      }
+    }
+    expect(mislabelled).toEqual([]);
+  });
+
+  it('still lets a real sub-band tilt win far from the origin', () => {
+    const cases = [
+      ['overlap, 1 plane, 1e-9', { planes: [[0, 1]], theta: 1e-9, gap: 0.83 }],
+      ['overlap, 2 planes, 1e-9', { planes: [[0, 1], [0, 2]], theta: 1e-9, gap: 0.83 }],
+      ['false contact', { planes: [[0, 1]], theta: 1e-7, gap: 0.85 + 0.5e-7 + 2e-9 }],
+      ['both separate, 1e-9', { planes: [[0, 1]], theta: 1e-9, gap: 0.85 + 0.5e-9 + 1e-8 }]
+    ] as const;
+    for (const [name, pose] of cases) {
+      const near = hyperboxSat4(...pair({ ...pose, common }));
+      expect(`${name}: ${near.source.featureClass}`).toBe(`${name}: facet-b`);
+      for (const far of [300, 1e4]) {
+        const [a, b] = pair({ ...pose, common, offset: offsets(far) });
+        const forward = hyperboxSat4(a, b);
+        const reverse = hyperboxSat4(b, a);
+        const label = `${name} at ${far}`;
+        expect(`${label}: ${forward.status} ${forward.source.featureClass}`).toBe(
+          `${label}: ${near.status} facet-b`
+        );
+        expect(`${label}: ${reverse.status}`).toBe(`${label}: ${near.status}`);
+        expect(Math.abs(forward.signedAxisDistance - near.signedAxisDistance)).toBeLessThan(5e-12);
+        expect(Math.abs(reverse.signedAxisDistance - near.signedAxisDistance)).toBeLessThan(5e-12);
+      }
+    }
+  });
+});

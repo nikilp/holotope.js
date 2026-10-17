@@ -469,7 +469,11 @@ The cross family is edge∧2-face, not edge×edge. Deduplication groups
 candidates by direction but still evaluates every one, keeping each group's
 most decisive member: two facet normals a fraction of a microradian apart are
 one direction, yet their overlaps can differ by far more than the selector's
-tie band, and keeping only the first lost the minimum translation. The result
+tie band, and keeping only the first lost the minimum translation. Each axis
+is evaluated from the projected offset between the box centers, and members
+tie within a band relative to the pair's own size, so the choice does not
+degrade with distance from the origin beyond the resolution of the stored
+coordinates. The result
 retains the winning feature class and local axis indices, the oriented world
 axis, projected separation or minimum overlap, and counts for generated,
 degenerate, duplicate, and tested axes. Its separation is an axis certificate; callers
