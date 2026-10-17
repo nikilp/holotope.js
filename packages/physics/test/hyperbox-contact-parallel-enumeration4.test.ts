@@ -411,11 +411,15 @@ describe('the configuration matrix', () => {
       { planes: [[0, 1], [0, 2]] as const, dim: 1, vertices: 2 },
       { planes: [[0, 1], [0, 2], [0, 3]] as const, dim: 0, vertices: 1 }
     ];
-    // 1e-7 is excluded here and covered separately below: at that angle the
-    // alignment translation overshoots the touching configuration, which is a
-    // different situation and a second, still-open defect.
+    // SUPERSEDED (CONTACT-C2-SAT): this once excluded 1e-7, where the
+    // alignment overshot into separation, and asserted 1e-9. 1e-7 is now the
+    // fix's witness. 1e-9 moved below: a tilted plane (0, k) recedes A's face
+    // by 2·h_k·sin(angle), 1.0e-9 to 1.4e-9 there, inside the 1e-9 feasibility
+    // and 1e-8 merge bands, so its dimension is set by those tolerances. It met
+    // "2, 1, 0" only because the overshoot (0.05·angle) pushed the receding
+    // edges out of the band.
     for (const family of families) {
-      for (const angle of [1e-3, 1e-5, 1e-9]) {
+      for (const angle of [1e-3, 1e-5, 1e-7, 1e-8]) {
         const reading = inspect(posedPair({ planes: family.planes, angle, gap: 0.83 }));
         expect(`${family.dim}@${angle}`).toBe(`${reading.dim}@${angle}`);
         expect(reading.vertices).toBe(family.vertices);
@@ -424,13 +428,38 @@ describe('the configuration matrix', () => {
     }
   });
 
+  it('inside the tolerance band, the patch can only be fuller than the exact contact set', () => {
+    // Where the recession is comparable to the feasibility band, the
+    // enumerator returns the tolerance-relaxed set. It contains the exact
+    // contact set, so its dimension is never lower, and every vertex stays
+    // within the band of both bodies. Which higher dimension it reports there
+    // is a property of the tolerances, not of the geometry.
+    //
+    // The band is relative: a point passes a halfspace when it violates it by
+    // at most clipTolerance·max(1, |projection|, |bound|) (contact-polyhedron4's
+    // scaledTolerance), and the largest offset here is 0.83 + 0.75.
+    const band = 1e-9 * Math.max(1, 0.83 + Math.max(...B_HALF));
+    const families = [
+      { planes: [[0, 1]] as const, exact: 2 },
+      { planes: [[0, 1], [0, 2]] as const, exact: 1 },
+      { planes: [[0, 1], [0, 2], [0, 3]] as const, exact: 0 }
+    ];
+    for (const family of families) {
+      for (const angle of [9e-10, 1e-9]) {
+        const reading = inspect(posedPair({ planes: family.planes, angle, gap: 0.83 }));
+        expect(reading.dim).toBeGreaterThanOrEqual(family.exact);
+        expect(reading.outside).toBeLessThanOrEqual(band);
+      }
+    }
+  });
+
   it('both bodies rotated, in different planes, still enumerates', () => {
     // The captured failure had both bodies turned. A fixture that turns only
     // one would not have covered it.
-    // Angles are chosen outside the overshoot regime recorded as OPEN below;
-    // measured, this family enumerates at 1e-2 through 1e-7 and at 1e-9, and
-    // throws only at 1e-8.
-    for (const angle of [1e-3, 1e-6]) {
+    // SUPERSEDED (CONTACT-C2-SAT): this family once threw at 1e-8, inside the
+    // overshoot regime. Measured since the axis-selection repair, it returns a
+    // point at every angle from 1e-2 to 1e-9; 1e-8 is now included.
+    for (const angle of [1e-3, 1e-6, 1e-8]) {
       const reading = inspect(
         posedPair({
           planes: [[0, 1], [0, 2], [0, 3]],
@@ -508,7 +537,11 @@ describe('the configuration matrix', () => {
 });
 
 describe('a second defect, distinct from the one fixed here', () => {
-  it('OPEN: the alignment translation overshoots the touching configuration', () => {
+  it('CLOSED: the alignment translation reaches the touching configuration', () => {
+    // CLOSED by CONTACT-C2-SAT. Until then this case was recorded, not
+    // repaired, and its assertions pinned the defect: `facet-a`, a throw, and
+    // corners more than 1e-9 outside B. The history below is kept as written.
+    //
     // Recorded, not repaired. This is NOT the tangent-basis cancellation that
     // the rest of this file is about, and it is not asserted to be wanted
     // behaviour.
@@ -526,19 +559,27 @@ describe('a second defect, distinct from the one fixed here', () => {
     // all eight of A's corners that reach the contact plane sit 5.0e-9 to
     // 1.05e-7 OUTSIDE B. No feasible vertex exists for the enumerator to find,
     // so no tolerance could rescue it without admitting points outside B.
+    //
+    // SUPERSEDED (CONTACT-C2-SAT): the translation itself was right for the
+    // axis it was given; the axis was wrong. B's facet normal, 1e-7 rad from
+    // A's, overlaps 5.0e-9 less, but it was discarded as A's duplicate before
+    // either was evaluated, so SAT reported A's, with a depth 5.0e-9 above the
+    // minimum, and the alignment moved A that much too far. Every candidate is
+    // now evaluated and each direction keeps its most decisive member
+    // (`hyperbox-sat4-near-parallel.test.ts`).
     const pair = posedPair({ planes: [[0, 1]], angle: 1e-7, gap: 0.83 });
     const sat = hyperboxSat4(pair.a, pair.b);
     expect(sat.status).toBe('overlapping');
-    // The axis is A's facet normal, reported as such.
-    expect(sat.source.featureClass).toBe('facet-a');
-    expect(Array.from(sat.source.axesA)).toEqual([0]);
-    const axisA = pair.a.worldAxes()[0]!;
-    expect(Math.abs(Math.abs(axisA.dot(sat.axis)) - 1)).toBeLessThan(1e-12);
-    expect(() => hyperboxContactPatch4(pair.a, pair.b)).toThrow(
-      /failed to enumerate a bounded contact patch/
-    );
+    // The axis is B's facet normal, the one achieving the minimum overlap.
+    expect(sat.source.featureClass).toBe('facet-b');
+    expect(Array.from(sat.source.axesB)).toEqual([0]);
+    const axisB = pair.b.worldAxes()[0]!;
+    expect(Math.abs(Math.abs(axisB.dot(sat.axis)) - 1)).toBeLessThan(1e-12);
+    const patch = hyperboxContactPatch4(pair.a, pair.b).patch;
+    expect(patch?.intrinsicDim).toBe(2);
+    expect(patch?.vertices).toHaveLength(4);
 
-    // The corners are outside B, which is why no tolerance could rescue this.
+    // A's corners that reach the contact plane now lie on B, not outside it.
     const shift = sat.intervalB[1] - sat.intervalA[0];
     const translation = sat.axis.clone().multiplyScalar(shift);
     let bestOutside = Infinity;
@@ -554,14 +595,18 @@ describe('a second defect, distinct from the one fixed here', () => {
         outsideBy(point, B_HALF as unknown as number[], pair.b.transform)
       );
     }
-    expect(bestOutside).toBeGreaterThan(1e-9);
+    expect(bestOutside).toBeLessThan(1e-12);
   });
 
-  it('OPEN: the neighbouring angles are unaffected, so this is narrow', () => {
-    // The same family at 1e-5 and 1e-9 enumerates correctly, which is what
-    // makes the case above a specific axis-selection regime rather than a
-    // general failure of nearly-parallel contact.
-    for (const angle of [1e-5, 1e-9]) {
+  it('CLOSED: the whole near-parallel regime enumerates, not only the neighbours', () => {
+    // SUPERSEDED (CONTACT-C2-SAT): this test once read "the same family at
+    // 1e-5 and 1e-9 enumerates correctly", to show the defect was narrow. The
+    // regime was in fact every tilt below about 1.4e-7, where 1 − cos falls
+    // inside the 1e-14 duplicate band; at 1e-8 and 1e-9 the overshoot was
+    // merely smaller than the feasibility band, so it went unseen. Across it,
+    // the patch is now returned with the exact dimension wherever the tilt
+    // clears the tolerance band (1e-9 is inside it, and covered above).
+    for (const angle of [1e-5, 1e-6, 1e-7, 1e-8]) {
       const reading = inspect(posedPair({ planes: [[0, 1]], angle, gap: 0.83 }));
       expect(reading.dim).toBe(2);
       expect(reading.outside).toBeLessThan(1e-9);

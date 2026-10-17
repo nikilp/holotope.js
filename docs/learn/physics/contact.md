@@ -465,10 +465,14 @@ deduplication:
 - 24 duals of an edge direction from A wedged with a 2-face plane from B;
 - 24 duals of a 2-face plane from A wedged with an edge direction from B.
 
-The cross family is edge∧2-face, not edge×edge. The result retains the winning
-feature class and local axis indices, the oriented world axis, projected
-separation or minimum overlap, and counts for generated, degenerate,
-duplicate, and tested axes. Its separation is an axis certificate; callers
+The cross family is edge∧2-face, not edge×edge. Deduplication groups
+candidates by direction but still evaluates every one, keeping each group's
+most decisive member: two facet normals a fraction of a microradian apart are
+one direction, yet their overlaps can differ by far more than the selector's
+tie band, and keeping only the first lost the minimum translation. The result
+retains the winning feature class and local axis indices, the oriented world
+axis, projected separation or minimum overlap, and counts for generated,
+degenerate, duplicate, and tested axes. Its separation is an axis certificate; callers
 needing general closest witnesses should continue to use GJK.
 
 ## Hyperbox contact patches

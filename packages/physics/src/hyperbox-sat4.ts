@@ -18,7 +18,11 @@ export interface HyperboxSatAxisSource4 {
 export interface HyperboxSatOptions4 {
   /** Zero band for a dual 3-wedge before normalization. Default 1e-12. */
   axisEpsilon?: number;
-  /** Absolute parallel-direction band used after normalization. Default 1e-14. */
+  /**
+   * Absolute parallel-direction band used after normalization. Default 1e-14.
+   * Candidates within it of an earlier direction form one group: each is
+   * still evaluated, and the group keeps its most decisive member.
+   */
   duplicateEpsilon?: number;
   /** Separation/contact band in world units. Default 1e-12. */
   contactTolerance?: number;
@@ -27,8 +31,14 @@ export interface HyperboxSatOptions4 {
 export interface HyperboxSatDiagnostics4 {
   /** Always 56: 8 facet normals plus 24+24 cross-family constructions. */
   readonly axesGenerated: number;
+  /** Distinct directions: groups of nondegenerate candidates within `duplicateEpsilon`. */
   readonly axesTested: number;
   readonly degenerateAxesSkipped: number;
+  /**
+   * Candidates parallel to an earlier direction within `duplicateEpsilon`.
+   * They are evaluated, and replace that direction's evaluation only when
+   * strictly more decisive; they never add a direction of their own.
+   */
   readonly duplicateAxesSkipped: number;
 }
 
@@ -129,7 +139,13 @@ export function hyperboxSat4(
     }
   }
 
-  const unique: AxisCandidate[] = [];
+  // Parallel copies are grouped by direction, but every member is evaluated:
+  // two candidates 1e-7 rad apart are one direction to `duplicateEpsilon`,
+  // yet their overlaps can differ by far more than the selector's tie band,
+  // and the first one generated is not necessarily the better. Keeping only
+  // the first lost the minimum translation (aligning A then overshot into
+  // separation) and could discard the only separating axis.
+  const groups: { readonly direction: VecN; best: AxisEvaluation }[] = [];
   let degenerateAxesSkipped = 0;
   let duplicateAxesSkipped = 0;
   for (const candidate of constructed) {
@@ -140,21 +156,21 @@ export function hyperboxSat4(
     }
     candidate.axis.multiplyScalar(1 / length);
     canonicalizeAxis(candidate.axis, axisEpsilon);
-    if (
-      unique.some(
-        (accepted) => 1 - Math.abs(accepted.axis.dot(candidate.axis)) <= duplicateEpsilon
-      )
-    ) {
+    const evaluation = evaluateAxis(boxA, axesA, boxB, axesB, candidate);
+    const group = groups.find(
+      ({ direction }) => 1 - Math.abs(direction.dot(candidate.axis)) <= duplicateEpsilon
+    );
+    if (group) {
       duplicateAxesSkipped++;
+      if (moreDecisive(evaluation, group.best, contactTolerance)) group.best = evaluation;
       continue;
     }
-    unique.push(candidate);
+    groups.push({ direction: candidate.axis, best: evaluation });
   }
 
   let bestSeparation: AxisEvaluation | undefined;
   let bestOverlap: AxisEvaluation | undefined;
-  for (const candidate of unique) {
-    const evaluation = evaluateAxis(boxA, axesA, boxB, axesB, candidate);
+  for (const { best: evaluation } of groups) {
     if (evaluation.separation > contactTolerance) {
       if (
         !bestSeparation ||
@@ -178,7 +194,7 @@ export function hyperboxSat4(
 
   const diagnostics: HyperboxSatDiagnostics4 = {
     axesGenerated: constructed.length,
-    axesTested: unique.length,
+    axesTested: groups.length,
     degenerateAxesSkipped,
     duplicateAxesSkipped
   };
@@ -315,6 +331,27 @@ function resolvedTolerance(
     throw new Error(`hyperboxSat4: ${name} must be finite and non-negative`);
   }
   return value;
+}
+
+/**
+ * The selector's own order, applied within one direction group: any
+ * separating axis beats any overlapping one, a larger separation beats a
+ * smaller, and a smaller overlap beats a larger, each beyond the tie band so
+ * that the earlier member is kept on a tie.
+ */
+function moreDecisive(
+  candidate: AxisEvaluation,
+  incumbent: AxisEvaluation,
+  contactTolerance: number
+): boolean {
+  const candidateSeparates = candidate.separation > contactTolerance;
+  const incumbentSeparates = incumbent.separation > contactTolerance;
+  if (candidateSeparates !== incumbentSeparates) return candidateSeparates;
+  return candidateSeparates
+    ? candidate.separation >
+        incumbent.separation + numericalTie(candidate.separation, incumbent.separation)
+    : candidate.penetrationDepth <
+        incumbent.penetrationDepth - numericalTie(candidate.penetrationDepth, incumbent.penetrationDepth);
 }
 
 function numericalTie(left: number, right: number): number {
