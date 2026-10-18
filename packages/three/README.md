@@ -28,8 +28,13 @@ with this package re-exporting the types.
 
 ## Tested three.js compatibility
 
-`three` is a peer dependency; the declared range is **`>=0.184.0 <0.187.0`**.
-That range is *tested*, not inferred from semver, and it is not a promise
+`three` is a peer dependency; this source declares **`>=0.184.0 <0.187.0`**.
+Each published version declares the range it was released with, which can be
+narrower than the source's until the next release: `@holotope/three@0.0.22` on
+npm declares `>=0.184.0 <0.186.0`, so install it with a `three` inside that
+range, such as `0.185.1`. `npm view @holotope/three@<version> peerDependencies`
+shows any published version's own range.
+The source range is *tested*, not inferred from semver, and it is not a promise
 about revisions that do not exist yet.
 
 **A range is wider than the sample that supports it.** The range claims a

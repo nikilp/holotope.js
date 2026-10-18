@@ -613,7 +613,11 @@ if (hit.ambientPointStatus === 'exact') {
   refuses — it is not a simplex). Authored index order is combinatorial, NOT
   boundary-coherent: shared faces double, so render double-sided; oriented
   boundaries come from `sectionSimplexGroupN`, not from authored order.
-- `@holotope/three` peer range is **`>=0.184.0 <0.187.0`**, and it is a
+- `@holotope/three` peer range is **`>=0.184.0 <0.187.0` in this source**.
+  Each published version declares the range it was released with:
+  `@holotope/three@0.0.22` on npm declares `>=0.184.0 <0.186.0`, so pair it
+  with a `three` in that range (for example `0.185.1`); check any version with
+  `npm view @holotope/three@<version> peerDependencies`. The source range is a
   *sampled* interval, NOT a per-patch guarantee: `check:three-compat` drives one
   representative per claimed minor (`0.184.0`, `0.185.1`, `0.186.0`) and fails
   if any claimed minor has none, but no other patch release in the range was

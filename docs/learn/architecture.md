@@ -139,7 +139,7 @@ Every algorithm ships first as an auditable CPU reference implementation with co
 
 ## 8. three.js version policy
 
-`@holotope/three` pins a narrow tested peer range (currently `>=0.184.0 <0.187.0`) rather than claiming broad compatibility: the adapter will grow into TSL/WebGPU internals that change between three.js releases. Compatibility widens per release after testing, not by default. The range is sampled rather than exhausted — one driven representative per minor it claims, enforced by `pnpm check:three-compat` — so it asserts that no claimed minor is unmeasured, not that every patch release was run. The exact revisions are tabulated in [`packages/three/README.md`](https://github.com/nikilp/holotope.js/blob/main/packages/three/README.md).
+`@holotope/three` pins a narrow tested peer range (`>=0.184.0 <0.187.0` in this source; each published version declares the range it was released with, and `0.0.22` on npm declares `>=0.184.0 <0.186.0`) rather than claiming broad compatibility: the adapter will grow into TSL/WebGPU internals that change between three.js releases. Compatibility widens per release after testing, not by default. The range is sampled rather than exhausted — one driven representative per minor it claims, enforced by `pnpm check:three-compat` — so it asserts that no claimed minor is unmeasured, not that every patch release was run. The exact revisions are tabulated in [`packages/three/README.md`](https://github.com/nikilp/holotope.js/blob/main/packages/three/README.md).
 
 ## 9. Structured-space views retain provenance
 
