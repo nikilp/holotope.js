@@ -1,5 +1,109 @@
 # Changelog
 
+## v0.0.23
+
+All five packages are synchronized at `0.0.23`. This is a patch release: the
+behavioural changes are contact corrections in `@holotope/physics`;
+`@holotope/three` widens its tested `three` peer range to include r186;
+`@holotope/core` documents an existing exact-coordinate contract in its
+declarations without changing behaviour. `@holotope/experiment` and
+`@holotope/experiment-physics` are version-synchronized only. No export is
+added, removed, renamed or retyped against `0.0.22`. The guided experiences
+published alongside are showcase-only and add no npm package surface.
+
+### `@holotope/physics@0.0.23` — fixed
+
+No option, default, tolerance, signature or exported type changes.
+
+- **`contactTangentBasis4` reorthogonalizes.** When a contact normal lies
+  close to a coordinate axis, one Gram-Schmidt pass left the tangent basis
+  measurably off the contact plane (`t · n` up to about `9e-9`), so a box face
+  nearly parallel to that plane was violated by the reconstruction itself, no
+  constraint triple survived, and contact enumeration threw for a real
+  touching pair. A second pass leaves `t · n` at or below `2e-25` for normals
+  from `1e-6` off an axis to exactly axis-aligned.
+- **`hyperboxSat4` evaluates nearly parallel axes before keeping one per
+  direction.** Candidates within `duplicateEpsilon` of an earlier direction
+  were dropped before evaluation, although their overlaps can differ far above
+  the tie band; SAT could report a depth above the true minimum, overshoot
+  into separation when aligning, and make the enumerator throw or return a
+  patch of the wrong dimension — or discard the only separating axis. Every
+  candidate is now evaluated, each direction group keeps its most decisive
+  member, and the reported depth is the minimum over all 56 candidates. The
+  diagnostic counts keep their meaning: groups are still anchored to the
+  candidate that founded them.
+- **SAT ties no longer drift with world position.** Each axis is evaluated
+  from the projected centre offset and summed radii, and members of a group
+  tie relative to the pair's own size. Previously, rounding of about
+  `eps · |x|` let a cross-family copy displace the founding facet for exactly
+  parallel pairs from offsets of about 100, and the contact patch lost its
+  reference box.
+- **Nearly parallel clip halfspaces are judged at the patch, not the world
+  origin.** The clipper behind `hyperboxContactPatch4`,
+  `polytopeContactPatch4` and so `HyperboxContactPipeline4` evaluated such a
+  halfspace once at the foot of the world origin, an error of tilt × distance.
+  A box resting on a floor at `x = -40` with a `5e-11` tilt threw "contact
+  plane lies outside a supplied halfspace", while the same box at `+40` did
+  not. Every input that returned before returns bit-identical output; the
+  specific message is now raised only where it is a certificate.
+
+#### Bounds that remain
+
+These close the reproduced failures; they do not establish that contact
+enumeration is robust in general. Stored centres still resolve only an ulp of
+`|x|`, so far-coordinate precision remains limited, and resting behaviour,
+generic halfspace and rollback limits are unchanged.
+
+### `@holotope/three@0.0.23` — compatibility
+
+- **The `three` peer range is `>=0.184.0 <0.187.0`**, widened from the
+  `>=0.184.0 <0.186.0` that `0.0.22` declares. No adapter source changed.
+- The range is sampled, not exhausted: CI drives one representative per
+  claimed minor — `0.184.0`, `0.185.1` and `0.186.0` — from freshly packed
+  artifacts through runtime and strict TypeScript checks, and fails if a
+  claimed minor has none. Each row also rendered once in a real browser when it
+  was admitted, on one configuration. Other patch releases are claimed on their
+  minor's representative. The README tabulates exactly what ran.
+- The development and packed-consumer reference moves to `three@0.186.0`.
+- The README now distinguishes the range a source checkout declares from the
+  range each published version declares; `npm view
+  @holotope/three@<version> peerDependencies` shows the latter.
+
+### `@holotope/core@0.0.23` — documented
+
+Declaration documentation only; no runtime change and no changed point set.
+
+- **`FlatNOptions` and `ExactHalfspace` state the numerator contract.**
+  Projections, offsets and the coordinate a `ConvexWindow` classifies are
+  undivided exact numerators; the denominators apply only when rendering
+  Float64 coordinates. A window authored for true coordinates must have every
+  bound multiplied by `perpendicularDenominator`, as the built-in
+  `ammannBeenker`, `penrose`, `akn` and `elserSloane` windows already are.
+  Regression tests in the repository pin the boundary behaviour.
+
+### Unchanged in this release
+
+### `@holotope/experiment@0.0.23`, `@holotope/experiment-physics@0.0.23`
+
+Version-synchronized only. No substantive package change; their dependencies
+on sibling packages move to `0.0.23`.
+
+### Showcase, documentation and release tooling
+
+Not npm package surface.
+
+- **One More Direction** and **The Hidden Direction** — guided section and
+  hidden-direction contact experiences, with the classic instruments kept
+  beside them, and new learning guides.
+- The Pages build compiles the packages before the API reference, and checks
+  by name that every cross-package reference page exists.
+- The no-build CDN example pins the Three.js that the published adapter
+  resolves against on jsDelivr, so the page loads one copy.
+- The CDN example now follows the registry rather than the source version:
+  it is deployed from `main` before a tag publishes anything, so it stays on
+  the latest published release until a separate post-publication change moves
+  it. The release preflight requires its pins to be the registry's `latest`.
+
 ## v0.0.22
 
 All five packages are synchronized at `0.0.22`. The substantive published
