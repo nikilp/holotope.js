@@ -128,6 +128,13 @@ const sha = head.output;
 
 const localTags = capture('git', ['tag', '--list']);
 const remoteTags = capture('git', ['ls-remote', '--tags', 'origin']);
+// An unreadable remote lists no tags, which would read as "absent".
+if (!remoteTags.ok) {
+  violations.push(
+    `could not read the remote's tags (${remoteTags.output.split('\n')[0]}); ` +
+      'a tag missing locally may still exist there'
+  );
+}
 const existing = [
   ...localTags.output.split('\n'),
   ...[...remoteTags.output.matchAll(/refs\/tags\/(\S+?)(?:\^\{\})?$/gm)].map((m) => m[1])
