@@ -15,9 +15,10 @@
  * SHA about to be tagged rather than on the newest run.
  *
  * The rest are cheaper: a split version publishes a set whose members
- * reference a sibling release that does not exist, an unpushed commit means
- * the tag points at something the tag job cannot fetch, and a CDN page pinned
- * to the previous release keeps advertising it after the new one ships.
+ * reference a sibling release that does not exist, and an unpushed commit means
+ * the tag points at something the tag job cannot fetch. What the CDN example
+ * may advertise is judged against the registry, in `cdn-example.mjs`: it is
+ * live before the tag publishes anything, so it cannot name this version yet.
  */
 
 /** `v0.0.10` and `0.0.10` are the same release; the tag carries the prefix. */
@@ -127,24 +128,4 @@ export function checkCiSucceededForCommit(runs, sha, required) {
     }
   }
   return violations;
-}
-
-/**
- * Anything advertising a version must advertise the one being released.
- *
- * The CDN example is the case here: it pins `@holotope/*@<version>` in a page
- * readers copy from, so a stale pin keeps sending them to the previous
- * release after the new one ships.
- *
- * @param pins - `{ file, name, version }` for each advertised pin.
- * @param version - Version being released.
- * @returns Violation strings; empty when every pin matches.
- */
-export function checkAdvertisedVersions(pins, version) {
-  return pins
-    .filter((pin) => pin.version !== version)
-    .map(
-      (pin) =>
-        `${pin.file} advertises ${pin.name}@${pin.version}, but this release is ${version}`
-    );
 }

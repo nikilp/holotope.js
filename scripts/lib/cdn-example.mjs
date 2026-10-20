@@ -37,10 +37,29 @@
  *   match the record and the page. Unreachable or malformed evidence is an
  *   *error*, never a pass: a CDN outage proves nothing about compatibility.
  *
- * When a release moves the page's `@holotope/*` pins, update the record in the
- * same change (the version, the peer range being published, and the Three.js
- * release that range resolves to on jsDelivr), then confirm it with the online
- * check once the release is on the registry.
+ * ## The page follows the registry, not the source
+ *
+ * The page is deployed from `main` by the Pages workflow, and the release
+ * preflight requires that workflow to be green for the exact commit being
+ * tagged — so the commit that raises the source version is live *before* the
+ * tag publishes it. A page pinned to that unpublished version would be broken
+ * for every reader from deployment until publication, and indefinitely if the
+ * publication failed. The page therefore pins the release the record describes,
+ * which is a published one, and that may trail the source version:
+ *
+ * 1. The release commit raises the five packages and leaves the page and the
+ *    record on the previous published release. Offline, the record may trail
+ *    the source but never lead it ({@link checkRecordAgainstSource}).
+ * 2. The preflight requires every `@holotope/*` pin to be the registry's
+ *    `latest` ({@link checkAdvertisedPublished}): before publication that is
+ *    the previous release, so a page moved early is refused, and a 404 or an
+ *    unreadable registry is never a pass.
+ * 3. After the release is on the registry, a separate commit moves the page's
+ *    pins and the record together (the version, the peer range that was
+ *    published, and the Three.js release jsDelivr resolves it against), and
+ *    `pnpm check:cdn:online` confirms them. Until that commit lands, the same
+ *    online check reports the page as stale, because the registry's `latest`
+ *    has moved past it.
  */
 
 /** Every `cdn.jsdelivr.net/npm/<name>@<version>/` the page names, by package. */
@@ -91,10 +110,11 @@ export function satisfies(version, range) {
 const normalizeRange = (range) => String(range).replace(/\s+/g, ' ').trim().replace(/\s*<\s*/, ' <');
 
 /**
- * Each package at one version, and every `@holotope/*` pin at the version this
- * repository releases.
+ * Each package at one version, and every `@holotope/*` pin at the published
+ * release the record describes — not the source version, which leads the
+ * registry while a release is staged.
  */
-export function checkPagePins(file, pins, release, packageNames) {
+export function checkPagePins(file, pins, published, packageNames) {
   const violations = [];
   for (const [name, versions] of pins) {
     if (versions.size > 1) {
@@ -107,12 +127,88 @@ export function checkPagePins(file, pins, release, packageNames) {
     const pinned = pins.get(name);
     if (pinned === undefined) continue; // The page need not exercise every package.
     for (const version of pinned) {
-      if (version !== release) {
-        violations.push(`${file}: pins ${name}@${version}, but this repository releases ${release}`);
+      if (version !== published) {
+        violations.push(
+          `${file}: pins ${name}@${version}, but the published-consumer record describes ${published}; ` +
+            'every @holotope pin follows the one verified published release'
+        );
       }
     }
   }
   return violations;
+}
+
+/**
+ * The record may trail the source version, while a release is staged, but
+ * never lead it: a version this source has not reached cannot have been
+ * published from it.
+ */
+export function checkRecordAgainstSource(record, release) {
+  const recorded = order(record?.version);
+  const source = order(release);
+  if (recorded === undefined || source === undefined) {
+    return [`the published-consumer record's version ${record?.version} or the source version ${release} cannot be read`];
+  }
+  if (recorded > source) {
+    return [
+      `the published-consumer record describes ${record.version}, newer than this source's ${release}`
+    ];
+  }
+  return [];
+}
+
+/**
+ * Every advertised `@holotope/*` pin must be the registry's current `latest`.
+ *
+ * That one comparison carries both halves of the advertised-version contract:
+ * a pin ahead of `latest` names a release readers cannot load yet, and a pin
+ * behind it keeps sending them to a release that has been superseded.
+ *
+ * @param pins - `{ file, name, version }` for each advertised pin.
+ * @param latest - Per package name, the registry's `<name>/latest` response,
+ *   `{ url, status, body }` or `{ url, error }`.
+ * @returns `violations` (the registry contradicts a pin) and `errors` (it
+ *   could not be read, so nothing is established — never a pass).
+ */
+export function checkAdvertisedPublished(pins, latest) {
+  const violations = [];
+  const errors = [];
+  for (const pin of pins) {
+    const response = latest.get(pin.name);
+    if (response === undefined) {
+      errors.push(`${pin.name}: the registry's latest release was not read`);
+      continue;
+    }
+    if (response.error !== undefined || response.status !== 200) {
+      errors.push(
+        `${response.url}: ${response.error ?? `HTTP ${response.status}`}; ` +
+          `whether ${pin.name}@${pin.version} is published is unknown`
+      );
+      continue;
+    }
+    let published;
+    try {
+      published = JSON.parse(response.body)?.version;
+    } catch {
+      published = undefined;
+    }
+    if (order(published) === undefined) {
+      errors.push(`${response.url}: no readable version`);
+    } else if (order(pin.version) === undefined) {
+      violations.push(`${pin.file} advertises ${pin.name}@${pin.version}, which is not a release version`);
+    } else if (order(pin.version) > order(published)) {
+      violations.push(
+        `${pin.file} advertises ${pin.name}@${pin.version}, but the registry's latest is ${published}; ` +
+          'a page deployed with it fails to load until that release is published'
+      );
+    } else if (order(pin.version) < order(published)) {
+      violations.push(
+        `${pin.file} advertises ${pin.name}@${pin.version}, but the registry's latest is ${published}; ` +
+          'move the pins and the published-consumer record to it, and confirm with check:cdn:online'
+      );
+    }
+  }
+  return { violations, errors };
 }
 
 /**

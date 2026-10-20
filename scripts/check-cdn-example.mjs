@@ -10,6 +10,12 @@
  * the right ones. That drifts silently — a release bumps the packages and the
  * demo keeps advertising the previous one — so it is checked here.
  *
+ * The page is live from `main` before a release is tagged, so it pins the
+ * published release the record describes, which may trail the source version
+ * while a release is staged. The online check asks the registry for each
+ * pinned package's `latest`: a pin ahead of it would not load, and a pin behind
+ * it is a refresh still owed after a publication.
+ *
  * The page consumes the adapter **as published**, so the Three.js it must
  * share is the one the published adapter resolves against on jsDelivr, not the
  * one this repository develops against. The two contracts and the record that
@@ -29,8 +35,10 @@ import { fileURLToPath } from 'node:url';
 import { PUBLIC_PACKAGE_NAMES } from './lib/packed-packages.mjs';
 import {
   checkDevelopmentPins,
+  checkAdvertisedPublished,
   checkPagePins,
   checkPublishedConsumer,
+  checkRecordAgainstSource,
   checkSingleInstanceAssertion,
   judgeOnline,
   pinnedVersions,
@@ -50,12 +58,20 @@ const release = readJson(path.join(REPO, 'packages/core/package.json')).version;
 const pins = pinnedVersions(page);
 
 const violations = [
-  ...checkPagePins(relative, pins, release, PUBLIC_PACKAGE_NAMES),
+  ...checkPagePins(relative, pins, record.version, PUBLIC_PACKAGE_NAMES),
+  ...checkRecordAgainstSource(record, release),
   ...checkDevelopmentPins(readJson(path.join(REPO, 'packages/three/package.json'))),
   ...checkPublishedConsumer(relative, pins, record),
   ...checkSingleInstanceAssertion(relative, page)
 ];
 const errors = [];
+
+/** `{ file, name, version }` for every `@holotope/*` pin on the page. */
+function advertisedPins(found) {
+  return [...found]
+    .filter(([name]) => PUBLIC_PACKAGE_NAMES.includes(name))
+    .flatMap(([name, versions]) => [...versions].map((version) => ({ file: relative, name, version })));
+}
 
 const pinnedThree = singlePin(pins, 'three');
 const adapterPin = singlePin(pins, record.adapter);
@@ -82,6 +98,18 @@ if (ONLINE) {
     violations.push(...online.violations);
     errors.push(...online.errors);
   }
+  const advertised = advertisedPins(pins);
+  const latest = new Map(
+    await Promise.all(
+      [...new Set(advertised.map((pin) => pin.name))].map(async (name) => [
+        name,
+        await read(`https://registry.npmjs.org/${name.replace('/', '%2F')}/latest`)
+      ])
+    )
+  );
+  const published = checkAdvertisedPublished(advertised, latest);
+  violations.push(...published.violations);
+  errors.push(...published.errors);
 }
 
 if (violations.length > 0) {
@@ -99,9 +127,14 @@ if (errors.length > 0) {
 }
 
 console.log(
-  `check-cdn-example: ${relative} pins @holotope/*@${release} and three@${pinnedThree}, ` +
+  `check-cdn-example: ${relative} pins @holotope/*@${record.version} and three@${pinnedThree}, ` +
     `the release the published ${record.adapter}@${record.version} resolves against` +
     (ONLINE
-      ? `; the registry publishes it with three "${record.peerThree}", and jsDelivr resolves it against the same three.`
-      : ' (as recorded; run --online to confirm against the registry and jsDelivr).')
+      ? `; the registry publishes it with three "${record.peerThree}" as its latest release, ` +
+        'and jsDelivr resolves it against the same three.'
+      : ' (as recorded; run --online to confirm against the registry and jsDelivr).') +
+    (record.version === release
+      ? ''
+      : `\n  The source is at ${release}; the page stays on the published ${record.version} ` +
+        'until that release is on the registry and the page and record are moved together.')
 );

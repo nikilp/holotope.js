@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  checkAdvertisedVersions,
   checkCiSucceededForCommit,
   checkTagAbsent,
   checkTagMatchesVersion,
@@ -129,31 +128,5 @@ describe('checkCiSucceededForCommit', () => {
       green('Deploy showcase and docs', SHA)
     ];
     expect(checkCiSucceededForCommit(runs, SHA, WORKFLOWS)).toEqual([]);
-  });
-});
-
-describe('checkAdvertisedVersions', () => {
-  const pin = (name: string, version: string) => ({
-    file: 'examples/showcase/public/cdn.html',
-    name,
-    version
-  });
-
-  it('accepts pins at the released version', () => {
-    expect(
-      checkAdvertisedVersions(
-        [pin('@holotope/core', '0.0.10'), pin('@holotope/three', '0.0.10')],
-        '0.0.10'
-      )
-    ).toEqual([]);
-  });
-
-  it('rejects a page still advertising the previous release', () => {
-    const violations = checkAdvertisedVersions(
-      [pin('@holotope/core', '0.0.9'), pin('@holotope/three', '0.0.10')],
-      '0.0.10'
-    );
-    expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain('@holotope/core@0.0.9');
   });
 });

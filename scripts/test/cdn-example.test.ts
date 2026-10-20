@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  checkAdvertisedPublished,
   checkDevelopmentPins,
   checkPagePins,
   checkPublishedConsumer,
+  checkRecordAgainstSource,
   checkSingleInstanceAssertion,
   judgeOnline,
   parseRange,
@@ -21,6 +23,11 @@ import {
  * the page was pinned to the development reference, the offline check agreed
  * because it compared the page with the repository, and the deployed page
  * loaded two copies of Three.js.
+ *
+ * The staging cases exist for a second defect: the offline check and the
+ * release preflight both demanded that the page pin the source version, while
+ * the page is deployed from `main` before a tag publishes that version, so
+ * satisfying them would have put an unloadable page live.
  */
 
 const FILE = 'examples/showcase/public/cdn.html';
@@ -54,10 +61,11 @@ import { SlicedComplex3D } from 'https://cdn.jsdelivr.net/npm/@holotope/three@${
     </script>`;
 }
 
-const offline = (text: string, record: object = RECORD, release = '0.0.22') => {
+const offline = (text: string, record: { version?: string } = RECORD, release = '0.0.22') => {
   const pins = pinnedVersions(text);
   return [
-    ...checkPagePins(FILE, pins, release, NAMES),
+    ...checkPagePins(FILE, pins, record.version, NAMES),
+    ...checkRecordAgainstSource(record, release),
     ...checkPublishedConsumer(FILE, pins, record),
     ...checkSingleInstanceAssertion(FILE, text)
   ];
@@ -121,13 +129,37 @@ describe('the published-consumer contract, offline', () => {
     expect(offline(text)).toContain(`${FILE}: names no three version, so nothing pins the shared copy`);
   });
 
+  it('accepts a staged release: the source leads, the page stays on the published record', () => {
+    expect(offline(page(), RECORD, '0.0.23')).toEqual([]);
+  });
+
   it('rejects a release that moves the page without re-verifying the record', () => {
     const violations = offline(page({ release: '0.0.23' }), RECORD, '0.0.23');
+    expect(violations).toContain(
+      `${FILE}: pins @holotope/core@0.0.23, but the published-consumer record describes 0.0.22; every @holotope pin follows the one verified published release`
+    );
     expect(violations.some((v: string) => /pins @holotope\/three@0\.0\.23, but the published-consumer record describes 0\.0\.22/.test(v))).toBe(true);
   });
 
-  it('rejects @holotope pins that are not the repository\'s release', () => {
-    expect(offline(page(), RECORD, '0.0.23').some((v: string) => /pins @holotope\/core@0\.0\.22, but this repository releases 0\.0\.23/.test(v))).toBe(true);
+  it('rejects moving one package ahead of the record while the adapter stays', () => {
+    const text = page().replaceAll('@holotope/core@0.0.22', '@holotope/core@0.0.23');
+    expect(offline(text, RECORD, '0.0.23')).toEqual([
+      `${FILE}: pins @holotope/core@0.0.23, but the published-consumer record describes 0.0.22; every @holotope pin follows the one verified published release`
+    ]);
+  });
+
+  it('rejects a record that leads the source version', () => {
+    expect(checkRecordAgainstSource({ ...RECORD, version: '0.0.23' }, '0.0.22')).toEqual([
+      'the published-consumer record describes 0.0.23, newer than this source\'s 0.0.22'
+    ]);
+    expect(checkRecordAgainstSource({ ...RECORD, version: 'next' }, '0.0.22')).toEqual([
+      'the published-consumer record\'s version next or the source version 0.0.22 cannot be read'
+    ]);
+  });
+
+  it('accepts the post-release refresh: page and record moved together to the published release', () => {
+    const refreshed = { ...RECORD, version: '0.0.23', peerThree: '>=0.184.0 <0.187.0', resolvedThree: '0.186.0' };
+    expect(offline(page({ release: '0.0.23', three: '0.186.0' }), refreshed, '0.0.23')).toEqual([]);
   });
 
   it('rejects a record whose resolved Three.js lies outside its own published range', () => {
@@ -240,5 +272,69 @@ describe('the published-consumer contract, online', () => {
   it('reports a malformed registry manifest as an error', () => {
     const { errors } = judge(adapterOk(), { url: REGISTRY_URL, status: 200, body: '<html>rate limited</html>' });
     expect(errors).toEqual([`${REGISTRY_URL}: no readable peerDependencies.three`]);
+  });
+});
+
+describe('advertised pins against the registry\'s latest release', () => {
+  const pin = (name: string, version: string) => ({ file: FILE, name, version });
+  const latestUrl = (name: string) => `https://registry.npmjs.org/${name.replace('/', '%2F')}/latest`;
+  const latestOk = (name: string, version: string) => ({
+    url: latestUrl(name),
+    status: 200,
+    body: JSON.stringify({ name, version })
+  });
+  const PINS = [pin('@holotope/core', '0.0.22'), pin('@holotope/three', '0.0.22')];
+  const registry = (core: object, three: object) =>
+    new Map<string, object>([['@holotope/core', core], ['@holotope/three', three]]);
+
+  it('accepts a staged release: the page pins what the registry calls latest', () => {
+    const latest = registry(latestOk('@holotope/core', '0.0.22'), latestOk('@holotope/three', '0.0.22'));
+    expect(checkAdvertisedPublished(PINS, latest)).toEqual({ violations: [], errors: [] });
+  });
+
+  it('rejects a page moved to the candidate before it is published', () => {
+    const early = [pin('@holotope/core', '0.0.23'), pin('@holotope/three', '0.0.23')];
+    const latest = registry(latestOk('@holotope/core', '0.0.22'), latestOk('@holotope/three', '0.0.22'));
+    const { violations, errors } = checkAdvertisedPublished(early, latest);
+    expect(errors).toEqual([]);
+    expect(violations).toEqual([
+      `${FILE} advertises @holotope/core@0.0.23, but the registry's latest is 0.0.22; a page deployed with it fails to load until that release is published`,
+      `${FILE} advertises @holotope/three@0.0.23, but the registry's latest is 0.0.22; a page deployed with it fails to load until that release is published`
+    ]);
+  });
+
+  it('reports the refresh still owed after publication, package by package', () => {
+    // A partial publication: core reached the registry, the adapter did not.
+    const latest = registry(latestOk('@holotope/core', '0.0.23'), latestOk('@holotope/three', '0.0.22'));
+    expect(checkAdvertisedPublished(PINS, latest)).toEqual({
+      violations: [
+        `${FILE} advertises @holotope/core@0.0.22, but the registry's latest is 0.0.23; move the pins and the published-consumer record to it, and confirm with check:cdn:online`
+      ],
+      errors: []
+    });
+  });
+
+  it('never reads a missing or unreadable registry answer as published', () => {
+    const latest = registry(
+      { url: latestUrl('@holotope/core'), status: 404, body: '{"error":"Not found"}' },
+      { url: latestUrl('@holotope/three'), error: 'fetch failed' }
+    );
+    expect(checkAdvertisedPublished(PINS, latest)).toEqual({
+      violations: [],
+      errors: [
+        `${latestUrl('@holotope/core')}: HTTP 404; whether @holotope/core@0.0.22 is published is unknown`,
+        `${latestUrl('@holotope/three')}: fetch failed; whether @holotope/three@0.0.22 is published is unknown`
+      ]
+    });
+  });
+
+  it('never reads a malformed or absent answer as published', () => {
+    const latest = new Map<string, object>([
+      ['@holotope/core', { url: latestUrl('@holotope/core'), status: 200, body: '<html>rate limited</html>' }]
+    ]);
+    expect(checkAdvertisedPublished(PINS, latest).errors).toEqual([
+      `${latestUrl('@holotope/core')}: no readable version`,
+      "@holotope/three: the registry's latest release was not read"
+    ]);
   });
 });
