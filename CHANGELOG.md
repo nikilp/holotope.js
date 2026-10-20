@@ -28,10 +28,13 @@ No option, default, tolerance, signature or exported type changes.
   the tie band; SAT could report a depth above the true minimum, overshoot
   into separation when aligning, and make the enumerator throw or return a
   patch of the wrong dimension — or discard the only separating axis. Every
-  candidate is now evaluated, each direction group keeps its most decisive
-  member, and the reported depth is the minimum over all 56 candidates. The
-  diagnostic counts keep their meaning: groups are still anchored to the
-  candidate that founded them.
+  nondegenerate candidate is now evaluated (degenerate axes are still
+  skipped), and each direction group keeps its most decisive member: a later
+  member replaces the one held only when it is more decisive beyond a
+  numerical tie band, so on a tie the earlier member — normally the facet that
+  founded the direction — is kept. The groups are then compared under the
+  same order and band. The diagnostic counts keep their meaning: groups are
+  still anchored to the candidate that founded them.
 - **SAT ties no longer drift with world position.** Each axis is evaluated
   from the projected centre offset and summed radii, and members of a group
   tie relative to the pair's own size. Previously, rounding of about
@@ -81,13 +84,6 @@ Declaration documentation only; no runtime change and no changed point set.
   `ammannBeenker`, `penrose`, `akn` and `elserSloane` windows already are.
   Regression tests in the repository pin the boundary behaviour.
 
-### Unchanged in this release
-
-### `@holotope/experiment@0.0.23`, `@holotope/experiment-physics@0.0.23`
-
-Version-synchronized only. No substantive package change; their dependencies
-on sibling packages move to `0.0.23`.
-
 ### Showcase, documentation and release tooling
 
 Not npm package surface.
@@ -103,6 +99,13 @@ Not npm package surface.
   it is deployed from `main` before a tag publishes anything, so it stays on
   the latest published release until a separate post-publication change moves
   it. The release preflight requires its pins to be the registry's `latest`.
+
+### Unchanged in this release
+
+### `@holotope/experiment@0.0.23`, `@holotope/experiment-physics@0.0.23`
+
+Version-synchronized only. No substantive package change; their dependencies
+on sibling packages move to `0.0.23`.
 
 ## v0.0.22
 
